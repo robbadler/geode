@@ -15,23 +15,24 @@
 
 package org.apache.geode.internal.cache.tier.sockets;
 
-import org.apache.geode.internal.cache.InternalCache;
-import org.apache.geode.internal.cache.tier.CommunicationMode;
-import org.apache.geode.internal.cache.tier.CachedRegionHelper;
-import org.apache.geode.internal.security.SecurityService;
-import org.apache.geode.test.junit.categories.UnitTest;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.contrib.java.lang.system.RestoreSystemProperties;
-import org.junit.experimental.categories.Category;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.contrib.java.lang.system.RestoreSystemProperties;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.tier.CachedRegionHelper;
+import org.apache.geode.internal.cache.tier.CommunicationMode;
+import org.apache.geode.internal.security.SecurityService;
+import org.apache.geode.test.junit.categories.UnitTest;
 
 /**
  * We don't test the path where the service providing protobufProtocolHandler is actually present,
@@ -56,17 +57,6 @@ public class ServerConnectionFactoryTest {
     ServerConnection serverConnection = serverConnectionMockedExceptForCommunicationMode(
         CommunicationMode.ProtobufClientServerProtocol.getModeNumber());
 
-  }
-
-  /**
-   * @throws ServiceLoadingFailureException because the service is implemented in a different
-   *         module, and when this unit test is run, that module won't be present.
-   */
-  @Test(expected = ServiceLoadingFailureException.class)
-  public void newClientProtocolFailsWithSystemPropertySet() throws IOException {
-    System.setProperty("geode.feature-protobuf-protocol", "true");
-    ServerConnection serverConnection = serverConnectionMockedExceptForCommunicationMode(
-        CommunicationMode.ProtobufClientServerProtocol.getModeNumber());
   }
 
   @Test

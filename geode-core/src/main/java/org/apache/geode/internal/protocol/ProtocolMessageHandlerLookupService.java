@@ -13,22 +13,26 @@
  * the License.
  */
 
-package org.apache.geode.internal.cache.tier.sockets;
+package org.apache.geode.internal.protocol;
 
-import java.util.Iterator;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.ServiceLoader;
 
-public class MessageHandlerFactory {
-  public ClientProtocolMessageHandler makeMessageHandler() {
+public class ProtocolMessageHandlerLookupService {
+  private Map<String, ClientProtocolMessageHandler> protocolMessageHandlers = new HashMap<>();
+
+  public ProtocolMessageHandlerLookupService() {
     ServiceLoader<ClientProtocolMessageHandler> loader =
         ServiceLoader.load(ClientProtocolMessageHandler.class);
-    Iterator<ClientProtocolMessageHandler> iterator = loader.iterator();
-
-    if (!iterator.hasNext()) {
-      throw new ServiceLoadingFailureException(
-          "There is no ClientProtocolMessageHandler implementation found in JVM");
+    for (ClientProtocolMessageHandler clientProtocolMessageHandler : loader) {
+      protocolMessageHandlers.put(clientProtocolMessageHandler.getMessageHandlerProtocolName(),
+          clientProtocolMessageHandler);
     }
 
-    return iterator.next();
+  }
+
+  public ClientProtocolMessageHandler lookupProtocolHandler(String protocolType) {
+    return protocolMessageHandlers.get(protocolType);
   }
 }

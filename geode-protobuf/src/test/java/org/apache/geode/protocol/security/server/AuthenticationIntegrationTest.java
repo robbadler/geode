@@ -12,27 +12,14 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.protocol;
+package org.apache.geode.protocol.security.server;
 
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.server.CacheServer;
-import org.apache.geode.distributed.ConfigurationProperties;
-import org.apache.geode.internal.AvailablePortHelper;
-import org.apache.geode.management.internal.security.ResourceConstants;
-import org.apache.geode.internal.protocol.protobuf.AuthenticationAPI;
-import org.apache.geode.internal.protocol.protobuf.ClientProtocol;
-import org.apache.geode.internal.protocol.protobuf.RegionAPI;
-import org.apache.geode.protocol.protobuf.serializer.ProtobufProtocolSerializer;
-import org.apache.geode.security.SecurityManager;
-import org.apache.geode.serialization.registry.exception.CodecAlreadyRegisteredForTypeException;
-import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.awaitility.Awaitility;
-import org.junit.After;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.contrib.java.lang.system.RestoreSystemProperties;
-import org.junit.experimental.categories.Category;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,12 +28,26 @@ import java.net.Socket;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.same;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import org.awaitility.Awaitility;
+import org.junit.After;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.contrib.java.lang.system.RestoreSystemProperties;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.cache.server.CacheServer;
+import org.apache.geode.distributed.ConfigurationProperties;
+import org.apache.geode.internal.AvailablePortHelper;
+import org.apache.geode.internal.protocol.protobuf.AuthenticationAPI;
+import org.apache.geode.internal.protocol.protobuf.ClientProtocol;
+import org.apache.geode.internal.protocol.protobuf.RegionAPI;
+import org.apache.geode.management.internal.security.ResourceConstants;
+import org.apache.geode.protocol.protobuf.serializer.ProtobufProtocolSerializer;
+import org.apache.geode.security.SecurityManager;
+import org.apache.geode.serialization.registry.exception.CodecAlreadyRegisteredForTypeException;
+import org.apache.geode.test.junit.categories.IntegrationTest;
 
 @Category(IntegrationTest.class)
 public class AuthenticationIntegrationTest {

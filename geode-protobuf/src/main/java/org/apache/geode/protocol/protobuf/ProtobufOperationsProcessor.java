@@ -15,11 +15,14 @@
 package org.apache.geode.protocol.protobuf;
 
 import org.apache.geode.annotations.Experimental;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
 import org.apache.geode.internal.exception.InvalidExecutionContextException;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.internal.protocol.protobuf.ClientProtocol;
+import org.apache.geode.internal.protocol.security.server.Authorizer;
 import org.apache.geode.protocol.protobuf.registry.OperationContextRegistry;
 import org.apache.geode.protocol.protobuf.utilities.ProtobufResponseUtilities;
+import org.apache.geode.protocol.responses.Failure;
+import org.apache.geode.protocol.responses.Result;
 import org.apache.geode.serialization.SerializationService;
 
 /**
@@ -27,25 +30,30 @@ import org.apache.geode.serialization.SerializationService;
  * it to the appropriate handler.
  */
 @Experimental
-public class ProtobufOpsProcessor {
+public class ProtobufOperationsProcessor {
 
   private final OperationContextRegistry operationContextRegistry;
   private final SerializationService serializationService;
+  private final Authorizer authorizer;
 
-  public ProtobufOpsProcessor(SerializationService serializationService,
-      OperationContextRegistry operationContextRegistry) {
+  ProtobufOperationsProcessor(SerializationService serializationService,
+      OperationContextRegistry operationContextRegistry, Authorizer autherizer) {
     this.serializationService = serializationService;
     this.operationContextRegistry = operationContextRegistry;
+    this.authorizer = autherizer;
   }
 
-  public ClientProtocol.Response process(ClientProtocol.Request request,
-      MessageExecutionContext context) {
+  public ClientProtocol.Response process(final ClientProtocol.Request request,
+      final MessageExecutionContext context) {
     ClientProtocol.Request.RequestAPICase requestType = request.getRequestAPICase();
     OperationContext operationContext = operationContextRegistry.getOperationContext(requestType);
     ClientProtocol.Response.Builder builder;
     Result result;
+
     try {
-      if (context.getAuthorizer().authorize(operationContext.getAccessPermissionRequired())) {
+      boolean authorized = authorizer.authorize(context.getAuthenticationToken(),
+          operationContext.getAccessPermissionRequired(), context.getSecurityManager());
+      if (authorized) {
         result = operationContext.getOperationHandler().process(serializationService,
             operationContext.getFromRequest().apply(request), context);
       } else {
@@ -63,4 +71,5 @@ public class ProtobufOpsProcessor {
         operationContext.getToErrorResponse());
     return builder.build();
   }
+
 }

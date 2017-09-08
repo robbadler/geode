@@ -26,20 +26,20 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.internal.cache.InternalCache;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
-import org.apache.geode.security.server.NoOpAuthorizer;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
-public class ProtobufStreamProcessorTest {
+public class ProtobufProtocolMessageHandlerTest {
   @Test(expected = EOFException.class)
   public void receiveMessage() throws Exception {
     InputStream inputStream = new ByteArrayInputStream(new byte[0]);
     OutputStream outputStream = new ByteArrayOutputStream(2);
 
-    ProtobufStreamProcessor protobufStreamProcessor = new ProtobufStreamProcessor();
+    ProtobufProtocolMessageHandler protobufProtocolMessageHandler =
+        new ProtobufProtocolMessageHandler();
     InternalCache mockInternalCache = mock(InternalCache.class);
-    protobufStreamProcessor.receiveMessage(inputStream, outputStream,
-        new MessageExecutionContext(mockInternalCache, new NoOpAuthorizer()));
+    protobufProtocolMessageHandler.receiveMessage(inputStream, outputStream,
+        new MessageExecutionContext(mockInternalCache, null, null));
   }
 }

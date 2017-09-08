@@ -37,11 +37,11 @@ public class OperationContext<OperationRequest, OperationResponse> {
     this.operationHandler = operationHandler;
     this.fromRequest = fromRequest;
     this.toResponse = toResponse;
-    this.toErrorResponse = OperationContext::makeErrorBuilder;
+    this.toErrorResponse = this::makeErrorBuilder;
     accessPermissionRequired = permissionRequired;
   }
 
-  public static ClientProtocol.Response.Builder makeErrorBuilder(
+  private ClientProtocol.Response.Builder makeErrorBuilder(
       ClientProtocol.ErrorResponse errorResponse) {
     return ClientProtocol.Response.newBuilder().setErrorResponse(errorResponse);
   }

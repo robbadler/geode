@@ -12,37 +12,28 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.security.server;
+
+package org.apache.geode.internal.protocol;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import org.apache.geode.security.SecurityManager;
+import org.apache.geode.internal.cache.tier.sockets.GenericProtocolServerConnection;
+import org.apache.geode.internal.cache.tier.sockets.ServerConnectionFactory;
+
 
 /**
- * An implementation of {@link Authenticator} that doesn't use its parameters and always returns
- * true.
+ * This is an interface that other modules can implement to hook into
+ * {@link GenericProtocolServerConnection} to handle messages sent to Geode.
+ *
+ * Currently, only one {@link ClientProtocolMessageHandler} at a time can be used in a Geode
+ * instance. It gets wired into {@link ServerConnectionFactory} to create all instances of
+ * {@link GenericProtocolServerConnection}.
  */
-public class NoOpAuthenticator implements Authenticator {
-  @Override
-  public void authenticate(InputStream inputStream, OutputStream outputStream,
-      SecurityManager securityManager) throws IOException {
-    // this method needs to do nothing as it is a pass-through implementation
-  }
+public interface ClientProtocolMessageHandler {
+  void receiveMessage(InputStream inputStream, OutputStream outputStream,
+      MessageExecutionContext executionContext) throws IOException;
 
-  @Override
-  public boolean isAuthenticated() {
-    return true;
-  }
-
-  @Override
-  public Authorizer getAuthorizer() {
-    return new NoOpAuthorizer();
-  }
-
-  @Override
-  public String implementationID() {
-    return "NOOP";
-  }
+  String getMessageHandlerProtocolName();
 }

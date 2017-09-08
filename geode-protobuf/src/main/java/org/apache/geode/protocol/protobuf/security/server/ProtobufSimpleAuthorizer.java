@@ -12,23 +12,21 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
+package org.apache.geode.protocol.protobuf.security.server;
 
-package org.apache.geode.internal.cache.tier.sockets;
+import org.apache.geode.internal.protocol.security.server.Authorizer;
+import org.apache.geode.security.ResourcePermission;
+import org.apache.geode.security.SecurityManager;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+public class ProtobufSimpleAuthorizer implements Authorizer {
+  @Override
+  public boolean authorize(Object authenticatedPrincipal, ResourcePermission permissionRequested,
+      SecurityManager securityManager) {
+    return securityManager.authorize(authenticatedPrincipal, permissionRequested);
+  }
 
-
-/**
- * This is an interface that other modules can implement to hook into
- * {@link GenericProtocolServerConnection} to handle messages sent to Geode.
- *
- * Currently, only one {@link ClientProtocolMessageHandler} at a time can be used in a Geode
- * instance. It gets wired into {@link ServerConnectionFactory} to create all instances of
- * {@link GenericProtocolServerConnection}.
- */
-public interface ClientProtocolMessageHandler {
-  void receiveMessage(InputStream inputStream, OutputStream outputStream,
-      MessageExecutionContext executionContext) throws IOException;
+  @Override
+  public String getImplementationID() {
+    return "SIMPLE";
+  }
 }

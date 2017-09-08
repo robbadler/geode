@@ -15,22 +15,21 @@
 package org.apache.geode.protocol.protobuf.operations;
 
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.annotations.Experimental;
 import org.apache.geode.cache.Region;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.internal.exception.InvalidExecutionContextException;
 import org.apache.geode.protocol.operations.OperationHandler;
 import org.apache.geode.internal.protocol.protobuf.BasicTypes;
-import org.apache.geode.protocol.protobuf.Failure;
+import org.apache.geode.protocol.responses.Failure;
 import org.apache.geode.protocol.protobuf.ProtocolErrorCode;
 import org.apache.geode.internal.protocol.protobuf.RegionAPI;
-import org.apache.geode.protocol.protobuf.Result;
-import org.apache.geode.protocol.protobuf.Success;
+import org.apache.geode.protocol.responses.Result;
+import org.apache.geode.protocol.responses.Success;
 import org.apache.geode.protocol.protobuf.utilities.ProtobufResponseUtilities;
 import org.apache.geode.protocol.protobuf.utilities.ProtobufUtilities;
 import org.apache.geode.serialization.SerializationService;
@@ -54,10 +53,10 @@ public class PutAllRequestOperationHandler
           "Region passed by client did not exist: " + putAllRequest.getRegionName(), logger, null));
     }
 
-    RegionAPI.PutAllResponse.Builder builder = RegionAPI.PutAllResponse.newBuilder()
-        .addAllFailedKeys(putAllRequest.getEntryList().stream()
-            .map((entry) -> singlePut(serializationService, region, entry)).filter(Objects::nonNull)
-            .collect(Collectors.toList()));
+    RegionAPI.PutAllResponse.Builder builder = RegionAPI.PutAllResponse.newBuilder();
+    putAllRequest.getEntryList().stream()
+        .map((entry) -> singlePut(serializationService, region, entry)).filter(Objects::nonNull)
+        .forEach(failedKey -> builder.addFailedKeys(failedKey));
     return Success.of(builder.build());
   }
 

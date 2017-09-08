@@ -19,12 +19,20 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.tier.CachedRegionHelper;
 import org.apache.geode.internal.cache.tier.CommunicationMode;
+import org.apache.geode.internal.protocol.ClientProtocolMessageHandler;
+import org.apache.geode.internal.protocol.security.server.AuthenticatorLookupService;
 import org.apache.geode.internal.security.SecurityService;
-import org.apache.geode.security.server.NoOpAuthenticator;
 import org.apache.geode.test.junit.categories.UnitTest;
 
 import org.junit.Test;
@@ -79,6 +87,7 @@ public class GenericProtocolServerConnectionTest {
     return new GenericProtocolServerConnection(socketMock, mock(InternalCache.class),
         mock(CachedRegionHelper.class), mock(CacheServerStats.class), 0, 0, "",
         CommunicationMode.ProtobufClientServerProtocol.getModeNumber(), mock(AcceptorImpl.class),
-        clientProtocolMock, mock(SecurityService.class), new NoOpAuthenticator());
+        mock(SecurityService.class), clientProtocolMock,
+        new AuthenticatorLookupService().getAuthenticator());
   }
 }

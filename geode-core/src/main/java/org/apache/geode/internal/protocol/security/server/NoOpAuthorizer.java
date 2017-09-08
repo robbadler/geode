@@ -12,13 +12,23 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.protocol.protobuf.utilities.exception;
+package org.apache.geode.internal.protocol.security.server;
 
-import org.apache.geode.annotations.Experimental;
+import org.apache.geode.security.ResourcePermission;
+import org.apache.geode.security.SecurityManager;
 
-@Experimental
-public class UnknownProtobufPrimitiveType extends Exception {
-  public UnknownProtobufPrimitiveType(String message) {
-    super(message);
+/**
+ * An implementation of {@link Authorizer} that doesn't use its parameters and always returns true.
+ */
+public class NoOpAuthorizer implements Authorizer {
+  @Override
+  public boolean authorize(Object authenticatedToken, ResourcePermission permissionRequested,
+      SecurityManager securityManager) {
+    return true;
+  }
+
+  @Override
+  public String getImplementationID() {
+    return "NOOP";
   }
 }

@@ -12,10 +12,13 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.security.server;
+package org.apache.geode.protocol.exception;
 
-import org.apache.geode.security.ResourcePermission;
+import org.apache.geode.annotations.Experimental;
 
-public interface Authorizer {
-  boolean authorize(ResourcePermission permissionRequested);
+@Experimental
+public class UnknownProtobufPrimitiveType extends Exception {
+  public UnknownProtobufPrimitiveType(String message) {
+    super(message);
+  }
 }

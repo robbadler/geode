@@ -12,13 +12,13 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.security.server;
+package org.apache.geode.internal.protocol.security.server;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import org.apache.geode.security.AuthenticationRequiredException;
+import org.apache.geode.annotations.Experimental;
 import org.apache.geode.security.SecurityManager;
 
 /**
@@ -28,15 +28,17 @@ import org.apache.geode.security.SecurityManager;
  * If authentication fails, an implementor may continue to wait for another valid authentication
  * exchange.
  */
+@Experimental
 public interface Authenticator {
   /**
    *
    * @param inputStream to read auth messages from.
    * @param outputStream to send messages to.
    * @param securityManager can be used for validating credentials against.
+   * @return a authentication token that proves that the remote entity was authenticated
    * @throws IOException if EOF or if invalid input is received.
    */
-  void authenticate(InputStream inputStream, OutputStream outputStream,
+  Object authenticate(InputStream inputStream, OutputStream outputStream,
       SecurityManager securityManager) throws IOException;
 
   /**
@@ -47,13 +49,7 @@ public interface Authenticator {
   boolean isAuthenticated();
 
   /**
-   * Return an authorization object which can be used to determine which permissions this stream has
-   * according to the provided securityManager.
-   */
-  Authorizer getAuthorizer() throws AuthenticationRequiredException;
-
-  /**
    * @return a unique identifier for this particular implementation (NOOP, PASSTHROUGH, etc.)
    */
-  String implementationID();
+  String getImplementationID();
 }

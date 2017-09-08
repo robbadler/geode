@@ -12,7 +12,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.protocol;
+package org.apache.geode.protocol.security.server;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -73,7 +73,6 @@ public class AuthorizationIntegrationTest {
   private ProtobufProtocolSerializer protobufProtocolSerializer;
   private Object securityPrincipal;
   private SecurityManager mockSecurityManager;
-  private String testRegion;
   public static final ResourcePermission READ_PERMISSION =
       new ResourcePermission(ResourcePermission.Resource.DATA, ResourcePermission.Operation.READ);
   public static final ResourcePermission WRITE_PERMISSION =
@@ -81,6 +80,10 @@ public class AuthorizationIntegrationTest {
 
   @Before
   public void setUp() throws IOException, CodecAlreadyRegisteredForTypeException {
+
+    System.setProperty("geode.feature-protobuf-protocol", "true");
+    System.setProperty("geode.protocol-authentication-mode", "SIMPLE");
+
     Properties expectedAuthProperties = new Properties();
     expectedAuthProperties.setProperty(ResourceConstants.USER_NAME, TEST_USERNAME);
     expectedAuthProperties.setProperty(ResourceConstants.PASSWORD, TEST_PASSWORD);
@@ -103,8 +106,6 @@ public class AuthorizationIntegrationTest {
 
     cache.createRegionFactory().create(TEST_REGION);
 
-    System.setProperty("geode.feature-protobuf-protocol", "true");
-    System.setProperty("geode.protocol-authentication-mode", "SIMPLE");
     socket = new Socket("localhost", cacheServerPort);
 
     Awaitility.await().atMost(5, TimeUnit.SECONDS).until(socket::isConnected);

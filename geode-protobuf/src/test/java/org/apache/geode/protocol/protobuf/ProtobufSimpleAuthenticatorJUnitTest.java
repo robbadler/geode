@@ -15,27 +15,30 @@
 
 package org.apache.geode.protocol.protobuf;
 
-import org.apache.geode.examples.security.ExampleSecurityManager;
-import org.apache.geode.management.internal.security.ResourceConstants;
-import org.apache.geode.internal.protocol.protobuf.AuthenticationAPI;
-import org.apache.geode.security.AuthenticationFailedException;
-import org.apache.geode.security.SecurityManager;
-import org.apache.geode.test.junit.categories.UnitTest;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.Properties;
-
+import static org.apache.geode.internal.Assert.fail;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Properties;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.examples.security.ExampleSecurityManager;
+import org.apache.geode.internal.protocol.protobuf.AuthenticationAPI;
+import org.apache.geode.management.internal.security.ResourceConstants;
+import org.apache.geode.protocol.protobuf.security.server.ProtobufSimpleAuthenticator;
+import org.apache.geode.security.AuthenticationFailedException;
+import org.apache.geode.security.SecurityManager;
+import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
 public class ProtobufSimpleAuthenticatorJUnitTest {
@@ -96,8 +99,12 @@ public class ProtobufSimpleAuthenticatorJUnitTest {
     when(mockSecurityManager.authenticate(expectedAuthProperties))
         .thenThrow(new AuthenticationFailedException("BOOM!"));
 
-    protobufSimpleAuthenticator.authenticate(byteArrayInputStream, byteArrayOutputStream,
-        mockSecurityManager);
+    try {
+      protobufSimpleAuthenticator.authenticate(byteArrayInputStream, byteArrayOutputStream,
+          mockSecurityManager);
+      fail("This should throw an AuthenticationFailedException.");
+    } catch (AuthenticationFailedException e) {
+    }
 
     AuthenticationAPI.SimpleAuthenticationResponse simpleAuthenticationResponse =
         getSimpleAuthenticationResponse(byteArrayOutputStream);

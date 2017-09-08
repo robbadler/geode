@@ -15,18 +15,21 @@
 
 package org.apache.geode.internal.cache.tier.sockets;
 
-import org.apache.geode.internal.cache.InternalCache;
-import org.apache.geode.internal.cache.tier.Acceptor;
-import org.apache.geode.internal.cache.tier.CachedRegionHelper;
-import org.apache.geode.internal.security.SecurityService;
-import org.apache.geode.security.SecurityManager;
-import org.apache.geode.security.server.Authenticator;
-
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+
+import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.tier.Acceptor;
+import org.apache.geode.internal.cache.tier.CachedRegionHelper;
+import org.apache.geode.internal.protocol.ClientProtocolMessageHandler;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
+import org.apache.geode.internal.protocol.security.server.Authenticator;
+import org.apache.geode.internal.security.SecurityService;
+import org.apache.geode.security.AuthenticationFailedException;
+import org.apache.geode.security.SecurityManager;
 
 /**
  * Holds the socket and protocol handler for the new client protocol.
@@ -41,14 +44,15 @@ public class GenericProtocolServerConnection extends ServerConnection {
    * Creates a new <code>GenericProtocolServerConnection</code> that processes messages received
    * from an edge client over a given <code>Socket</code>.
    */
-  public GenericProtocolServerConnection(Socket s, InternalCache c, CachedRegionHelper helper,
-      CacheServerStats stats, int hsTimeout, int socketBufferSize, String communicationModeStr,
-      byte communicationMode, Acceptor acceptor, ClientProtocolMessageHandler newClientProtocol,
-      SecurityService securityService, Authenticator authenticator) {
-    super(s, c, helper, stats, hsTimeout, socketBufferSize, communicationModeStr, communicationMode,
-        acceptor, securityService);
+  GenericProtocolServerConnection(Socket socket, InternalCache cache,
+      CachedRegionHelper cachedRegionHelper, CacheServerStats cacheServerStats, int hsTimeout,
+      int socketBufferSize, String communicationModeStr, byte communicationMode, Acceptor acceptor,
+      SecurityService securityService, ClientProtocolMessageHandler clientProtocolMessageHandler,
+      Authenticator authenticator) {
+    super(socket, cache, cachedRegionHelper, cacheServerStats, hsTimeout, socketBufferSize,
+        communicationModeStr, communicationMode, acceptor, securityService);
     securityManager = securityService.getSecurityManager();
-    this.messageHandler = newClientProtocol;
+    this.messageHandler = clientProtocolMessageHandler;
     this.authenticator = authenticator;
   }
 
@@ -59,12 +63,14 @@ public class GenericProtocolServerConnection extends ServerConnection {
       InputStream inputStream = socket.getInputStream();
       OutputStream outputStream = socket.getOutputStream();
 
-      if (!authenticator.isAuthenticated()) {
-        authenticator.authenticate(inputStream, outputStream, securityManager);
-      } else {
-        messageHandler.receiveMessage(inputStream, outputStream,
-            new MessageExecutionContext(this.getCache(), authenticator.getAuthorizer()));
-      }
+      Object authenticationToken =
+          authenticator.authenticate(inputStream, outputStream, securityManager);
+      messageHandler.receiveMessage(inputStream, outputStream,
+          new MessageExecutionContext(this.getCache(), authenticationToken, securityManager));
+    } catch (AuthenticationFailedException e) {
+      logger.warn(e);
+      this.setFlagProcessMessagesAsFalse();
+      setClientDisconnectedException(e);
     } catch (EOFException e) {
       this.setFlagProcessMessagesAsFalse();
       setClientDisconnectedException(e);

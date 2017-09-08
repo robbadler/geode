@@ -58,9 +58,9 @@ import org.apache.geode.internal.VersionedDataInputStream;
 import org.apache.geode.internal.VersionedDataOutputStream;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.tier.CommunicationMode;
-import org.apache.geode.internal.cache.tier.sockets.ClientProtocolMessageHandler;
+import org.apache.geode.internal.protocol.ClientProtocolMessageHandler;
 import org.apache.geode.internal.cache.tier.sockets.HandShake;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.net.SocketCreator;
 import org.apache.geode.internal.net.SocketCreatorFactory;
@@ -97,12 +97,7 @@ public class TcpServer {
   // GossipServer.
   public final static int OLDGOSSIPVERSION = 1001;
 
-  private static/* GemStoneAddition */ final Map GOSSIP_TO_GEMFIRE_VERSION_MAP = new HashMap();
-
-  /**
-   * For the new client-server protocol, which ignores the usual handshake mechanism.
-   */
-  public static final byte PROTOBUF_CLIENT_SERVER_PROTOCOL = (byte) 110;
+  private static final Map GOSSIP_TO_GEMFIRE_VERSION_MAP = new HashMap();
 
   // For test purpose only
   public static boolean isTesting = false;
@@ -117,7 +112,7 @@ public class TcpServer {
 
   private static final Logger log = LogService.getLogger();
 
-  protected/* GemStoneAddition */ final/* GemStoneAddition */ static int READ_TIMEOUT =
+  protected final static int READ_TIMEOUT =
       Integer.getInteger(DistributionConfig.GEMFIRE_PREFIX + "TcpServer.READ_TIMEOUT", 60 * 1000);
   // This is for backwards compatibility. The p2p.backlog flag used to be the only way to configure
   // the locator backlog.
@@ -372,8 +367,8 @@ public class TcpServer {
 
         short versionOrdinal;
         if (gossipVersion == NON_GOSSIP_REQUEST_VERSION) {
-          if (input.readUnsignedByte() == PROTOBUF_CLIENT_SERVER_PROTOCOL
-              && Boolean.getBoolean("geode.feature-protobuf-protocol")) {
+          if (input.readUnsignedByte() == CommunicationMode.ProtobufClientServerProtocol
+              .getModeNumber() && Boolean.getBoolean("geode.feature-protobuf-protocol")) {
             messageHandler.receiveMessage(input, socket.getOutputStream(),
                 new MessageExecutionContext(internalLocator));
           } else {
