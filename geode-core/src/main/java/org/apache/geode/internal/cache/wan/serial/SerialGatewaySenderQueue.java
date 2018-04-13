@@ -33,6 +33,7 @@ import org.apache.geode.CancelException;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.AttributesMutator;
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.CacheListener;
 import org.apache.geode.cache.CacheWriterException;
@@ -52,15 +53,15 @@ import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.cache.CachedDeserializable;
 import org.apache.geode.internal.cache.Conflatable;
-import org.apache.geode.internal.cache.event.EventTracker;
 import org.apache.geode.internal.cache.DistributedRegion;
 import org.apache.geode.internal.cache.EntryEventImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.InternalRegionArguments;
 import org.apache.geode.internal.cache.LocalRegion;
-import org.apache.geode.internal.cache.event.NonDistributedEventTracker;
 import org.apache.geode.internal.cache.RegionQueue;
 import org.apache.geode.internal.cache.Token;
+import org.apache.geode.internal.cache.event.EventTracker;
+import org.apache.geode.internal.cache.event.NonDistributedEventTracker;
 import org.apache.geode.internal.cache.versions.RegionVersionVector;
 import org.apache.geode.internal.cache.versions.VersionSource;
 import org.apache.geode.internal.cache.wan.AbstractGatewaySender;
@@ -70,6 +71,9 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.offheap.OffHeapRegionEntryHelper;
+import org.apache.geode.management.ManagementService;
+import org.apache.geode.management.internal.beans.AsyncEventQueueMBean;
+import org.apache.geode.management.internal.beans.GatewaySenderMBean;
 import org.apache.geode.pdx.internal.PeerTypeRegistration;
 
 /**
@@ -410,7 +414,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
   /**
    * This method removes batchSize entries from the queue. It will only remove entries that were
    * previously peeked.
-   * 
+   *
    * @param size the number of entries to remove
    */
   public void remove(int size) throws CacheException {
@@ -660,9 +664,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
 
   /**
    * returns true if key a is before key b. This test handles keys that have wrapped around
-   * 
-   * @param a
-   * @param b
+   *
    */
   private boolean before(long a, long b) {
     // a is before b if a < b or a>b and a MAXIMUM_KEY/2 larger than b
@@ -685,8 +687,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
 
   /**
    * Finds the next object after the last key peeked
-   * 
-   * @throws CacheException
+   *
    */
   private Long getCurrentKey() {
     long currentKey;
@@ -763,9 +764,8 @@ public class SerialGatewaySenderQueue implements RegionQueue {
   /**
    * Returns the value of the tail key. The tail key points to an empty where the next queue entry
    * will be stored.
-   * 
+   *
    * @return the value of the tail key
-   * @throws CacheException
    */
   private long getTailKey() throws CacheException {
     long tlKey;
@@ -789,8 +789,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
 
   /**
    * Increments the value of the tail key by one.
-   * 
-   * @throws CacheException
+   *
    */
   private void incrementTailKey() throws CacheException {
     this.tailKey.set(inc(this.tailKey.get()));
@@ -802,16 +801,15 @@ public class SerialGatewaySenderQueue implements RegionQueue {
 
   /**
    * If the keys are not yet initialized, initialize them from the region .
-   * 
+   *
    * TODO - We could initialize the indexes maps at the time here. However, that would require
    * iterating over the values of the region rather than the keys, which could be much more
    * expensive if the region has overflowed to disk.
-   * 
+   *
    * We do iterate over the values of the region in SerialGatewaySender at the time of failover. see
    * SerialGatewaySender.handleFailover. So there's a possibility we can consolidate that code with
    * this method and iterate over the region once.
-   * 
-   * @throws CacheException
+   *
    */
   private void initializeKeys() throws CacheException {
     if (tailKey.get() != -1) {
@@ -872,9 +870,8 @@ public class SerialGatewaySenderQueue implements RegionQueue {
   /**
    * Returns the value of the head key. The head key points to the next entry to be removed from the
    * queue.
-   * 
+   *
    * @return the value of the head key
-   * @throws CacheException
    */
   private long getHeadKey() throws CacheException {
     long hKey;
@@ -897,8 +894,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
 
   /**
    * Increments the value of the head key by one.
-   * 
-   * @throws CacheException
+   *
    */
   private void updateHeadKey(long destroyedKey) throws CacheException {
     this.headKey = inc(destroyedKey);
@@ -912,7 +908,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
    * Initializes the <code>Region</code> backing this queue. The <code>Region</code>'s scope is
    * DISTRIBUTED_NO_ACK and mirror type is KEYS_VALUES and is set to overflow to disk based on the
    * <code>GatewayQueueAttributes</code>.
-   * 
+   *
    * @param sender The GatewaySender <code>SerialGatewaySenderImpl</code>
    * @param listener The GemFire <code>CacheListener</code>. The <code>CacheListener</code> can be
    *        null.
@@ -962,6 +958,8 @@ public class SerialGatewaySenderQueue implements RegionQueue {
                   .setIsUsedForSerialGatewaySenderQueue(true).setInternalRegion(true)
                   .setSerialGatewaySender(sender));
 
+          // Add overflow statistics to the mbean
+          addOverflowStatisticsToMBean(gemCache, sender);
         } catch (IOException veryUnLikely) {
           logger.fatal(LocalizedMessage.create(
               LocalizedStrings.SingleWriteSingleReadRegionQueue_UNEXPECTED_EXCEPTION_DURING_INIT_OF_0,
@@ -982,6 +980,35 @@ public class SerialGatewaySenderQueue implements RegionQueue {
     } else {
       throw new IllegalStateException(
           "Queue region " + this.region.getFullPath() + " already exists.");
+    }
+  }
+
+  private void addOverflowStatisticsToMBean(Cache cache, AbstractGatewaySender sender) {
+    // Get the appropriate mbean and add the overflow stats to it
+    LocalRegion lr = (LocalRegion) this.region;
+    ManagementService service = ManagementService.getManagementService(cache);
+    if (sender.getId().contains(AsyncEventQueueImpl.ASYNC_EVENT_QUEUE_PREFIX)) {
+      AsyncEventQueueMBean bean = (AsyncEventQueueMBean) service.getLocalAsyncEventQueueMXBean(
+          AsyncEventQueueImpl.getAsyncEventQueueIdFromSenderId(sender.getId()));
+
+      if (bean != null) {
+        // Add the eviction stats
+        bean.getBridge().addOverflowStatistics(lr.getEvictionStatistics());
+
+        // Add the disk region stats
+        bean.getBridge().addOverflowStatistics(lr.getDiskRegion().getStats().getStats());
+      }
+    } else {
+      GatewaySenderMBean bean =
+          (GatewaySenderMBean) service.getLocalGatewaySenderMXBean(sender.getId());
+
+      if (bean != null) {
+        // Add the eviction stats
+        bean.getBridge().addOverflowStatistics(lr.getEvictionStatistics());
+
+        // Add the disk region stats
+        bean.getBridge().addOverflowStatistics(lr.getDiskRegion().getStats().getStats());
+      }
     }
   }
 
@@ -1019,8 +1046,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
 
     /**
      * Constructor : Creates and initializes the thread
-     * 
-     * @param c
+     *
      */
     public BatchRemovalThread(InternalCache c) {
       this.setDaemon(true);
@@ -1237,7 +1263,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
     }
 
     @Override
-    protected void basicDestroy(final EntryEventImpl event, final boolean cacheWrite,
+    public void basicDestroy(final EntryEventImpl event, final boolean cacheWrite,
         Object expectedOldValue)
         throws EntryNotFoundException, CacheWriterException, TimeoutException {
       try {

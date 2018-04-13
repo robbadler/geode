@@ -37,8 +37,8 @@ import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.Scope;
 import org.apache.geode.cache.SubscriptionAttributes;
 import org.apache.geode.distributed.Role;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionAdvisor;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.MembershipListener;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
@@ -136,7 +136,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
   /**
    * Returns a the set of members that either want all events or are caching data.
-   * 
+   *
    * @param excludeInRecovery if true then members in recovery are excluded
    */
   private Set adviseAllEventsOrCached(final boolean excludeInRecovery)
@@ -180,7 +180,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
   /**
    * Provide recipient information for TX lock and commit.
-   * 
+   *
    * @return Set of Serializable members that the current transaction will be distributed to.
    *         Currently this is any other member who has this region defined. No reference to Set
    *         kept by advisor so caller is free to modify it
@@ -224,7 +224,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
   /**
    * Provide recipient information for netLoad
-   * 
+   *
    * @return Set of Serializable members that have a CacheLoader installed; no reference to Set kept
    *         by advisor so caller is free to modify it
    */
@@ -262,7 +262,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
   /**
    * Same as adviseCacheOp but only includes members that are playing the specified role.
-   * 
+   *
    * @since GemFire 5.0
    */
   public Set adviseCacheOpRole(final Role role) {
@@ -306,7 +306,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
   /**
    * Provide recipient information for netWrite
-   * 
+   *
    * @return Set of Serializable member ids that have a CacheWriter installed; no reference to Set
    *         kept by advisor so caller is free to modify it
    */
@@ -340,7 +340,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
   /**
    * Provide recipient information for netSearch
-   * 
+   *
    * @return Set of Serializable member ids that have the region and are have storage (no need to
    *         search an empty cache)
    */
@@ -370,7 +370,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
       boolean persistent) {
     initializationGate();
 
-    if (logger.isTraceEnabled(LogMarker.DA)) {
+    if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
       dumpProfiles("AdviseInitialImage");
     }
 
@@ -448,7 +448,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
   /**
    * returns the set of all the members in the system which requires old values and are not yet
    * finished with initialization (including GII).
-   * 
+   *
    * @since GemFire 5.5
    */
   public Set adviseRequiresOldValueInCacheOp() {
@@ -534,7 +534,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
      * Whether the region has completed initialization, including GII. This information may be
      * incorrect for a PartitionedRegion, but may be relied upon for DistributedRegions (including
      * BucketRegions)
-     * 
+     *
      * @since GemFire prpersist this field is now overloaded for partitioned regions with
      *        persistence. In the case of pr persistence, this field indicates that the region has
      *        finished recovery from disk.
@@ -643,7 +643,6 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
     }
 
     /**
-     * @param bits
      * @return true if the serialized message has a persistentID
      */
     private boolean hasPersistentID(int bits) {
@@ -701,7 +700,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
     /**
      * Sets the SubscriptionAttributes for the region that this profile is on
-     * 
+     *
      * @since GemFire 5.0
      */
     public void setSubscriptionAttributes(SubscriptionAttributes sa) {
@@ -744,15 +743,16 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
      * Used to process an incoming cache profile.
      */
     @Override
-    public void processIncoming(DistributionManager dm, String adviseePath, boolean removeProfile,
-        boolean exchangeProfiles, final List<Profile> replyProfiles) {
+    public void processIncoming(ClusterDistributionManager dm, String adviseePath,
+        boolean removeProfile, boolean exchangeProfiles, final List<Profile> replyProfiles) {
       try {
         Assert.assertTrue(adviseePath != null, "adviseePath was null");
 
-        LocalRegion lclRgn;
+        InternalRegion lclRgn;
         int oldLevel = LocalRegion.setThreadInitLevelRequirement(LocalRegion.ANY_INIT);
         try {
-          lclRgn = LocalRegion.getRegionFromPath(dm.getSystem(), adviseePath);
+          InternalCache cache = dm.getCache();
+          lclRgn = cache == null ? null : cache.getRegionByPath(adviseePath);
         } finally {
           LocalRegion.setThreadInitLevelRequirement(oldLevel);
         }
@@ -797,7 +797,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
     /**
      * Attempts to process this message with the specified <code>CacheDistributionAdvisee</code>.
-     * 
+     *
      * @param cda the CacheDistributionAdvisee to apply this profile to
      * @param isRealRegion true if CacheDistributionAdvisee is a real region
      */
@@ -844,7 +844,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
     private void writeSet(Set<?> set, DataOutput out) throws IOException {
       // to fix bug 47205 always serialize the Set as a HashSet.
-      out.writeByte(DSCODE.HASH_SET);
+      out.writeByte(DSCODE.HASH_SET.toByte());
       InternalDataSerializer.writeSet(set, out);
     }
 
@@ -998,7 +998,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
   /**
    * Provide only the new replicates given a set of existing memberIds
-   * 
+   *
    * @param oldRecipients the <code>Set</code> of memberIds that have received the message
    * @return the set of new replicate's memberIds
    * @since GemFire 5.1
@@ -1023,7 +1023,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
   /**
    * Provide all the replicates including persistent replicates.
-   * 
+   *
    * @return the set of replicate's memberIds
    * @since GemFire 5.8
    */
@@ -1042,7 +1042,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
   /**
    * Provide only the preloadeds given a set of existing memberIds
-   * 
+   *
    * @return the set of preloaded's memberIds
    * @since GemFire prPersistSprint1
    */
@@ -1061,7 +1061,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
   /**
    * Provide only the empty's (having DataPolicy.EMPTY) given a set of existing memberIds
-   * 
+   *
    * @return the set of replicate's memberIds
    * @since GemFire 5.8
    */
@@ -1080,7 +1080,7 @@ public class CacheDistributionAdvisor extends DistributionAdvisor {
 
   /**
    * Provide only the normals (having DataPolicy.NORMAL) given a set of existing memberIds
-   * 
+   *
    * @return the set of normal's memberIds
    * @since GemFire 5.8
    */

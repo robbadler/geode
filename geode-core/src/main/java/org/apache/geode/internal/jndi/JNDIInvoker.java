@@ -14,27 +14,37 @@
  */
 package org.apache.geode.internal.jndi;
 
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import javax.naming.Binding;
+import javax.naming.Context;
+import javax.naming.InitialContext;
+import javax.naming.NameNotFoundException;
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.NoInitialContextException;
+import javax.transaction.SystemException;
+import javax.transaction.TransactionManager;
+
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.i18n.LogWriterI18n;
 import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.datasource.AbstractDataSource;
 import org.apache.geode.internal.datasource.ClientConnectionFactoryWrapper;
+import org.apache.geode.internal.datasource.ConfigProperty;
 import org.apache.geode.internal.datasource.DataSourceCreateException;
 import org.apache.geode.internal.datasource.DataSourceFactory;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.jta.TransactionManagerImpl;
 import org.apache.geode.internal.jta.TransactionUtils;
 import org.apache.geode.internal.jta.UserTransactionImpl;
-
-import javax.naming.*;
-import javax.transaction.SystemException;
-import javax.transaction.TransactionManager;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
 
 /**
  * <p>
@@ -53,7 +63,7 @@ import java.util.Map;
  * available JNDI tree. The transactional datasource (XADataSource) will make use of available
  * TransactionManager.
  * </p>
- * 
+ *
  */
 public class JNDIInvoker {
 
@@ -112,7 +122,7 @@ public class JNDIInvoker {
    * UserTransaction is not available, the GemFire TransactionManager / UserTransaction will be
    * bound to the JNDI tree.
    * </p>
-   * 
+   *
    */
   public static void mapTransactions(DistributedSystem distSystem) {
     try {
@@ -290,8 +300,7 @@ public class JNDIInvoker {
 
   /**
    * Initialises the GemFire context. This is called when no external JNDI Context is found.
-   * 
-   * @throws NamingException
+   *
    */
   private static void initializeGemFireContext() throws NamingException {
     Hashtable table = new Hashtable();
@@ -304,10 +313,10 @@ public class JNDIInvoker {
    * Binds a single Datasource to the existing JNDI tree. The JNDI tree may be The Datasource
    * properties are contained in the map. The Datasource implementation class is populated based on
    * properties in the map.
-   * 
+   *
    * @param map contains Datasource configuration properties.
    */
-  public static void mapDatasource(Map map, List props) {
+  public static void mapDatasource(Map map, List<ConfigProperty> props) {
     String value = (String) map.get("type");
     String jndiName = "";
     LogWriterI18n writer = TransactionUtils.getLogWriterI18n();
@@ -327,8 +336,9 @@ public class JNDIInvoker {
         if (writer.fineEnabled())
           writer.fine("Bound java:/" + jndiName + " to Context");
       } else if (value.equals("SimpleDataSource")) {
-        ds = DataSourceFactory.getSimpleDataSource(map, props);
+        ds = DataSourceFactory.getSimpleDataSource(map);
         ctx.rebind("java:/" + jndiName, ds);
+        dataSourceList.add(ds);
         if (writer.fineEnabled())
           writer.fine("Bound java:/" + jndiName + " to Context");
       } else if (value.equals("ManagedDataSource")) {
@@ -357,6 +367,19 @@ public class JNDIInvoker {
     }
   }
 
+  public static void unMapDatasource(String jndiName) throws NamingException {
+    ctx.unbind("java:/" + jndiName);
+    for (Iterator it = dataSourceList.iterator(); it.hasNext();) {
+      Object obj = it.next();
+      if (obj instanceof AbstractDataSource) {
+        ((AbstractDataSource) obj).clearUp();
+      } else if (obj instanceof ClientConnectionFactoryWrapper) {
+        ((ClientConnectionFactoryWrapper) obj).clearUp();
+      }
+      it.remove();
+    }
+  }
+
   /**
    * @return Context the existing JNDI Context. If there is no pre-esisting JNDI Context, the
    *         GemFire JNDI Context is returned.
@@ -367,14 +390,33 @@ public class JNDIInvoker {
 
   /**
    * returns the GemFire TransactionManager.
-   * 
-   * @return TransactionManager
+   *
    */
   public static TransactionManager getTransactionManager() {
     return transactionManager;
   }
-  // try to find websphere lookups since we came here
-  /*
-   * private static void print(String str) { if (DEBUG) { System.err.println(str); } }
-   */
+
+  public static int getNoOfAvailableDataSources() {
+    return dataSourceList.size();
+  }
+
+  public static Map<String, String> getBindingNamesRecursively(Context ctx) throws Exception {
+    Map<String, String> result = new HashMap<>();
+    NamingEnumeration<Binding> enumeration = ctx.listBindings("");
+
+    while (enumeration.hasMore()) {
+      Binding binding = enumeration.next();
+      String name = binding.getName();
+      String separator = name.endsWith(":") ? "" : "/";
+      Object o = binding.getObject();
+      if (o instanceof Context) {
+        Map<String, String> innerBindings = getBindingNamesRecursively((Context) o);
+        innerBindings.forEach((k, v) -> result.put(name + separator + k, v));
+      } else {
+        result.put(name, binding.getClassName());
+      }
+    }
+
+    return result;
+  }
 }

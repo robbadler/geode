@@ -12,11 +12,32 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-
 package org.apache.geode.internal.cache;
 
+import static org.apache.geode.internal.offheap.annotations.OffHeapIdentifier.TX_ENTRY_STATE;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.DataSerializer;
-import org.apache.geode.cache.*;
+import org.apache.geode.cache.CacheRuntimeException;
+import org.apache.geode.cache.CacheWriter;
+import org.apache.geode.cache.CacheWriterException;
+import org.apache.geode.cache.CommitConflictException;
+import org.apache.geode.cache.DataPolicy;
+import org.apache.geode.cache.EntryDestroyedException;
+import org.apache.geode.cache.EntryEvent;
+import org.apache.geode.cache.EntryNotFoundException;
+import org.apache.geode.cache.Operation;
+import org.apache.geode.cache.Region;
+import org.apache.geode.cache.RegionDestroyedException;
+import org.apache.geode.cache.TimeoutException;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
@@ -33,24 +54,12 @@ import org.apache.geode.internal.offheap.annotations.Released;
 import org.apache.geode.internal.offheap.annotations.Retained;
 import org.apache.geode.internal.offheap.annotations.Unretained;
 import org.apache.geode.pdx.PdxSerializationException;
-import org.apache.logging.log4j.Logger;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-
-import static org.apache.geode.internal.offheap.annotations.OffHeapIdentifier.TX_ENTRY_STATE;
 
 /**
  * TXEntryState is the entity that tracks transactional changes, except for those tracked by
  * {@link TXEntryUserAttrState}, to an entry.
- * 
- * 
+ *
  * @since GemFire 4.0
- * 
  */
 public class TXEntryState implements Releasable {
   private static final Logger logger = LogService.getLogger();
@@ -69,18 +78,20 @@ public class TXEntryState implements Releasable {
   protected int modSerialNum;
   /**
    * Used to remember the event id to use on the farSide for this entry. See bug 39434.
-   * 
+   *
    * @since GemFire 5.7
    */
   private int farSideEventOffset = -1;
   /**
    * Used to remember the event id to use on the nearSide for this entry. See bug 39434.
-   * 
+   *
    * @since GemFire 5.7
    */
   private int nearSideEventOffset = -1;
 
   private Object pendingValue;
+
+  private byte[] serializedPendingValue;
 
   /**
    * Remember the callback argument for listener invocation
@@ -172,7 +183,7 @@ public class TXEntryState implements Releasable {
   private static final boolean DETECT_READ_CONFLICTS =
       Boolean.getBoolean(DistributionConfig.GEMFIRE_PREFIX + "detectReadConflicts");
 
-  // @todo darrel: optimize footprint by having this field on a subclass
+  // TODO: optimize footprint by having this field on a subclass
   // that is only created by TXRegionState when it knows its region needs refCounts.
   /**
    * A reference to the RegionEntry, in committed state, that this tx entry has referenced. Note:
@@ -240,7 +251,6 @@ public class TXEntryState implements Releasable {
     this.refCountEntry = null;
   }
 
-
   private TXRegionState txRegionState = null;
 
   /**
@@ -270,6 +280,34 @@ public class TXEntryState implements Releasable {
     this.txRegionState = txRegionState;
     if (isDistributed) {
       this.distTxThinEntryState = new DistTxThinEntryState();
+    }
+  }
+
+  private byte[] getSerializedPendingValue() {
+    return serializedPendingValue;
+  }
+
+  private void setSerializedPendingValue(byte[] serializedPendingValue) {
+    this.serializedPendingValue = serializedPendingValue;
+  }
+
+  void serializePendingValue() {
+    Object pendingValue = getPendingValue();
+    if (Token.isInvalidOrRemoved(pendingValue)) {
+      // token
+      return;
+    }
+    if (pendingValue instanceof byte[]) {
+      // byte[]
+      return;
+    }
+
+    // CachedDeserialized, Object or PDX
+    if (pendingValue instanceof CachedDeserializable) {
+      CachedDeserializable cachedDeserializable = (CachedDeserializable) pendingValue;
+      setSerializedPendingValue(cachedDeserializable.getSerializedValue());
+    } else {
+      setSerializedPendingValue(EntryEventImpl.serialize(pendingValue));
     }
   }
 
@@ -318,9 +356,9 @@ public class TXEntryState implements Releasable {
 
   /**
    * Fetches the current modification serial number from the txState and puts it in this entry.
-   * 
+   *
    * @param modNum the next modified serial number gotten from TXState
-   * 
+   *
    * @since GemFire 5.0
    */
   public void updateForWrite(final int modNum) {
@@ -330,7 +368,7 @@ public class TXEntryState implements Releasable {
 
   /**
    * Returns true if this entry has been written; false if only read
-   * 
+   *
    * @since GemFire 5.1
    */
   public boolean isDirty() {
@@ -339,7 +377,7 @@ public class TXEntryState implements Releasable {
 
   /**
    * Return true if entry has an operation.
-   * 
+   *
    * @since GemFire 5.5
    */
   public boolean hasOp() {
@@ -411,7 +449,6 @@ public class TXEntryState implements Releasable {
   }
 
   /**
-   * @param key
    * @return the value, or null if the value does not exist in the cache, Token.INVALID or
    *         Token.LOCAL_INVALID if the value is invalid
    */
@@ -474,39 +511,16 @@ public class TXEntryState implements Releasable {
 
   /**
    * Returns true if this operation has an event for the tx listener
-   * 
+   *
    * @since GemFire 5.0
    */
   boolean isOpAnyEvent(LocalRegion r) {
     return isOpPutEvent() || isOpCreateEvent() || isOpInvalidateEvent() || isOpDestroyEvent(r);
   }
 
-  boolean isOpSearchOrLoad() {
-    return this.op >= OP_SEARCH_CREATE && this.op != OP_PUT && this.op != OP_LOCAL_CREATE;
-  }
-
   boolean isOpSearch() {
     return this.op == OP_SEARCH_CREATE || this.op == OP_SEARCH_PUT;
   }
-
-  boolean isOpLocalLoad() {
-    return this.op == OP_LLOAD_CREATE || this.op == OP_LLOAD_PUT;
-  }
-
-  boolean isOpNetLoad() {
-    return this.op == OP_NLOAD_CREATE || this.op == OP_NLOAD_PUT;
-  }
-
-  boolean isOpLoad() {
-    return isOpLocalLoad() || isOpNetLoad();
-  }
-
-  // private boolean isLocalEventDistributed()
-  // {
-  // return this.op == OP_D_DESTROY
-  // || (this.op >= OP_D_INVALIDATE && this.op != OP_SEARCH_CREATE
-  // && this.op != OP_LOCAL_CREATE && this.op != OP_SEARCH_PUT);
-  // }
 
   String opToString() {
     return opToString(this.op);
@@ -648,7 +662,7 @@ public class TXEntryState implements Releasable {
 
   /**
    * Calculate and return the event offset based on the sequence id on TXState.
-   * 
+   *
    * @since GemFire 5.7
    */
   private static int generateEventOffset(TXState txState) {
@@ -660,7 +674,7 @@ public class TXEntryState implements Releasable {
   /**
    * Generate offsets for different eventIds; one for nearside and one for farside for the ops for
    * this entry.
-   * 
+   *
    * @since GemFire 5.7
    */
   private void generateBothEventOffsets(TXState txState) {
@@ -672,7 +686,7 @@ public class TXEntryState implements Releasable {
   /**
    * Generate the offset for an eventId that will be used for both a farside and nearside op for
    * this entry.
-   * 
+   *
    * @since GemFire 5.7
    */
   private void generateSharedEventOffset(TXState txState) {
@@ -684,7 +698,7 @@ public class TXEntryState implements Releasable {
   /**
    * Generate the offset for an eventId that will be used for the nearside op for this entry. No
    * farside op will be done.
-   * 
+   *
    * @since GemFire 5.7
    */
   private void generateNearSideOnlyEventOffset(TXState txState) {
@@ -709,7 +723,7 @@ public class TXEntryState implements Releasable {
   /**
    * Calculate (if farside has not already done so) and return then eventID to use for near side op
    * applications.
-   * 
+   *
    * @since GemFire 5.7
    */
   private EventID getNearSideEventId(TXState txState) {
@@ -719,7 +733,7 @@ public class TXEntryState implements Releasable {
 
   /**
    * Calculate and return the event offset for this entry's farSide operation.
-   * 
+   *
    * @since GemFire 5.7
    */
   void generateEventOffsets(TXState txState) {
@@ -813,7 +827,7 @@ public class TXEntryState implements Releasable {
   /**
    * Gets the operation code for the operation done on this entry in caches remote from the
    * originator of the tx (i.e. the "far side").
-   * 
+   *
    * @return null if no far side operation
    */
   private Operation getFarSideOperation() {
@@ -878,15 +892,8 @@ public class TXEntryState implements Releasable {
     }
   }
 
-  // private void dumpOp() {
-  // System.out.println("DEBUG: op=" + opToString()
-  // + " destroy=" + this.destroy
-  // + " isDis=" + isLocalEventDistributed());
-  // System.out.flush();
-  // }
   @Retained
   EntryEvent getEvent(LocalRegion r, Object key, TXState txs) {
-    // dumpOp();
     LocalRegion eventRegion = r;
     if (r.isUsedForPartitionedRegionBucket()) {
       eventRegion = r.getPartitionedRegion();
@@ -916,11 +923,6 @@ public class TXEntryState implements Releasable {
    * @return true if invalidate was done
    */
   public boolean invalidate(EntryEventImpl event) throws EntryNotFoundException {
-    // LocalRegion lr = event.getRegion();
-    // boolean isProxy = lr.isProxy();
-    // if (!isLocallyValid(isProxy)) {
-    // return false;
-    // }
     if (event.isLocalInvalid()) {
       performOp(adviseOp(OP_L_INVALIDATE, event), event);
     } else {
@@ -966,7 +968,7 @@ public class TXEntryState implements Releasable {
   /**
    * @param event the event object for this operation, with the exception that the oldValue
    *        parameter is not yet filled in. The oldValue will be filled in by this operation.
-   * 
+   *
    * @param ifNew true if this operation must not overwrite an existing key
    * @param originRemote value for cacheWriter's isOriginRemote flag
    * @return true if put was done; otherwise returns false
@@ -1025,13 +1027,11 @@ public class TXEntryState implements Releasable {
    * We will try to establish TXState on members with dataPolicy REPLICATE, this is done for the
    * first region to be involved in a transaction. For subsequent region if the dataPolicy is not
    * REPLICATE, we fetch the VersionTag from replicate members.
-   * 
-   * @param event
    */
   private void fetchRemoteVersionTag(EntryEventImpl event) {
     if (event.getRegion() instanceof DistributedRegion) {
       DistributedRegion dr = (DistributedRegion) event.getRegion();
-      if (dr.dataPolicy == DataPolicy.NORMAL || dr.dataPolicy == DataPolicy.PRELOADED) {
+      if (dr.getDataPolicy() == DataPolicy.NORMAL || dr.getDataPolicy() == DataPolicy.PRELOADED) {
         VersionTag tag = null;
         try {
           tag = dr.fetchRemoteVersionTag(event.getKey());
@@ -1047,7 +1047,7 @@ public class TXEntryState implements Releasable {
 
   /**
    * Perform operation algebra
-   * 
+   *
    * @return false if operation was not done
    */
   private byte adviseOp(byte requestedOpCode, EntryEventImpl event) {
@@ -1596,7 +1596,7 @@ public class TXEntryState implements Releasable {
 
   /**
    * If the entry is not dirty (read only) then clean it up.
-   * 
+   *
    * @return true if this entry is not dirty.
    */
   boolean cleanupNonDirty(LocalRegion r) {
@@ -1802,6 +1802,7 @@ public class TXEntryState implements Releasable {
     }
   }
 
+
   /**
    * @return returns {@link Operation#PUTALL_CREATE} if the operation is a result of bulk op,
    *         {@link Operation#CREATE} otherwise
@@ -1840,12 +1841,15 @@ public class TXEntryState implements Releasable {
   /**
    * Serializes this entry state to a data output stream for a far side consumer. Make sure this
    * method is backwards compatible if changes are made.
-   * 
+   *
+   * <p>
+   * The fromData for this is TXCommitMessage$RegionCommit$FarSideEntryOp#fromData.
+   *
    * @param largeModCount true if modCount needs to be represented by an int; false if a byte is
    *        enough
    * @param sendVersionTag true if versionTag should be sent to clients 7.0 and above
    * @param sendShadowKey true if wan shadowKey should be sent to peers 7.0.1 and above
-   * 
+   *
    * @since GemFire 5.0
    */
   void toFarSideData(DataOutput out, boolean largeModCount, boolean sendVersionTag,
@@ -1861,9 +1865,10 @@ public class TXEntryState implements Releasable {
     DataSerializer.writeObject(getFilterRoutingInfo(), out);
     if (sendVersionTag) {
       DataSerializer.writeObject(getVersionTag(), out);
-      assert getVersionTag() != null || !txRegionState.getRegion().concurrencyChecksEnabled
-          || txRegionState.getRegion().dataPolicy != DataPolicy.REPLICATE : "tag:" + getVersionTag()
-              + " r:" + txRegionState.getRegion() + " op:" + opToString() + " key:";
+      assert getVersionTag() != null || !txRegionState.getRegion().getConcurrencyChecksEnabled()
+          || txRegionState.getRegion().getDataPolicy() != DataPolicy.REPLICATE : "tag:"
+              + getVersionTag() + " r:" + txRegionState.getRegion() + " op:" + opToString()
+              + " key:";
     }
     if (sendShadowKey) {
       out.writeLong(this.tailKey);
@@ -1872,13 +1877,15 @@ public class TXEntryState implements Releasable {
     if (!operation.isDestroy()) {
       out.writeBoolean(didDistributedDestroy());
       if (!operation.isInvalidate()) {
-        boolean sendObject = Token.isInvalidOrRemoved(getPendingValue());
-        sendObject = sendObject || getPendingValue() instanceof byte[];
-        out.writeBoolean(sendObject);
-        if (sendObject) {
+        boolean isTokenOrByteArray = Token.isInvalidOrRemoved(getPendingValue());
+        isTokenOrByteArray = isTokenOrByteArray || getPendingValue() instanceof byte[];
+        out.writeBoolean(isTokenOrByteArray);
+        if (isTokenOrByteArray) {
+          // this is a token or byte[] only
           DataSerializer.writeObject(getPendingValue(), out);
         } else {
-          DataSerializer.writeObjectAsByteArray(getPendingValue(), out);
+          // this is a CachedDeserializable, Object and PDX
+          DataSerializer.writeByteArray(getSerializedPendingValue(), out);
         }
       }
     }
@@ -1886,28 +1893,6 @@ public class TXEntryState implements Releasable {
 
   public FilterRoutingInfo getFilterRoutingInfo() {
     return filterRoutingInfo;
-  }
-
-  /**
-   * Creates a queued op and returns it for this entry on the far side of the tx.
-   * 
-   * @param key the key for this op
-   * @since GemFire 5.0
-   */
-  QueuedOperation toFarSideQueuedOp(Object key) {
-    Operation operation = getFarSideOperation();
-    byte[] valueBytes = null;
-    byte deserializationPolicy = DistributedCacheOperation.DESERIALIZATION_POLICY_NONE;
-    if (!operation.isDestroy() && !operation.isInvalidate()) {
-      Object v = getPendingValue();
-      if (v == null || v instanceof byte[]) {
-        valueBytes = (byte[]) v;
-      } else {
-        deserializationPolicy = DistributedCacheOperation.DESERIALIZATION_POLICY_LAZY;
-        valueBytes = EntryEventImpl.serialize(v);
-      }
-    }
-    return new QueuedOperation(operation, key, valueBytes, null, deserializationPolicy, null);
   }
 
   void cleanup(LocalRegion r) {
@@ -1926,7 +1911,7 @@ public class TXEntryState implements Releasable {
 
   /**
    * Just like an EntryEventImpl but also has access to TxEntryState to make it Comparable
-   * 
+   *
    * @since GemFire 5.0
    */
   public class TxEntryEventImpl extends EntryEventImpl implements Comparable {
@@ -1935,8 +1920,6 @@ public class TXEntryState implements Releasable {
      */
     @Retained
     TxEntryEventImpl(LocalRegion r, Object key) {
-      // TODO:ASIF :Check if the eventID should be created. Currently not
-      // creating it
       super(r, getNearSideOperation(), key, getNearSidePendingValue(),
           TXEntryState.this.getCallbackArgument(), false, r.getMyId(), true/* generateCallbacks */,
           true /* initializeId */);
@@ -1967,8 +1950,7 @@ public class TXEntryState implements Releasable {
     }
   }
 
-
-  private final static TXEntryStateFactory factory = new TXEntryStateFactory() {
+  private static final TXEntryStateFactory factory = new TXEntryStateFactory() {
 
     public TXEntryState createEntry() {
       return new TXEntryState();
@@ -2025,14 +2007,6 @@ public class TXEntryState implements Releasable {
     release();
   }
 
-  public void setNextRegionVersion(long v) {
-    this.nextRegionVersion = v;
-  }
-
-  public long getNextRegionVersion() {
-    return this.nextRegionVersion;
-  }
-
   @Override
   public String toString() {
     StringBuilder str = new StringBuilder();
@@ -2052,13 +2026,12 @@ public class TXEntryState implements Releasable {
 
   /**
    * For Distributed Transaction Usage
-   * 
+   * <p>
    * This class is used to bring relevant information for DistTxEntryEvent from primary, after end
    * of precommit. Same information are sent to all replicates during commit.
-   * 
-   * Whereas @see DistTxEntryEvent is used forstoring entry event information on TxCordinator and
+   * <p>
+   * Whereas see DistTxEntryEvent is used for storing entry event information on TxCoordinator and
    * carry same to replicates.
-   * 
    */
   public static class DistTxThinEntryState implements DataSerializableFixedID {
 
@@ -2071,7 +2044,6 @@ public class TXEntryState implements Releasable {
 
     @Override
     public Version[] getSerializationVersions() {
-      // TODO Auto-generated method stub
       return null;
     }
 

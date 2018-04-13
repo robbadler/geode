@@ -14,36 +14,32 @@
  */
 package org.apache.geode.management.internal.cli.functions;
 
+import static org.apache.geode.distributed.ConfigurationProperties.SOCKET_BUFFER_SIZE;
+
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.DistributionConfigImpl;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.ConfigSource;
-import org.apache.geode.internal.InternalEntity;
 import org.apache.geode.internal.cache.CacheConfig;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.cache.ha.HARegionQueue;
+import org.apache.geode.internal.util.ArgumentRedactor;
 import org.apache.geode.management.internal.cli.domain.MemberConfigurationInfo;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
-import java.util.*;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-
-/****
- * 
- *
- */
-public class GetMemberConfigInformationFunction extends FunctionAdapter implements InternalEntity {
-
-  /**
-   * 
-   */
+public class GetMemberConfigInformationFunction implements InternalFunction {
   private static final long serialVersionUID = 1L;
 
 
@@ -52,7 +48,7 @@ public class GetMemberConfigInformationFunction extends FunctionAdapter implemen
     Object argsObject = context.getArguments();
     boolean hideDefaults = ((Boolean) argsObject).booleanValue();
 
-    Cache cache = CacheFactory.getAnyInstance();
+    Cache cache = context.getCache();
     InternalDistributedSystem system = (InternalDistributedSystem) cache.getDistributedSystem();
     DistributionConfig config = system.getConfig();
 
@@ -136,7 +132,7 @@ public class GetMemberConfigInformationFunction extends FunctionAdapter implemen
 
   /****
    * Gets the default values for the cache attributes
-   * 
+   *
    * @return a map containing the cache attributes - default values
    */
   private Map<String, String> getCacheAttributesDefaultValues() {
@@ -165,7 +161,7 @@ public class GetMemberConfigInformationFunction extends FunctionAdapter implemen
 
   /***
    * Gets the default values for the cache attributes
-   * 
+   *
    * @return a map containing the cache server attributes - default values
    */
   private Map<String, String> getCacheServerAttributesDefaultValues() {
@@ -194,9 +190,7 @@ public class GetMemberConfigInformationFunction extends FunctionAdapter implemen
 
   /****
    * Removes the default values from the attributesMap based on defaultAttributesMap
-   * 
-   * @param attributesMap
-   * @param defaultAttributesMap
+   *
    */
   private void removeDefaults(Map<String, String> attributesMap,
       Map<String, String> defaultAttributesMap) {
@@ -221,14 +215,8 @@ public class GetMemberConfigInformationFunction extends FunctionAdapter implemen
     }
   }
 
-  @Override
-  public String getId() {
-    // TODO Auto-generated method stub
-    return GetMemberConfigInformationFunction.class.toString();
-  }
-
   private List<String> getJvmInputArguments() {
     RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
-    return runtimeBean.getInputArguments();
+    return ArgumentRedactor.redactEachInList(runtimeBean.getInputArguments());
   }
 }

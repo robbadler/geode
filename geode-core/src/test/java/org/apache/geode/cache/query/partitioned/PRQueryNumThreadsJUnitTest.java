@@ -31,13 +31,14 @@ import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.cache.PRQueryProcessor;
 import org.apache.geode.internal.cache.PartitionedRegionTestHelper;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
 /**
  * Class verifies Region#query(String predicate) API for PartitionedRegion on a single VM.
- * 
- * 
+ *
+ *
  */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class PRQueryNumThreadsJUnitTest {
   String regionName = "portfolios";
 
@@ -55,8 +56,7 @@ public class PRQueryNumThreadsJUnitTest {
    * Tests the execution of query on a PartitionedRegion created on a single data store. <br>
    * 1. Creates a PR with redundancy=0 on a single VM. 2. Puts some test Objects in cache. 3. Fires
    * queries on the data and verifies the result.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testQueryOnSingleDataStore() throws Exception {
@@ -139,9 +139,7 @@ public class PRQueryNumThreadsJUnitTest {
 
   /**
    * Populates the region with the Objects stores in the data Object array.
-   * 
-   * @param region
-   * @param data
+   *
    */
   private void populateData(Region region, Object[] data) {
     for (int j = 0; j < data.length; j++) {

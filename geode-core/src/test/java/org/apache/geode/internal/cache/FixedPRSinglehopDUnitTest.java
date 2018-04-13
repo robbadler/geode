@@ -19,7 +19,6 @@ import static org.junit.Assert.*;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -27,8 +26,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.ServerLocation;
 import org.awaitility.Awaitility;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -48,6 +45,7 @@ import org.apache.geode.cache.client.internal.ClientPartitionAdvisor;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.Locator;
+import org.apache.geode.distributed.internal.ServerLocation;
 import org.apache.geode.internal.AvailablePort;
 import org.apache.geode.internal.cache.partitioned.fixed.QuarterPartitionResolver;
 import org.apache.geode.internal.cache.partitioned.fixed.SingleHopQuarterPartitionResolver;
@@ -63,7 +61,6 @@ import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.FlakyTest;
 
 @Category(DistributedTest.class)
 public class FixedPRSinglehopDUnitTest extends JUnit4CacheTestCase {
@@ -196,7 +193,6 @@ public class FixedPRSinglehopDUnitTest extends JUnit4CacheTestCase {
   // Put data, get data and make the metadata stable.
   // Now verify that metadata has all 8 buckets info.
   // Now update and ensure the fetch service is never called.
-  @Category(FlakyTest.class) // GEODE-1176: random ports, time sensitive, waitForCriterion
   @Test
   public void test_MetadataContents() {
 

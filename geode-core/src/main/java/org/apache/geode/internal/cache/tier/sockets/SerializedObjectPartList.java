@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.tier.sockets;
 
 import java.io.DataInput;
@@ -30,7 +27,7 @@ import org.apache.geode.internal.DataSerializableFixedID;
  * objects, rather than as deserialized objects.
  *
  * [bruce] THIS CLASS IS OBSOLETE AS OF V7.0. It is replaced with VersionedObjectList
- * 
+ *
  */
 public class SerializedObjectPartList extends ObjectPartList651 {
 

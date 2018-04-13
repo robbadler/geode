@@ -12,10 +12,9 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
+
+import java.io.IOException;
 
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.MessageType;
@@ -24,12 +23,10 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.security.SecurityService;
 
-import java.io.IOException;
-
 
 public class Default extends BaseCommand {
 
-  private final static Default singleton = new Default();
+  private static final Default singleton = new Default();
 
   public static Command getCommand() {
     return singleton;

@@ -14,17 +14,18 @@
  */
 package org.apache.geode.tools.pulse.tests.rules;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
+
+import org.awaitility.Awaitility;
+import org.junit.rules.ExternalResource;
+
 import org.apache.geode.internal.AvailablePort;
 import org.apache.geode.internal.admin.SSLConfig;
 import org.apache.geode.management.internal.JettyHelper;
 import org.apache.geode.tools.pulse.internal.data.PulseConstants;
 import org.apache.geode.tools.pulse.tests.Server;
-import org.awaitility.Awaitility;
-import org.junit.rules.ExternalResource;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Properties;
 
 public class ServerRule extends ExternalResource {
   private static final String LOCALHOST = "localhost";
@@ -42,10 +43,11 @@ public class ServerRule extends ExternalResource {
     server = Server.createServer(jmxPort, jmxPropertiesFile, jsonAuthFile);
     System.setProperty(PulseConstants.SYSTEM_PROPERTY_PULSE_HOST, LOCALHOST);
     System.setProperty(PulseConstants.SYSTEM_PROPERTY_PULSE_PORT, Integer.toString(jmxPort));
+    System.setProperty(PulseConstants.SYSTEM_PROPERTY_PULSE_EMBEDDED, String.valueOf(Boolean.TRUE));
 
     int httpPort = AvailablePort.getRandomAvailablePort(AvailablePort.SOCKET);
     jetty = JettyHelper.initJetty(LOCALHOST, httpPort, new SSLConfig());
-    JettyHelper.addWebApplication(jetty, PULSE_CONTEXT, getPulseWarPath());
+    JettyHelper.addWebApplication(jetty, PULSE_CONTEXT, getPulseWarPath(), null);
     pulseURL = "http://" + LOCALHOST + ":" + httpPort + PULSE_CONTEXT;
     System.out.println("Pulse started at " + pulseURL);
   }

@@ -62,7 +62,6 @@ import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.tier.InterestType;
-import org.apache.geode.internal.cache.tier.sockets.CacheClientUpdater;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
 import org.apache.geode.internal.cache.tier.sockets.ServerQueueStatus;
 import org.apache.geode.internal.i18n.LocalizedStrings;
@@ -74,14 +73,12 @@ import org.apache.geode.security.GemFireSecurityException;
 /**
  * Manages Client Queues. Responsible for creating callback connections and satisfying redundancy
  * requirements.
- * 
+ *
  * @since GemFire 5.7
  */
 public class QueueManagerImpl implements QueueManager {
   private static final Logger logger = LogService.getLogger();
 
-  // private static final long SERVER_LOCATION_TIMEOUT = Long.getLong(
-  // "gemfire.QueueManagerImpl.SERVER_LOCATION_TIMEOUT", 120000).longValue();
   private static final Comparator QSIZE_COMPARATOR = new QSizeComparator();
 
   protected final long redundancyRetryInterval;
@@ -280,7 +277,6 @@ public class QueueManagerImpl implements QueueManager {
       // Use a separate timer for queue management tasks
       // We don't want primary recovery (and therefore user threads) to wait for
       // things like pinging connections for health checks.
-      // this.background = background;
       final String name = "queueTimer-" + this.pool.getName();
       this.recoveryThread = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
 
@@ -294,9 +290,6 @@ public class QueueManagerImpl implements QueueManager {
       });
       recoveryThread.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
 
-      // TODO - use yet another Timer or the like for these tasks? We know
-      // we don't want them in the recoveryThread, because the ThreadIdToSequenceIdExpiryTask
-      // will wait for primary recovery.
       getState().start(background, getPool().getSubscriptionAckInterval());
 
       // initialize connections
@@ -628,7 +621,7 @@ public class QueueManagerImpl implements QueueManager {
 
   /**
    * Make sure that we have enough backup servers.
-   * 
+   *
    * Add any servers we fail to connect to to the excluded servers list.
    */
   protected boolean recoverRedundancy(Set excludedServers, boolean recoverInterest) {
@@ -786,7 +779,7 @@ public class QueueManagerImpl implements QueueManager {
 
   /**
    * Create a new primary server from a non-redundant server.
-   * 
+   *
    * Add any failed servers to the excludedServers set.
    */
   private QueueConnectionImpl createNewPrimary(Set excludedServers) {
@@ -858,7 +851,7 @@ public class QueueManagerImpl implements QueueManager {
 
   /**
    * Find a new primary, adding any failed servers we encounter to the excluded servers list
-   * 
+   *
    * First we try to make a backup server the primary, but if run out of backup servers we will try
    * to find a new server.
    */
@@ -1030,8 +1023,10 @@ public class QueueManagerImpl implements QueueManager {
       try {
         connection.internalClose(pool.getKeepAlive());
       } catch (Exception e) {
-        logger.warn("Error destroying client to server connection to {}", connection.getEndpoint(),
-            e);
+        if (logger.isDebugEnabled()) {
+          logger.debug("Error destroying client to server connection to {}",
+              connection.getEndpoint(), e);
+        }
       }
     }
 
@@ -1240,10 +1235,6 @@ public class QueueManagerImpl implements QueueManager {
         isFirstNewConnection);
     recoverSingleList(InterestType.OQL_QUERY, recoveredConnection, durable, receiveValues,
         isFirstNewConnection);
-    // VJR: Recover CQs moved to recoverAllInterestTypes() to avoid multiple
-    // calls for receiveValues flag being true and false.
-    // recoverCqs(recoveredConnection, durable);
-    // recoverSingleList(InterestType.CQ, recoveredConnection, durable,isFirstNewConnection);
   }
 
   protected void recoverAllInterestTypes(final Connection recoveredConnection,
@@ -1266,8 +1257,8 @@ public class QueueManagerImpl implements QueueManager {
   /**
    * A comparator which sorts queue elements in the order of primary first redundant with smallest
    * queue size ... redundant with largest queue size
-   * 
-   * 
+   *
+   *
    */
   protected static class QSizeComparator implements java.util.Comparator {
     public int compare(Object o1, Object o2) {
@@ -1292,10 +1283,10 @@ public class QueueManagerImpl implements QueueManager {
   /**
    * A data structure for holding the current set of connections the queueConnections reference
    * should be maintained by making a copy of this data structure for each change.
-   * 
+   *
    * Note the the order of the backups is significant. The first backup in the list is the first
    * server that will be become primary after the primary fails, etc.
-   * 
+   *
    * The order of backups in this list is the reverse of the order or endpoints from the old
    * ConnectionProxyImpl .
    */
@@ -1380,7 +1371,7 @@ public class QueueManagerImpl implements QueueManager {
 
     /**
      * Return the cache client updater from the previously failed primary
-     * 
+     *
      * @return the previous updater or null if there is no previous updater
      */
     public ClientUpdater getFailedUpdater() {
@@ -1427,11 +1418,11 @@ public class QueueManagerImpl implements QueueManager {
   /**
    * Asynchronous task which tries to restablish a primary connection and satisfy redundant
    * requirements.
-   * 
+   *
    * This task should only be running in a single thread at a time. This task is the only way that
    * new queue servers will be added, and the only way that a backup server can transistion to a
    * primary server.
-   * 
+   *
    */
   protected class RedundancySatisfierTask extends PoolTask {
     private boolean isCancelled;

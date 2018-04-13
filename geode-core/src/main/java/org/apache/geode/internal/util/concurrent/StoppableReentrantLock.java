@@ -22,7 +22,7 @@ import org.apache.geode.internal.Assert;
 
 /**
  * Instances of {@link java.util.concurrent.locks.Lock} that respond to cancellations
- * 
+ *
  */
 public class StoppableReentrantLock {
   /**
@@ -42,7 +42,7 @@ public class StoppableReentrantLock {
 
   /**
    * Create a new instance with the given cancellation criterion
-   * 
+   *
    * @param stopper the cancellation criterion
    */
   public StoppableReentrantLock(CancelCriterion stopper) {
@@ -53,7 +53,7 @@ public class StoppableReentrantLock {
 
   /**
    * Create a new instance with given fairness and cancellation criterion
-   * 
+   *
    * @param fair whether to be fair
    * @param stopper the cancellation criterion
    */
@@ -79,9 +79,6 @@ public class StoppableReentrantLock {
     } // for
   }
 
-  /**
-   * @throws InterruptedException
-   */
   public void lockInterruptibly() throws InterruptedException {
     for (;;) {
       stopper.checkCancelInProgress(null);
@@ -101,7 +98,6 @@ public class StoppableReentrantLock {
   /**
    * @param timeoutMs how long to wait in milliseconds
    * @return true if the lock was acquired
-   * @throws InterruptedException
    */
   public boolean tryLock(long timeoutMs) throws InterruptedException {
     stopper.checkCancelInProgress(null);

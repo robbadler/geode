@@ -15,24 +15,25 @@
 package org.apache.geode.cache.client.internal;
 
 import java.util.concurrent.ScheduledExecutorService;
+
 import org.apache.geode.internal.cache.EventID;
 
 public interface QueueState {
 
-  public void processMarker();
+  void processMarker();
 
-  public boolean getProcessedMarker();
+  boolean getProcessedMarker();
 
-  public void incrementInvalidatedStats();
+  void incrementInvalidatedStats();
 
-  public boolean verifyIfDuplicate(EventID eventId, boolean addToMap);
+  boolean verifyIfDuplicate(EventID eventId, boolean addToMap);
 
-  public boolean verifyIfDuplicate(EventID eventId);
+  boolean verifyIfDuplicate(EventID eventId);
 
   /**
    * test hook
    */
-  public java.util.Map getThreadIdToSequenceIdMap();
+  java.util.Map getThreadIdToSequenceIdMap();
 
-  public void start(ScheduledExecutorService timer, int interval);
+  void start(ScheduledExecutorService timer, int interval);
 }

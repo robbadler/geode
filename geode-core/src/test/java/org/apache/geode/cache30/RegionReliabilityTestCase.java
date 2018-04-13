@@ -24,8 +24,10 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
+import org.awaitility.Awaitility;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -56,9 +58,7 @@ import org.apache.geode.cache.query.Query;
 import org.apache.geode.cache.query.QueryService;
 import org.apache.geode.cache.util.RegionMembershipListenerAdapter;
 import org.apache.geode.distributed.Role;
-import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
-import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.distributed.internal.membership.InternalRole;
 import org.apache.geode.internal.cache.AbstractRegion;
 import org.apache.geode.internal.cache.DistributedCacheOperation;
@@ -515,11 +515,6 @@ public abstract class RegionReliabilityTestCase extends ReliabilityTestCase {
     assertNoAccessDoesNotThrow(region);
   }
 
-  private static InternalDistributedMember findDistributedMember() {
-    DM dm = (InternalDistributedSystem.getAnyInstance()).getDistributionManager();
-    return dm.getDistributionManagerId();
-  }
-
   /**
    * Tests affect of NO_ACCESS on local entry expiration actions.
    */
@@ -830,7 +825,7 @@ public abstract class RegionReliabilityTestCase extends ReliabilityTestCase {
     region.put("expireMe", "expireMe");
 
     waitForEntryDestroy(region, "expireMe");
-    assertTrue(region.size() == 0);
+    Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> assertEquals(0, region.size()));
   }
 
   /**
@@ -989,7 +984,7 @@ public abstract class RegionReliabilityTestCase extends ReliabilityTestCase {
     mutator.setEntryTimeToLive(new ExpirationAttributes(1, ExpirationAction.LOCAL_DESTROY));
 
     waitForEntryDestroy(region, "expireMe");
-    assertTrue(region.size() == 0);
+    Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> assertEquals(0, region.size()));
   }
 
   public static void waitForRegionDestroy(final Region region) {
@@ -1449,4 +1444,3 @@ public abstract class RegionReliabilityTestCase extends ReliabilityTestCase {
   }
 
 }
-

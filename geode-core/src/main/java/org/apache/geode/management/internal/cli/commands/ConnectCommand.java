@@ -22,17 +22,24 @@ import static org.apache.geode.distributed.ConfigurationProperties.JMX_MANAGER_S
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.security.KeyStore;
 import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Properties;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
+import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 
 import org.apache.commons.lang.StringUtils;
 import org.springframework.shell.core.annotation.CliCommand;
@@ -48,6 +55,7 @@ import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.internal.JmxManagerLocatorRequest;
 import org.apache.geode.management.internal.JmxManagerLocatorResponse;
 import org.apache.geode.management.internal.SSLUtil;
+import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.internal.cli.LogWrapper;
 import org.apache.geode.management.internal.cli.converters.ConnectionEndpointConverter;
 import org.apache.geode.management.internal.cli.domain.ConnectToLocatorResult;
@@ -56,17 +64,17 @@ import org.apache.geode.management.internal.cli.result.InfoResultData;
 import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.cli.shell.Gfsh;
 import org.apache.geode.management.internal.cli.shell.JmxOperationInvoker;
+import org.apache.geode.management.internal.cli.shell.OperationInvoker;
 import org.apache.geode.management.internal.cli.util.ConnectionEndpoint;
 import org.apache.geode.management.internal.security.ResourceConstants;
-import org.apache.geode.management.internal.web.http.support.SimpleHttpRequester;
 import org.apache.geode.management.internal.web.shell.HttpOperationInvoker;
 import org.apache.geode.security.AuthenticationFailedException;
 
-public class ConnectCommand implements GfshCommand {
+public class ConnectCommand extends InternalGfshCommand {
   // millis that connect --locator will wait for a response from the locator.
   static final int CONNECT_LOCATOR_TIMEOUT_MS = 60000; // see bug 45971
 
-  private static UserInputProperty[] USERINPUTPROPERTIES =
+  private static final UserInputProperty[] USER_INPUT_PROPERTIES =
       {UserInputProperty.KEYSTORE, UserInputProperty.KEYSTORE_PASSWORD,
           UserInputProperty.KEYSTORE_TYPE, UserInputProperty.TRUSTSTORE,
           UserInputProperty.TRUSTSTORE_PASSWORD, UserInputProperty.TRUSTSTORE_TYPE,
@@ -86,9 +94,7 @@ public class ConnectCommand implements GfshCommand {
       @CliOption(key = {CliStrings.CONNECT__USE_HTTP}, specifiedDefaultValue = "true",
           unspecifiedDefaultValue = "false",
           help = CliStrings.CONNECT__USE_HTTP__HELP) boolean useHttp,
-      @CliOption(key = {CliStrings.CONNECT__URL},
-          unspecifiedDefaultValue = CliStrings.CONNECT__DEFAULT_BASE_URL,
-          help = CliStrings.CONNECT__URL__HELP) String url,
+      @CliOption(key = {CliStrings.CONNECT__URL}, help = CliStrings.CONNECT__URL__HELP) String url,
       @CliOption(key = {CliStrings.CONNECT__USERNAME},
           help = CliStrings.CONNECT__USERNAME__HELP) String userName,
       @CliOption(key = {CliStrings.CONNECT__PASSWORD},
@@ -123,7 +129,11 @@ public class ConnectCommand implements GfshCommand {
           .createInfoResult("Already connected to: " + getGfsh().getOperationInvoker().toString());
     }
 
-    // ssl options are passed in in the order defined in USERINPUTPROPERTIES, note the two types
+    if (StringUtils.startsWith(url, "https")) {
+      useSsl = true;
+    }
+
+    // ssl options are passed in in the order defined in USER_INPUT_PROPERTIES, note the two types
     // are null, because we don't have connect command options for them yet
     Properties gfProperties = resolveSslProperties(gfsh, useSsl, null, gfSecurityPropertiesFile,
         keystore, keystorePassword, null, truststore, truststorePassword, null, sslCiphers,
@@ -144,16 +154,37 @@ public class ConnectCommand implements GfshCommand {
       gfProperties.setProperty(UserInputProperty.PASSWORD.getKey(), password);
     }
 
-    if (useHttp) {
-      if (skipSslValidation) {
-        HttpsURLConnection.setDefaultHostnameVerifier((String s, SSLSession sslSession) -> true);
-      }
-      result = httpConnect(gfProperties, url);
+    if (StringUtils.isNotEmpty(url)) {
+      result = httpConnect(gfProperties, url, skipSslValidation);
     } else {
       result = jmxConnect(gfProperties, useSsl, jmxManagerEndPoint, locatorEndPoint, false);
     }
 
-    return result;
+    OperationInvoker invoker = gfsh.getOperationInvoker();
+    if (invoker == null || !invoker.isConnected()) {
+      return result;
+    }
+
+    String gfshVersion = gfsh.getVersion();
+    String remoteVersion = null;
+    try {
+      remoteVersion = invoker.getRemoteVersion();
+      if (remoteVersion.equalsIgnoreCase(gfshVersion)) {
+        return result;
+      }
+    } catch (Exception e) {
+      gfsh.logInfo("failed to get the the remote version.", e);
+    }
+
+    // will reach here only when remoteVersion is not available or does not match
+    invoker.stop();
+    if (remoteVersion == null) {
+      return ResultBuilder.createUserErrorResult(
+          String.format("Cannot use a %s gfsh client to connect to this cluster.", gfshVersion));
+    } else {
+      return ResultBuilder.createUserErrorResult(String.format(
+          "Cannot use a %s gfsh client to connect to a %s cluster.", gfshVersion, remoteVersion));
+    }
   }
 
   /**
@@ -161,7 +192,7 @@ public class ConnectCommand implements GfshCommand {
    *        config (considered only when the last three parameters are null)
    * @param gfPropertiesFile gemfire properties file, can be null
    * @param gfSecurityPropertiesFile gemfire security properties file, can be null
-   * @param sslOptionValues an array of 9 in this order, as defined in USERINPUTPROPERTIES
+   * @param sslOptionValues an array of 9 in this order, as defined in USER_INPUT_PROPERTIES
    * @return the properties
    */
   Properties resolveSslProperties(Gfsh gfsh, boolean useSsl, File gfPropertiesFile,
@@ -184,8 +215,8 @@ public class ConnectCommand implements GfshCommand {
 
     // if use ssl is implied by any of the options, then command option will add to/update the
     // properties loaded from file. If the ssl config is not specified anywhere, prompt user for it.
-    for (int i = 0; i < USERINPUTPROPERTIES.length; i++) {
-      UserInputProperty userInputProperty = USERINPUTPROPERTIES[i];
+    for (int i = 0; i < USER_INPUT_PROPERTIES.length; i++) {
+      UserInputProperty userInputProperty = USER_INPUT_PROPERTIES[i];
       String sslOptionValue = null;
       if (sslOptionValues != null && sslOptionValues.length > i) {
         sslOptionValue = sslOptionValues[i];
@@ -217,7 +248,7 @@ public class ConnectCommand implements GfshCommand {
     }
     for (File file : files) {
       if (file != null) {
-        properties.putAll(ShellCommands.loadProperties(file));
+        properties.putAll(loadPropertiesFromFile(file));
       }
     }
     return properties;
@@ -229,31 +260,29 @@ public class ConnectCommand implements GfshCommand {
             || key.startsWith(JMX_MANAGER_SSL_PREFIX) || key.startsWith(HTTP_SERVICE_SSL_PREFIX));
   }
 
-  static boolean containsSSLConfig(Properties properties) {
+  private static boolean containsSSLConfig(Properties properties) {
     return properties.stringPropertyNames().stream().anyMatch(key -> key.startsWith("ssl-"));
   }
 
 
-  Result httpConnect(Properties gfProperties, String url) {
+  Result httpConnect(Properties gfProperties, String url, boolean skipSslVerification) {
     Gfsh gfsh = getGfsh();
     try {
       SSLConfig sslConfig = SSLConfigurationFactory.getSSLConfigForComponent(gfProperties,
           SecurableCommunicationChannel.WEB);
       if (sslConfig.isEnabled()) {
-        configureHttpsURLConnection(sslConfig);
+        configureHttpsURLConnection(sslConfig, skipSslVerification);
         if (url.startsWith("http:")) {
           url = url.replace("http:", "https:");
         }
       }
 
-      // this triggers the authentication check
-      new SimpleHttpRequester(gfsh, CONNECT_LOCATOR_TIMEOUT_MS, gfProperties)
-          .exchange(url.concat("/ping"), String.class);
-
+      // authentication check will be triggered inside the constructor
       HttpOperationInvoker operationInvoker = new HttpOperationInvoker(gfsh, url, gfProperties);
+
       gfsh.setOperationInvoker(operationInvoker);
 
-      LogWrapper.getInstance()
+      LogWrapper.getInstance(getCache())
           .info(CliStrings.format(CliStrings.CONNECT__MSG__SUCCESS, operationInvoker.toString()));
       return ResultBuilder.createInfoResult(
           CliStrings.format(CliStrings.CONNECT__MSG__SUCCESS, operationInvoker.toString()));
@@ -270,12 +299,10 @@ public class ConnectCommand implements GfshCommand {
           UserInputProperty.USERNAME.promptForAcceptableValue(gfsh));
       gfProperties.setProperty(UserInputProperty.PASSWORD.getKey(),
           UserInputProperty.PASSWORD.promptForAcceptableValue(gfsh));
-      return httpConnect(gfProperties, url);
+      return httpConnect(gfProperties, url, skipSslVerification);
     } catch (Exception e) {
       // all other exceptions, just logs it and returns a connection error
       return handleException(e);
-    } finally {
-      Gfsh.redirectInternalJavaLoggers();
     }
   }
 
@@ -331,7 +358,7 @@ public class ConnectCommand implements GfshCommand {
       gfsh.setOperationInvoker(operationInvoker);
       infoResultData.addLine(CliStrings.format(CliStrings.CONNECT__MSG__SUCCESS,
           jmxHostPortToConnect.toString(false)));
-      LogWrapper.getInstance().info(CliStrings.format(CliStrings.CONNECT__MSG__SUCCESS,
+      LogWrapper.getInstance(getCache()).info(CliStrings.format(CliStrings.CONNECT__MSG__SUCCESS,
           jmxHostPortToConnect.toString(false)));
       return ResultBuilder.buildResult(infoResultData);
     } catch (SecurityException | AuthenticationFailedException e) {
@@ -350,8 +377,6 @@ public class ConnectCommand implements GfshCommand {
     } catch (Exception e) {
       // all other exceptions, just logs it and returns a connection error
       return handleException(e, jmxHostPortToConnect);
-    } finally {
-      Gfsh.redirectInternalJavaLoggers();
     }
   }
 
@@ -390,11 +415,11 @@ public class ConnectCommand implements GfshCommand {
         locatorResponse.isJmxManagerSslEnabled());
   }
 
-  private void configureHttpsURLConnection(SSLConfig sslConfig) throws Exception {
+  private KeyManager[] getKeyManagers(SSLConfig sslConfig) throws Exception {
     FileInputStream keyStoreStream = null;
-    FileInputStream trustStoreStream = null;
+    KeyManagerFactory keyManagerFactory = null;
+
     try {
-      KeyManagerFactory keyManagerFactory = null;
       if (StringUtils.isNotBlank(sslConfig.getKeystore())) {
         KeyStore clientKeys = KeyStore.getInstance(sslConfig.getKeystoreType());
         keyStoreStream = new FileInputStream(sslConfig.getKeystore());
@@ -404,9 +429,36 @@ public class ConnectCommand implements GfshCommand {
             KeyManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         keyManagerFactory.init(clientKeys, sslConfig.getKeystorePassword().toCharArray());
       }
+    } finally {
+      if (keyStoreStream != null) {
+        keyStoreStream.close();
+      }
+    }
 
+    return keyManagerFactory != null ? keyManagerFactory.getKeyManagers() : null;
+  }
+
+  private TrustManager[] getTrustManagers(SSLConfig sslConfig, boolean skipSslVerification)
+      throws Exception {
+    FileInputStream trustStoreStream = null;
+    TrustManagerFactory trustManagerFactory = null;
+
+    if (skipSslVerification) {
+      TrustManager[] trustAllCerts = new TrustManager[] {new X509TrustManager() {
+        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+          return null;
+        }
+
+        public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+
+        public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+
+      }};
+      return trustAllCerts;
+    }
+
+    try {
       // load server public key
-      TrustManagerFactory trustManagerFactory = null;
       if (StringUtils.isNotBlank(sslConfig.getTruststore())) {
         KeyStore serverPub = KeyStore.getInstance(sslConfig.getTruststoreType());
         trustStoreStream = new FileInputStream(sslConfig.getTruststore());
@@ -415,23 +467,29 @@ public class ConnectCommand implements GfshCommand {
             TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         trustManagerFactory.init(serverPub);
       }
-
-      SSLContext ssl =
-          SSLContext.getInstance(SSLUtil.getSSLAlgo(SSLUtil.readArray(sslConfig.getProtocols())));
-
-      ssl.init(keyManagerFactory != null ? keyManagerFactory.getKeyManagers() : null,
-          trustManagerFactory != null ? trustManagerFactory.getTrustManagers() : null,
-          new SecureRandom());
-
-      HttpsURLConnection.setDefaultSSLSocketFactory(ssl.getSocketFactory());
     } finally {
-      if (keyStoreStream != null) {
-        keyStoreStream.close();
-      }
       if (trustStoreStream != null) {
         trustStoreStream.close();
       }
     }
+    return trustManagerFactory != null ? trustManagerFactory.getTrustManagers() : null;
+  }
+
+  private void configureHttpsURLConnection(SSLConfig sslConfig, boolean skipSslVerification)
+      throws Exception {
+    KeyManager[] keyManagers = getKeyManagers(sslConfig);
+    TrustManager[] trustManagers = getTrustManagers(sslConfig, skipSslVerification);
+
+    if (skipSslVerification) {
+      HttpsURLConnection.setDefaultHostnameVerifier((String s, SSLSession sslSession) -> true);
+    }
+
+    SSLContext ssl =
+        SSLContext.getInstance(SSLUtil.getSSLAlgo(SSLUtil.readArray(sslConfig.getProtocols())));
+
+    ssl.init(keyManagers, trustManagers, new SecureRandom());
+
+    HttpsURLConnection.setDefaultSSLSocketFactory(ssl.getSocketFactory());
   }
 
   private Result handleException(Exception e) {
@@ -439,7 +497,7 @@ public class ConnectCommand implements GfshCommand {
   }
 
   private Result handleException(Exception e, String errorMessage) {
-    LogWrapper.getInstance().severe(errorMessage, e);
+    LogWrapper.getInstance(getCache()).severe(errorMessage, e);
     return ResultBuilder.createConnectionErrorResult(errorMessage);
   }
 
@@ -449,5 +507,35 @@ public class ConnectCommand implements GfshCommand {
     }
     return handleException(e, CliStrings.format(CliStrings.CONNECT__MSG__ERROR,
         hostPortToConnect.toString(false), e.getMessage()));
+  }
+
+  private static Properties loadPropertiesFromFile(File propertyFile) {
+    try {
+      return loadPropertiesFromUrl(propertyFile.toURI().toURL());
+    } catch (MalformedURLException e) {
+      throw new RuntimeException(
+          CliStrings.format("Failed to load configuration properties from pathname (%1$s)!",
+              propertyFile.getAbsolutePath()),
+          e);
+    }
+  }
+
+  private static Properties loadPropertiesFromUrl(URL url) {
+    Properties properties = new Properties();
+
+    if (url == null) {
+      return properties;
+    }
+
+    try (InputStream inputStream = url.openStream()) {
+      properties.load(inputStream);
+    } catch (IOException io) {
+      throw new RuntimeException(
+          CliStrings.format(CliStrings.CONNECT__MSG__COULD_NOT_READ_CONFIG_FROM_0,
+              CliUtil.decodeWithDefaultCharSet(url.getPath())),
+          io);
+    }
+
+    return properties;
   }
 }

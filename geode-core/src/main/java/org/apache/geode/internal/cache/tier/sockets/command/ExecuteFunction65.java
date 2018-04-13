@@ -39,9 +39,9 @@ import org.apache.geode.internal.cache.execute.MemberMappedArgument;
 import org.apache.geode.internal.cache.execute.ServerToClientFunctionResultSender65;
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.MessageType;
+import org.apache.geode.internal.cache.tier.ServerSideHandshake;
 import org.apache.geode.internal.cache.tier.sockets.BaseCommand;
 import org.apache.geode.internal.cache.tier.sockets.ChunkedMessage;
-import org.apache.geode.internal.cache.tier.sockets.HandShake;
 import org.apache.geode.internal.cache.tier.sockets.Message;
 import org.apache.geode.internal.cache.tier.sockets.Part;
 import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
@@ -49,15 +49,13 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.security.AuthorizeRequest;
 import org.apache.geode.internal.security.SecurityService;
-import org.apache.geode.security.ResourcePermission.Operation;
-import org.apache.geode.security.ResourcePermission.Resource;
 
 /**
  * @since GemFire 6.5
  */
 public class ExecuteFunction65 extends BaseCommand {
 
-  private final static ExecuteFunction65 singleton = new ExecuteFunction65();
+  private static final ExecuteFunction65 singleton = new ExecuteFunction65();
 
   public static Command getCommand() {
     return singleton;
@@ -122,7 +120,7 @@ public class ExecuteFunction65 extends BaseCommand {
 
     // Execute function on the cache
     try {
-      Function functionObject = null;
+      Function<?> functionObject = null;
       if (function instanceof String) {
         functionObject = FunctionService.getFunction((String) function);
         if (functionObject == null) {
@@ -153,15 +151,16 @@ public class ExecuteFunction65 extends BaseCommand {
 
       FunctionStats stats = FunctionStats.getFunctionStats(functionObject.getId());
 
-      securityService.authorize(Resource.DATA, Operation.WRITE);
-
       // check if the caller is authorized to do this operation on server
+      functionObject.getRequiredPermissions(null).forEach(securityService::authorize);
+
       AuthorizeRequest authzRequest = serverConnection.getAuthzRequest();
       ExecuteFunctionOperationContext executeContext = null;
       if (authzRequest != null) {
         executeContext = authzRequest.executeFunctionAuthorize(functionObject.getId(), null, null,
             args, functionObject.optimizeForWrite());
       }
+
       ChunkedMessage m = serverConnection.getFunctionResponseMessage();
       m.setTransactionId(clientMessage.getTransactionId());
       ResultSender resultSender = new ServerToClientFunctionResultSender65(m,
@@ -179,9 +178,10 @@ public class ExecuteFunction65 extends BaseCommand {
         context =
             new FunctionContextImpl(cache, functionObject.getId(), args, resultSender, isReexecute);
       }
-      HandShake handShake = (HandShake) serverConnection.getHandshake();
-      int earlierClientReadTimeout = handShake.getClientReadTimeout();
-      handShake.setClientReadTimeout(0);
+
+      ServerSideHandshake handshake = serverConnection.getHandshake();
+      int earlierClientReadTimeout = handshake.getClientReadTimeout();
+      handshake.setClientReadTimeout(0);
       try {
         long startExecution = stats.startTime();
         stats.startFunctionExecution(functionObject.hasResult());
@@ -219,7 +219,7 @@ public class ExecuteFunction65 extends BaseCommand {
         stats.endFunctionExecutionWithException(functionObject.hasResult());
         throw new FunctionException(exception);
       } finally {
-        handShake.setClientReadTimeout(earlierClientReadTimeout);
+        handshake.setClientReadTimeout(earlierClientReadTimeout);
       }
     } catch (IOException ioException) {
       logger.warn(LocalizedMessage.create(

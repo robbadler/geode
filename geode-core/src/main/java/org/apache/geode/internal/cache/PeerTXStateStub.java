@@ -28,6 +28,7 @@ import org.apache.geode.distributed.internal.ReliableReplyProcessor21;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.TXRemoteCommitMessage.RemoteCommitResponse;
+import org.apache.geode.internal.cache.tx.BucketTXRegionStub;
 import org.apache.geode.internal.cache.tx.DistributedTXRegionStub;
 import org.apache.geode.internal.cache.tx.PartitionedTXRegionStub;
 import org.apache.geode.internal.cache.tx.TXRegionStub;
@@ -50,7 +51,7 @@ public class PeerTXStateStub extends TXStateStub {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#rollback()
    */
   @Override
@@ -167,11 +168,18 @@ public class PeerTXStateStub extends TXStateStub {
   @Override
   protected TXRegionStub generateRegionStub(LocalRegion region) {
     TXRegionStub stub = null;
-    if (region.getPartitionAttributes() == null) {
-      // This is a dist region
-      stub = new DistributedTXRegionStub(this, region);
+    if (region.getPartitionAttributes() != null) {
+      // a partitioned region
+      stub = new PartitionedTXRegionStub(this, (PartitionedRegion) region);
+    } else if (region.getScope().isLocal()) {
+      // GEODE-3744 Local region should not be involved in a transaction on a PeerTXStateStub
+      throw new TransactionException(
+          "Local region " + region + " should not participate in a transaction not hosted locally");
+    } else if (region.isUsedForPartitionedRegionBucket()) {
+      stub = new BucketTXRegionStub(this, (BucketRegion) region);
     } else {
-      stub = new PartitionedTXRegionStub(this, region);
+      // This is a dist region
+      stub = new DistributedTXRegionStub(this, (DistributedRegion) region);
     }
     return stub;
   }

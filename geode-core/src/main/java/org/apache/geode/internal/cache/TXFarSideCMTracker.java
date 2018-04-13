@@ -26,7 +26,7 @@ import java.util.Set;
 
 import org.apache.logging.log4j.Logger;
 
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.MembershipListener;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
@@ -58,7 +58,7 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
  * </ol>
  *
  * @since GemFire 4.0
- * 
+ *
  */
 public class TXFarSideCMTracker {
   private static final Logger logger = LogService.getLogger();
@@ -91,7 +91,7 @@ public class TXFarSideCMTracker {
    * Answers fellow "Far Siders" question about an DACK transaction when the transaction originator
    * died before it sent the CommitProcess message.
    */
-  public boolean commitProcessReceived(Object key, DM dm) {
+  public boolean commitProcessReceived(Object key, DistributionManager dm) {
     // Assume that after the member has departed that we have all its pending
     // transaction messages
     if (key instanceof TXLockId) {
@@ -140,13 +140,20 @@ public class TXFarSideCMTracker {
   public void waitForAllToProcess() throws InterruptedException {
     if (Thread.interrupted())
       throw new InterruptedException(); // wisest to do this before the synchronize below
-    // Assume that a thread interrupt is only sent in the
+    // Assume that a thread interrupt is only set in the
     // case of a shutdown, in that case we don't need to wait
-    // around any longer, propigating the interrupt is reasonable behavior
+    // around any longer, propagating the interrupt is reasonable behavior
+    boolean messageWritten = false;
     synchronized (this.txInProgress) {
       while (!this.txInProgress.isEmpty()) {
+        logger.info("Lock grantor recovery is waiting for transactions to complete: {}",
+            txInProgress);
+        messageWritten = true;
         this.txInProgress.wait();
       }
+    }
+    if (messageWritten) {
+      logger.info("Wait for transactions completed");
     }
   }
 
@@ -155,7 +162,7 @@ public class TXFarSideCMTracker {
    * departed/ing Originator (this will most likely be called nearly the same time as
    * commitProcessReceived
    */
-  public void waitToProcess(TXLockId lk, DM dm) {
+  public void waitToProcess(TXLockId lk, DistributionManager dm) {
     waitForMemberToDepart(lk.getMemberId(), dm);
     final TXCommitMessage mess;
     synchronized (this.txInProgress) {
@@ -189,7 +196,8 @@ public class TXFarSideCMTracker {
   /**
    * Register a <code>MemberhipListener</code>, wait until the member is gone.
    */
-  private void waitForMemberToDepart(final InternalDistributedMember memberId, DM dm) {
+  private void waitForMemberToDepart(final InternalDistributedMember memberId,
+      DistributionManager dm) {
     if (!dm.getDistributionManagerIds().contains(memberId)) {
       return;
     }
@@ -197,12 +205,14 @@ public class TXFarSideCMTracker {
     final Object lock = new Object();
     final MembershipListener memEar = new MembershipListener() {
       // MembershipListener implementation
-      public void memberJoined(InternalDistributedMember id) {}
+      public void memberJoined(DistributionManager distributionManager,
+          InternalDistributedMember id) {}
 
-      public void memberSuspect(InternalDistributedMember id,
-          InternalDistributedMember whoSuspected, String reason) {}
+      public void memberSuspect(DistributionManager distributionManager,
+          InternalDistributedMember id, InternalDistributedMember whoSuspected, String reason) {}
 
-      public void memberDeparted(InternalDistributedMember id, boolean crashed) {
+      public void memberDeparted(DistributionManager distributionManager,
+          InternalDistributedMember id, boolean crashed) {
         if (memberId.equals(id)) {
           synchronized (lock) {
             lock.notifyAll();
@@ -210,8 +220,8 @@ public class TXFarSideCMTracker {
         }
       }
 
-      public void quorumLost(Set<InternalDistributedMember> failures,
-          List<InternalDistributedMember> remaining) {}
+      public void quorumLost(DistributionManager distributionManager,
+          Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
     };
     try {
       Set memberSet = dm.addMembershipListenerAndGetDistributionManagerIds(memEar);
@@ -290,7 +300,7 @@ public class TXFarSideCMTracker {
     return mess;
   }
 
-  public TXCommitMessage waitForMessage(Object key, DM dm) {
+  public TXCommitMessage waitForMessage(Object key, DistributionManager dm) {
     TXCommitMessage msg = null;
     synchronized (this.txInProgress) {
       msg = (TXCommitMessage) this.txInProgress.get(key);

@@ -35,8 +35,6 @@ import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.geode.cache.Scope;
-import org.apache.geode.cache.query.internal.index.IndexProtocol;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
@@ -51,13 +49,12 @@ import org.apache.geode.cache.RegionFactory;
 import org.apache.geode.cache.RegionShortcut;
 import org.apache.geode.cache.query.data.Portfolio;
 import org.apache.geode.cache.query.internal.DefaultQuery;
+import org.apache.geode.cache.query.internal.index.IndexProtocol;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-/**
- *
- */
 @FixMethodOrder(NAME_ASCENDING)
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class QueryJUnitTest {
 
   @Before

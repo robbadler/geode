@@ -17,15 +17,20 @@ package org.apache.geode.internal.cache.tier.sockets;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 
-import org.apache.geode.test.junit.categories.ClientServerTest;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.internal.Version;
+import org.apache.geode.test.junit.categories.ClientServerTest;
 import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category({UnitTest.class, ClientServerTest.class})
@@ -112,4 +117,53 @@ public class MessageJUnitTest {
     verify(mockPart1, times(2)).clear();
   }
 
+  /**
+   * Client subscription threads establish a timeout when reading a message header in order to avoid
+   * hanging should the server's machine fail, or should the network path to the server have
+   * problems. This test ensures that the method Message.receiveWithHeaderReadTimeout correctly
+   * times out when trying to read a message header.
+   *
+   * @See ClientServerMiscDUnitTest#testClientReceivesPingIntervalSetting
+   */
+  @Test(expected = SocketTimeoutException.class)
+  public void messageWillTimeoutDuringRecvOnInactiveSocket() throws Exception {
+    final ServerSocket serverSocket = new ServerSocket();
+    serverSocket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0));
+    Thread serverThread = new Thread("acceptor thread") {
+      public void run() {
+        Socket client = null;
+        try {
+          client = serverSocket.accept();
+          Thread.sleep(12000);
+        } catch (InterruptedException e) {
+
+        } catch (IOException e) {
+
+        } finally {
+          if (client != null && !client.isClosed()) {
+            try {
+              client.close();
+            } catch (IOException e) {
+            }
+          }
+        }
+      }
+    };
+    serverThread.setDaemon(true);
+    serverThread.start();
+
+    try {
+      Socket socket = new Socket(serverSocket.getInetAddress(), serverSocket.getLocalPort());
+      MessageStats messageStats = mock(MessageStats.class);
+
+      message.setComms(socket, ByteBuffer.allocate(100), messageStats);
+      message.receiveWithHeaderReadTimeout(500);
+
+    } finally {
+      serverThread.interrupt();
+      if (serverSocket != null && !serverSocket.isClosed()) {
+        serverSocket.close();
+      }
+    }
+  }
 }

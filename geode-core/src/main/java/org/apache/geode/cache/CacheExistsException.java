@@ -31,9 +31,13 @@ public class CacheExistsException extends CacheException {
 
   /////////////////////// Constructors ///////////////////////
 
+  public CacheExistsException() {
+    cache = null;
+  }
+
   /**
    * Constructs an instance of <code>CacheExistsException</code> with the specified detail message.
-   * 
+   *
    * @param msg the detail message
    */
   public CacheExistsException(Cache cache, String msg) {
@@ -44,7 +48,7 @@ public class CacheExistsException extends CacheException {
   /**
    * Constructs an instance of <code>CacheExistsException</code> with the specified detail message
    * and cause.
-   * 
+   *
    * @param msg the detail message
    * @param cause the causal Throwable
    */

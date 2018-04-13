@@ -49,7 +49,7 @@ import org.apache.geode.security.ResourcePermission.Resource;
 
 public class PutAll extends BaseCommand {
 
-  private final static PutAll singleton = new PutAll();
+  private static final PutAll singleton = new PutAll();
 
 
   public static Command getCommand() {
@@ -150,7 +150,8 @@ public class PutAll extends BaseCommand {
         // byte[] value = valuePart.getSerializedForm();
         Object value;
         if (valuePart.isObject()) {
-          value = CachedDeserializableFactory.create(valuePart.getSerializedForm());
+          value =
+              CachedDeserializableFactory.create(valuePart.getSerializedForm(), region.getCache());
         } else {
           value = valuePart.getSerializedForm();
         }

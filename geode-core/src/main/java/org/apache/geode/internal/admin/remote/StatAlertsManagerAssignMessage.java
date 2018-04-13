@@ -19,14 +19,14 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.geode.DataSerializer;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.PooledDistributionMessage;
 import org.apache.geode.internal.admin.StatAlertDefinition;
 import org.apache.geode.internal.admin.StatAlertsManager;
 
 /**
  * This class represents a request object to set an alert manager for the newly joined member.
- * 
+ *
  * @since GemFire 5.7
  */
 public class StatAlertsManagerAssignMessage extends PooledDistributionMessage {
@@ -47,7 +47,7 @@ public class StatAlertsManagerAssignMessage extends PooledDistributionMessage {
 
   /**
    * Parameterized constructor for convenience
-   * 
+   *
    * @param alertDefs Array of stat alert definitions to set
    * @param refreshInterval Refresh interval to set
    */
@@ -60,7 +60,7 @@ public class StatAlertsManagerAssignMessage extends PooledDistributionMessage {
    * This method can be used to create a request used to assign a Stat Alerts Manager for a newly
    * joined member. Stat Alert Definitions & refresh interval at that moment are set on the Stat
    * Alerts Manager
-   * 
+   *
    * @param alertDefs Array of stat alert definitions to be set
    * @param refreshInterval Refresh interval to be set
    * @return an instance of StatAlertsManagerAssignRequest
@@ -72,21 +72,21 @@ public class StatAlertsManagerAssignMessage extends PooledDistributionMessage {
 
   /**
    * Executed at the receiver's end. Sets the AlertsManager to the receiver member VM.
-   * 
+   *
    * @param dm DistributionManager instance
    */
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     setManager(dm);
   }
 
   /**
    * Sets the Alerts Manager on the receiver member VM. For the Alerts Manager, alert defs & the
    * refresh interval are set.
-   * 
+   *
    * @param dm DistributionManager instance
    */
-  private void setManager(DistributionManager dm) {
+  private void setManager(ClusterDistributionManager dm) {
     StatAlertsManager manager = StatAlertsManager.getInstance(dm);
     manager.updateAlertDefinition(alertDefs, UpdateAlertDefinitionMessage.ADD_ALERT_DEFINITION);
     manager.setRefreshTimeInterval(refreshInterval);
@@ -94,7 +94,7 @@ public class StatAlertsManagerAssignMessage extends PooledDistributionMessage {
 
   /**
    * A callback used by GemFire Data Serialization mechanism to write to a stream.
-   * 
+   *
    * @param out DataOutput stream to write to
    */
   @Override
@@ -106,7 +106,7 @@ public class StatAlertsManagerAssignMessage extends PooledDistributionMessage {
 
   /**
    * A callback used by GemFire Data Serialization mechanism to read from a stream.
-   * 
+   *
    * @param in DataInput stream to read from
    */
   @Override
@@ -125,7 +125,7 @@ public class StatAlertsManagerAssignMessage extends PooledDistributionMessage {
 
   /**
    * String representation of this object
-   * 
+   *
    * @see java.lang.Object#toString()
    */
   @Override

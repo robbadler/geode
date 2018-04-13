@@ -49,7 +49,7 @@ import org.apache.geode.security.SecurityManager;
  * A Geode member must be configured with the following:
  *
  * <p>
- * {@code security-manager = org.apache.geode.security.examples.ExampleSecurityManager}
+ * {@code security-manager = org.apache.geode.examples.security.ExampleSecurityManager}
  *
  * <p>
  * The class can be initialized with from a JSON resource called {@code security.json}. This file
@@ -58,7 +58,7 @@ import org.apache.geode.security.SecurityManager;
  *
  * <p>
  * The format of the JSON for configuration is as follows:
- * 
+ *
  * <pre>
  * <code>
  * {

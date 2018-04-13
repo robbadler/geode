@@ -146,8 +146,6 @@ public class SSLConfig {
     this.truststoreType = truststoreType;
   }
 
-
-
   public Properties getProperties() {
     return this.properties;
   }
@@ -184,7 +182,7 @@ public class SSLConfig {
   /**
    * Populates a <code>Properties</code> object with the SSL-related configuration information used
    * by {@link org.apache.geode.distributed.DistributedSystem#connect}.
-   * 
+   *
    * @since GemFire 4.0
    */
   public void toDSProperties(Properties props) {
@@ -198,4 +196,3 @@ public class SSLConfig {
   }
 
 }
-

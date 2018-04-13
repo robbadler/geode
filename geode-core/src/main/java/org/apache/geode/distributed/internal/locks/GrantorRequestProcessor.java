@@ -19,14 +19,12 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Set;
-import java.util.concurrent.*;
-import java.util.concurrent.locks.*;
 
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelCriterion;
 import org.apache.geode.DataSerializer;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -74,7 +72,7 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
   /**
    * Encapsulates the context necessary for processing a given grantor request for a given
    * InternalDistributedSystem
-   * 
+   *
    */
   public static class GrantorRequestContext {
     /**
@@ -89,21 +87,21 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
 
     /**
      * Our notion of the current elder
-     * 
+     *
      * guarded.By {@link #elderLock}
      */
     InternalDistributedMember currentElder = null;
 
     /**
      * Count of the elder calls in-flight
-     * 
+     *
      * guarded.By {@link #elderLock}
      */
     int elderCallsInProgress = 0;
 
     /**
      * If true, we're cooling our heels waiting for the elders to pass the baton
-     * 
+     *
      * guarded.By {@link #elderLock}
      */
     boolean waitingToChangeElder = false;
@@ -152,7 +150,7 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
   /**
    * Waits until elder recovery can proceed safely. Currently this is done by waiting until any in
    * progress calls to an old elder are complete
-   * 
+   *
    * @param elderId the member id of the new elder; null if new elder is local
    */
   static void readyForElderRecovery(InternalDistributedSystem sys,
@@ -185,12 +183,6 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
     }
   }
 
-  /**
-   * elderSyncWait
-   * 
-   * @param newElder
-   * @param dls
-   */
   private static void elderSyncWait(InternalDistributedSystem sys,
       InternalDistributedMember newElder, DLockService dls) {
     GrantorRequestContext grc = sys.getGrantorRequestContext();
@@ -199,7 +191,7 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
         LocalizedStrings.GrantorRequestProcessor_GRANTORREQUESTPROCESSOR_ELDERSYNCWAIT_THE_CURRENT_ELDER_0_IS_WAITING_FOR_THE_NEW_ELDER_1,
         new Object[] {grc.currentElder, newElder});
     while (grc.waitingToChangeElder) {
-      logger.info(LogMarker.DLS, message);
+      logger.info(LogMarker.DLS_MARKER, message);
       boolean interrupted = Thread.interrupted();
       try {
         grc.elderLockCondition.await(sys.getConfig().getMemberTimeout());
@@ -222,7 +214,7 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
     InternalDistributedMember elder;
     ElderState es = null;
 
-    final DM dm = sys.getDistributionManager();
+    final DistributionManager dm = sys.getDistributionManager();
     boolean elderCallStarted = false;
     while (!elderCallStarted) {
       dm.throwIfDistributionStopped();
@@ -270,7 +262,7 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
   /**
    * Asks the elder who the grantor is for the specified service. If no grantor exists then makes us
    * the grantor.
-   * 
+   *
    * @param service the service we want to know the grantor of.
    * @param sys the distributed system
    * @return information describing the current grantor of this service and if it needs recovery.
@@ -282,7 +274,7 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
 
   /**
    * Asks the elder who the grantor is for the specified service.
-   * 
+   *
    * @param service the service we want to know the grantor of.
    * @param sys th distributed system
    * @return information describing the current grantor of this service and if recovery is needed
@@ -297,7 +289,7 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
 
   /**
    * Tells the elder we want to become the grantor
-   * 
+   *
    * @param service the service we want to be the grantor of.
    * @param oldTurk if non-null then only become grantor if it is currently oldTurk.
    * @param sys the distributed system
@@ -311,7 +303,7 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
 
   /**
    * Tells the elder we are doing a clean destroy of our grantor
-   * 
+   *
    * @param service the service we are no longer the grantor of.
    * @param sys the distributed system
    */
@@ -334,7 +326,7 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
       int dlsSerialNumber, InternalDistributedSystem system, InternalDistributedMember oldTurk,
       byte opCode) {
     GrantorInfo result = null;
-    DM dm = system.getDistributionManager();
+    DistributionManager dm = system.getDistributionManager();
     GrantorRequestContext grc = system.getGrantorRequestContext();
     boolean tryNewElder;
     boolean interrupted = false;
@@ -379,15 +371,15 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
             boolean sent = GrantorRequestMessage.send(grantorVersion, dlsSerialNumber, serviceName,
                 grc.currentElder, dm, processor, oldTurk, opCode);
             if (!sent) {
-              if (logger.isTraceEnabled(LogMarker.DLS)) {
-                logger.trace(LogMarker.DLS, "Unable to communicate with elder {}",
+              if (logger.isTraceEnabled(LogMarker.DLS_VERBOSE)) {
+                logger.trace(LogMarker.DLS_VERBOSE, "Unable to communicate with elder {}",
                     grc.currentElder);
               }
             }
             try {
               processor.waitForRepliesUninterruptibly();
             } catch (ReplyException e) {
-              e.handleAsUnexpected();
+              e.handleCause();
             }
             if (processor.result != null) {
               result = processor.result;
@@ -468,29 +460,11 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
     private InternalDistributedMember oldTurk;
 
     /**
-     * 
-     * @param serviceName
-     * @param elder
-     * @param dm
-     * @param proc
-     * @param oldTurk
-     * @param opCode
      * @return true if the message was sent
      */
     protected static boolean send(long grantorVersion, int dlsSerialNumber, String serviceName,
-        InternalDistributedMember elder, DM dm, ReplyProcessor21 proc,
+        InternalDistributedMember elder, DistributionManager dm, ReplyProcessor21 proc,
         InternalDistributedMember oldTurk, byte opCode) {
-      // bug36361: the following assertion doesn't work, since the client that sent us
-      // the request might have a different notion of the elder (no view synchrony on the
-      // current notion of the elder).
-      // InternalDistributedMember moi = dm.getDistributionManagerId();
-      // Assert.assertTrue(!(
-      // // Sending a message to ourself is REALLY WEIRD, so
-      // // we make that the first test...
-      // moi.equals(dm.getElderId())
-      // && !moi.equals(elder)
-      // && dm.getDistributionManagerIds().contains(elder)
-      // ));
 
       GrantorRequestMessage msg = new GrantorRequestMessage();
       msg.grantorVersion = grantorVersion;
@@ -500,8 +474,8 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
       msg.opCode = opCode;
       msg.processorId = proc.getProcessorId();
       msg.setRecipient(elder);
-      if (logger.isTraceEnabled(LogMarker.DLS)) {
-        logger.trace(LogMarker.DLS, "GrantorRequestMessage sending {} to {}", msg, elder);
+      if (logger.isTraceEnabled(LogMarker.DLS_VERBOSE)) {
+        logger.trace(LogMarker.DLS_VERBOSE, "GrantorRequestMessage sending {} to {}", msg, elder);
       }
       Set failures = dm.putOutgoing(msg);
       return failures == null || failures.size() == 0;
@@ -512,35 +486,20 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
       return this.processorId;
     }
 
-    private void replyGrantorInfo(DM dm, GrantorInfo gi) {
+    private void replyGrantorInfo(DistributionManager dm, GrantorInfo gi) {
       GrantorInfoReplyMessage.send(this, dm, gi);
     }
 
-    private void replyClear(DM dm) {
+    private void replyClear(DistributionManager dm) {
       ReplyMessage.send(this.getSender(), this.getProcessorId(), null, dm);
     }
 
     @Override
-    protected void process(DistributionManager dm) {
-      // executeBasicProcess(dm); // TODO change to this after things are stable
+    protected void process(ClusterDistributionManager dm) {
       basicProcess(dm);
     }
 
-    // private void executeBasicProcess(final DM dm) {
-    // final GrantorRequestMessage msg = this;
-    // try {
-    // dm.getWaitingThreadPool().execute(new Runnable() {
-    // public void run() {
-    // basicProcess(dm);
-    // }
-    // });
-    // }
-    // catch (RejectedExecutionException e) { {
-    // logger.debug("Rejected processing of <{}>", this, e);
-    // }
-    // }
-
-    protected void basicProcess(final DM dm) {
+    protected void basicProcess(final DistributionManager dm) {
       // we should be in the elder
       ElderState es = dm.getElderState(true, false);
       switch (this.opCode) {
@@ -643,7 +602,7 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
     private int grantorSerialNumber;
     private boolean needsRecovery;
 
-    public static void send(MessageWithReply reqMsg, DM dm, GrantorInfo gi) {
+    public static void send(MessageWithReply reqMsg, DistributionManager dm, GrantorInfo gi) {
       GrantorInfoReplyMessage m = new GrantorInfoReplyMessage();
       m.grantor = gi.getId();
       m.needsRecovery = gi.needsRecovery();
@@ -694,4 +653,3 @@ public class GrantorRequestProcessor extends ReplyProcessor21 {
     }
   }
 }
-

@@ -26,11 +26,14 @@ import org.apache.geode.cache.Region;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.InternalClusterConfigurationService;
+import org.apache.geode.distributed.internal.InternalLocator;
+import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.management.cli.GfshCommand;
 import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.cli.Result.Status;
 import org.apache.geode.management.internal.cli.CliUtil;
-import org.apache.geode.management.internal.cli.commands.GfshCommand;
 import org.apache.geode.management.internal.cli.functions.CliFunctionResult;
 import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.cli.result.TabularResultData;
@@ -44,7 +47,7 @@ import org.apache.geode.security.ResourcePermission.Resource;
  *
  * @since GemFire 8.1
  */
-public class MockExtensionCommands implements GfshCommand {
+public class MockExtensionCommands extends GfshCommand {
 
   public static final String OPTION_VALUE = "value";
 
@@ -64,7 +67,7 @@ public class MockExtensionCommands implements GfshCommand {
 
   /**
    * Creates a {@link MockRegionExtension} on the given <code>regionName</code>.
-   * 
+   *
    * @param regionName {@link Region} name on which to create {@link MockRegionExtension} .
    * @param value {@link String} value to set on {@link MockRegionExtension#setValue(String)}.
    * @return {@link Result}
@@ -82,7 +85,7 @@ public class MockExtensionCommands implements GfshCommand {
 
   /**
    * Alters a {@link MockRegionExtension} on the given <code>regionName</code>.
-   * 
+   *
    * @param regionName {@link Region} name on which to create {@link MockRegionExtension} .
    * @param value {@link String} value to set on {@link MockRegionExtension#setValue(String)}.
    * @return {@link Result}
@@ -100,7 +103,7 @@ public class MockExtensionCommands implements GfshCommand {
 
   /**
    * Destroy the {@link MockRegionExtension} on the given <code>regionName</code>.
-   * 
+   *
    * @param regionName {@link Region} name on which to create {@link MockRegionExtension} .
    * @return {@link Result}
    * @since GemFire 8.1
@@ -116,7 +119,7 @@ public class MockExtensionCommands implements GfshCommand {
 
   /**
    * Creates a {@link MockCacheExtension}.
-   * 
+   *
    * @param value {@link String} value to set on {@link MockCacheExtension#setValue(String)}.
    * @return {@link Result}
    * @since GemFire 8.1
@@ -132,7 +135,7 @@ public class MockExtensionCommands implements GfshCommand {
 
   /**
    * Alter a {@link MockCacheExtension}.
-   * 
+   *
    * @param value {@link String} value to set on {@link MockCacheExtension#setValue(String)}.
    * @return {@link Result}
    * @since GemFire 8.1
@@ -148,7 +151,7 @@ public class MockExtensionCommands implements GfshCommand {
 
   /**
    * Destroy a {@link MockCacheExtension}.
-   * 
+   *
    * @return {@link Result}
    * @since GemFire 8.1
    */
@@ -162,7 +165,7 @@ public class MockExtensionCommands implements GfshCommand {
   /**
    * Call <code>function</code> with <code>args</code> on all members, tabulate results and persist
    * shared config if changed.
-   * 
+   *
    * @param function {@link Function} to execute.
    * @param addXmlElement If <code>true</code> then add result {@link XmlEntity} to the config,
    *        otherwise delete it.
@@ -172,7 +175,7 @@ public class MockExtensionCommands implements GfshCommand {
    */
   protected Result executeFunctionOnAllMembersTabulateResultPersist(final Function function,
       final boolean addXmlElement, final Object... args) {
-    final InternalCache cache = getCache();
+    InternalCache cache = GemFireCacheImpl.getInstance();
     final Set<DistributedMember> members = CliUtil.getAllNormalMembers(cache);
 
     @SuppressWarnings("unchecked")
@@ -199,14 +202,14 @@ public class MockExtensionCommands implements GfshCommand {
 
     final Result result = ResultBuilder.buildResult(tabularResultData);
 
+    InternalClusterConfigurationService ccService =
+        InternalLocator.getLocator().getSharedConfiguration();
     System.out.println("MockExtensionCommands: persisting xmlEntity=" + xmlEntity);
     if (null != xmlEntity.get()) {
       if (addXmlElement) {
-        persistClusterConfiguration(result,
-            () -> getSharedConfiguration().addXmlEntity(xmlEntity.get(), null));
+        ccService.addXmlEntity(xmlEntity.get(), null);
       } else {
-        persistClusterConfiguration(result,
-            () -> getSharedConfiguration().deleteXmlEntity(xmlEntity.get(), null));
+        ccService.deleteXmlEntity(xmlEntity.get(), null);
       }
     }
 

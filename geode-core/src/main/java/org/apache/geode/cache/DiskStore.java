@@ -24,7 +24,7 @@ import java.util.UUID;
  * <p>
  * Instances of this interface are created using {@link DiskStoreFactory#create}. So to create a
  * <code>DiskStore</code> named <code>myDiskStore</code> do this:
- * 
+ *
  * <PRE>
  * new DiskStoreFactory().create("myDiskStore");
  * </PRE>
@@ -42,7 +42,7 @@ public interface DiskStore {
    * @return the name of the DiskStore
    * @see DiskStoreFactory#create
    */
-  public String getName();
+  String getName();
 
   /**
    * Returns true if the disk files are to be automatically compacted.
@@ -50,15 +50,15 @@ public interface DiskStore {
    * @return Returns true if the disk files are to be automatically compacted; false if automatic
    *         compaction is turned off
    */
-  public boolean getAutoCompact();
+  boolean getAutoCompact();
 
   /**
    * Returns the threshold at which an oplog will become compactable. Until it reaches this
    * threshold the oplog will not be compacted. The threshold is a percentage in the range 0..100.
-   * 
+   *
    * @return the threshold, as a percentage, at which an oplog is considered compactable.
    */
-  public int getCompactionThreshold();
+  int getCompactionThreshold();
 
   /**
    * Returns true if manual compaction of disk files is allowed on this region. Manual compaction is
@@ -69,21 +69,21 @@ public interface DiskStore {
    *
    * @return Returns true if manual compaction of disk files is allowed on this region.
    */
-  public boolean getAllowForceCompaction();
+  boolean getAllowForceCompaction();
 
   /**
    * Get the maximum size in megabytes a single oplog (operation log) file should be
    *
    * @return the maximum size in megabyte the operations log file can be
    */
-  public long getMaxOplogSize();
+  long getMaxOplogSize();
 
   /**
    * Returns the number of milliseconds that can elapse before unwritten data is written to disk.
    *
    * @return Returns the time interval in milliseconds that can elapse between two writes to disk
    */
-  public long getTimeInterval();
+  long getTimeInterval();
 
   /**
    * Returns the size of the write buffer that this disk store will use when writing data to disk.
@@ -92,29 +92,29 @@ public interface DiskStore {
    *
    * @return Returns the size of the write buffer.
    */
-  public int getWriteBufferSize();
+  int getWriteBufferSize();
 
   /**
    * Returns the directories to which the region's data are written. If multiple directories are
    * used, GemFire will attempt to distribute the data evenly amongst them.
    *
    */
-  public File[] getDiskDirs();
+  File[] getDiskDirs();
 
   /**
    * Returns the sizes of the disk directories in megabytes
    */
-  public int[] getDiskDirSizes();
+  int[] getDiskDirSizes();
 
   /**
    * Returns the universally unique identifier for the Disk Store across the GemFire distributed
    * system.
    * </p>
-   * 
+   *
    * @return a UUID uniquely identifying this Disk Store in the GemFire distributed system.
    * @see java.util.UUID
    */
-  public UUID getDiskStoreUUID();
+  UUID getDiskStoreUUID();
 
   /**
    * Returns the maximum number of operations that can be asynchronously queued to be written to
@@ -126,7 +126,7 @@ public interface DiskStore {
    *         to disk.
    *
    */
-  public int getQueueSize();
+  int getQueueSize();
 
   /**
    * Causes any data that is currently in the asynchronous queue to be written to disk. Does not
@@ -134,7 +134,7 @@ public interface DiskStore {
    *
    * @throws DiskAccessException If problems are encounter while writing to disk
    */
-  public void flush();
+  void flush();
 
   /**
    * Asks the disk store to start writing to a new oplog. The old oplog will be asynchronously
@@ -146,7 +146,7 @@ public interface DiskStore {
    *
    * @throws DiskAccessException
    */
-  public void forceRoll();
+  void forceRoll();
 
   /**
    * Allows a disk compaction to be forced on this disk store. The compaction is done even if
@@ -155,56 +155,56 @@ public interface DiskStore {
    * active oplog can be compacted.
    * <P>
    * This method will block until the compaction completes.
-   * 
+   *
    * @return <code>true</code> if one or more oplogs were compacted; <code>false</code> indicates
    *         that no oplogs were ready to be compacted or that a compaction was already in progress.
    * @see #getAllowForceCompaction
    */
-  public boolean forceCompaction();
+  boolean forceCompaction();
 
   /**
    * Destroys this disk store. Removes the disk store from the cache, and removes all files related
    * to the disk store from disk.
-   * 
+   *
    * If there are any currently open regions in the disk store this method will throw an exception.
    * If there are any closed regions that are persisted in this disk store, the data for those
    * regions will be destroyed.
    *
    * @throws IllegalStateException if the disk store is currently in use by any regions, gateway
    *         senders, or a PDX type registry.
-   * 
+   *
    * @since GemFire 8.0
    */
-  public void destroy();
+  void destroy();
 
 
   /**
    * Returns the warning threshold for disk usage as a percentage of the total disk volume.
-   * 
+   *
    * @return the warning percent
    * @since GemFire 8.0
    */
-  public float getDiskUsageWarningPercentage();
+  float getDiskUsageWarningPercentage();
 
   /**
    * Returns the critical threshold for disk usage as a percentage of the total disk volume.
-   * 
+   *
    * @return the critical percent
    * @since GemFire 8.0
    */
-  public float getDiskUsageCriticalPercentage();
+  float getDiskUsageCriticalPercentage();
 
   /**
    * Sets the value of the disk usage warning percentage.
-   * 
+   *
    * @param warningPercent the warning percent
    */
-  public void setDiskUsageWarningPercentage(float warningPercent);
+  void setDiskUsageWarningPercentage(float warningPercent);
 
   /**
    * Sets the value of the disk usage critical percentage.
-   * 
+   *
    * @param criticalPercent the critical percent
    */
-  public void setDiskUsageCriticalPercentage(float criticalPercent);
+  void setDiskUsageCriticalPercentage(float criticalPercent);
 }

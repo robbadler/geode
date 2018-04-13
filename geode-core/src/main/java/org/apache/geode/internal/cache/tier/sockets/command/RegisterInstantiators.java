@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
 import java.io.IOException;
@@ -40,7 +37,7 @@ import org.apache.geode.internal.security.SecurityService;
 
 public class RegisterInstantiators extends BaseCommand {
 
-  private final static RegisterInstantiators singleton = new RegisterInstantiators();
+  private static final RegisterInstantiators singleton = new RegisterInstantiators();
 
   public static Command getCommand() {
     return singleton;

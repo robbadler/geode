@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.geode.cache.query.internal.parse.OQLLexerTokenTypes;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.cache.Region;
@@ -41,6 +40,7 @@ import org.apache.geode.cache.query.TypeMismatchException;
 import org.apache.geode.cache.query.internal.index.IndexData;
 import org.apache.geode.cache.query.internal.index.IndexProtocol;
 import org.apache.geode.cache.query.internal.index.IndexUtils;
+import org.apache.geode.cache.query.internal.parse.OQLLexerTokenTypes;
 import org.apache.geode.cache.query.internal.types.StructTypeImpl;
 import org.apache.geode.cache.query.internal.types.TypeUtils;
 import org.apache.geode.cache.query.types.ObjectType;
@@ -240,7 +240,7 @@ public class CompiledIn extends AbstractCompiledValue implements Indexable {
 
   /**
    * specialized optimization for doing a bulk get on a region.
-   * 
+   *
    * @return a List of entries if optimization was performed, null if no match
    */
   List optimizeBulkGet(CompiledRegion cRgn, ExecutionContext context)
@@ -361,7 +361,7 @@ public class CompiledIn extends AbstractCompiledValue implements Indexable {
    * passed will be null except if a GroupJunction has only one filter evaluatable condition & rest
    * are iter operands. In such cases , the iter operands will be evaluated while expanding/cutting
    * down the index resultset
-   * 
+   *
    * @return SelectResults
    */
   public SelectResults filterEvaluate(ExecutionContext context, SelectResults intermediateResults,
@@ -410,7 +410,7 @@ public class CompiledIn extends AbstractCompiledValue implements Indexable {
    *
    * Invariant: the receiver is dependent on the current iterator.
    */
-  private SelectResults singleBaseCollectionFilterEvaluate(ExecutionContext context,
+  SelectResults singleBaseCollectionFilterEvaluate(ExecutionContext context,
       SelectResults intermediateResults, boolean completeExpansionNeeded,
       CompiledValue iterOperands, IndexInfo indexInfo, RuntimeIterator[] indpndntItr,
       boolean isIntersection, boolean conditioningNeeded, boolean evalProj)
@@ -562,69 +562,16 @@ public class CompiledIn extends AbstractCompiledValue implements Indexable {
           }
         }
       } else {
+
         if (!evalColln.getClass().isArray()) {
           throw new TypeMismatchException("Operand of IN cannot be interpreted as a Collection. "
               + "Is instance of " + evalColln.getClass().getName());
         }
-        if (evalColln instanceof Object[]) {
-          Object[] arr = (Object[]) evalColln;
-          for (int i = 0; i < arr.length; ++i) {
-            this.queryIndex(arr[i], indexInfo, results, iterOperands, indpndntItr, context,
-                projAttrib, conditioningNeeded);
-          }
 
-        } else if (evalColln instanceof long[]) {
-          long[] a = (long[]) evalColln;
-          for (int i = 0; i < a.length; i++) {
-            this.queryIndex(a[i], indexInfo, results, iterOperands, indpndntItr, context,
-                projAttrib, conditioningNeeded);
-          }
-
-        } else if (evalColln instanceof double[]) {
-          double[] a = (double[]) evalColln;
-          for (int i = 0; i < a.length; i++) {
-            this.queryIndex(a[i], indexInfo, results, iterOperands, indpndntItr, context,
-                projAttrib, conditioningNeeded);
-          }
-
-        } else if (evalColln instanceof float[]) {
-          float[] a = (float[]) evalColln;
-          for (int i = 0; i < a.length; i++) {
-            this.queryIndex(a[i], indexInfo, results, iterOperands, indpndntItr, context,
-                projAttrib, conditioningNeeded);
-          }
-
-        } else if (evalColln instanceof int[]) {
-          int[] a = (int[]) evalColln;
-          for (int i = 0; i < a.length; i++) {
-            this.queryIndex(a[i], indexInfo, results, iterOperands, indpndntItr, context,
-                projAttrib, conditioningNeeded);
-          }
-        } else if (evalColln instanceof short[]) {
-          short[] a = (short[]) evalColln;
-          for (int i = 0; i < a.length; i++) {
-            this.queryIndex(a[i], indexInfo, results, iterOperands, indpndntItr, context,
-                projAttrib, conditioningNeeded);
-          }
-
-        } else if (evalColln instanceof char[]) {
-          char[] a = (char[]) evalColln;
-          for (int i = 0; i < a.length; i++) {
-            this.queryIndex(a[i], indexInfo, results, iterOperands, indpndntItr, context,
-                projAttrib, conditioningNeeded);
-          }
-
-        } else if (evalColln instanceof byte[]) {
-          byte[] a = (byte[]) evalColln;
-          for (int i = 0; i < a.length; i++) {
-            this.queryIndex(a[i], indexInfo, results, iterOperands, indpndntItr, context,
-                projAttrib, conditioningNeeded);
-          }
-
-        } else {
-          throw new TypeMismatchException(
-              "Operand of IN cannot be interpreted as a Comparable Object. Operand is of type ="
-                  + evalColln.getClass());
+        int evalCollnLength = Array.getLength(evalColln);
+        for (int i = 0; i < evalCollnLength; ++i) {
+          this.queryIndex(Array.get(evalColln, i), indexInfo, results, iterOperands, indpndntItr,
+              context, projAttrib, conditioningNeeded);
         }
       }
 
@@ -686,7 +633,7 @@ public class CompiledIn extends AbstractCompiledValue implements Indexable {
    * is no index available. The boolean true implies that CompiledComparison when existing on its
    * own always requires a CompleteExpansion to top level iterators. This flag can get toggled to
    * false only from inside a GroupJunction
-   * 
+   *
    * @param intermediateResults if this parameter is provided, and we have to iterate, then iterate
    *        over this result set instead of the entire base collection.
    */

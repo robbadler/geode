@@ -14,21 +14,15 @@
  */
 package org.apache.geode.management.internal.cli.domain;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
 import java.io.Serializable;
 
-import org.apache.geode.DataSerializer;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 
 /**
  * Domain object used for Data Commands Functions
- * 
- * TODO : Implement DataSerializable
  *
  */
-public class DataCommandRequest implements /* Data */ Serializable {
+public class DataCommandRequest implements Serializable {
 
   protected static final boolean DEFAULT_LOAD_ON_CACHE_MISS = false;
 
@@ -194,37 +188,4 @@ public class DataCommandRequest implements /* Data */ Serializable {
   public void setPrincipal(Object principal) {
     this.principal = principal;
   }
-
-  // @Override
-  public void toData(DataOutput out) throws IOException {
-    DataSerializer.writeString(command, out);
-    DataSerializer.writeString(key, out);
-    DataSerializer.writeString(value, out);
-    DataSerializer.writeBoolean(putIfAbsent, out);
-    DataSerializer.writeString(keyClass, out);
-    DataSerializer.writeString(valueClass, out);
-    DataSerializer.writeString(regionName, out);
-    DataSerializer.writeString(removeAllKeys, out);
-    DataSerializer.writeBoolean(recursive, out);
-    DataSerializer.writeBoolean(loadOnCacheMiss, out);
-    DataSerializer.writeObject(principal, out);
-  }
-
-  // @Override
-  public void fromData(DataInput in) throws IOException, ClassNotFoundException {
-    command = DataSerializer.readString(in);
-    key = DataSerializer.readString(in);
-    value = DataSerializer.readString(in);
-    putIfAbsent = DataSerializer.readBoolean(in);
-    keyClass = DataSerializer.readString(in);
-    valueClass = DataSerializer.readString(in);
-    regionName = DataSerializer.readString(in);
-    removeAllKeys = DataSerializer.readString(in);
-    recursive = DataSerializer.readBoolean(in);
-    loadOnCacheMiss = DataSerializer.readBoolean(in);
-    principal = DataSerializer.readObject(in);
-  }
-
-
-
 }

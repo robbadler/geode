@@ -14,13 +14,11 @@
  */
 package org.apache.geode.internal.cache.wan.misc;
 
-import org.junit.Ignore;
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.junit.categories.DistributedTest;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.Scope;
@@ -28,8 +26,10 @@ import org.apache.geode.internal.cache.wan.WANTestBase;
 import org.apache.geode.test.dunit.Assert;
 import org.apache.geode.test.dunit.AsyncInvocation;
 import org.apache.geode.test.dunit.LogWriterUtils;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class ReplicatedRegion_ParallelWANPersistenceDUnitTest extends WANTestBase {
 
   public ReplicatedRegion_ParallelWANPersistenceDUnitTest() {

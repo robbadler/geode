@@ -14,14 +14,10 @@
  */
 package org.apache.geode.cache30;
 
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.CacheException;
@@ -35,6 +31,8 @@ import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * Tests the {@link CacheStatistics} that are maintained by a {@link Region} and a
@@ -425,6 +423,7 @@ public class CacheStatisticsDUnitTest extends JUnit4CacheTestCase {
         assertEquals(0, hc);
         assertEquals(0, mc);
         lastAccessed = stats.getLastAccessedTime();
+        lastModified = stats.getLastModifiedTime();
       }
     });
 
@@ -439,7 +438,7 @@ public class CacheStatisticsDUnitTest extends JUnit4CacheTestCase {
         Region region = getRootRegion().getSubregion(name);
         CacheStatistics stats = region.getEntry(key).getStatistics();
         assertEquals(lastAccessed, stats.getLastAccessedTime());
-        assertEquals(lastAccessed, stats.getLastModifiedTime());
+        assertEquals(lastModified, stats.getLastModifiedTime());
         assertEquals(0, stats.getHitCount());
         assertEquals(0, stats.getMissCount());
       }

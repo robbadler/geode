@@ -14,32 +14,27 @@
  */
 package org.apache.geode.internal.cache;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.cache.CacheEvent;
 import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.Operation;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.SerializationVersions;
 import org.apache.geode.internal.Version;
-import org.apache.geode.internal.VersionedDataSerializable;
+import org.apache.geode.internal.cache.FilterRoutingInfo.FilterInfo;
 import org.apache.geode.internal.cache.persistence.DiskStoreID;
 import org.apache.geode.internal.cache.versions.VersionSource;
-import org.apache.geode.internal.cache.FilterRoutingInfo.FilterInfo;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.nio.BufferUnderflowException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-
-/**
- *
- */
 public class DistributedTombstoneOperation extends DistributedCacheOperation {
   private enum TOperation {
     GC,
@@ -89,7 +84,7 @@ public class DistributedTombstoneOperation extends DistributedCacheOperation {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.DistributedCacheOperation#getLocalFilterRouting(org.apache.
    * geode.internal.cache.FilterRoutingInfo)
@@ -139,7 +134,7 @@ public class DistributedTombstoneOperation extends DistributedCacheOperation {
     @Override
     public int getProcessorType() {
       // Set to STANDARD to keep it from being processed in-line
-      return DistributionManager.STANDARD_EXECUTOR;
+      return ClusterDistributionManager.STANDARD_EXECUTOR;
     }
 
     @Override
@@ -157,7 +152,7 @@ public class DistributedTombstoneOperation extends DistributedCacheOperation {
     }
 
     @Override
-    protected boolean operateOnRegion(CacheEvent event, DistributionManager dm)
+    protected boolean operateOnRegion(CacheEvent event, ClusterDistributionManager dm)
         throws EntryNotFoundException {
       boolean sendReply = true;
 

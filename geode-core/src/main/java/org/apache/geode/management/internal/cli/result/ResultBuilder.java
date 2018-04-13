@@ -15,12 +15,12 @@
 package org.apache.geode.management.internal.cli.result;
 
 import java.nio.file.Paths;
-import java.util.Collection;
 import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.geode.management.cli.Result;
+import org.apache.geode.management.internal.cli.functions.CliFunctionResult;
 import org.apache.geode.management.internal.cli.json.GfJsonException;
 import org.apache.geode.management.internal.cli.json.GfJsonObject;
 
@@ -43,30 +43,25 @@ public class ResultBuilder {
   public static final int ERRORCODE_BADCONFIG_ERROR = 515;
   public static final int ERRORCODE_USER_ERROR = 520;
 
-  // Result with constant message & error code
-  public static final Result ERROR_RESULT_DEFAULT =
-      createErrorResult(ERRORCODE_DEFAULT, "Error occurred while executing command.");
-
   /**
    * Method for convenience to create error result for connection error.
    * <p/>
    * Note: To build your own error result, use {@link #createErrorResultData()} to build
    * {@link ErrorResultData} & then use {@link #buildResult(ResultData)}
-   * 
+   *
    * @param message Message to be shown to the user
-   * @return Result for connection error
    */
-  public static Result createConnectionErrorResult(String message) {
+  public static CommandResult createConnectionErrorResult(String message) {
     String errorMessage = message != null ? message : "Connection Error occurred.";
 
     return createErrorResult(ERRORCODE_CONNECTION_ERROR, errorMessage);
   }
 
-  public static Result createShellClientErrorResult(String message) {
+  public static CommandResult createShellClientErrorResult(String message) {
     return createErrorResult(ERRORCODE_SHELLCLIENT_ERROR, message);
   }
 
-  public static Result createShellClientAbortOperationResult(String message) {
+  public static CommandResult createShellClientAbortOperationResult(String message) {
     return createErrorResult(CODE_SHELLCLIENT_ABORT_OP, message);
   }
 
@@ -75,15 +70,14 @@ public class ResultBuilder {
    * <p/>
    * Note: To build your own error result, use {@link #createErrorResultData()} to build
    * {@link ErrorResultData} & then use {@link #buildResult(ResultData)}
-   * 
+   *
    * @param message Message to be shown to the user
-   * @return Result for parsing error
    */
-  public static Result createParsingErrorResult(String message) {
+  public static CommandResult createParsingErrorResult(String message) {
     return createErrorResult(ERRORCODE_PARSING_ERROR, "Could not parse command string. " + message);
   }
 
-  public static Result createBadConfigurationErrorResult(String message) {
+  public static CommandResult createBadConfigurationErrorResult(String message) {
     return createErrorResult(ERRORCODE_BADCONFIG_ERROR, "Configuration error. " + message);
   }
 
@@ -92,20 +86,19 @@ public class ResultBuilder {
    * <p/>
    * Note: To build your own error result, use {@link #createErrorResultData()} to build
    * {@link ErrorResultData} & then use {@link #buildResult(ResultData)}
-   * 
+   *
    * @param message Message to be shown to the user
-   * @return Result for error in Geode while executing command.
    */
-  public static Result createGemFireErrorResult(String message) {
+  public static CommandResult createGemFireErrorResult(String message) {
     return createErrorResult(ERRORCODE_GEODE_ERROR,
         "Could not process command due to error. " + message);
   }
 
-  public static Result createGemFireUnAuthorizedErrorResult(String message) {
+  public static CommandResult createGemFireUnAuthorizedErrorResult(String message) {
     return createErrorResult(ERRORCODE_UNAUTHORIZED, message);
   }
 
-  public static Result createUserErrorResult(String message) {
+  public static CommandResult createUserErrorResult(String message) {
     return createErrorResult(ERRORCODE_USER_ERROR, message);
   }
 
@@ -114,9 +107,8 @@ public class ResultBuilder {
    * <p/>
    * Note: To build your own error result, use {@link #createErrorResultData()} to build
    * {@link ErrorResultData} & then use {@link #buildResult(ResultData)}
-   * 
+   *
    * @param message Message to be shown to the user
-   * @return Result for unreadable command response.
    */
   public static CommandResult createBadResponseErrorResult(String message) {
     return createErrorResult(ERRORCODE_BADRESPONSE_ERROR,
@@ -128,11 +120,9 @@ public class ResultBuilder {
    * <p/>
    * Note: To build your own error result, use {@link #createErrorResultData()} to build
    * {@link ErrorResultData} & then use {@link #buildResult(ResultData)}
-   * 
+   *
    * @param errorCode error code should be one of ResultBuilder.ERRORCODE_**
    * @param message message for the error
-   * @return Result object with the given error code & message. If there's an exception while
-   *         building result object, returns {@link #ERROR_RESULT_DEFAULT}
    */
   private static CommandResult createErrorResult(int errorCode, String message) {
     ErrorResultData errorResultData = new ErrorResultData();
@@ -143,9 +133,8 @@ public class ResultBuilder {
 
   /**
    * Convenience method to create a simple Info Result that takes a message.
-   * 
+   *
    * @param message Message for the OK Result
-   * @return Result of InfoResultData type
    */
   public static Result createInfoResult(String message) {
     InfoResultData infoResultData = new InfoResultData();
@@ -156,7 +145,7 @@ public class ResultBuilder {
   /**
    * Creates a {@link TabularResultData} object to start building result that should be shown in a
    * Tabular Format.
-   * 
+   *
    * @return TabularResultData instance
    */
   public static TabularResultData createTabularResultData() {
@@ -167,14 +156,10 @@ public class ResultBuilder {
     return new CompositeResultData();
   }
 
-  public static <T extends CliJsonSerializable> ObjectResultData<T> createObjectResultData() {
-    return new ObjectResultData<>();
-  }
-
   /**
    * Creates a {@link InfoResultData} object to start building result that is required to be shown
    * as an information without any specific format.
-   * 
+   *
    * @return InfoResultData instance
    */
   public static InfoResultData createInfoResultData() {
@@ -183,7 +168,7 @@ public class ResultBuilder {
 
   /**
    * Creates a {@link ErrorResultData} object to start building result for an error.
-   * 
+   *
    * @return ErrorResultData instance
    */
   public static ErrorResultData createErrorResultData() {
@@ -192,21 +177,48 @@ public class ResultBuilder {
 
   /**
    * Build a Result object from the given ResultData
-   * 
+   *
    * @param resultData data to use to build Result
-   * @return Result object built from the given ResultData
    */
   public static CommandResult buildResult(ResultData resultData) {
     return new CommandResult(resultData);
   }
 
+  public static CommandResult buildResult(List<CliFunctionResult> functionResults) {
+    return buildResult(functionResults, null, null);
+  }
+
+  public static CommandResult buildResult(List<CliFunctionResult> functionResults, String header,
+      String footer) {
+    TabularResultData tabularData = ResultBuilder.createTabularResultData();
+    boolean success = false;
+    for (CliFunctionResult result : functionResults) {
+      tabularData.accumulate("Member", result.getMemberIdOrName());
+      tabularData.accumulate("Status", result.getStatus());
+      // if one member returns back successful results, the command results in success
+      if (result.isSuccessful()) {
+        success = true;
+      }
+    }
+
+    if (header != null) {
+      tabularData.setHeader(header);
+    }
+    if (footer != null) {
+      tabularData.setFooter(footer);
+    }
+
+    tabularData.setStatus(success ? Result.Status.OK : Result.Status.ERROR);
+    return ResultBuilder.buildResult(tabularData);
+  }
+
+
   /**
    * Prepare Result from JSON. Type of result is expected to there in the JSON as 'contentType'
    * which should be one of {@link ResultData#TYPE_TABULAR}, {@link ResultData#TYPE_COMPOSITE},
-   * {@link ResultData#TYPE_INFO}, {@link ResultData#TYPE_ERROR}, {@link ResultData#TYPE_OBJECT}.
-   * 
+   * {@link ResultData#TYPE_INFO}, {@link ResultData#TYPE_ERROR}.
+   *
    * @param gfJsonObject GemFire JSON Object to use to prepare Result
-   * @return Result from the given GemFire JSON Object
    */
   public static CommandResult fromJson(GfJsonObject gfJsonObject) {
     return fromJson(gfJsonObject.toString());
@@ -216,10 +228,8 @@ public class ResultBuilder {
   /**
    * Prepare a Result object from a JSON String. This is useful on gfsh/client to read the response
    * & prepare a Result object from the JSON response
-   * 
+   *
    * @param json JSON string for Result
-   * @return Result object prepare from the JSON string. If it fails, creates an error Result for
-   *         Bad Response.
    */
   public static CommandResult fromJson(String json) {
     CommandResult result;
@@ -237,12 +247,17 @@ public class ResultBuilder {
         resultData = new ErrorResultData(data);
       } else if (ResultData.TYPE_COMPOSITE.equals(contentType)) {
         resultData = new CompositeResultData(data);
-      } else if (ResultData.TYPE_OBJECT.equals(contentType)) {
-        resultData = new ObjectResultData<>(data);
       } else {
         ErrorResultData errorResultData = new ErrorResultData();
         errorResultData.addLine("Can not detect result type, unknown response format: " + json);
         resultData = errorResultData;
+      }
+
+      Integer statusCode = (Integer) jsonObject.get("status");
+      if (Result.Status.OK.getCode() == statusCode) {
+        resultData.setStatus(Result.Status.OK);
+      } else {
+        resultData.setStatus(Result.Status.ERROR);
       }
 
       result = buildResult(resultData);
@@ -274,7 +289,7 @@ public class ResultBuilder {
   /**
    * Wraps a given ResultData and wraps it into appropriate ResultData of the same type but the
    * returned object is immutable & throws UnsupportedOperationException on invoking those methods.
-   * 
+   *
    * @param resultData to be wrapped
    * @return Read only ResultData of the same type
    */
@@ -369,37 +384,6 @@ public class ResultBuilder {
 
         public CompositeResultData addSeparator(char buildSeparatorFrom) {
           throw new UnsupportedOperationException("This is read only result data");
-        }
-      };
-    } else if (ResultData.TYPE_OBJECT.equals(contentType)) {
-      final ObjectResultData<?> wrapped = (ObjectResultData<?>) resultData;
-      wrapperResultData = new ObjectResultData<CliJsonSerializable>() {
-        @Override
-        public ResultData addAsFile(String fileName, byte[] data, int fileType, String message,
-            boolean addTimeStampToName) {
-          throw new UnsupportedOperationException("This is read only result data");
-        }
-
-        @Override
-        public ResultData addAsFile(String fileName, String fileContents, String message,
-            boolean addTimeStampToName) {
-          throw new UnsupportedOperationException("This is read only result data");
-        }
-
-        @Override
-        public ObjectResultData<CliJsonSerializable> addCollection(
-            Collection<CliJsonSerializable> infoBeans) {
-          throw new UnsupportedOperationException("This is read only result data");
-        }
-
-        @Override
-        public ObjectResultData<CliJsonSerializable> addObject(CliJsonSerializable infoBean) {
-          throw new UnsupportedOperationException("This is read only result data");
-        }
-
-        @Override
-        public List<CliJsonSerializable> getAllObjects() {
-          return wrapped.getAllObjects();
         }
       };
     } else {

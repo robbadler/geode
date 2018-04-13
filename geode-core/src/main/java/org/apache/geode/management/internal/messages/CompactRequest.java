@@ -30,7 +30,7 @@ import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.persistence.PersistentID;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.ReplyException;
@@ -56,8 +56,8 @@ public class CompactRequest extends AdminRequest {
 
   private static String notExecutedMembers;
 
-  public static Map<DistributedMember, PersistentID> send(DM dm, String diskStoreName,
-      Set<?> recipients) {
+  public static Map<DistributedMember, PersistentID> send(DistributionManager dm,
+      String diskStoreName, Set<?> recipients) {
     Map<DistributedMember, PersistentID> results = Collections.emptyMap();
 
     if (recipients != null && !recipients.isEmpty()) {
@@ -90,7 +90,7 @@ public class CompactRequest extends AdminRequest {
   }
 
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     super.process(dm);
   }
 
@@ -144,7 +144,7 @@ public class CompactRequest extends AdminRequest {
     Map<DistributedMember, PersistentID> results =
         Collections.synchronizedMap(new HashMap<DistributedMember, PersistentID>());
 
-    public CompactReplyProcessor(DM dm, Collection<?> initMembers) {
+    public CompactReplyProcessor(DistributionManager dm, Collection<?> initMembers) {
       super(dm, initMembers);
     }
 
@@ -159,14 +159,14 @@ public class CompactRequest extends AdminRequest {
     }
 
     @Override
-    protected void process(DistributionMessage msg, boolean warn) {
-      if (msg instanceof CompactResponse) {
-        final PersistentID persistentId = ((CompactResponse) msg).getPersistentId();
+    protected void process(DistributionMessage message, boolean warn) {
+      if (message instanceof CompactResponse) {
+        final PersistentID persistentId = ((CompactResponse) message).getPersistentId();
         if (persistentId != null) {
-          results.put(msg.getSender(), persistentId);
+          results.put(message.getSender(), persistentId);
         }
       }
-      super.process(msg, warn);
+      super.process(message, warn);
     }
   }
 }

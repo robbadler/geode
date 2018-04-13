@@ -14,9 +14,9 @@
  */
 package org.apache.geode.management.internal.cli.remote;
 
-import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -25,8 +25,8 @@ import org.springframework.shell.event.ParseResult;
 import org.springframework.util.StringUtils;
 
 import org.apache.geode.annotations.TestingOnly;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.security.SecurityService;
-import org.apache.geode.internal.security.SecurityServiceFactory;
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.CommandProcessingException;
 import org.apache.geode.management.cli.Result;
@@ -49,20 +49,15 @@ public class OnlineCommandProcessor {
 
   private final SecurityService securityService;
 
-  @TestingOnly
-  public OnlineCommandProcessor() throws ClassNotFoundException, IOException {
-    this(new Properties(), SecurityServiceFactory.create());
-  }
-
-  public OnlineCommandProcessor(Properties cacheProperties, SecurityService securityService)
-      throws ClassNotFoundException, IOException {
-    this(cacheProperties, securityService, new CommandExecutor());
+  public OnlineCommandProcessor(Properties cacheProperties, SecurityService securityService,
+      InternalCache cache) {
+    this(cacheProperties, securityService, new CommandExecutor(), cache);
   }
 
   @TestingOnly
   public OnlineCommandProcessor(Properties cacheProperties, SecurityService securityService,
-      CommandExecutor commandExecutor) {
-    this.gfshParser = new GfshParser(new CommandManager(cacheProperties));
+      CommandExecutor commandExecutor, InternalCache cache) {
+    this.gfshParser = new GfshParser(new CommandManager(cacheProperties, cache));
     this.executor = commandExecutor;
     this.securityService = securityService;
   }
@@ -95,7 +90,8 @@ public class OnlineCommandProcessor {
     return executeCommand(command, env, null);
   }
 
-  public Result executeCommand(String command, Map<String, String> env, byte[][] binaryData) {
+  public Result executeCommand(String command, Map<String, String> env,
+      List<String> stagedFilePaths) {
     CommentSkipHelper commentSkipper = new CommentSkipHelper();
     String commentLessLine = commentSkipper.skipComments(command);
     if (StringUtils.isEmpty(commentLessLine)) {
@@ -103,7 +99,7 @@ public class OnlineCommandProcessor {
     }
 
     CommandExecutionContext.setShellEnv(env);
-    CommandExecutionContext.setBytesFromShell(binaryData);
+    CommandExecutionContext.setFilePathToShell(stagedFilePaths);
 
     final CommandExecutor commandExecutor = getCommandExecutor();
     ParseResult parseResult = parseCommand(commentLessLine);
@@ -123,7 +119,7 @@ public class OnlineCommandProcessor {
 
     // this command processor does not exeucte command that needs fileData passed from client
     CliMetaData metaData = method.getAnnotation(CliMetaData.class);
-    if (metaData != null && metaData.isFileUploaded() && binaryData == null) {
+    if (metaData != null && metaData.isFileUploaded() && stagedFilePaths == null) {
       return ResultBuilder
           .createUserErrorResult(command + " can not be executed only from server side");
     }

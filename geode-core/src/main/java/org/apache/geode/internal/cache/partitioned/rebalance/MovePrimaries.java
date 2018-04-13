@@ -14,7 +14,8 @@
  */
 package org.apache.geode.internal.cache.partitioned.rebalance;
 
-import org.apache.geode.internal.cache.partitioned.rebalance.PartitionedRegionLoadModel.Move;
+import org.apache.geode.internal.cache.partitioned.rebalance.model.Move;
+import org.apache.geode.internal.cache.partitioned.rebalance.model.PartitionedRegionLoadModel;
 
 /**
  * A director to move primaries to improve the load balance of a PR. This is most commonly used as
@@ -43,7 +44,7 @@ public class MovePrimaries extends RebalanceDirectorAdapter {
 
   /**
    * Move a single primary from one member to another
-   * 
+   *
    * @return if we are able to move a primary.
    */
   private boolean movePrimaries() {

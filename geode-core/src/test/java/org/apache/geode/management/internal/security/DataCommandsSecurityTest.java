@@ -28,11 +28,11 @@ import org.apache.geode.cache.Cache;
 import org.apache.geode.management.MemberMXBean;
 import org.apache.geode.security.GemFireSecurityException;
 import org.apache.geode.security.TestSecurityManager;
-import org.apache.geode.test.dunit.rules.ConnectionConfiguration;
-import org.apache.geode.test.dunit.rules.MBeanServerConnectionRule;
-import org.apache.geode.test.dunit.rules.ServerStarterRule;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 import org.apache.geode.test.junit.categories.SecurityTest;
+import org.apache.geode.test.junit.rules.ConnectionConfiguration;
+import org.apache.geode.test.junit.rules.MBeanServerConnectionRule;
+import org.apache.geode.test.junit.rules.ServerStarterRule;
 
 @Category({IntegrationTest.class, SecurityTest.class})
 public class DataCommandsSecurityTest {
@@ -59,7 +59,7 @@ public class DataCommandsSecurityTest {
 
   @Before
   public void setUp() throws Exception {
-    bean = connectionRule.getProxyMBean(MemberMXBean.class);
+    bean = connectionRule.getProxyMXBean(MemberMXBean.class);
   }
 
   @Test
@@ -86,7 +86,7 @@ public class DataCommandsSecurityTest {
   public void testRegionAccess() {
     assertThatThrownBy(() -> bean.processCommand("rebalance --include-region=region2"))
         .isInstanceOf(GemFireSecurityException.class)
-        .hasMessageContaining(TestCommand.dataManage.toString());
+        .hasMessageContaining(ResourcePermissions.DATA_MANAGE.toString());
 
     assertThatThrownBy(
         () -> bean.processCommand("export data --region=region2 --file=foo.txt --member=value"))

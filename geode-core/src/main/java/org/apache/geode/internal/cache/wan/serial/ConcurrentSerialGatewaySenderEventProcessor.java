@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.wan.serial;
 
 import java.io.IOException;
@@ -27,7 +24,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 
 import org.apache.logging.log4j.Logger;
@@ -37,6 +33,7 @@ import org.apache.geode.InternalGemFireException;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.EntryEvent;
 import org.apache.geode.cache.partition.PartitionRegionHelper;
+import org.apache.geode.cache.wan.GatewayQueueEvent;
 import org.apache.geode.cache.wan.GatewaySender.OrderPolicy;
 import org.apache.geode.internal.cache.EntryEventImpl;
 import org.apache.geode.internal.cache.EnumListenerEvent;
@@ -54,10 +51,6 @@ import org.apache.geode.internal.logging.LoggingThreadGroup;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.offheap.annotations.Released;
 
-/**
- * 
- * 
- */
 public class ConcurrentSerialGatewaySenderEventProcessor
     extends AbstractGatewaySenderEventProcessor {
 
@@ -72,9 +65,6 @@ public class ConcurrentSerialGatewaySenderEventProcessor
 
   private final Set<RegionQueue> queues;
 
-  /**
-   * @param sender
-   */
   public ConcurrentSerialGatewaySenderEventProcessor(AbstractGatewaySender sender) {
     super(LoggingThreadGroup
         .createThreadGroup("Event Processor for GatewaySender_" + sender.getId(), logger),
@@ -221,7 +211,7 @@ public class ConcurrentSerialGatewaySenderEventProcessor
         if (ex != null) {
           throw new GatewaySenderException(
               LocalizedStrings.Sender_COULD_NOT_START_GATEWAYSENDER_0_BECAUSE_OF_EXCEPTION_1
-                  .toLocalizedString(new Object[] {this.getId(), ex.getMessage()}),
+                  .toLocalizedString(new Object[] {this.sender.getId(), ex.getMessage()}),
               ex.getCause());
         }
       }
@@ -311,8 +301,6 @@ public class ConcurrentSerialGatewaySenderEventProcessor
       }
     } catch (InterruptedException e) {
       throw new InternalGemFireException(e.getMessage());
-    } catch (RejectedExecutionException rejectedExecutionEx) {
-      throw rejectedExecutionEx;
     }
     // shutdown the stopperService. This will release all the stopper threads
     stopperService.shutdown();
@@ -386,4 +374,10 @@ public class ConcurrentSerialGatewaySenderEventProcessor
 
   }
 
+  @Override
+  protected void enqueueEvent(GatewayQueueEvent event) {
+    for (SerialGatewaySenderEventProcessor serialProcessor : this.processors) {
+      serialProcessor.enqueueEvent(event);
+    }
+  }
 }

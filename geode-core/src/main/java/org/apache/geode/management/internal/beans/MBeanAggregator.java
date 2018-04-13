@@ -21,6 +21,7 @@ import java.util.Set;
 import javax.management.Notification;
 import javax.management.ObjectName;
 
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.i18n.LogWriterI18n;
@@ -37,8 +38,8 @@ import org.apache.geode.management.internal.SystemManagementService;
 /**
  * This class is responsible for creating Aggregate MBeans at GemFire layer. It acts as a
  * ProxyListener and add/remove/update the corresponding MBean aggregates accordingly.
- * 
- * 
+ *
+ *
  */
 public class MBeanAggregator implements ProxyListener {
 
@@ -107,8 +108,7 @@ public class MBeanAggregator implements ProxyListener {
 
   /**
    * Public constructor.
-   * 
-   * @param distributedSystemBridge
+   *
    */
   public MBeanAggregator(DistributedSystemBridge distributedSystemBridge) {
 
@@ -125,7 +125,7 @@ public class MBeanAggregator implements ProxyListener {
   }
 
   /**
-   * 
+   *
    * @param interfaceClass class of the proxy interface
    * @return appropriate handler instance to handle the proxy addition or removal
    */
@@ -189,8 +189,8 @@ public class MBeanAggregator implements ProxyListener {
   /**
    * Handler class for CacheServer MBeans only to provide data to Distributed System MBean As of
    * today there wont be any Distributed counterpart of Cache Server MBean
-   * 
-   * 
+   *
+   *
    */
   private class CacheServerHandler implements AggregateHandler {
 
@@ -225,8 +225,8 @@ public class MBeanAggregator implements ProxyListener {
   /**
    * Handler class for GatewayReceiverHandler MBeans only to provide data to Distributed System
    * MBean As of today there wont be any Distributed counterpart of GatewayReceiverHandler MBean
-   * 
-   * 
+   *
+   *
    */
   private class GatewayReceiverHandler implements AggregateHandler {
 
@@ -263,8 +263,8 @@ public class MBeanAggregator implements ProxyListener {
   /**
    * Handler class for GatewayReceiverHandler MBeans only to provide data to Distributed System
    * MBean As of today there wont be any Distributed counterpart of GatewayReceiverHandler MBean
-   * 
-   * 
+   *
+   *
    */
   private class GatewaySenderHandler implements AggregateHandler {
 
@@ -296,8 +296,8 @@ public class MBeanAggregator implements ProxyListener {
 
   /**
    * Handler class for DistributedRegion
-   * 
-   * 
+   *
+   *
    */
   private class RegionHandler implements AggregateHandler {
 
@@ -329,8 +329,8 @@ public class MBeanAggregator implements ProxyListener {
 
   /**
    * Handler class for Distributed System
-   * 
-   * 
+   *
+   *
    */
   private class MemberHandler implements AggregateHandler {
 
@@ -363,8 +363,8 @@ public class MBeanAggregator implements ProxyListener {
 
   /**
    * Handler class for Distributed Lock Service
-   * 
-   * 
+   *
+   *
    */
   private class LockServiceHandler implements AggregateHandler {
 
@@ -394,22 +394,23 @@ public class MBeanAggregator implements ProxyListener {
   }
 
   @Override
-  public void memberDeparted(InternalDistributedMember id, boolean crashed) {
+  public void memberDeparted(DistributionManager distributionManager, InternalDistributedMember id,
+      boolean crashed) {
     distributedSystemBridge.memberDeparted(id, crashed);
   }
 
   @Override
-  public void memberJoined(InternalDistributedMember id) {
+  public void memberJoined(DistributionManager distributionManager, InternalDistributedMember id) {
     distributedSystemBridge.memberJoined(id);
 
   }
 
-  public void quorumLost(Set<InternalDistributedMember> failures,
-      List<InternalDistributedMember> remaining) {}
+  public void quorumLost(DistributionManager distributionManager,
+      Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
   @Override
-  public void memberSuspect(InternalDistributedMember id, InternalDistributedMember whoSuspected,
-      String reason) {
+  public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
+      InternalDistributedMember whoSuspected, String reason) {
     distributedSystemBridge.memberSuspect(id, whoSuspected);
   }
 

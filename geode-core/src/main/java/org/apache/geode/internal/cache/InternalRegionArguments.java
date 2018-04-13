@@ -31,7 +31,7 @@ import org.apache.geode.internal.cache.wan.AbstractGatewaySender;
  * An internal version of Region Attributes that allows for additional information to be passed to
  * the Region constructors, typically for internal purposes, for example internally GemFire may need
  * use a Region and flag it for internal use only.
- * 
+ *
  * @since GemFire 4.2.3
  */
 public class InternalRegionArguments {
@@ -64,7 +64,6 @@ public class InternalRegionArguments {
 
   private Object userAttribute = null;
   private List indexes;
-  private boolean declarativeIndexCreation;
 
   private Map<String, CacheServiceProfile> cacheServiceProfiles;
 
@@ -285,15 +284,6 @@ public class InternalRegionArguments {
 
   public List getIndexes() {
     return this.indexes;
-  }
-
-  public InternalRegionArguments setDeclarativeIndexCreation(boolean value) {
-    this.declarativeIndexCreation = value;
-    return this;
-  }
-
-  public boolean getDeclarativeIndexCreation() {
-    return this.declarativeIndexCreation;
   }
 
   public InternalRegionArguments addCacheServiceProfile(CacheServiceProfile profile) {

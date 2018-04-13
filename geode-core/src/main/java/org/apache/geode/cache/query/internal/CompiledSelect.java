@@ -86,7 +86,7 @@ public class CompiledSelect extends AbstractCompiledValue {
    * locks. Now we set a value so that it will not do this. See where we use this value to see how
    * unlock is determined
    */
-  private final static String CLAUSE_EVALUATED = "Evaluated";
+  private static final String CLAUSE_EVALUATED = "Evaluated";
 
   public CompiledSelect(boolean distinct, boolean count, CompiledValue whereClause, List iterators,
       List projAttrs, List<CompiledSortCriterion> orderByAttrs, CompiledValue limit,
@@ -356,9 +356,9 @@ public class CompiledSelect extends AbstractCompiledValue {
    * Gets the appropriate empty results set when outside of actual query evalutaion.
    *
    * @param parameters the parameters that will be passed into the query when evaluated
-   * 
+   *
    * @param cache the cache the query will be executed in the context of
-   * 
+   *
    * @return the empty result set of the appropriate type
    */
   public SelectResults getEmptyResultSet(Object[] parameters, InternalCache cache, Query query)
@@ -586,7 +586,7 @@ public class CompiledSelect extends AbstractCompiledValue {
         /*
          * We still have to get size of SelectResults in some cases like, if index was used OR query
          * is a distinct query.
-         * 
+         *
          * If SelectResult size is zero then we need to put Integer for 0 count.
          */
         if (this.count) {
@@ -639,7 +639,7 @@ public class CompiledSelect extends AbstractCompiledValue {
 
   /**
    * Returns the size of region iterator for count(*) on a region without whereclause.
-   * 
+   *
    * @since GemFire 6.6.2
    */
   private int getRegionIteratorSize(ExecutionContext context, CompiledValue collExpr)
@@ -1115,7 +1115,7 @@ public class CompiledSelect extends AbstractCompiledValue {
       List pathOnItr = cv.getPathOnIterator(rit, context);
       if (pathOnItr != null) {
         String path[] = (String[]) pathOnItr.toArray(new String[pathOnItr.size()]);
-        ObjectType ot[] = PathUtils.calculateTypesAlongPath(rit.getElementType(), path);
+        ObjectType ot[] = PathUtils.calculateTypesAlongPath(context, rit.getElementType(), path);
         retType = ot[ot.length - 1];
       }
     } catch (NameNotFoundException ignore) {
@@ -1462,19 +1462,19 @@ public class CompiledSelect extends AbstractCompiledValue {
   /*
    * A special evaluation of limit for when limit needs to be evaluated before an execution context
    * is created.
-   * 
+   *
    * It assumes the limit is either a CompiledBindArgument or a CompiledLiteral
-   * 
+   *
    * @param bindArguments
-   * 
+   *
    * @return
-   * 
+   *
    * @throws FunctionDomainException
-   * 
+   *
    * @throws TypeMismatchException
-   * 
+   *
    * @throws NameResolutionException
-   * 
+   *
    * @throws QueryInvocationTargetException
    */
   private Integer evaluateLimitValue(Object[] bindArguments) throws FunctionDomainException,
@@ -1510,5 +1510,3 @@ public class CompiledSelect extends AbstractCompiledValue {
   }
 
 }
-
-

@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.pdx;
 
 /**
@@ -34,7 +31,7 @@ package org.apache.geode.pdx;
  * setPdxIgnoreUnreadFields}) but to reduce the performance and memory overhead of automatic
  * preservation it is recommended that use {@link PdxReader#readUnreadFields() readUnreadFields} if
  * possible.
- * 
+ *
  * @since GemFire 6.6
  *
  */

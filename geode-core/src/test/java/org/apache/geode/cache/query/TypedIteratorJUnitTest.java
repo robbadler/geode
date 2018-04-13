@@ -33,11 +33,9 @@ import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.query.data.Portfolio;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-/**
- *
- */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class TypedIteratorJUnitTest {
   Region region;
   QueryService qs;
@@ -79,13 +77,11 @@ public class TypedIteratorJUnitTest {
     Query q = this.qs.newQuery( // must quote "query" because it is a reserved word
         "IMPORT org.apache.geode.cache.\"query\".data.Portfolio;\n" + "SELECT DISTINCT *\n"
             + "FROM (collection<Portfolio>)/pos\n" + "WHERE ID = 3  ");
-    // org.apache.geode.internal.util.DebuggerSupport.waitForJavaDebugger(this.cache.getLogger());
     Object r = q.execute();
 
     q = this.qs.newQuery( // must quote "query" because it is a reserved word
         "IMPORT org.apache.geode.cache.\"query\".data.Position;\n" + "SELECT DISTINCT *\n"
             + "FROM /pos p, (collection<Position>)p.positions.values\n" + "WHERE secId = 'IBM'");
-    // org.apache.geode.internal.util.DebuggerSupport.waitForJavaDebugger(this.cache.getLogger());
     r = q.execute();
   }
 
@@ -94,7 +90,6 @@ public class TypedIteratorJUnitTest {
     CacheUtils.startCache();
     cache = CacheUtils.getCache();
     AttributesFactory attributesFactory = new AttributesFactory();
-    // attributesFactory.setValueConstraint(Portfolio.class);
     RegionAttributes regionAttributes = attributesFactory.create();
 
     region = cache.createRegion("pos", regionAttributes);

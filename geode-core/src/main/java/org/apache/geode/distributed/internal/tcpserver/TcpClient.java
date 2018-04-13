@@ -47,7 +47,7 @@ import org.apache.geode.internal.security.SecurableCommunicationChannel;
  * <p>
  * Client for the TcpServer component of the Locator.
  * </p>
- * 
+ *
  * @since GemFire 5.7
  */
 public class TcpClient {
@@ -82,7 +82,7 @@ public class TcpClient {
 
   /**
    * Constructs a new TcpClient
-   * 
+   *
    * @param socketCreator the SocketCreator to use in communicating with the Locator
    */
   public TcpClient(SocketCreator socketCreator) {
@@ -129,7 +129,7 @@ public class TcpClient {
 
   /**
    * Send a request to a Locator and expect a reply
-   * 
+   *
    * @param addr The locator's address
    * @param port The locator's tcp/ip port
    * @param request The request message
@@ -137,8 +137,6 @@ public class TcpClient {
    *
    * @return the reply
    *
-   * @throws IOException
-   * @throws ClassNotFoundException
    */
   public Object requestToServer(InetAddress addr, int port, Object request, int timeout)
       throws IOException, ClassNotFoundException {
@@ -148,7 +146,7 @@ public class TcpClient {
 
   /**
    * Send a request to a Locator
-   * 
+   *
    * @param addr The locator's address
    * @param port The locator's tcp/ip port
    * @param request The request message
@@ -157,8 +155,6 @@ public class TcpClient {
    *
    * @return the reply
    *
-   * @throws IOException
-   * @throws ClassNotFoundException
    */
   public Object requestToServer(InetAddress addr, int port, Object request, int timeout,
       boolean replyExpected) throws IOException, ClassNotFoundException {
@@ -173,7 +169,7 @@ public class TcpClient {
 
   /**
    * Send a request to a Locator
-   * 
+   *
    * @param ipAddr The locator's inet socket address
    * @param request The request message
    * @param timeout Timeout for sending the message and receiving a reply
@@ -181,8 +177,6 @@ public class TcpClient {
    *
    * @return The reply, or null if no reply is expected
    *
-   * @throws IOException
-   * @throws ClassNotFoundException
    */
   public Object requestToServer(InetSocketAddress ipAddr, Object request, int timeout,
       boolean replyExpected) throws IOException, ClassNotFoundException {

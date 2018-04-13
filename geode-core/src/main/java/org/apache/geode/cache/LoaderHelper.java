@@ -44,7 +44,7 @@ public interface LoaderHelper<K, V> {
    * @throws CacheLoaderException If <code>netSearch</code> is attempted on a
    *         {@linkplain org.apache.geode.cache.Scope#LOCAL local} region.
    */
-  public V netSearch(boolean doNetLoad) throws CacheLoaderException, TimeoutException;
+  V netSearch(boolean doNetLoad) throws CacheLoaderException, TimeoutException;
 
   /**
    * Returns the key for the value being loaded.
@@ -52,7 +52,7 @@ public interface LoaderHelper<K, V> {
    * @return the name Object for the object being loaded
    * @see CacheLoader#load(LoaderHelper) load
    */
-  public K getKey();
+  K getKey();
 
   /**
    * Returns the region to which the entry belongs.
@@ -60,13 +60,13 @@ public interface LoaderHelper<K, V> {
    * @return the name of the region for the object being loaded
    * @see CacheLoader#load(LoaderHelper) load
    */
-  public Region<K, V> getRegion();
+  Region<K, V> getRegion();
 
   /**
    * Return the argument object for the load method that was passed in from application code. This
    * object is passed in as <i>aLoaderArgument</i> in {@link Region#get(Object, Object) get}.
-   * 
+   *
    * @return the argument or null if one was not supplied
    */
-  public Object getArgument();
+  Object getArgument();
 }

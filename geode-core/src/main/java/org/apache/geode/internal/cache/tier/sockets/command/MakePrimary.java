@@ -12,22 +12,19 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
+
+import java.io.IOException;
 
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.sockets.*;
 import org.apache.geode.internal.security.SecurityService;
 
-import java.io.IOException;
-
 
 public class MakePrimary extends BaseCommand {
 
-  private final static MakePrimary singleton = new MakePrimary();
+  private static final MakePrimary singleton = new MakePrimary();
 
   public static Command getCommand() {
     return singleton;

@@ -18,6 +18,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.EvictionAction;
@@ -28,7 +31,7 @@ import org.apache.geode.cache.RegionFactory;
 import org.apache.geode.cache.RegionShortcut;
 import org.apache.geode.cache.Scope;
 import org.apache.geode.cache.SubscriptionAttributes;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionMessageObserver;
 import org.apache.geode.internal.cache.SearchLoadAndWriteProcessor.NetSearchRequestMessage;
@@ -41,8 +44,6 @@ import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
 @Category(DistributedTest.class)
 public class NetSearchMessagingDUnitTest extends JUnit4CacheTestCase {
@@ -190,7 +191,7 @@ public class NetSearchMessagingDUnitTest extends JUnit4CacheTestCase {
           Cache cache = getCache();
           LocalRegion region = (LocalRegion) cache.getRegion("region");
           RegionEntry re = region.getRegionEntry("a");
-          Object o = re.getValueInVM(null);
+          Object o = re.getValueInVM(region);
           LogWriterUtils.getLogWriter().info("key a=" + o);;
           return o == null || o == Token.NOT_AVAILABLE;
         }
@@ -212,7 +213,7 @@ public class NetSearchMessagingDUnitTest extends JUnit4CacheTestCase {
           String[] keys = new String[] {"b", "c", "d", "e", "f"};
           for (String key : keys) {
             RegionEntry re = region.getRegionEntry(key);
-            Object o = re.getValueInVM(null);
+            Object o = re.getValueInVM(region);
             LogWriterUtils.getLogWriter().info("key " + key + "=" + o);
             assertTrue("expected key " + key + " to not be evicted",
                 (o != null) && (o != Token.NOT_AVAILABLE));
@@ -240,7 +241,8 @@ public class NetSearchMessagingDUnitTest extends JUnit4CacheTestCase {
 
       public void run() {
         DistributionMessageObserver ob = new DistributionMessageObserver() {
-          public void beforeProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void beforeProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof NetSearchRequestMessage) {
               disconnectFromDS();
             }
@@ -291,7 +293,8 @@ public class NetSearchMessagingDUnitTest extends JUnit4CacheTestCase {
 
       public void run() {
         DistributionMessageObserver ob = new DistributionMessageObserver() {
-          public void beforeProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void beforeProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof NetSearchRequestMessage) {
               disconnectFromDS();
             }

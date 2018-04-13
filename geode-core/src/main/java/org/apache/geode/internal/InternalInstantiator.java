@@ -30,7 +30,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.Instantiator;
 import org.apache.geode.cache.Cache;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.SerialDistributionMessage;
 import org.apache.geode.i18n.StringId;
@@ -102,8 +102,6 @@ public class InternalInstantiator {
   /**
    * Actually registers an {@code Instantiator} with the data serialization framework.
    *
-   * @param instantiator
-   * @param distribute
    * @throws IllegalArgumentException If the instantiator has an id of zero
    * @throws IllegalStateException The instantiator cannot be registered
    */
@@ -216,7 +214,6 @@ public class InternalInstantiator {
   /**
    * Sends Instantiator registration message to one of the servers
    *
-   * @param instantiator
    */
   private static void sendRegistrationMessageToServers(Instantiator instantiator) {
     PoolManagerImpl.allPoolsRegisterInstantiator(instantiator);
@@ -225,7 +222,6 @@ public class InternalInstantiator {
   /**
    * Sends Instantiator registration message to one of the servers
    *
-   * @param holder
    */
   private static void sendRegistrationMessageToServers(InstantiatorAttributesHolder holder) {
     PoolManagerImpl.allPoolsRegisterInstantiator(holder);
@@ -303,7 +299,7 @@ public class InternalInstantiator {
 
   /**
    * Lazily creates a new {@code Instantiator} with the given class and id.
-   * 
+   *
    * @throws IllegalArgumentException The instantiator cannot be created
    * @throws IllegalStateException The instantiator cannot be registered
    */
@@ -318,9 +314,9 @@ public class InternalInstantiator {
 
   /**
    * Lazily creates a new {@code Instantiator} with the given class and id.
-   * 
+   *
    * This method is only called when server connection and CacheClientUpdaterThread
-   * 
+   *
    * @throws IllegalArgumentException The instantiator cannot be created
    * @throws IllegalStateException The instantiator cannot be registered
    */
@@ -695,7 +691,7 @@ public class InternalInstantiator {
 
   /**
    * Does not trigger loading of the instantiator/instantiated classes into the vm.
-   * 
+   *
    * @return array of InstantiatorAttributesArray instances.
    */
   public static Object[] getInstantiatorsForSerialization() {
@@ -782,7 +778,7 @@ public class InternalInstantiator {
 
   /**
    * Read the data from in and register it with this class.
-   * 
+   *
    * @throws IllegalArgumentException if a registration fails
    */
   public static void loadRegistrations(DataInput in) throws IOException {
@@ -863,7 +859,7 @@ public class InternalInstantiator {
     }
 
     @Override
-    protected void process(DistributionManager dm) {
+    protected void process(ClusterDistributionManager dm) {
       if (this.fromDataProblems != null) {
         if (logger.isDebugEnabled()) {
           logger.debug(this.fromDataProblems);
@@ -979,7 +975,7 @@ public class InternalInstantiator {
     }
 
     @Override
-    protected void process(DistributionManager dm) {
+    protected void process(ClusterDistributionManager dm) {
       if (fromDataProblems != null) {
         if (logger.isDebugEnabled()) {
           logger.debug(fromDataProblems);

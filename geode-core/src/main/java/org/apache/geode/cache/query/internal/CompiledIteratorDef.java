@@ -41,6 +41,7 @@ import org.apache.geode.cache.query.types.MapType;
 import org.apache.geode.cache.query.types.ObjectType;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.security.NotAuthorizedException;
 
 public class CompiledIteratorDef extends AbstractCompiledValue {
   private static final Logger logger = LogService.getLogger();
@@ -118,6 +119,8 @@ public class CompiledIteratorDef extends AbstractCompiledValue {
         throw qet;
       } catch (RegionNotFoundException re) {
         throw re;
+      } catch (NotAuthorizedException e) {
+        throw e;
       } catch (Exception e) {
         if (logger.isDebugEnabled()) {
           logger.debug("Exception while getting runtime iterator.", e);
@@ -157,7 +160,7 @@ public class CompiledIteratorDef extends AbstractCompiledValue {
 
   /**
    * Evaluate just the collectionExpr
-   * 
+   *
    * @param stopAtIter the RuntimeIterator associated with this iterator defn -- don't use this or
    *        any subsequent runtime iterators to evaluate.
    */

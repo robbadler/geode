@@ -32,9 +32,6 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
-/**
- *
- */
 public class PersistentMemberManager {
   private static final Logger logger = LogService.getLogger();
 
@@ -63,9 +60,9 @@ public class PersistentMemberManager {
   }
 
   /**
-   * Add a new revokation listener
-   * 
-   * @param listener The revokocation listener
+   * Add a new revocation listener
+   *
+   * @param listener The revocation listener
    * @param recoveredRevokedMembers a set of members which the listener knows have been revoked
    */
   public HashSet<PersistentMemberPattern> addRevocationListener(MemberRevocationListener listener,
@@ -157,7 +154,7 @@ public class PersistentMemberManager {
 
   /**
    * Prepare the revoke of a persistent id.
-   * 
+   *
    * @param pattern the pattern to revoke
    * @param dm the distribution manager
    * @param sender the originator of the prepare
@@ -207,26 +204,26 @@ public class PersistentMemberManager {
     }
   }
 
-  public static interface MemberRevocationListener {
-    public void revoked(PersistentMemberPattern pattern);
+  public interface MemberRevocationListener {
+    void revoked(PersistentMemberPattern pattern);
 
     /**
      * Add the persistent id(s) of this listener to the passed in set.
      */
-    public void addPersistentIDs(Set<PersistentMemberID> localData);
+    void addPersistentIDs(Set<PersistentMemberID> localData);
 
     /**
      * Return true if this is a listener for a resource that matches the persistent member pattern
      * in question.
      */
-    public boolean matches(PersistentMemberPattern pattern);
+    boolean matches(PersistentMemberPattern pattern);
 
     /**
      * Return the set of member ids which this resource knows are missing
      */
-    public Set<PersistentMemberID> getMissingMemberIds();
+    Set<PersistentMemberID> getMissingMemberIds();
 
-    public String getRegionPath();
+    String getRegionPath();
   }
 
   public class PendingRevokeListener implements MembershipListener {
@@ -242,12 +239,14 @@ public class PersistentMemberManager {
     }
 
     @Override
-    public void memberJoined(InternalDistributedMember id) {
+    public void memberJoined(DistributionManager distributionManager,
+        InternalDistributedMember id) {
 
     }
 
     @Override
-    public void memberDeparted(InternalDistributedMember id, boolean crashed) {
+    public void memberDeparted(DistributionManager distributionManager,
+        InternalDistributedMember id, boolean crashed) {
       if (id.equals(sender)) {
         cancelRevoke(pattern);
       }
@@ -255,12 +254,12 @@ public class PersistentMemberManager {
     }
 
     @Override
-    public void memberSuspect(InternalDistributedMember id, InternalDistributedMember whoSuspected,
-        String reason) {}
+    public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
+        InternalDistributedMember whoSuspected, String reason) {}
 
     @Override
-    public void quorumLost(Set<InternalDistributedMember> failures,
-        List<InternalDistributedMember> remaining) {}
+    public void quorumLost(DistributionManager distributionManager,
+        Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
     public void remove() {
       dm.removeAllMembershipListener(this);

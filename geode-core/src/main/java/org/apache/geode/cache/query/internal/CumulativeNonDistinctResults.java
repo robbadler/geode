@@ -26,8 +26,6 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.geode.DataSerializer;
-import org.apache.geode.cache.CacheException;
-import org.apache.geode.cache.query.QueryException;
 import org.apache.geode.cache.query.SelectResults;
 import org.apache.geode.cache.query.Struct;
 import org.apache.geode.cache.query.internal.types.CollectionTypeImpl;
@@ -43,7 +41,7 @@ import org.apache.geode.internal.Version;
 
 /**
  * This is used as a wrapper over all the results of PR which are of non distinct type
- * 
+ *
  *
  */
 public class CumulativeNonDistinctResults<E> implements SelectResults<E>, DataSerializableFixedID {
@@ -215,7 +213,7 @@ public class CumulativeNonDistinctResults<E> implements SelectResults<E>, DataSe
       protected final Iterator<E>[] iterators;
       protected int currentIterator = 0;
       private Boolean cachedHasNext = null;
-      final private boolean isStruct;
+      private final boolean isStruct;
       private final boolean[] objectChangedMarker = new boolean[1];
 
       protected CumulativeCollectionIterator() {

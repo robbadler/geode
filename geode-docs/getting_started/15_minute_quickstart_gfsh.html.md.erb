@@ -54,7 +54,7 @@ The *locator* is a <%=vars.product_name%> process that tells new, connecting mem
     Process ID: 3529
     Uptime: 18 seconds
     <%=vars.product_name%> Version: <%=vars.product_version%>
-    Java Version: 1.8.0_101
+    Java Version: 1.8.0_<%=vars.min_java_update%>
     Log File: /home/username/my_geode/locator1/locator1.log
     JVM Arguments: -Dgemfire.enable-cluster-configuration=true -Dgemfire.load-cluster-configuration-from-dir=false
     -Dgemfire.launcher.registerSignalHandlers=true -Djava.awt.headless=true
@@ -127,10 +127,11 @@ In this step you create a region with the `gfsh` command line utility. Regions a
 
     ``` pre
     gfsh>list members
-      Name   | Id
-    -------- | ---------------------------------------
-    locator1 | 192.0.2.0(locator1:3529:locator)<v0>:59926
-    server1  | 192.0.2.0(server1:3883)<v1>:65390
+      Name       | Id
+    ------------ | ---------------------------------------
+    Coordinator: | 192.0.2.0(locator1:3529:locator)<ec><v0>:59926
+    locator1     | 192.0.2.0(locator1:3529:locator)<ec><v0>:59926
+    server1      | 192.0.2.0(server1:3883)<v1>:65390
     ```
 
 4.  To view specifics about a region, type the following:
@@ -412,7 +413,7 @@ In this step you restart the cache servers in parallel. Because the data is pers
     Process ID: 3402
     Uptime: 1 minute 46 seconds
     <%=vars.product_name%> Version: <%=vars.product_version%>
-    Java Version: 1.8.0_60
+    Java Version: 1.8.0_<%=vars.min_java_update%>
     Log File: /home/username/my_geode/server1/server1.log
     JVM Arguments: -Dgemfire.default.locators=192.0.2.0[10334] -Dgemfire.use-cluster-configuration=true
     -XX:OnOutOfMemoryError=kill -KILL %p -Dgemfire.launcher.registerSignalHandlers=true
@@ -425,11 +426,12 @@ In this step you restart the cache servers in parallel. Because the data is pers
 
     ``` pre
     gfsh>list members
-      Name   | Id
-    -------- | ---------------------------------------
-    server2  | ubuntu(server2:3992)<v8>:21507
-    server1  | ubuntu(server1:3402)<v7>:36532
-    locator1 | ubuntu(locator1:2813:locator)<v0>:46644
+      Name       | Id
+    ------------ | ---------------------------------------
+    Coordinator: | ubuntu(locator1:2813:locator)<ec><v0>:46644
+    locator1     | ubuntu(locator1:2813:locator)<ec><v0>:46644
+    server2      | ubuntu(server2:3992)<v8>:21507
+    server1      | ubuntu(server1:3402)<v7>:36532
     ```
 
 6.  Run a query to verify that all the data you entered with the `put` commands is available:

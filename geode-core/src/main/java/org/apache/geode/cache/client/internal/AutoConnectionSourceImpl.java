@@ -16,10 +16,8 @@ package org.apache.geode.cache.client.internal;
 
 import java.io.IOException;
 import java.net.ConnectException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -55,11 +53,10 @@ import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
-import org.apache.geode.internal.net.*;
 
 /**
  * A connection source which uses locators to find the least loaded server.
- * 
+ *
  * @since GemFire 5.7
  *
  */
@@ -145,15 +142,9 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
         new ClientReplacementRequest(currentServer, excludedServers, serverGroup);
     ClientConnectionResponse response = (ClientConnectionResponse) queryLocators(request);
     if (response == null) {
-      // why log a warning if we are going to throw the caller and exception?
-      // getLogger().warning("Unable to connect to any locators in the list " + locators);
       throw new NoAvailableLocatorsException(
           "Unable to connect to any locators in the list " + locators);
     }
-    // if(getLogger().fineEnabled()) {
-    // getLogger().fine("Received client connection response with server " + response.getServer());
-    // }
-
     return response.getServer();
   }
 
@@ -164,15 +155,9 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
     ClientConnectionRequest request = new ClientConnectionRequest(excludedServers, serverGroup);
     ClientConnectionResponse response = (ClientConnectionResponse) queryLocators(request);
     if (response == null) {
-      // why log a warning if we are going to throw the caller and exception?
-      // getLogger().warning("Unable to connect to any locators in the list " + locators);
       throw new NoAvailableLocatorsException(
           "Unable to connect to any locators in the list " + locators);
     }
-    // if(getLogger().fineEnabled()) {
-    // getLogger().fine("Received client connection response with server " + response.getServer());
-    // }
-
     return response.getServer();
   }
 
@@ -237,7 +222,7 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
    * If connecting to the locator fails with an IOException, this may be because the locator's IP
    * has changed. Add the locator back to the list of locators using host address rather than IP.
    * This will cause another DNS lookup, hopefully finding the locator.
-   * 
+   *
    * @param locator
    */
   protected void updateLocatorInLocatorList(HostAddress locator) {
@@ -319,9 +304,13 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
 
     LocatorList newLocatorList = new LocatorList(newLocatorAddresses);
 
-    if (logger.isInfoEnabled()) {
+    LocatorList oldLocators = locators.getAndSet(newLocatorList);
+    onlineLocators.set(new LocatorList(newOnlineLocators));
+    pool.getStats().setLocatorCount(newLocatorAddresses.size());
+
+    if (logger.isInfoEnabled()
+        || !locatorCallback.getClass().equals(LocatorDiscoveryCallbackAdapter.class)) {
       List<InetSocketAddress> newLocators = newLocatorList.getLocators();
-      LocatorList oldLocators = (LocatorList) locators.get();
       ArrayList<InetSocketAddress> removedLocators =
           new ArrayList<InetSocketAddress>(oldLocators.getLocators());
       removedLocators.removeAll(newLocators);
@@ -342,11 +331,6 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
       }
     }
 
-
-
-    locators.set(newLocatorList);
-    onlineLocators.set(new LocatorList(newOnlineLocators));
-    pool.getStats().setLocatorCount(newLocatorAddresses.size());
   }
 
   /**
@@ -463,7 +447,7 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
     /**
      * An iterator which iterates all of the controllers, starting at the last known good
      * controller.
-     * 
+     *
      */
     protected class LocatorIterator implements Iterator<HostAddress> {
       private int startLocator = currentLocatorIndex.get();

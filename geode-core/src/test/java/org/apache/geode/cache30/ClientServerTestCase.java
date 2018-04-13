@@ -32,8 +32,6 @@ import org.apache.geode.cache.client.PoolFactory;
 import org.apache.geode.cache.client.PoolManager;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.test.dunit.DistributedTestUtils;
 import org.apache.geode.test.dunit.VM;
@@ -268,13 +266,6 @@ public abstract class ClientServerTestCase extends JUnit4CacheTestCase {
         threadLocalCnxs, lifetimeTimeout, statisticInterval);
   }
 
-  /*
-   * protected static InternalDistributedMember findDistributedMember() { DM dm =
-   * ((InternalDistributedSystem)
-   * InternalDistributedSystem.getAnyInstance()).getDistributionManager(); return
-   * dm.getDistributionManagerId(); }
-   */
-
   protected static DistributedMember getMemberId() {
     WaitCriterion w = new WaitCriterion() {
 
@@ -283,9 +274,6 @@ public abstract class ClientServerTestCase extends JUnit4CacheTestCase {
       }
 
       public boolean done() {
-        // getLogWriter().warning("checking member id " + system.getMemberId() +
-        // " for member " + system.getDistributedMember() + " hash " +
-        // System.identityHashCode(system.getDistributedMember()));
         return getSystemStatic().getDistributedMember().getPort() > 0;
       }
 
@@ -295,16 +283,6 @@ public abstract class ClientServerTestCase extends JUnit4CacheTestCase {
     boolean throwException = true;
     Wait.waitForCriterion(w, waitMillis, interval, throwException);
     return getSystemStatic().getDistributedMember();
-  }
-
-  protected static DistributedMember getDistributedMember() {
-    DistributedSystem system = InternalDistributedSystem.getAnyInstance();
-    return system.getDistributedMember();
-  }
-
-  protected static Properties getSystemProperties() {
-    DistributedSystem system = InternalDistributedSystem.getAnyInstance();
-    return system.getProperties();
   }
 
   public static class CacheServerCacheLoader extends TestCacheLoader implements Declarable {
@@ -333,7 +311,7 @@ public abstract class ClientServerTestCase extends JUnit4CacheTestCase {
     public void init(Properties props) {}
   }
 
-  public final static String BridgeServerKey = "BridgeServerKey";
+  public static final String BridgeServerKey = "BridgeServerKey";
 
   /**
    * Create a server that has a value for every key queried and a unique key/value in the specified
@@ -374,4 +352,3 @@ public abstract class ClientServerTestCase extends JUnit4CacheTestCase {
   }
 
 }
-

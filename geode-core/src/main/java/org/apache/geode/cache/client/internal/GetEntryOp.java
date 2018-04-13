@@ -26,7 +26,7 @@ public class GetEntryOp {
 
   /**
    * Does a region.getEntry on the server using the given pool
-   * 
+   *
    * @param pool
    * @param region
    * @param key
@@ -54,7 +54,7 @@ public class GetEntryOp {
     protected Object processResponse(Message msg) throws Exception {
       EntrySnapshot snap = (EntrySnapshot) processObjResponse(msg, "getEntry");
       if (snap != null) {
-        snap.region = region;
+        snap.setRegion(region);
       }
       return snap;
     }

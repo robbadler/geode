@@ -21,13 +21,13 @@ import org.apache.geode.internal.cache.tier.sockets.Message;
 
 /**
  * Tell a server that a connection is being closed
- * 
+ *
  * @since GemFire 5.7
  */
 public class CloseConnectionOp {
   /**
    * Tell a server that a connection is being closed
-   * 
+   *
    * @param con the connection that is being closed
    * @param keepAlive whether to keep the proxy alive on the server
    */
@@ -68,7 +68,7 @@ public class CloseConnectionOp {
     protected Object processResponse(Message msg) throws Exception {
       // CloseConnectionOp doesn't return anything - we wait for a response
       // so that we know that the server has processed the request before
-      // we return from execute();
+      // we return from execute()
       return null;
     }
 

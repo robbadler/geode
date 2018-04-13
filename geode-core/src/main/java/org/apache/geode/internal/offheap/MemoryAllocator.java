@@ -17,7 +17,7 @@ package org.apache.geode.internal.offheap;
 /**
  * Basic contract for a heap that manages off heap memory. Any MemoryChunks allocated from a heap
  * are returned to that heap when freed.
- * 
+ *
  * @since Geode 1.0
  */
 public interface MemoryAllocator {
@@ -26,25 +26,24 @@ public interface MemoryAllocator {
    * @return the allocated chunk of memory.
    * @throws IllegalStateException if the heap does not have enough memory to grant the request
    */
-  public StoredObject allocate(int size);
+  StoredObject allocate(int size);
 
   /**
    * Allocates off heap memory for the given data and returns a StoredObject that is backed by this
    * allocated memory and that contains the data.
-   * 
+   *
    * @param data the bytes of the data to put in the allocated StoredObject
    * @param isSerialized true if data contains a serialized object; false if it is an actual byte
    *        array.
    * @param isCompressed true if data is compressed; false if it is uncompressed.
    * @throws IllegalStateException if the heap does not have enough memory to grant the request
    */
-  public StoredObject allocateAndInitialize(byte[] data, boolean isSerialized,
-      boolean isCompressed);
+  StoredObject allocateAndInitialize(byte[] data, boolean isSerialized, boolean isCompressed);
 
   /**
    * Allocates off heap memory for the given data and returns a StoredObject that is backed by this
    * allocated memory and that contains the data and keeps a reference to the original heap data.
-   * 
+   *
    * @param data the bytes of the data to put in the allocated StoredObject
    * @param isSerialized true if data contains a serialized object; false if it is an actual byte
    *        array.
@@ -52,25 +51,25 @@ public interface MemoryAllocator {
    * @param isCompressed true if data is compressed; false if it is uncompressed.
    * @throws IllegalStateException if the heap does not have enough memory to grant the request
    */
-  public StoredObject allocateAndInitialize(byte[] data, boolean isSerialized, boolean isCompressed,
+  StoredObject allocateAndInitialize(byte[] data, boolean isSerialized, boolean isCompressed,
       byte[] originalHeapData);
 
-  public long getFreeMemory();
+  long getFreeMemory();
 
-  public long getUsedMemory();
+  long getUsedMemory();
 
-  public long getTotalMemory();
+  long getTotalMemory();
 
-  public OffHeapMemoryStats getStats();
+  OffHeapMemoryStats getStats();
 
   /**
    * This allocator will no longer be used so free up any system memory that belongs to it.
    */
-  public void close();
+  void close();
 
-  public MemoryInspector getMemoryInspector();
+  MemoryInspector getMemoryInspector();
 
-  public void addMemoryUsageListener(MemoryUsageListener listener);
+  void addMemoryUsageListener(MemoryUsageListener listener);
 
-  public void removeMemoryUsageListener(MemoryUsageListener listener);
+  void removeMemoryUsageListener(MemoryUsageListener listener);
 }

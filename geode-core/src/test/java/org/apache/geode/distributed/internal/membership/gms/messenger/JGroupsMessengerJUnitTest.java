@@ -14,34 +14,6 @@
  */
 package org.apache.geode.distributed.internal.membership.gms.messenger;
 
-import org.apache.geode.ForcedDisconnectException;
-import org.apache.geode.GemFireIOException;
-import org.apache.geode.distributed.ConfigurationProperties;
-import org.apache.geode.distributed.DistributedSystemDisconnectedException;
-import org.apache.geode.distributed.internal.*;
-import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
-import org.apache.geode.distributed.internal.membership.NetView;
-import org.apache.geode.distributed.internal.membership.gms.GMSMember;
-import org.apache.geode.distributed.internal.membership.gms.ServiceConfig;
-import org.apache.geode.distributed.internal.membership.gms.Services;
-import org.apache.geode.distributed.internal.membership.gms.Services.Stopper;
-import org.apache.geode.distributed.internal.membership.gms.interfaces.HealthMonitor;
-import org.apache.geode.distributed.internal.membership.gms.interfaces.JoinLeave;
-import org.apache.geode.distributed.internal.membership.gms.interfaces.Manager;
-import org.apache.geode.distributed.internal.membership.gms.interfaces.MessageHandler;
-import org.apache.geode.distributed.internal.membership.gms.locator.FindCoordinatorRequest;
-import org.apache.geode.distributed.internal.membership.gms.locator.FindCoordinatorResponse;
-import org.apache.geode.distributed.internal.membership.gms.messages.InstallViewMessage;
-import org.apache.geode.distributed.internal.membership.gms.messages.JoinRequestMessage;
-import org.apache.geode.distributed.internal.membership.gms.messages.JoinResponseMessage;
-import org.apache.geode.distributed.internal.membership.gms.messages.LeaveRequestMessage;
-import org.apache.geode.distributed.internal.membership.gms.messenger.JGroupsMessenger.JGroupsReceiver;
-import org.apache.geode.internal.*;
-import org.apache.geode.internal.admin.remote.RemoteTransportConfig;
-import org.apache.geode.internal.cache.DistributedCacheOperation;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
-import org.apache.geode.test.junit.categories.IntegrationTest;
-
 import static org.apache.geode.distributed.ConfigurationProperties.*;
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -60,7 +32,6 @@ import java.util.Properties;
 import java.util.Set;
 
 import org.apache.commons.lang.SerializationException;
-import org.apache.geode.test.junit.categories.MembershipTest;
 import org.jgroups.Address;
 import org.jgroups.Event;
 import org.jgroups.JChannel;
@@ -74,18 +45,44 @@ import org.junit.After;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.ForcedDisconnectException;
+import org.apache.geode.GemFireIOException;
+import org.apache.geode.distributed.ConfigurationProperties;
+import org.apache.geode.distributed.DistributedSystemDisconnectedException;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfigImpl;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionStats;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.SerialAckedMessage;
+import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
+import org.apache.geode.distributed.internal.membership.NetView;
+import org.apache.geode.distributed.internal.membership.gms.GMSMember;
+import org.apache.geode.distributed.internal.membership.gms.ServiceConfig;
+import org.apache.geode.distributed.internal.membership.gms.Services;
+import org.apache.geode.distributed.internal.membership.gms.Services.Stopper;
+import org.apache.geode.distributed.internal.membership.gms.interfaces.HealthMonitor;
+import org.apache.geode.distributed.internal.membership.gms.interfaces.JoinLeave;
+import org.apache.geode.distributed.internal.membership.gms.interfaces.Manager;
+import org.apache.geode.distributed.internal.membership.gms.interfaces.MessageHandler;
+import org.apache.geode.distributed.internal.membership.gms.locator.FindCoordinatorRequest;
+import org.apache.geode.distributed.internal.membership.gms.locator.FindCoordinatorResponse;
+import org.apache.geode.distributed.internal.membership.gms.messages.InstallViewMessage;
+import org.apache.geode.distributed.internal.membership.gms.messages.JoinRequestMessage;
+import org.apache.geode.distributed.internal.membership.gms.messages.JoinResponseMessage;
+import org.apache.geode.distributed.internal.membership.gms.messages.LeaveRequestMessage;
+import org.apache.geode.distributed.internal.membership.gms.messenger.JGroupsMessenger.JGroupsReceiver;
 import org.apache.geode.internal.AvailablePort;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.DataSerializableFixedID;
 import org.apache.geode.internal.HeapDataOutputStream;
 import org.apache.geode.internal.Version;
+import org.apache.geode.internal.admin.remote.RemoteTransportConfig;
+import org.apache.geode.internal.cache.DistributedCacheOperation;
+import org.apache.geode.internal.logging.log4j.AlertAppender;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.MembershipTest;
 
 @Category({IntegrationTest.class, MembershipTest.class})
 public class JGroupsMessengerJUnitTest {
@@ -123,7 +120,7 @@ public class JGroupsMessengerJUnitTest {
     nonDefault.putAll(addProp);
     DistributionConfigImpl config = new DistributionConfigImpl(nonDefault);
     RemoteTransportConfig tconfig =
-        new RemoteTransportConfig(config, DistributionManager.NORMAL_DM_TYPE);
+        new RemoteTransportConfig(config, ClusterDistributionManager.NORMAL_DM_TYPE);
 
     stopper = mock(Stopper.class);
     when(stopper.isCancelInProgress()).thenReturn(false);
@@ -144,7 +141,7 @@ public class JGroupsMessengerJUnitTest {
     when(services.getManager()).thenReturn(manager);
     when(services.getJoinLeave()).thenReturn(joinLeave);
 
-    DM dm = mock(DM.class);
+    DistributionManager dm = mock(DistributionManager.class);
     InternalDistributedSystem system =
         InternalDistributedSystem.newInstanceForTesting(dm, nonDefault);
     when(services.getStatistics()).thenReturn(new DistributionStats(system, statsId));
@@ -219,7 +216,7 @@ public class JGroupsMessengerJUnitTest {
     initMocks(false);
     Message jgmsg = new Message();
     DistributionMessage dmsg = mock(DistributionMessage.class);
-    when(dmsg.getProcessorType()).thenReturn(DistributionManager.SERIAL_EXECUTOR);
+    when(dmsg.getProcessorType()).thenReturn(ClusterDistributionManager.SERIAL_EXECUTOR);
     messenger.setMessageFlags(dmsg, jgmsg);
     assertFalse("expected no_fc to not be set in " + jgmsg.getFlags(),
         jgmsg.isFlagSet(Message.Flag.NO_FC));
@@ -1125,13 +1122,13 @@ public class JGroupsMessengerJUnitTest {
   /**
    * creates an InternalDistributedMember address that can be used with the doctored JGroups
    * channel. This includes a logical (UUID) address and a physical (IpAddress) address.
-   * 
+   *
    * @param port the UDP port to use for the new address
    */
   private InternalDistributedMember createAddress(int port) {
     GMSMember gms = new GMSMember("localhost", port);
     gms.setUUID(UUID.randomUUID());
-    gms.setVmKind(DistributionManager.NORMAL_DM_TYPE);
+    gms.setVmKind(ClusterDistributionManager.NORMAL_DM_TYPE);
     gms.setVersionOrdinal(Version.CURRENT_ORDINAL);
     return new InternalDistributedMember(gms);
   }

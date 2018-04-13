@@ -16,16 +16,18 @@ package org.apache.geode.cache.lucene.internal.results;
 
 import static org.junit.Assert.*;
 
-import org.apache.geode.internal.DSFIDFactory;
-import org.apache.geode.internal.DataSerializableFixedID;
-import org.apache.geode.internal.util.BlobHelper;
-import org.apache.geode.test.junit.categories.UnitTest;
+import java.io.IOException;
+
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.io.IOException;
+import org.apache.geode.internal.DSFIDFactory;
+import org.apache.geode.internal.DataSerializableFixedID;
+import org.apache.geode.internal.util.BlobHelper;
+import org.apache.geode.test.junit.categories.LuceneTest;
+import org.apache.geode.test.junit.categories.UnitTest;
 
-@Category(UnitTest.class)
+@Category({UnitTest.class, LuceneTest.class})
 public class PageResultsJUnitTest {
 
   @Test

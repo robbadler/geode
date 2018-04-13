@@ -20,6 +20,23 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
+
+import org.awaitility.Awaitility;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.CacheFactory;
@@ -51,25 +68,10 @@ import org.apache.geode.test.dunit.LogWriterUtils;
 import org.apache.geode.test.dunit.SerializableRunnableIF;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
+import org.apache.geode.test.junit.categories.AEQTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.awaitility.Awaitility;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, AEQTest.class})
 public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   public AsyncEventListenerDUnitTest() {
@@ -234,7 +236,7 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Replicated WAN: Serial Region persistence enabled: false Async channel persistence
    * enabled: false
    */
@@ -318,10 +320,10 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Replicated WAN: Serial Region persistence enabled: false Async queue persistence
    * enabled: false
-   * 
+   *
    * Error is thrown from AsyncEventListener implementation while processing the batch. Added to
    * test the fix done for defect #45152.
    */
@@ -371,7 +373,7 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Replicated WAN: Serial Region persistence enabled: false Async channel persistence
    * enabled: false AsyncEventQueue conflation enabled: true
    */
@@ -451,10 +453,10 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Replicated WAN: Serial Region persistence enabled: false Async event queue persistence
    * enabled: false
-   * 
+   *
    * Note: The test doesn't create a locator but uses MCAST port instead.
    */
   @Ignore("TODO: Disabled until I can sort out the hydra dependencies - see bug 52214")
@@ -487,10 +489,10 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Replicated WAN: Serial Region persistence enabled: false Async channel persistence
    * enabled: true
-   * 
+   *
    * No VM is restarted.
    */
 
@@ -528,10 +530,10 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Replicated WAN: Serial Region persistence enabled: false Async channel persistence
    * enabled: true
-   * 
+   *
    * There is only one vm in the site and that vm is restarted
    */
   @Ignore("TODO: Disabled for 52351")
@@ -570,10 +572,10 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Replicated WAN: Serial Region persistence enabled: false Async channel persistence
    * enabled: true
-   * 
+   *
    * There are 3 VMs in the site and the VM with primary sender is shut down.
    */
   @Ignore("TODO: Disabled for 52351")
@@ -621,7 +623,7 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Replicated WAN: Serial Dispatcher threads: more than 1 Order policy: key based ordering
    */
   @Test
@@ -658,7 +660,7 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Replicated WAN: Serial Region persistence enabled: false Async queue persistence
    * enabled: false
    */
@@ -737,7 +739,7 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Partitioned WAN: Serial Region persistence enabled: false Async channel persistence
    * enabled: false
    */
@@ -769,7 +771,7 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Partitioned WAN: Serial Region persistence enabled: false Async channel persistence
    * enabled: false AsyncEventQueue conflation enabled: true
    */
@@ -846,10 +848,10 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Partitioned WAN: Serial Region persistence enabled: false Async channel persistence
    * enabled: true
-   * 
+   *
    * No VM is restarted.
    */
   @Test
@@ -884,10 +886,10 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
   /**
    * Test configuration::
-   * 
+   *
    * Region: Partitioned WAN: Serial Region persistence enabled: false Async channel persistence
    * enabled: true
-   * 
+   *
    * There is only one vm in the site and that vm is restarted
    */
   @Test
@@ -1224,13 +1226,13 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
 
 
     vm1.invoke(() -> AsyncEventQueueTestBase.waitForAsyncEventQueueSize("ln",
-        keyValues.size() + updateKeyValues.size())); // no conflation of creates
+        keyValues.size() + updateKeyValues.size(), false)); // no conflation of creates
 
     vm1.invoke(() -> AsyncEventQueueTestBase.putGivenKeyValue(getTestMethodName() + "_PR",
         updateKeyValues));
 
     vm1.invoke(() -> AsyncEventQueueTestBase.waitForAsyncEventQueueSize("ln",
-        keyValues.size() + updateKeyValues.size())); // conflation of updates
+        keyValues.size() + updateKeyValues.size(), false)); // conflation of updates
 
     vm1.invoke(() -> AsyncEventQueueTestBase.resumeAsyncEventQueue("ln"));
     vm2.invoke(() -> AsyncEventQueueTestBase.resumeAsyncEventQueue("ln"));
@@ -1517,6 +1519,11 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
         () -> AsyncEventQueueTestBase.getAllPrimaryBucketsOnTheNode(getTestMethodName() + "_PR"));
 
     LogWriterUtils.getLogWriter().info("Primary buckets on vm2: " + primaryBucketsvm2);
+
+    // before shutdown vm2, both vm1 and vm2 should have 40 events in primary queue
+    vm1.invoke(() -> AsyncEventQueueTestBase.checkAsyncEventQueueStats("ln", 40, 80, 80, 0));
+    vm2.invoke(() -> AsyncEventQueueTestBase.checkAsyncEventQueueStats("ln", 40, 80, 80, 0));
+
     // ---------------------------- Kill vm2 --------------------------
     vm2.invoke(() -> AsyncEventQueueTestBase.killSender());
     // ----------------------------------------------------------------
@@ -1525,6 +1532,8 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
     vm3.invoke(createCacheRunnable(lnPort));
     vm3.invoke(() -> AsyncEventQueueTestBase.createAsyncEventQueueWithListener2("ln", true, 100, 5,
         false, null));
+    // vm3 will move some primary buckets from vm1, but vm1's primary queue size did not reduce
+    vm3.invoke(pauseAsyncEventQueueRunnable());
     vm3.invoke(() -> AsyncEventQueueTestBase.createPRWithRedundantCopyWithAsyncEventQueue(
         getTestMethodName() + "_PR", "ln", isOffHeap()));
 
@@ -1533,7 +1542,17 @@ public class AsyncEventListenerDUnitTest extends AsyncEventQueueTestBase {
     String regionName = getTestMethodName() + "_PR";
     Set<Integer> primaryBucketsvm3 = (Set<Integer>) vm3
         .invoke(() -> AsyncEventQueueTestBase.getAllPrimaryBucketsOnTheNode(regionName));
+    LogWriterUtils.getLogWriter().info("Primary buckets on vm3: " + primaryBucketsvm3);
+    Set<Integer> primaryBucketsvm1 = (Set<Integer>) vm1.invoke(
+        () -> AsyncEventQueueTestBase.getAllPrimaryBucketsOnTheNode(getTestMethodName() + "_PR"));
+    LogWriterUtils.getLogWriter()
+        .info("After shutdown vm2, started vm3, Primary buckets on vm1: " + primaryBucketsvm1);
 
+    // vm1.invoke(()->AsyncEventQueueTestBase.checkAsyncEventQueueStats("ln", 80, 80, 80, 0));
+    vm1.invoke(() -> AsyncEventQueueTestBase.checkAsyncEventQueueStats("ln", 40, 80, 80, 0));
+    vm3.invoke(() -> AsyncEventQueueTestBase.checkAsyncEventQueueStats("ln", 40, 0, 0, 0));
+
+    vm3.invoke(() -> AsyncEventQueueTestBase.resumeAsyncEventQueue("ln"));
     vm1.invoke(() -> AsyncEventQueueTestBase.resumeAsyncEventQueue("ln"));
 
     vm1.invoke(() -> AsyncEventQueueTestBase.waitForAsyncQueueToGetEmpty("ln"));

@@ -32,7 +32,7 @@ import org.apache.geode.internal.logging.LogService;
 /**
  * A message that is sent to a given collection of managers and then awaits replies. It is used by
  * some tests to flush the serial communication channels after no-ack tests.
- * 
+ *
  */
 public class SerialAckedMessage extends SerialDistributionMessage implements MessageWithReply {
   private static final Logger logger = LogService.getLogger();
@@ -41,21 +41,21 @@ public class SerialAckedMessage extends SerialDistributionMessage implements Mes
   private InternalDistributedMember id;
   private int processorId;
 
-  transient DistributionManager originDm;
-  transient private ReplyProcessor21 rp;
+  transient ClusterDistributionManager originDm;
+  private transient ReplyProcessor21 rp;
 
   public SerialAckedMessage() {
     super();
     InternalDistributedSystem ds = InternalDistributedSystem.getAnyInstance();
     if (ds != null) { // this constructor is used in serialization as well as when sending to others
-      this.originDm = (DistributionManager) ds.getDistributionManager();
+      this.originDm = (ClusterDistributionManager) ds.getDistributionManager();
       this.id = this.originDm.getDistributionManagerId();
     }
   }
 
   /**
    * send the message and wait for replies
-   * 
+   *
    * @param recipients the destination manager ids
    * @param multicast whether to use multicast or unicast
    * @throws InterruptedException if the operation is interrupted (as by shutdown)
@@ -119,7 +119,7 @@ public class SerialAckedMessage extends SerialDistributionMessage implements Mes
    * This method is invoked on the receiver side
    */
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     Assert.assertTrue(this.id != null);
     ReplyMessage reply = new ReplyMessage();
     reply.setProcessorId(processorId);

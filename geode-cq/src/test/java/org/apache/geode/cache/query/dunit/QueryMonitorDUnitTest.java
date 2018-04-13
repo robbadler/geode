@@ -15,9 +15,17 @@
 
 package org.apache.geode.cache.query.dunit;
 
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Properties;
+
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
@@ -30,8 +38,6 @@ import org.apache.geode.cache.EvictionAttributes;
 import org.apache.geode.cache.PartitionAttributesFactory;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.Scope;
-import org.apache.geode.cache.client.ClientCache;
-import org.apache.geode.cache.client.ClientCacheFactory;
 import org.apache.geode.cache.client.Pool;
 import org.apache.geode.cache.client.PoolFactory;
 import org.apache.geode.cache.client.PoolManager;
@@ -59,23 +65,16 @@ import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
-
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.junit.Assert.*;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
 /**
  * Tests for QueryMonitoring service.
- * 
+ *
  * @since GemFire 6.0
  */
-@Category({DistributedTest.class, ClientSubscriptionTest.class})
+@Category({DistributedTest.class, OQLQueryTest.class})
 public class QueryMonitorDUnitTest extends JUnit4CacheTestCase {
 
   private final String exampleRegionName = "exampleRegion";
@@ -220,12 +219,10 @@ public class QueryMonitorDUnitTest extends JUnit4CacheTestCase {
       Assert.fail("While starting CacheServer", ex);
     }
     Cache cache = getCache();
-    GemFireCacheImpl.getInstance().testMaxQueryExecutionTime = queryMonitorTime;
+    GemFireCacheImpl.MAX_QUERY_EXECUTION_TIME = queryMonitorTime;
     cache.getLogger().fine("#### RUNNING TEST : " + testName);
     DefaultQuery.testHook = new QueryTimeoutHook(queryMonitorTime);
     // ((GemFireCache)cache).testMaxQueryExecutionTime = queryMonitorTime;
-    System.out.println("MAX_QUERY_EXECUTION_TIME is set to: "
-        + ((GemFireCacheImpl) cache).testMaxQueryExecutionTime);
     return port;
   }
 
@@ -236,10 +233,8 @@ public class QueryMonitorDUnitTest extends JUnit4CacheTestCase {
         // Reset the test flag.
         Cache cache = getCache();
         DefaultQuery.testHook = null;
-        GemFireCacheImpl.getInstance().testMaxQueryExecutionTime = -1;
+        GemFireCacheImpl.MAX_QUERY_EXECUTION_TIME = -1;
         stopBridgeServer(getCache());
-        System.out.println("MAX_QUERY_EXECUTION_TIME is set to: "
-            + ((GemFireCacheImpl) cache).testMaxQueryExecutionTime);
       }
     };
     server.invoke(stopServer);
@@ -332,8 +327,7 @@ public class QueryMonitorDUnitTest extends JUnit4CacheTestCase {
 
   private void executeQueriesFromClient(int timeout) {
     try {
-      ClientCache anyInstance = ClientCacheFactory.getAnyInstance();
-      ((GemFireCacheImpl) anyInstance).testMaxQueryExecutionTime = timeout;
+      GemFireCacheImpl.MAX_QUERY_EXECUTION_TIME = timeout;
       Pool pool = PoolManager.find(poolName);
       QueryService queryService = pool.getQueryService();
       executeQueriesAgainstQueryService(queryService);
@@ -884,8 +878,7 @@ public class QueryMonitorDUnitTest extends JUnit4CacheTestCase {
   /**
    * The following CQ test is added to make sure testMaxQueryExecutionTime is reset and is not
    * affecting other query related tests.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testCQWithDestroysAndInvalidates() throws Exception {
@@ -915,9 +908,6 @@ public class QueryMonitorDUnitTest extends JUnit4CacheTestCase {
     // do destroys and invalidates.
     server.invoke(new CacheSerializableRunnable("Create values") {
       public void run2() throws CacheException {
-        Cache cache = getCache();
-        System.out.println("TEST CQ MAX_QUERY_EXECUTION_TIME is set to: "
-            + ((GemFireCacheImpl) cache).testMaxQueryExecutionTime);
 
         Region region1 = getRootRegion().getSubregion(cqDUnitTest.regions[0]);
         for (int i = 1; i <= 5; i++) {
@@ -940,10 +930,6 @@ public class QueryMonitorDUnitTest extends JUnit4CacheTestCase {
     // do invalidates on fisrt five keys.
     server.invoke(new CacheSerializableRunnable("Create values") {
       public void run2() throws CacheException {
-        Cache cache = getCache();
-        System.out.println("TEST CQ MAX_QUERY_EXECUTION_TIME is set to: "
-            + ((GemFireCacheImpl) cache).testMaxQueryExecutionTime);
-
         Region region1 = getRootRegion().getSubregion(cqDUnitTest.regions[0]);
         for (int i = 1; i <= 5; i++) {
           region1.invalidate(CqQueryDUnitTest.KEY + i);
@@ -1181,4 +1167,3 @@ public class QueryMonitorDUnitTest extends JUnit4CacheTestCase {
   }
 
 }
-

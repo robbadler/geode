@@ -22,7 +22,7 @@ import java.util.Set;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.cache.CacheException;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.PartitionedRegionDataStore;
@@ -34,7 +34,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 /**
  * A message sent requesting that an evaluation of buckets be made to determine if one or more needs
  * to be backed-up in order to satisfy the redundantCopies setting
- * 
+ *
  * @since GemFire 5.0
  */
 public class BucketBackupMessage extends PartitionMessage {
@@ -57,13 +57,14 @@ public class BucketBackupMessage extends PartitionMessage {
 
   /**
    * Sends a BucketBackupMessage requesting that another VM backup an existing bucket
-   * 
+   *
    * @param recipients the member that the contains keys/value message is sent to
    * @param r the PartitionedRegion that contains the bucket
    */
   public static void send(Set recipients, PartitionedRegion r, int bucketId) {
     Assert.assertTrue(recipients != null, "BucketBackupMessage NULL sender list");
     BucketBackupMessage m = new BucketBackupMessage(recipients, r.getPRId(), bucketId);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
     r.getDistributionManager().putOutgoing(m);
   }
 
@@ -78,7 +79,7 @@ public class BucketBackupMessage extends PartitionMessage {
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion pr,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion pr,
       long startTime) throws CacheException {
 
     // This call has come to an uninitialized region.
@@ -88,8 +89,9 @@ public class BucketBackupMessage extends PartitionMessage {
       return false;
     }
 
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.trace(LogMarker.DM, "BucketBackupMessage operateOnRegion: {}", pr.getFullPath());
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace(LogMarker.DM_VERBOSE, "BucketBackupMessage operateOnRegion: {}",
+          pr.getFullPath());
     }
     PartitionedRegionDataStore ds = pr.getDataStore();
     if (ds != null) {
@@ -104,7 +106,7 @@ public class BucketBackupMessage extends PartitionMessage {
 
   @Override
   public int getProcessorType() {
-    return DistributionManager.WAITING_POOL_EXECUTOR;
+    return ClusterDistributionManager.WAITING_POOL_EXECUTOR;
   }
 
   public int getDSFID() {

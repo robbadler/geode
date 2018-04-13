@@ -15,7 +15,11 @@
 
 package org.apache.geode.internal.cache.locks;
 
-import org.apache.geode.distributed.internal.DM;
+import java.util.concurrent.RejectedExecutionException;
+
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.distributed.internal.locks.DLockRecoverGrantorProcessor;
@@ -26,9 +30,6 @@ import org.apache.geode.internal.cache.TXCommitMessage;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
-import org.apache.logging.log4j.Logger;
-
-import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Provides processing of DLockRecoverGrantorProcessor. Reply will not be sent until all locks are
@@ -39,7 +40,7 @@ public class TXRecoverGrantorMessageProcessor
 
   private static final Logger logger = LogService.getLogger();
 
-  public void process(final DM dm,
+  public void process(final DistributionManager dm,
       final DLockRecoverGrantorProcessor.DLockRecoverGrantorMessage msg) {
 
     try {
@@ -53,7 +54,7 @@ public class TXRecoverGrantorMessageProcessor
     }
   }
 
-  protected void processDLockRecoverGrantorMessage(final DM dm,
+  protected void processDLockRecoverGrantorMessage(final DistributionManager dm,
       final DLockRecoverGrantorProcessor.DLockRecoverGrantorMessage msg) {
 
     ReplyException replyException = null;
@@ -138,7 +139,7 @@ public class TXRecoverGrantorMessageProcessor
           logger.debug("[TXRecoverGrantorMessageProcessor.process] locally process reply");
         }
         replyMsg.setSender(dm.getId());
-        replyMsg.dmProcess((DistributionManager) dm);
+        replyMsg.dmProcess((ClusterDistributionManager) dm);
       } else {
         if (logger.isDebugEnabled()) {
           logger.debug("[TXRecoverGrantorMessageProcessor.process] send reply");
@@ -149,4 +150,3 @@ public class TXRecoverGrantorMessageProcessor
   }
 
 }
-

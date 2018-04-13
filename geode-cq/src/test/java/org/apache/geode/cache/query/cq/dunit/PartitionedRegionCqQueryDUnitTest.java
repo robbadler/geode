@@ -55,14 +55,15 @@ import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * Test class for Partitioned Region and CQs
- * 
+ *
  * @since GemFire 5.5
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, ClientSubscriptionTest.class})
 public class PartitionedRegionCqQueryDUnitTest extends JUnit4CacheTestCase {
 
   public static final String[] regions = new String[] {"regionA", "regionB"};
@@ -1109,7 +1110,7 @@ public class PartitionedRegionCqQueryDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * create accessor vm if the given accessor parameter variable is true.
-   * 
+   *
    * @param server VM to create bridge server.
    * @param accessor boolean if true creates an accessor bridge server.
    */
@@ -1119,7 +1120,7 @@ public class PartitionedRegionCqQueryDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * create server with partitioned region with redundant copies.
-   * 
+   *
    * @param server VM where to create the bridge server.
    * @param accessor boolean if true create partitioned region with local max memory zero.
    * @param redundantCopies number of redundant copies for a partitioned region.
@@ -1130,7 +1131,7 @@ public class PartitionedRegionCqQueryDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Create a bridge server with partitioned region.
-   * 
+   *
    * @param server VM where to create the bridge server.
    * @param port bridge server port.
    * @param isAccessor if true the under lying partitioned region will not host data on this vm.
@@ -1170,7 +1171,7 @@ public class PartitionedRegionCqQueryDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Create a bridge server with partitioned region.
-   * 
+   *
    * @param server VM where to create the bridge server.
    * @param port bridge server port.
    * @param isAccessor if true the under lying partitioned region will not host data on this vm.
@@ -1400,5 +1401,3 @@ public class PartitionedRegionCqQueryDUnitTest extends JUnit4CacheTestCase {
     });
   }
 }
-
-

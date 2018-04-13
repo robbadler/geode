@@ -14,6 +14,9 @@
  */
 package org.apache.geode.cache.query.internal;
 
+import java.util.List;
+import java.util.Set;
+
 import org.apache.geode.cache.query.AmbiguousNameException;
 import org.apache.geode.cache.query.FunctionDomainException;
 import org.apache.geode.cache.query.NameResolutionException;
@@ -23,9 +26,6 @@ import org.apache.geode.cache.query.TypeMismatchException;
 import org.apache.geode.cache.query.internal.parse.OQLLexerTokenTypes;
 import org.apache.geode.cache.query.types.ObjectType;
 import org.apache.geode.distributed.internal.DistributionConfig;
-
-import java.util.List;
-import java.util.Set;
 
 public interface CompiledValue {
 
@@ -46,6 +46,11 @@ public interface CompiledValue {
   int LIKE = -15;
   int FIELD = -16;
   int GROUP_BY_SELECT = -17;
+  int MOD = -18;
+  int ADDITION = -19;
+  int SUBTRACTION = -20;
+  int DIVISION = -21;
+  int MULTIPLICATION = -22;
   int INDEX_RESULT_THRESHOLD_DEFAULT = 100;
   String INDX_THRESHOLD_PROP_STR = DistributionConfig.GEMFIRE_PREFIX + "Query.INDEX_THRESHOLD_SIZE";
   String INDEX_INFO = "index_info";

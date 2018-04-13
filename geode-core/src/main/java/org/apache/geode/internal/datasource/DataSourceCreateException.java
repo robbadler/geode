@@ -18,7 +18,7 @@ import org.apache.geode.GemFireCheckedException;
 
 /**
  * Exception thrown from DataSource factory.
- * 
+ *
  */
 public class DataSourceCreateException extends GemFireCheckedException {
   private static final long serialVersionUID = 8759147832954825309L;
@@ -30,9 +30,6 @@ public class DataSourceCreateException extends GemFireCheckedException {
     super();
   }
 
-  /**
-   * @param message
-   */
   public DataSourceCreateException(String message) {
     super(message);
   }
@@ -40,7 +37,7 @@ public class DataSourceCreateException extends GemFireCheckedException {
   /**
    * Single Argument constructor to construct a new exception with the specified detail message.
    * Calls Exception class constructor.
-   * 
+   *
    * @param message The detail message. The detail message is saved for later retrieval.
    */
   public DataSourceCreateException(String message, Exception ex) {

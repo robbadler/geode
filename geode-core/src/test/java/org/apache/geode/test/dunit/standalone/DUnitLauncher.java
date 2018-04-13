@@ -21,6 +21,7 @@ import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
 import static org.apache.geode.distributed.ConfigurationProperties.LOG_LEVEL;
 import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
 import static org.apache.geode.distributed.ConfigurationProperties.USE_CLUSTER_CONFIGURATION;
+import static org.apache.geode.distributed.ConfigurationProperties.VALIDATE_SERIALIZABLE_OBJECTS;
 import static org.apache.geode.distributed.internal.DistributionConfig.GEMFIRE_PREFIX;
 
 import java.io.BufferedReader;
@@ -94,8 +95,19 @@ public class DUnitLauncher {
 
   static int locatorPort;
 
+  /**
+   * Number of VMs to use during initialization.
+   */
   public static final int NUM_VMS = 4;
+
+  /**
+   * VM ID for the VM to use for the debugger.
+   */
   private static final int DEBUGGING_VM_NUM = -1;
+
+  /**
+   * VM ID for the VM to use for the locator.
+   */
   private static final int LOCATOR_VM_NUM = -2;
 
   static final long STARTUP_TIMEOUT = 120 * 1000;
@@ -112,7 +124,7 @@ public class DUnitLauncher {
   static final String MASTER_PARAM = "DUNIT_MASTER";
 
   public static final String RMI_PORT_PARAM = GEMFIRE_PREFIX + "DUnitLauncher.RMI_PORT";
-  static final String VM_NUM_PARAM = GEMFIRE_PREFIX + "DUnitLauncher.VM_NUM";
+  public static final String VM_NUM_PARAM = GEMFIRE_PREFIX + "DUnitLauncher.VM_NUM";
   static final String VM_VERSION_PARAM = GEMFIRE_PREFIX + "DUnitLauncher.VM_VERSION";
 
   private static final String LAUNCHED_PROPERTY = GEMFIRE_PREFIX + "DUnitLauncher.LAUNCHED";
@@ -253,6 +265,7 @@ public class DUnitLauncher {
     p.setProperty(MCAST_PORT, "0");
     p.setProperty(ENABLE_CLUSTER_CONFIGURATION, "false");
     p.setProperty(USE_CLUSTER_CONFIGURATION, "false");
+    p.setProperty(VALIDATE_SERIALIZABLE_OBJECTS, "true");
     p.setProperty(LOG_LEVEL, logLevel);
     return p;
   }
@@ -307,7 +320,6 @@ public class DUnitLauncher {
           Locator.startLocatorAndDS(0, locatorLogFile, p);
           InternalLocator internalLocator = (InternalLocator) Locator.getLocator();
           locatorPort = internalLocator.getPort();
-          internalLocator.resetInternalLocatorFileNamesWithCorrectPortNumber(locatorPort);
         } finally {
           System.getProperties().remove(GMSJoinLeave.BYPASS_DISCOVERY_PROPERTY);
         }
@@ -459,7 +471,7 @@ public class DUnitLauncher {
   private static class DUnitHost extends Host {
     private static final long serialVersionUID = -8034165624503666383L;
 
-    private transient final VM debuggingVM;
+    private final transient VM debuggingVM;
 
     private transient ProcessManager processManager;
 
@@ -481,9 +493,23 @@ public class DUnitLauncher {
       addHost(this);
     }
 
+    /**
+     * Retrieves one of this host's VMs based on the specified VM ID. This will not bounce VM to a
+     * different version. It will only get the current running VM or launch a new one if not already
+     * launched.
+     *
+     * @param n ID of the requested VM; a value of <code>-1</code> will return the controller VM,
+     *        which may be useful for debugging.
+     * @return VM for the requested VM ID.
+     */
     @Override
     public VM getVM(int n) {
-      return getVM(VersionManager.CURRENT_VERSION, n);
+      if (n < getVMCount() && n != DEBUGGING_VM_NUM) {
+        VM current = super.getVM(n);
+        return getVM(current.getVersion(), n);
+      } else {
+        return getVM(VersionManager.CURRENT_VERSION, n);
+      }
     }
 
     @Override

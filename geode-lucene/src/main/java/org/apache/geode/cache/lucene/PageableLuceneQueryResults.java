@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -37,26 +37,26 @@ public interface PageableLuceneQueryResults<K, V> extends Iterator<List<LuceneRe
    *
    * @return int value representing total number of hits for this query across all pages.
    */
-  public int size();
+  int size();
 
   /**
    * Returns the maximum score value across all pages.
    *
    * @return float value representing the maximum score across all the Lucene result pages.
    */
-  public float getMaxScore();
+  float getMaxScore();
 
   /**
    * Get the next page of results.
-   * 
+   *
    * @return a page of results, or null if there are no more pages
    */
-  public List<LuceneResultStruct<K, V>> next();
+  List<LuceneResultStruct<K, V>> next();
 
   /**
    * True if there is another page of results in PageableLuceneQueryResults.
    *
    * @return boolean value, true if another Lucene result page is present, false otherwise.
    */
-  public boolean hasNext();
+  boolean hasNext();
 }

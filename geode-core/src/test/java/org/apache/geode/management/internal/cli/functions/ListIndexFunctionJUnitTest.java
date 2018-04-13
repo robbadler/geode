@@ -14,7 +14,10 @@
  */
 package org.apache.geode.management.internal.cli.functions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -55,7 +58,7 @@ import org.apache.geode.test.junit.categories.UnitTest;
  * functionality of the ListIndexFunction GemFire function.
  * </p>
  * </p>
- * 
+ *
  * @see org.apache.geode.management.internal.cli.functions.ListIndexFunction
  * @see org.jmock.Expectations
  * @see org.jmock.Mockery
@@ -155,10 +158,6 @@ public class ListIndexFunctionJUnitTest {
     return indexStatisticsDetails;
   }
 
-  private ListIndexFunction createListIndexFunction(final Cache cache) {
-    return new TestListIndexFunction(cache);
-  }
-
   private Index createMockIndex(final IndexDetails indexDetails) {
     final Index mockIndex = mockContext.mock(Index.class,
         "Index " + indexDetails.getIndexName() + " " + mockCounter.getAndIncrement());
@@ -179,7 +178,7 @@ public class ListIndexFunctionJUnitTest {
         exactly(2).of(mockIndex).getRegion();
         will(returnValue(mockRegion));
         oneOf(mockIndex).getType();
-        will(returnValue(getIndexType(indexDetails.getIndexType())));
+        will(returnValue(indexDetails.getIndexType()));
         oneOf(mockRegion).getName();
         will(returnValue(indexDetails.getRegionName()));
         oneOf(mockRegion).getFullPath();
@@ -218,17 +217,6 @@ public class ListIndexFunctionJUnitTest {
     }
 
     return mockIndex;
-  }
-
-  private IndexType getIndexType(final IndexDetails.IndexType type) {
-    switch (type) {
-      case FUNCTIONAL:
-        return IndexType.FUNCTIONAL;
-      case PRIMARY_KEY:
-        return IndexType.PRIMARY_KEY;
-      default:
-        return null;
-    }
   }
 
   @Test
@@ -295,12 +283,14 @@ public class ListIndexFunctionJUnitTest {
         will(returnValue(
             Arrays.asList(createMockIndex(indexDetailsOne), createMockIndex(indexDetailsTwo),
                 createMockIndex(indexDetailsThree), createMockIndex(indexDetailsFour))));
+        oneOf(mockFunctionContext).getCache();
+        will(returnValue(mockCache));
         oneOf(mockFunctionContext).getResultSender();
         will(returnValue(testResultSender));
       }
     });
 
-    final ListIndexFunction function = createListIndexFunction(mockCache);
+    final ListIndexFunction function = new ListIndexFunction();
 
     function.execute(mockFunctionContext);
 
@@ -355,12 +345,14 @@ public class ListIndexFunctionJUnitTest {
         will(returnValue(mockDistributedMember));
         oneOf(mockQueryService).getIndexes();
         will(returnValue(Collections.emptyList()));
+        oneOf(mockFunctionContext).getCache();
+        will(returnValue(mockCache));
         oneOf(mockFunctionContext).getResultSender();
         will(returnValue(testResultSender));
       }
     });
 
-    final ListIndexFunction function = createListIndexFunction(mockCache);
+    final ListIndexFunction function = new ListIndexFunction();
 
     function.execute(mockFunctionContext);
 
@@ -401,12 +393,14 @@ public class ListIndexFunctionJUnitTest {
         will(returnValue(mockDistributedMember));
         oneOf(mockQueryService).getIndexes();
         will(throwException(new RuntimeException("expected")));
+        oneOf(mockFunctionContext).getCache();
+        will(returnValue(mockCache));
         oneOf(mockFunctionContext).getResultSender();
         will(returnValue(testResultSender));
       }
     });
 
-    final ListIndexFunction function = createListIndexFunction(mockCache);
+    final ListIndexFunction function = new ListIndexFunction();
 
     function.execute(mockFunctionContext);
 
@@ -416,21 +410,6 @@ public class ListIndexFunctionJUnitTest {
       assertTrue(t instanceof RuntimeException);
       assertEquals("expected", t.getMessage());
       throw t;
-    }
-  }
-
-  private static class TestListIndexFunction extends ListIndexFunction {
-
-    private final Cache cache;
-
-    protected TestListIndexFunction(final Cache cache) {
-      assert cache != null : "The Cache cannot be null!";
-      this.cache = cache;
-    }
-
-    @Override
-    protected Cache getCache() {
-      return this.cache;
     }
   }
 

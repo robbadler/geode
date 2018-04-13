@@ -27,7 +27,7 @@ import org.apache.geode.distributed.internal.DistributionConfig;
 /**
  * Manages which implementation of {@link ProcessController} will be used and constructs the
  * instance.
- * 
+ *
  * @since GemFire 8.0
  */
 public class ProcessControllerFactory {
@@ -49,13 +49,11 @@ public class ProcessControllerFactory {
     notNull(parameters, "Invalid parameters '" + parameters + "' specified");
     isTrue(pid > 0, "Invalid pid '" + pid + "' specified");
 
-    if (isAttachAPIFound()) {
-      try {
-        return new MBeanProcessController(parameters, pid);
-      } catch (ExceptionInInitializerError ignore) {
-      }
+    if (!isAttachAPIFound()) {
+      return new FileProcessController(parameters, pid);
     }
-    return new FileProcessController(parameters, pid);
+
+    return new MBeanOrFileProcessController(parameters, pid);
   }
 
   public ProcessController createProcessController(final ProcessControllerParameters parameters,

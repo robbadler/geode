@@ -14,14 +14,15 @@
  */
 package org.apache.geode.cache.lucene;
 
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.DataPolicy;
-import org.apache.geode.cache.GemFireCache;
+import java.util.Collection;
+import java.util.concurrent.TimeUnit;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 
-import java.util.Collection;
-import java.util.concurrent.TimeUnit;
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.DataPolicy;
+import org.apache.geode.cache.GemFireCache;
 
 /**
  *
@@ -38,7 +39,7 @@ import java.util.concurrent.TimeUnit;
  * Lucene index with the java API. The Lucene index should be created on each member that has the
  * region that is being indexed.
  * </p>
- * 
+ *
  * <pre>
  * {
  *   &#64;code
@@ -54,7 +55,7 @@ import java.util.concurrent.TimeUnit;
  * being tokenized with the KeywordAnalyzer so it is treated as a single word. The default analyzer
  * if none is specified is the {@link StandardAnalyzer}.
  * </p>
- * 
+ *
  *
  * Indexes should be created on all peers that host the region being indexed. Clients do not need to
  * define the index, they can directly execute queries using this service.
@@ -91,7 +92,7 @@ import java.util.concurrent.TimeUnit;
  * Currently, only partitioned regions are supported. Creating an index on a region with
  * {@link DataPolicy#REPLICATE} will fail.
  * </p>
- * 
+ *
  */
 public interface LuceneService {
 
@@ -100,12 +101,12 @@ public interface LuceneService {
    * only work if the region value is a String or Number, in which case a Lucene document will be
    * created with a single field with this name.
    */
-  public String REGION_VALUE_FIELD = "__REGION_VALUE_FIELD";
+  String REGION_VALUE_FIELD = "__REGION_VALUE_FIELD";
 
   /**
    * Get a factory for creating a Lucene index on this member.
    */
-  public LuceneIndexFactory createIndexFactory();
+  LuceneIndexFactory createIndexFactory();
 
   /**
    * Destroy the Lucene index
@@ -113,42 +114,41 @@ public interface LuceneService {
    * @param indexName the name of the index to destroy
    * @param regionPath the path of the region whose index to destroy
    */
-  public void destroyIndex(String indexName, String regionPath);
+  void destroyIndex(String indexName, String regionPath);
 
   /**
    * Destroy all the Lucene indexes for the region
    *
    * @param regionPath The path of the region on which to destroy the indexes
    */
-  public void destroyIndexes(String regionPath);
+  void destroyIndexes(String regionPath);
 
   /**
    * Get the Lucene index object specified by region name and index name
-   * 
+   *
    * @param indexName index name
    * @param regionPath region name
    * @return LuceneIndex object
    */
-  public LuceneIndex getIndex(String indexName, String regionPath);
+  LuceneIndex getIndex(String indexName, String regionPath);
 
   /**
    * get all the Lucene indexes.
-   * 
+   *
    * @return all index objects in a Collection
    */
-  public Collection<LuceneIndex> getAllIndexes();
+  Collection<LuceneIndex> getAllIndexes();
 
   /**
    * Create a factory for building a Lucene query.
    */
-  public LuceneQueryFactory createLuceneQueryFactory();
+  LuceneQueryFactory createLuceneQueryFactory();
 
   /**
    * returns the cache to which the LuceneService belongs
    *
-   * @return Cache
    */
-  public Cache getCache();
+  Cache getCache();
 
 
   /**
@@ -161,15 +161,15 @@ public interface LuceneService {
    * This method is an expensive operation, so using it before every query is highly discouraged.
    *
    * @param indexName index name
-   * 
+   *
    * @param regionPath region name
-   * 
+   *
    * @param timeout max wait time
-   * 
+   *
    * @param unit Time unit associated with the max wait time
-   * 
+   *
    * @return true if entries are flushed within timeout, false if the timeout has elapsed
    */
-  public boolean waitUntilFlushed(String indexName, String regionPath, long timeout, TimeUnit unit)
+  boolean waitUntilFlushed(String indexName, String regionPath, long timeout, TimeUnit unit)
       throws InterruptedException;
 }

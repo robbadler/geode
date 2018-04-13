@@ -40,9 +40,9 @@ import org.apache.geode.internal.cache.execute.ServerToClientFunctionResultSende
 import org.apache.geode.internal.cache.tier.CachedRegionHelper;
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.MessageType;
+import org.apache.geode.internal.cache.tier.ServerSideHandshake;
 import org.apache.geode.internal.cache.tier.sockets.BaseCommand;
 import org.apache.geode.internal.cache.tier.sockets.ChunkedMessage;
-import org.apache.geode.internal.cache.tier.sockets.HandShake;
 import org.apache.geode.internal.cache.tier.sockets.Message;
 import org.apache.geode.internal.cache.tier.sockets.Part;
 import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
@@ -50,15 +50,13 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.security.AuthorizeRequest;
 import org.apache.geode.internal.security.SecurityService;
-import org.apache.geode.security.ResourcePermission.Operation;
-import org.apache.geode.security.ResourcePermission.Resource;
 
 /**
  * @since GemFire 6.6
  */
 public class ExecuteRegionFunction66 extends BaseCommand {
 
-  private final static ExecuteRegionFunction66 singleton = new ExecuteRegionFunction66();
+  private static final ExecuteRegionFunction66 singleton = new ExecuteRegionFunction66();
 
   public static Command getCommand() {
     return singleton;
@@ -176,11 +174,11 @@ public class ExecuteRegionFunction66 extends BaseCommand {
       sendError(hasResult, clientMessage, message, serverConnection);
       return;
     }
-    HandShake handShake = (HandShake) serverConnection.getHandshake();
-    int earlierClientReadTimeout = handShake.getClientReadTimeout();
-    handShake.setClientReadTimeout(functionTimeout);
+    ServerSideHandshake handshake = serverConnection.getHandshake();
+    int earlierClientReadTimeout = handshake.getClientReadTimeout();
+    handshake.setClientReadTimeout(functionTimeout);
     ServerToClientFunctionResultSender resultSender = null;
-    Function functionObject = null;
+    Function<?> functionObject = null;
     try {
       if (function instanceof String) {
         functionObject = FunctionService.getFunction((String) function);
@@ -211,9 +209,8 @@ public class ExecuteRegionFunction66 extends BaseCommand {
         functionObject = (Function) function;
       }
 
-      securityService.authorize(Resource.DATA, Operation.WRITE);
-
       // check if the caller is authorized to do this operation on server
+      functionObject.getRequiredPermissions(regionName).forEach(securityService::authorize);
       AuthorizeRequest authzRequest = serverConnection.getAuthzRequest();
       final String functionName = functionObject.getId();
       final String regionPath = region.getFullPath();
@@ -337,7 +334,7 @@ public class ExecuteRegionFunction66 extends BaseCommand {
       String message = e.getMessage();
       sendException(hasResult, clientMessage, message, serverConnection, e);
     } finally {
-      handShake.setClientReadTimeout(earlierClientReadTimeout);
+      handshake.setClientReadTimeout(earlierClientReadTimeout);
       ServerConnection.executeFunctionOnLocalNodeOnly((byte) 0);
     }
   }
@@ -425,4 +422,3 @@ public class ExecuteRegionFunction66 extends BaseCommand {
     }
   }
 }
-

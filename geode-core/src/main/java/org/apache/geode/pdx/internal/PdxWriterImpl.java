@@ -40,7 +40,7 @@ import org.apache.geode.pdx.internal.AutoSerializableManager.AutoClassInfo;
  * A new instance of this class is created for each (nested) instance of {@link PdxSerializable}.
  * But it may share the underlying instance of {@link HeapDataOutputStream} with other instances of
  * this class.
- * 
+ *
  * @since GemFire 6.6
  * @see InternalDataSerializer#basicWriteObject(Object, java.io.DataOutput, boolean)
  */
@@ -491,7 +491,7 @@ public class PdxWriterImpl implements PdxWriter {
 
   /**
    * Must be invoked only after {@link PdxSerializable#toData(PdxWriter)}
-   * 
+   *
    * @return total number of bytes serialized for this pdx
    */
   public int completeByteStreamGeneration() {
@@ -533,7 +533,7 @@ public class PdxWriterImpl implements PdxWriter {
       this.lu.update(bits);
     } // !alreadyGenerated
 
-    return getCurrentOffset() + 1; // +1 for DSCODE.PDX
+    return getCurrentOffset() + 1; // +1 for DSCODE.PDX.toByte()
   }
 
   /**
@@ -592,7 +592,7 @@ public class PdxWriterImpl implements PdxWriter {
 
   /**
    * This is required while writing the byte stream.
-   * 
+   *
    * @param offsetCount Number of offsets to appended in this byte stream.
    * @param size Size of the byte stream (excluding DSCODE, length int and the offsets.)
    * @return size of each offset
@@ -839,7 +839,7 @@ public class PdxWriterImpl implements PdxWriter {
   private HeapDataOutputStream.LongUpdater lu;
 
   private void writeHeader() {
-    this.os.write(DSCODE.PDX);
+    this.os.write(DSCODE.PDX.toByte());
     this.lu = this.os.reserveLong(); // dummy length and type id
   }
 
@@ -932,7 +932,7 @@ public class PdxWriterImpl implements PdxWriter {
     if (valueBytes == null || valueBytes.length < 1) {
       return false;
     }
-    return valueBytes[0] == DSCODE.PDX;
+    return valueBytes[0] == DSCODE.PDX.toByte();
   }
 
   public int position() {

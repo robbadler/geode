@@ -26,11 +26,10 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.cache.persistence.PersistentID;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.ReplyException;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.persistence.PersistentMemberID;
 import org.apache.geode.internal.cache.persistence.PersistentMemberManager;
@@ -45,7 +44,7 @@ import org.apache.geode.internal.logging.LogService;
 public class MissingPersistentIDsRequest extends CliLegacyMessage {
   private static final Logger logger = LogService.getLogger();
 
-  public static Set<PersistentID> send(DM dm) {
+  public static Set<PersistentID> send(DistributionManager dm) {
     Set recipients = dm.getOtherDistributionManagerIds();
 
     MissingPersistentIDsRequest request = new MissingPersistentIDsRequest();
@@ -69,7 +68,7 @@ public class MissingPersistentIDsRequest extends CliLegacyMessage {
     Set<PersistentID> existing = replyProcessor.existing;
 
     MissingPersistentIDsResponse localResponse =
-        (MissingPersistentIDsResponse) request.createResponse((DistributionManager) dm);
+        (MissingPersistentIDsResponse) request.createResponse((ClusterDistributionManager) dm);
     results.addAll(localResponse.getMissingIds());
     existing.addAll(localResponse.getLocalIds());
 
@@ -119,17 +118,17 @@ public class MissingPersistentIDsRequest extends CliLegacyMessage {
     Set<PersistentID> missing = Collections.synchronizedSet(new TreeSet<PersistentID>());
     Set<PersistentID> existing = Collections.synchronizedSet(new TreeSet<PersistentID>());
 
-    MissingPersistentIDProcessor(DM dm, Set recipients) {
+    MissingPersistentIDProcessor(DistributionManager dm, Set recipients) {
       super(dm, recipients);
     }
 
     @Override
-    protected void process(DistributionMessage msg, boolean warn) {
-      if (msg instanceof MissingPersistentIDsResponse) {
-        this.missing.addAll(((MissingPersistentIDsResponse) msg).getMissingIds());
-        this.existing.addAll(((MissingPersistentIDsResponse) msg).getLocalIds());
+    protected void process(DistributionMessage message, boolean warn) {
+      if (message instanceof MissingPersistentIDsResponse) {
+        this.missing.addAll(((MissingPersistentIDsResponse) message).getMissingIds());
+        this.existing.addAll(((MissingPersistentIDsResponse) message).getLocalIds());
       }
-      super.process(msg, warn);
+      super.process(message, warn);
     }
   }
 }

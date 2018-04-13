@@ -17,6 +17,7 @@ package org.apache.geode.internal.cache.xmlcache;
 import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -43,8 +44,11 @@ import org.apache.geode.cache.client.Pool;
 import org.apache.geode.cache.client.PoolManager;
 import org.apache.geode.cache.query.QueryService;
 import org.apache.geode.cache.server.CacheServer;
+import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.internal.cache.InitialImageOperation;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.InternalRegion;
 import org.apache.geode.internal.cache.PoolFactoryImpl;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 
@@ -181,6 +185,13 @@ public class ClientCacheCreation extends CacheCreation implements ClientCache {
       throw new IllegalStateException(
           "You must use ClientCacheFactory when the cache.xml uses client-cache.");
     }
+
+    initializeDeclarablesMap(cache);
+
+    if (hasFunctionService()) {
+      getFunctionServiceCreation().create();
+    }
+
     // create connection pools
     Map<String, Pool> pools = getPools();
     if (!pools.isEmpty()) {
@@ -190,8 +201,6 @@ public class ClientCacheCreation extends CacheCreation implements ClientCache {
         poolFactory.create(cp.getName());
       }
     }
-
-    cache.determineDefaultPool();
 
     if (hasResourceManager()) {
       // moved this up to fix bug 42128
@@ -253,7 +262,7 @@ public class ClientCacheCreation extends CacheCreation implements ClientCache {
     }
 
     cache.readyDynamicRegionFactory();
-    runInitializer();
+    runInitializer(cache);
   }
 
   public String getDefaultPoolName() {
@@ -283,4 +292,10 @@ public class ClientCacheCreation extends CacheCreation implements ClientCache {
     return Collections.emptySet();
   }
 
+  @Override
+  public void invokeRegionEntrySynchronizationListenersAfterSynchronization(
+      InternalDistributedMember sender, InternalRegion region,
+      List<InitialImageOperation.Entry> entriesToSynchronize) {
+    throw new UnsupportedOperationException(LocalizedStrings.SHOULDNT_INVOKE.toLocalizedString());
+  }
 }

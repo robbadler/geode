@@ -55,7 +55,7 @@ import org.junit.experimental.categories.Category;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.Region;
 import org.apache.geode.distributed.Locator;
-import org.apache.geode.distributed.internal.ClusterConfigurationService;
+import org.apache.geode.distributed.internal.InternalClusterConfigurationService;
 import org.apache.geode.distributed.internal.InternalLocator;
 import org.apache.geode.internal.AvailablePort;
 import org.apache.geode.internal.AvailablePortHelper;
@@ -72,8 +72,10 @@ import org.apache.geode.test.dunit.SerializableCallable;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.GfshTest;
 
-@Category({DistributedTest.class, FlakyTest.class}) // GEODE-973 GEODE-2009 GEODE-3530
+@Category({DistributedTest.class, FlakyTest.class, GfshTest.class}) // GEODE-973 GEODE-2009
+                                                                    // GEODE-3530
 @SuppressWarnings("serial")
 public class CreateAlterDestroyRegionCommandsDUnitTest extends CliCommandTestBase {
 
@@ -180,7 +182,7 @@ public class CreateAlterDestroyRegionCommandsDUnitTest extends CliCommandTestBas
 
     // Make sure the region exists in the shared config
     Host.getHost(0).getVM(0).invoke(() -> {
-      ClusterConfigurationService sharedConfig =
+      InternalClusterConfigurationService sharedConfig =
           ((InternalLocator) Locator.getLocator()).getSharedConfiguration();
       try {
         assertTrue(
@@ -222,7 +224,7 @@ public class CreateAlterDestroyRegionCommandsDUnitTest extends CliCommandTestBas
 
     // Make sure the region was altered in the shared config
     Host.getHost(0).getVM(0).invoke(() -> {
-      ClusterConfigurationService sharedConfig =
+      InternalClusterConfigurationService sharedConfig =
           ((InternalLocator) Locator.getLocator()).getSharedConfiguration();
       try {
         assertTrue(sharedConfig.getConfiguration(groupName).getCacheXmlContent().contains("45635"));

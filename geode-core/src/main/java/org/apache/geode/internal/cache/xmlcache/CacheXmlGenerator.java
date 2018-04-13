@@ -14,9 +14,10 @@
  */
 package org.apache.geode.internal.cache.xmlcache;
 
-import static javax.xml.XMLConstants.*;
-import static org.apache.geode.internal.cache.xmlcache.XmlGeneratorUtils.*;
-import static org.apache.geode.management.internal.configuration.utils.XmlConstants.*;
+import static javax.xml.XMLConstants.W3C_XML_SCHEMA_INSTANCE_NS_URI;
+import static org.apache.geode.internal.cache.xmlcache.XmlGeneratorUtils.addAttribute;
+import static org.apache.geode.management.internal.configuration.utils.XmlConstants.W3C_XML_SCHEMA_INSTANCE_ATTRIBUTE_SCHEMA_LOCATION;
+import static org.apache.geode.management.internal.configuration.utils.XmlConstants.W3C_XML_SCHEMA_INSTANCE_PREFIX;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -25,6 +26,7 @@ import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -52,7 +54,6 @@ import org.xml.sax.SAXException;
 import org.xml.sax.SAXNotRecognizedException;
 import org.xml.sax.SAXNotSupportedException;
 import org.xml.sax.XMLReader;
-import org.xml.sax.ext.LexicalHandler;
 import org.xml.sax.helpers.AttributesImpl;
 
 import org.apache.geode.InternalGemFireException;
@@ -92,7 +93,6 @@ import org.apache.geode.cache.client.ClientRegionShortcut;
 import org.apache.geode.cache.client.Pool;
 import org.apache.geode.cache.client.PoolFactory;
 import org.apache.geode.cache.client.PoolManager;
-import org.apache.geode.cache.client.internal.InternalClientCache;
 import org.apache.geode.cache.client.internal.PoolImpl;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionService;
@@ -123,6 +123,7 @@ import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.control.MemoryThresholds;
 import org.apache.geode.internal.cache.extension.Extensible;
 import org.apache.geode.internal.cache.extension.Extension;
+import org.apache.geode.internal.cache.persistence.DefaultDiskDirs;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.size.SizeClassOnceObjectSizer;
 import org.apache.geode.management.internal.configuration.utils.XmlConstants;
@@ -145,7 +146,7 @@ public class CacheXmlGenerator extends CacheXml implements XMLReader {
   private ContentHandler handler;
 
   /** The Cache that we're generating XML for */
-  final private Cache cache;
+  private final Cache cache;
 
   /**
    * Will the generated XML file reference an XML schema instead of the DTD?
@@ -847,8 +848,7 @@ public class CacheXmlGenerator extends CacheXml implements XMLReader {
 
   /**
    * Generates the <code>serializer-registration</code> element.
-   * 
-   * @throws SAXException
+   *
    */
   private void generateSerializerRegistration() throws SAXException {
     final SerializerCreation sc = this.creation.getSerializerCreation();
@@ -881,16 +881,20 @@ public class CacheXmlGenerator extends CacheXml implements XMLReader {
     handler.endElement("", TOP_SERIALIZER_REGISTRATION, TOP_SERIALIZER_REGISTRATION);
   }
 
-  /**
-   * @throws SAXException
-   */
   private void generateFunctionService() throws SAXException {
-    Map<String, Function> functions = FunctionService.getRegisteredFunctions();
+    Collection<Function> functions = Collections.emptyList();
+    if (this.cache instanceof CacheCreation) {
+      if (this.creation.hasFunctionService()) {
+        functions = this.creation.getFunctionServiceCreation().getFunctionList();
+      }
+    } else {
+      functions = FunctionService.getRegisteredFunctions().values();
+    }
     if (!generateDefaults() && functions.isEmpty()) {
       return;
     }
     handler.startElement("", FUNCTION_SERVICE, FUNCTION_SERVICE, EMPTY);
-    for (Function function : functions.values()) {
+    for (Function function : functions) {
       if (function instanceof Declarable) {
         handler.startElement("", FUNCTION, FUNCTION, EMPTY);
         generate((Declarable) function, false);
@@ -902,9 +906,9 @@ public class CacheXmlGenerator extends CacheXml implements XMLReader {
 
   /**
    * Generates XML for the client-subscription tag
-   * 
+   *
    * @param bridge instance of <code>CacheServer</code>
-   * 
+   *
    * @since GemFire 5.7
    */
   private void generateClientHaQueue(CacheServer bridge) throws SAXException {
@@ -1133,7 +1137,7 @@ public class CacheXmlGenerator extends CacheXml implements XMLReader {
         File[] diskDirs = ds.getDiskDirs();
         int[] diskSizes = ds.getDiskDirSizes();
         if (diskDirs != null && diskDirs.length > 0) {
-          if (generateDefaults() || !Arrays.equals(diskDirs, DiskStoreFactory.DEFAULT_DISK_DIRS)
+          if (generateDefaults() || !Arrays.equals(diskDirs, DefaultDiskDirs.getDefaultDiskDirs())
               || !Arrays.equals(diskSizes, DiskStoreFactory.DEFAULT_DISK_DIR_SIZES)) {
             handler.startElement("", DISK_DIRS, DISK_DIRS, EMPTY);
             for (int i = 0; i < diskDirs.length; i++) {
@@ -1185,11 +1189,17 @@ public class CacheXmlGenerator extends CacheXml implements XMLReader {
     AttributesImpl atts = new AttributesImpl();
     try {
       atts.addAttribute("", "", NAME, "", cp.getName());
-      if (this.version.compareTo(CacheXmlVersion.GEODE_1_0) > 0) {
+      if (this.version.compareTo(CacheXmlVersion.GEODE_1_0) >= 0) {
+        if (generateDefaults() || cp
+            .getSubscriptionTimeoutMultiplier() != PoolFactory.DEFAULT_SUBSCRIPTION_TIMEOUT_MULTIPLIER) {
+          atts.addAttribute("", "", SUBSCRIPTION_TIMEOUT_MULTIPLIER, "",
+              String.valueOf(cp.getSubscriptionTimeoutMultiplier()));
+        }
         if (generateDefaults()
-            || cp.getSocketConnectTimeout() != PoolFactory.DEFAULT_SOCKET_CONNECT_TIMEOUT)
+            || cp.getSocketConnectTimeout() != PoolFactory.DEFAULT_SOCKET_CONNECT_TIMEOUT) {
           atts.addAttribute("", "", SOCKET_CONNECT_TIMEOUT, "",
               String.valueOf(cp.getSocketConnectTimeout()));
+        }
       }
       if (generateDefaults()
           || cp.getFreeConnectionTimeout() != PoolFactory.DEFAULT_FREE_CONNECTION_TIMEOUT)
@@ -1536,6 +1546,9 @@ public class CacheXmlGenerator extends CacheXml implements XMLReader {
     for (GatewayReceiver receiver : receiverList) {
       AttributesImpl atts = new AttributesImpl();
       try {
+        // hostnameForSenders
+        if (generateDefaults() || receiver.getHostnameForSenders() != null)
+          atts.addAttribute("", "", HOSTNAME_FOR_SENDERS, "", receiver.getHostnameForSenders());
         // start port
         if (generateDefaults() || receiver.getStartPort() != GatewayReceiver.DEFAULT_START_PORT)
           atts.addAttribute("", "", START_PORT, "", String.valueOf(receiver.getStartPort()));

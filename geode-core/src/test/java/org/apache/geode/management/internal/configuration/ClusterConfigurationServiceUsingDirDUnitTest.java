@@ -28,20 +28,6 @@ import static org.apache.geode.test.dunit.Host.getHost;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-import org.awaitility.Awaitility;
-import org.awaitility.core.ConditionFactory;
-import org.apache.geode.cache.Region;
-import org.apache.geode.distributed.Locator;
-import org.apache.geode.distributed.internal.ClusterConfigurationService;
-import org.apache.geode.distributed.internal.InternalLocator;
-import org.apache.geode.test.dunit.VM;
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.FlakyTest;
-import org.apache.geode.util.test.TestUtil;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -50,6 +36,21 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Properties;
+
+import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionFactory;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.cache.Region;
+import org.apache.geode.distributed.Locator;
+import org.apache.geode.distributed.internal.InternalClusterConfigurationService;
+import org.apache.geode.distributed.internal.InternalLocator;
+import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.util.test.TestUtil;
 
 @Category({DistributedTest.class, FlakyTest.class}) // GEODE-1165
 public class ClusterConfigurationServiceUsingDirDUnitTest extends JUnit4CacheTestCase {
@@ -64,7 +65,7 @@ public class ClusterConfigurationServiceUsingDirDUnitTest extends JUnit4CacheTes
           return;
         }
 
-        ClusterConfigurationService sharedConfig = locator.getSharedConfiguration();
+        InternalClusterConfigurationService sharedConfig = locator.getSharedConfiguration();
         if (sharedConfig != null) {
           sharedConfig.destroySharedConfiguration();
         }

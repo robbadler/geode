@@ -16,9 +16,12 @@
 package org.apache.geode.management.internal.cli.commands;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import org.springframework.shell.core.annotation.CliCommand;
 import org.springframework.shell.core.annotation.CliOption;
@@ -38,7 +41,7 @@ import org.apache.geode.management.internal.cli.result.TabularResultData;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
-public class ListRegionCommand implements GfshCommand {
+public class ListRegionCommand extends InternalGfshCommand {
   private static final GetRegionsFunction getRegionsFunction = new GetRegionsFunction();
 
   @CliCommand(value = {CliStrings.LIST_REGION}, help = CliStrings.LIST_REGION__HELP)
@@ -56,7 +59,7 @@ public class ListRegionCommand implements GfshCommand {
     try {
       Set<RegionInformation> regionInfoSet = new LinkedHashSet<>();
       ResultCollector<?, ?> rc;
-      Set<DistributedMember> targetMembers = CliUtil.findMembers(group, memberNameOrId);
+      Set<DistributedMember> targetMembers = findMembers(group, memberNameOrId);
 
       if (targetMembers.isEmpty()) {
         return ResultBuilder.createUserErrorResult(CliStrings.NO_MEMBERS_FOUND_MESSAGE);
@@ -67,19 +70,11 @@ public class ListRegionCommand implements GfshCommand {
       ArrayList<?> resultList = (ArrayList<?>) rc.getResult();
 
       if (resultList != null) {
-
-        for (Object resultObj : resultList) {
-          if (resultObj != null) {
-            if (resultObj instanceof Object[]) {
-              Object[] resultObjectArray = (Object[]) resultObj;
-              for (Object regionInfo : resultObjectArray) {
-                if (regionInfo instanceof RegionInformation) {
-                  regionInfoSet.add((RegionInformation) regionInfo);
-                }
-              }
-            }
-          }
-        }
+        // Gather all RegionInformation into a flat set.
+        regionInfoSet.addAll(resultList.stream().filter(Objects::nonNull)
+            .filter(Object[].class::isInstance).map(Object[].class::cast).flatMap(Arrays::stream)
+            .filter(RegionInformation.class::isInstance).map(RegionInformation.class::cast)
+            .collect(Collectors.toSet()));
 
         Set<String> regionNames = new TreeSet<>();
 

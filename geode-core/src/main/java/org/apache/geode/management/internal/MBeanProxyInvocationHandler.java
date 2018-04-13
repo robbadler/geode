@@ -48,8 +48,8 @@ import org.apache.geode.internal.logging.LogService;
  * This class is the proxy handler for all the proxies created for federated MBeans. Its designed
  * with Java proxy mechanism. All data calls are delegated to the federation components. All method
  * calls are routed to specified members via Function service
- * 
- * 
+ *
+ *
  */
 
 public class MBeanProxyInvocationHandler implements InvocationHandler {
@@ -87,14 +87,11 @@ public class MBeanProxyInvocationHandler implements InvocationHandler {
 
 
   /**
-   * 
+   *
    * @param member member to which this MBean belongs
    * @param monitoringRegion corresponding MonitoringRegion
    * @param objectName ObjectName of the MBean
    * @param interfaceClass on which interface the proxy to be exposed
-   * @return Object
-   * @throws ClassNotFoundException
-   * @throws IntrospectionException
    */
   public static Object newProxyInstance(DistributedMember member,
       Region<String, Object> monitoringRegion, ObjectName objectName, Class interfaceClass)
@@ -122,12 +119,10 @@ public class MBeanProxyInvocationHandler implements InvocationHandler {
   }
 
   /**
-   * 
+   *
    * @param member member to which this MBean belongs
    * @param objectName ObjectName of the MBean
    * @param monitoringRegion corresponding MonitoringRegion
-   * @throws IntrospectionException
-   * @throws ClassNotFoundException
    */
   private MBeanProxyInvocationHandler(DistributedMember member, ObjectName objectName,
       Region<String, Object> monitoringRegion, boolean isMXBean)
@@ -144,9 +139,9 @@ public class MBeanProxyInvocationHandler implements InvocationHandler {
   /**
    * Inherited method from Invocation handler All object state requests are delegated to the
    * federated component.
-   * 
+   *
    * All setters and operations() are delegated to the function service.
-   * 
+   *
    * Notification emmitter methods are also delegated to the function service
    */
   @Override
@@ -224,8 +219,7 @@ public class MBeanProxyInvocationHandler implements InvocationHandler {
   /**
    * As this proxy may behave as an notification emitter it delegates to the member
    * NotificationBroadcasterSupport object
-   * 
-   * @param notification
+   *
    */
   private void sendNotification(Object notification) {
     emitter.sendNotification((Notification) notification);
@@ -234,9 +228,7 @@ public class MBeanProxyInvocationHandler implements InvocationHandler {
   /**
    * This will get the data from Object state which is replicated across the hidden region
    * FederataionComponent being the carrier.
-   * 
-   * @param attributeName
-   * @return Object
+   *
    */
   protected Object delegateToObjectState(String attributeName) throws Throwable {
 
@@ -262,7 +254,7 @@ public class MBeanProxyInvocationHandler implements InvocationHandler {
 
   /**
    * It will call the Generic function to execute the method on the remote VM
-   * 
+   *
    * @param objectName ObjectName of the MBean
    * @param methodName method name
    * @param args arguments to the methods
@@ -328,14 +320,13 @@ public class MBeanProxyInvocationHandler implements InvocationHandler {
   /**
    * The call will delegate to Managed Node for NotificationHub to register a local listener to
    * listen for notification from the MBean
-   * 
+   *
    * Moreover it will also add the client to local listener list by adding to the contained emitter.
-   * 
+   *
    * @param proxy the proxy object
    * @param method method to be invoked
    * @param args method arguments
    * @return result value if any
-   * @throws Exception
    */
   private Object invokeBroadcasterMethod(Object proxy, Method method, Object[] args)
       throws Throwable {
@@ -430,8 +421,8 @@ public class MBeanProxyInvocationHandler implements InvocationHandler {
 
   /**
    * Internal implementation of all the generic proxy methods
-   * 
-   * 
+   *
+   *
    */
   private class ProxyInterfaceImpl implements ProxyInterface {
     /**
@@ -511,4 +502,3 @@ public class MBeanProxyInvocationHandler implements InvocationHandler {
   }
 
 }
-

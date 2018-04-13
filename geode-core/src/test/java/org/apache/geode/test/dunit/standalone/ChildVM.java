@@ -25,9 +25,6 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.dunit.standalone.DUnitLauncher.MasterRemote;
 
-/**
- *
- */
 public class ChildVM {
 
   private static boolean stopMainLoop = false;
@@ -39,7 +36,7 @@ public class ChildVM {
     stopMainLoop = true;
   }
 
-  private final static Logger logger = LogService.getLogger();
+  private static final Logger logger = LogService.getLogger();
 
   public static void main(String[] args) throws Throwable {
     try {

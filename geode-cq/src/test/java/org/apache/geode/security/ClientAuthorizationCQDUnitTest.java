@@ -35,17 +35,17 @@ import org.apache.geode.test.junit.runners.CategoryWithParameterizedRunnerFactor
  * Tests for authorization from client to server. This tests for authorization of all operations
  * with both valid and invalid credentials/modules with pre-operation callbacks. It also checks for
  * authorization in case of failover.
- * 
+ *
  * This is the second part of the test which had become long enough to occasionally go beyond the
  * 10min limit.
- * 
+ *
  * @since GemFire 5.5
  */
 @Category({DistributedTest.class, SecurityTest.class})
 @RunWith(Parameterized.class)
 @Parameterized.UseParametersRunnerFactory(CategoryWithParameterizedRunnerFactory.class)
 public class ClientAuthorizationCQDUnitTest extends ClientAuthorizationTestCase {
-  @Parameterized.Parameters
+  @Parameterized.Parameters(name = "from_v{0}")
   public static Collection<String> data() {
     List<String> result = VersionManager.getInstance().getVersions();
     if (result.size() < 1) {

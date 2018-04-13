@@ -20,12 +20,9 @@
 
 package org.apache.geode.cache.query.data;
 
-import java.util.*;
 import java.io.*;
+import java.util.*;
 
-/**
- *
- */
 public class Country implements Serializable {
   public String name;
   public String continent;

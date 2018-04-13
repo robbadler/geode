@@ -14,11 +14,20 @@
  */
 package org.apache.geode.memcached;
 
-import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.internal.AvailablePort;
-import org.apache.geode.memcached.GemFireMemcachedServer.Protocol;
-import org.apache.geode.test.junit.categories.FlakyTest;
-import org.apache.geode.test.junit.categories.IntegrationTest;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.*;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.logging.Logger;
+import java.util.logging.StreamHandler;
+
 import net.spy.memcached.CASResponse;
 import net.spy.memcached.CASValue;
 import net.spy.memcached.MemcachedClient;
@@ -27,18 +36,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.logging.Logger;
-import java.util.logging.StreamHandler;
-
-import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
-import static org.junit.Assert.*;
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.internal.AvailablePort;
+import org.apache.geode.memcached.GemFireMemcachedServer.Protocol;
+import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.IntegrationTest;
 
 @Category(IntegrationTest.class)
 public class GemcachedDevelopmentJUnitTest {
@@ -254,8 +256,9 @@ public class GemcachedDevelopmentJUnitTest {
   }
 
   protected MemcachedClient createMemcachedClient() throws IOException, UnknownHostException {
-    MemcachedClient client =
-        new MemcachedClient(new InetSocketAddress(InetAddress.getLocalHost(), PORT));
+    MemcachedClient client = new MemcachedClient(new ConnectionWithOneMinuteTimeoutFactory(),
+        Collections.singletonList(new InetSocketAddress(InetAddress.getLocalHost(), PORT)));
     return client;
   }
+
 }

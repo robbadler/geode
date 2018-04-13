@@ -184,7 +184,12 @@ declarative caching XML file elements unless indicated otherwise.
             <xsd:attribute name="id" type="xsd:string" use="required" />
             <xsd:attribute name="remote-distributed-system-id" type="xsd:string" use="required" />
             <xsd:attribute name="parallel" type="xsd:boolean" use="optional" />
-            <xsd:attribute name="manual-start" type="xsd:boolean" use="optional" />
+            <xsd:attribute name="manual-start" type="xsd:boolean" use="optional" >
+              <xsd:annotation>
+                <xsd:appinfo>deprecated</xsd:appinfo>
+                <xsd:documentation>Manual start of senders is deprecated and will be removed in a later release.</xsd:documentation>
+              </xsd:annotation>
+            </xsd:attribute>
             <xsd:attribute name="socket-buffer-size" type="xsd:string" use="optional" />
             <xsd:attribute name="socket-read-timeout" type="xsd:string" use="optional" />
             <xsd:attribute name="enable-batch-conflation" type="xsd:boolean" use="optional" />
@@ -200,7 +205,7 @@ declarative caching XML file elements unless indicated otherwise.
           </xsd:complexType>
         </xsd:element>
 
-        <xsd:element maxOccurs="unbounded" minOccurs="0" name="gateway-receiver">
+        <xsd:element maxOccurs="1" minOccurs="0" name="gateway-receiver">
           <xsd:complexType>
             <xsd:sequence>
               <xsd:element maxOccurs="unbounded" minOccurs="0" name="gateway-transport-filter" type="gf:class-with-parameters-type" />
@@ -1191,6 +1196,7 @@ As of 6.5 disk-dirs is deprecated on region-attributes. Use disk-store-name inst
         </xsd:complexType>
       </xsd:element>
     </xsd:choice>
+    <xsd:attribute name="subscription-timeout-multiplier" type="xsd:string" use="optional" />
     <xsd:attribute name="socket-connect-timeout" type="xsd:string" use="optional" />
     <xsd:attribute name="free-connection-timeout" type="xsd:string" use="optional" />
     <xsd:attribute name="load-conditioning-interval" type="xsd:string" use="optional" />

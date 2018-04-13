@@ -46,10 +46,10 @@ import org.apache.geode.cache.wan.GatewayQueueEvent;
 import org.apache.geode.cache.wan.GatewaySender;
 import org.apache.geode.cache.wan.GatewayTransportFilter;
 import org.apache.geode.distributed.GatewayCancelledException;
-import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.DistributionAdvisee;
 import org.apache.geode.distributed.internal.DistributionAdvisor;
 import org.apache.geode.distributed.internal.DistributionAdvisor.Profile;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.ResourceEvent;
 import org.apache.geode.distributed.internal.ServerLocation;
@@ -58,6 +58,7 @@ import org.apache.geode.internal.cache.EntryEventImpl;
 import org.apache.geode.internal.cache.EnumListenerEvent;
 import org.apache.geode.internal.cache.HasCachePerfStats;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.InternalRegion;
 import org.apache.geode.internal.cache.InternalRegionArguments;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
@@ -254,11 +255,11 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
     // if dispatcherThreads is 1 then maxMemoryPerDispatcherQueue will be same as maximumQueueMemory
     // of sender
     this.maxMemoryPerDispatcherQueue = this.queueMemory / this.dispatcherThreads;
-    this.myDSId =
-        this.cache.getInternalDistributedSystem().getDistributionManager().getDistributedSystemId();
     this.serialNumber = DistributionAdvisor.createSerialNumber();
     this.isMetaQueue = attrs.isMetaQueue();
     if (!(this.cache instanceof CacheCreation)) {
+      this.myDSId = this.cache.getInternalDistributedSystem().getDistributionManager()
+          .getDistributedSystemId();
       this.stopper = new Stopper(cache.getCancelCriterion());
       this.senderAdvisor = GatewaySenderAdvisor.createGatewaySenderAdvisor(this);
       if (!this.isForInternalUse()) {
@@ -394,7 +395,7 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
     return this.senderAdvisor;
   }
 
-  public DM getDistributionManager() {
+  public DistributionManager getDistributionManager() {
     return getSystem().getDistributionManager();
   }
 
@@ -493,9 +494,9 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
     return this.isForInternalUse;
   }
 
-  abstract public void start();
+  public abstract void start();
 
-  abstract public void stop();
+  public abstract void stop();
 
   /**
    * Destroys the GatewaySender. Before destroying the sender, caller needs to to ensure that the
@@ -504,7 +505,7 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
    * following steps: 1. Take the lifeCycleLock. 2. If the sender is attached to any application
    * region, throw an exception. 3. Close the GatewaySenderAdvisor. 4. Remove the sender from the
    * cache. 5. Destroy the region underlying the GatewaySender.
-   * 
+   *
    * In case of ParallelGatewaySender, the destroy operation does distributed destroy of the QPR. In
    * case of SerialGatewaySender, the queue region is destroyed locally.
    */
@@ -518,7 +519,7 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
       this.getLifeCycleLock().writeLock().lock();
       // first, check if this sender is attached to any region. If so, throw
       // GatewaySenderException
-      Set<LocalRegion> regions = this.cache.getApplicationRegions();
+      Set<InternalRegion> regions = this.cache.getApplicationRegions();
       Iterator regionItr = regions.iterator();
       while (regionItr.hasNext()) {
         LocalRegion region = (LocalRegion) regionItr.next();
@@ -819,9 +820,7 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
 
   /**
    * Check if this event can be distributed by senders.
-   * 
-   * @param event
-   * @param stats
+   *
    * @return boolean True if the event is allowed.
    */
   private boolean checkForDistribution(EntryEventImpl event, GatewaySenderStats stats) {
@@ -848,7 +847,10 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
     // If this gateway is not running, return
     if (!isRunning()) {
       if (isDebugEnabled) {
-        logger.debug("Returning back without putting into the gateway sender queue");
+        logger.debug("Returning back without putting into the gateway sender queue:" + event);
+      }
+      if (this.eventProcessor != null) {
+        this.eventProcessor.registerEventDroppedInPrimaryQueue(event);
       }
       return;
     }
@@ -961,7 +963,10 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
         // The sender may have stopped, after we have checked the status in the beginning.
         if (!isRunning()) {
           if (isDebugEnabled) {
-            logger.debug("Returning back without putting into the gateway sender queue");
+            logger.debug("Returning back without putting into the gateway sender queue:" + event);
+          }
+          if (this.eventProcessor != null) {
+            this.eventProcessor.registerEventDroppedInPrimaryQueue(event);
           }
           return;
         }
@@ -1009,7 +1014,7 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
    * During sender is getting started, if there are any cache operation on queue then that event
    * will be stored in temp queue. Once sender is started, these event from tmp queue will be added
    * to sender queue.
-   * 
+   *
    * Apart from sender's start() method, this method also gets called from
    * ParallelGatewaySenderQueue.addPartitionedRegionForRegion(). This is done to support the
    * postCreateRegion scenario i.e. the sender is already running and region is created later. The
@@ -1053,8 +1058,7 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
   /**
    * Removes the EntryEventImpl, whose tailKey matches with the provided tailKey, from
    * tmpQueueEvents.
-   * 
-   * @param tailKey
+   *
    */
   public boolean removeFromTempQueueEvents(Object tailKey) {
     synchronized (this.queuedEventsSync) {
@@ -1218,10 +1222,7 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
     return region;
   }
 
-  /**
-   * @param clonedEvent
-   */
-  abstract protected void setModifiedEventId(EntryEventImpl clonedEvent);
+  protected abstract void setModifiedEventId(EntryEventImpl clonedEvent);
 
   public static class DefaultGatewayEventFilter
       implements org.apache.geode.internal.cache.GatewayEventFilter {
@@ -1248,6 +1249,11 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
   public int getEventQueueSize() {
     AbstractGatewaySenderEventProcessor localProcessor = this.eventProcessor;
     return localProcessor == null ? 0 : localProcessor.eventQueueSize();
+  }
+
+  public int getEventSecondaryQueueSize() {
+    AbstractGatewaySenderEventProcessor localProcessor = this.eventProcessor;
+    return localProcessor == null ? 0 : localProcessor.eventSecondaryQueueSize();
   }
 
   public void setEnqueuedAllTempQueueEvents(boolean enqueuedAllTempQueueEvents) {
@@ -1302,7 +1308,7 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
     /**
      * Timeout events received from secondary after 5 minutes
      */
-    static private final int EVENT_TIMEOUT =
+    private static final int EVENT_TIMEOUT =
         Integer.getInteger("Gateway.EVENT_TIMEOUT", 5 * 60 * 1000).intValue();
     public final long timeout;
     public final GatewaySenderEventImpl event;
@@ -1348,6 +1354,44 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
     @Override
     public void release() {
       this.event.release();
+    }
+  }
+
+  protected GatewayQueueEvent getSynchronizationEvent(Object key, long timestamp) {
+    GatewayQueueEvent event = null;
+    for (RegionQueue queue : getQueues()) {
+      Region region = queue.getRegion();
+      for (Iterator i = region.values().iterator(); i.hasNext();) {
+        GatewaySenderEventImpl gsei = (GatewaySenderEventImpl) i.next();
+        if (gsei.getKey().equals(key) && gsei.getVersionTimeStamp() == timestamp) {
+          event = gsei;
+          logger.info(LocalizedMessage.create(
+              LocalizedStrings.AbstractGatewaySender_PROVIDING_SYNCHRONIZATION_EVENT,
+              new Object[] {this, key, timestamp, event}));
+          this.statistics.incSynchronizationEventsProvided();
+          break;
+        }
+      }
+    }
+    return event;
+  }
+
+  protected void putSynchronizationEvent(GatewayQueueEvent event) {
+    if (this.eventProcessor != null) {
+      this.lifeCycleLock.readLock().lock();
+      try {
+        logger.info(LocalizedMessage.create(
+            LocalizedStrings.AbstractGatewaySender_ENQUEUEING_SYNCHRONIZATION_EVENT,
+            new Object[] {this, event}));
+        this.eventProcessor.enqueueEvent(event);
+        this.statistics.incSynchronizationEventsEnqueued();
+      } catch (Throwable t) {
+        logger.warn(LocalizedMessage.create(
+            LocalizedStrings.AbstractGatewaySender_CAUGHT_EXCEPTION_ENQUEUEING_SYNCHRONIZATION_EVENT,
+            new Object[] {this, event}), t);
+      } finally {
+        this.lifeCycleLock.readLock().unlock();
+      }
     }
   }
 }

@@ -14,41 +14,44 @@
  */
 package org.apache.geode.management.internal.web.controllers.support;
 
-import static org.apache.geode.internal.security.SecurityServiceFactory.findSecurityService;
-
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
+import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.logging.log4j.Logger;
+import org.springframework.web.context.ServletContextAware;
 import org.springframework.web.servlet.handler.HandlerInterceptorAdapter;
 
+import org.apache.geode.annotations.TestingOnly;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.security.SecurityService;
+import org.apache.geode.management.internal.JettyHelper;
 import org.apache.geode.management.internal.security.ResourceConstants;
 
 /**
  * The GetEnvironmentHandlerInterceptor class handles extracting Gfsh environment variables encoded
  * in the HTTP request message as request parameters.
  * <p/>
- * 
+ *
  * @see javax.servlet.http.HttpServletRequest
  * @see javax.servlet.http.HttpServletResponse
  * @see org.springframework.web.servlet.handler.HandlerInterceptorAdapter
  * @since GemFire 8.0
  */
 @SuppressWarnings("unused")
-public class LoginHandlerInterceptor extends HandlerInterceptorAdapter {
+public class LoginHandlerInterceptor extends HandlerInterceptorAdapter
+    implements ServletContextAware {
 
   private static final Logger logger = LogService.getLogger();
 
-  private final SecurityService securityService;
+  private SecurityService securityService;
 
   private static final ThreadLocal<Map<String, String>> ENV =
       new ThreadLocal<Map<String, String>>() {
@@ -63,10 +66,9 @@ public class LoginHandlerInterceptor extends HandlerInterceptorAdapter {
   protected static final String SECURITY_VARIABLE_REQUEST_HEADER_PREFIX =
       DistributionConfig.SECURITY_PREFIX_NAME;
 
-  public LoginHandlerInterceptor() {
-    this(findSecurityService());
-  }
+  public LoginHandlerInterceptor() {}
 
+  @TestingOnly
   LoginHandlerInterceptor(SecurityService securityService) {
     this.securityService = securityService;
   }
@@ -116,5 +118,16 @@ public class LoginHandlerInterceptor extends HandlerInterceptorAdapter {
   public void afterConcurrentHandlingStarted(HttpServletRequest request,
       HttpServletResponse response, Object handler) throws Exception {
     ENV.remove();
+  }
+
+  /**
+   * This is used to pass attributes into the Spring/Jetty environment from the instantiating Geode
+   * environment.
+   *
+   */
+  @Override
+  public void setServletContext(ServletContext servletContext) {
+    securityService = (SecurityService) servletContext
+        .getAttribute(JettyHelper.SECURITY_SERVICE_SERVLET_CONTEXT_PARAM);
   }
 }

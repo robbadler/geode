@@ -14,27 +14,24 @@
  */
 package org.apache.geode.session.tests;
 
-import org.junit.Before;
 import static org.junit.Assert.assertEquals;
-
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.Region;
-import org.apache.geode.cache.RegionShortcut;
-import org.apache.geode.cache.server.CacheServer;
-import org.apache.geode.modules.session.functions.GetSessionCount;
-import org.apache.geode.modules.util.RegionHelper;
-import org.apache.geode.test.dunit.Host;
-import org.apache.geode.test.dunit.VM;
-
-import org.awaitility.Awaitility;
-import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
 
 import javax.servlet.http.HttpSession;
+
+import org.awaitility.Awaitility;
+import org.junit.Before;
+import org.junit.Test;
+
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.Region;
+import org.apache.geode.cache.server.CacheServer;
+import org.apache.geode.modules.session.functions.GetSessionCount;
+import org.apache.geode.test.dunit.Host;
+import org.apache.geode.test.dunit.VM;
 
 /**
  * Extends the {@link CargoTestBase} class to support client server tests of generic app servers

@@ -14,8 +14,12 @@
  */
 package org.apache.geode.management.internal.cli.functions;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.util.Arrays;
@@ -48,7 +52,6 @@ import org.apache.geode.cache.execute.ResultSender;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.cache.server.ClientSubscriptionConfig;
 import org.apache.geode.cache.wan.GatewaySender;
-import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.lang.Filter;
@@ -56,7 +59,7 @@ import org.apache.geode.internal.lang.ObjectUtils;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.util.CollectionUtils;
 import org.apache.geode.management.internal.cli.domain.DiskStoreDetails;
-import org.apache.geode.management.internal.cli.util.DiskStoreNotFoundException;
+import org.apache.geode.management.internal.cli.exceptions.EntityNotFoundException;
 import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.junit.categories.UnitTest;
 
@@ -80,12 +83,14 @@ public class DescribeDiskStoreFunctionJUnitTest {
   private static final Logger logger = LogService.getLogger();
 
   private Mockery mockContext;
+  private InternalCache mockCache;
 
   @Before
   public void setup() {
     mockContext = new Mockery();
     mockContext.setImposteriser(ClassImposteriser.INSTANCE);
     mockContext.setThreadingPolicy(new Synchroniser());
+    mockCache = mockContext.mock(InternalCache.class, "Cache");
   }
 
   @After
@@ -202,10 +207,6 @@ public class DescribeDiskStoreFunctionJUnitTest {
         new DiskStoreDetails.CacheServerDetails(bindAddress, port);
     cacheServerDetails.setHostName(hostname);
     return cacheServerDetails;
-  }
-
-  private DescribeDiskStoreFunction createDescribeDiskStoreFunction(final Cache cache) {
-    return new TestDescribeDiskStoreFunction(cache);
   }
 
   private File[] createFileArray(final String... locations) {
@@ -486,19 +487,17 @@ public class DescribeDiskStoreFunctionJUnitTest {
     final String memberId = "mockMemberId";
     final String memberName = "mockMemberName";
 
-    final InternalCache mockCache = mockContext.mock(InternalCache.class, "Cache");
-
     final InternalDistributedMember mockMember =
         mockContext.mock(InternalDistributedMember.class, "DistributedMember");
+
+    final FunctionContext mockFunctionContext =
+        mockContext.mock(FunctionContext.class, "testExecute$FunctionContext");
 
     final DiskStore mockDiskStore =
         createMockDiskStore(diskStoreId, diskStoreName, true, false,
             75, 8192l, 500, 120l, 10240, createFileArray("/export/disk/backup",
                 "/export/disk/overflow", "/export/disk/persistence"),
             createIntArray(10240, 204800, 4096000), 50, 75);
-
-    final FunctionContext mockFunctionContext =
-        mockContext.mock(FunctionContext.class, "testExecute$FunctionContext");
 
     final TestResultSender testResultSender = new TestResultSender();
 
@@ -516,6 +515,8 @@ public class DescribeDiskStoreFunctionJUnitTest {
         will(returnValue(memberId));
         oneOf(mockMember).getName();
         will(returnValue(memberName));
+        oneOf(mockFunctionContext).getCache();
+        will(returnValue(mockCache));
         oneOf(mockFunctionContext).getArguments();
         will(returnValue(diskStoreName));
         oneOf(mockFunctionContext).getResultSender();
@@ -535,7 +536,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
     final Set<DiskStoreDetails.AsyncEventQueueDetails> expectedAsyncEventQueueDetails =
         setupAsyncEventQueuesForTestExecute(mockCache, diskStoreName);
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(mockCache);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     function.execute(mockFunctionContext);
 
@@ -586,7 +587,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
 
   @Test
   public void testExecuteOnMemberHavingANonGemFireCache() throws Throwable {
-    final Cache mockCache = mockContext.mock(Cache.class, "Cache");
+    final Cache mockNonGemCache = mockContext.mock(Cache.class, "NonGemCache");
 
     final FunctionContext mockFunctionContext =
         mockContext.mock(FunctionContext.class, "FunctionContext");
@@ -595,12 +596,14 @@ public class DescribeDiskStoreFunctionJUnitTest {
 
     mockContext.checking(new Expectations() {
       {
+        oneOf(mockFunctionContext).getCache();
+        will(returnValue(mockNonGemCache));
         exactly(0).of(mockFunctionContext).getResultSender();
         will(returnValue(testResultSender));
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(mockCache);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     function.execute(mockFunctionContext);
 
@@ -611,12 +614,10 @@ public class DescribeDiskStoreFunctionJUnitTest {
   }
 
   @Test
-  public void testExecuteThrowingDiskStoreNotFoundException() throws Exception {
+  public void testExecuteThrowingEntityNotFoundException() throws Exception {
     final String diskStoreName = "testDiskStore";
     final String memberId = "mockMemberId";
     final String memberName = "mockMemberName";
-
-    final InternalCache mockCache = mockContext.mock(InternalCache.class, "Cache");
 
     final InternalDistributedMember mockMember =
         mockContext.mock(InternalDistributedMember.class, "DistributedMember");
@@ -636,6 +637,8 @@ public class DescribeDiskStoreFunctionJUnitTest {
         will(returnValue(memberId));
         oneOf(mockMember).getName();
         will(returnValue(memberName));
+        oneOf(mockFunctionContext).getCache();
+        will(returnValue(mockCache));
         oneOf(mockFunctionContext).getArguments();
         will(returnValue(diskStoreName));
         oneOf(mockFunctionContext).getResultSender();
@@ -643,14 +646,14 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(mockCache);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     function.execute(mockFunctionContext);
 
     String expected = String.format("A disk store with name (%1$s) was not found on member (%2$s).",
         diskStoreName, memberName);
     assertThatThrownBy(() -> testResultSender.getResults())
-        .isInstanceOf(DiskStoreNotFoundException.class).hasMessage(expected);
+        .isInstanceOf(EntityNotFoundException.class).hasMessage(expected);
   }
 
   @Test
@@ -658,8 +661,6 @@ public class DescribeDiskStoreFunctionJUnitTest {
     final String diskStoreName = "testDiskStore";
     final String memberId = "mockMemberId";
     final String memberName = "mockMemberName";
-
-    final InternalCache mockCache = mockContext.mock(InternalCache.class, "Cache");
 
     final InternalDistributedMember mockMember =
         mockContext.mock(InternalDistributedMember.class, "DistributedMember");
@@ -679,6 +680,8 @@ public class DescribeDiskStoreFunctionJUnitTest {
         will(returnValue(memberId));
         oneOf(mockMember).getName();
         will(returnValue(memberName));
+        oneOf(mockFunctionContext).getCache();
+        will(returnValue(mockCache));
         oneOf(mockFunctionContext).getArguments();
         will(returnValue(diskStoreName));
         oneOf(mockFunctionContext).getResultSender();
@@ -686,7 +689,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(mockCache);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     function.execute(mockFunctionContext);
 
@@ -712,8 +715,6 @@ public class DescribeDiskStoreFunctionJUnitTest {
 
     final UUID diskStoreId = UUID.randomUUID();
 
-    final InternalCache mockCache = mockContext.mock(InternalCache.class, "Cache");
-
     final InternalDistributedMember mockMember =
         mockContext.mock(InternalDistributedMember.class, "DistributedMember");
 
@@ -736,6 +737,8 @@ public class DescribeDiskStoreFunctionJUnitTest {
         will(returnValue(memberId));
         oneOf(mockMember).getName();
         will(returnValue(memberName));
+        oneOf(mockFunctionContext).getCache();
+        will(returnValue(mockCache));
         oneOf(mockFunctionContext).getArguments();
         will(returnValue(diskStoreName));
         oneOf(mockFunctionContext).getResultSender();
@@ -743,7 +746,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(mockCache);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     function.execute(mockFunctionContext);
 
@@ -769,7 +772,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertEquals(expectedDiskStoreName, function.getDiskStoreName(mockRegion));
   }
@@ -789,7 +792,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertEquals(DiskStoreDetails.DEFAULT_DISK_STORE_NAME, function.getDiskStoreName(mockRegion));
   }
@@ -813,7 +816,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertFalse(function.isOverflowToDisk(mockRegion));
   }
@@ -837,7 +840,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isOverflowToDisk(mockRegion));
   }
@@ -857,7 +860,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertFalse(function.isOverflowToDisk(mockRegion));
   }
@@ -877,7 +880,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isPersistent(mockRegion));
   }
@@ -897,7 +900,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isPersistent(mockRegion));
   }
@@ -917,7 +920,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertFalse(function.isPersistent(mockRegion));
   }
@@ -937,7 +940,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertFalse(function.isPersistent(mockRegion));
   }
@@ -957,7 +960,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertFalse(function.isPersistent(mockRegion));
   }
@@ -977,7 +980,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertFalse(function.isPersistent(mockRegion));
   }
@@ -1002,7 +1005,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isUsingDiskStore(mockRegion, mockDiskStore));
   }
@@ -1029,7 +1032,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isUsingDiskStore(mockRegion, mockDiskStore));
   }
@@ -1062,7 +1065,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isUsingDiskStore(mockRegion, mockDiskStore));
   }
@@ -1087,7 +1090,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertFalse(function.isUsingDiskStore(mockRegion, mockDiskStore));
   }
@@ -1095,8 +1098,6 @@ public class DescribeDiskStoreFunctionJUnitTest {
   @Test
   public void testSetRegionDetails() {
     final String diskStoreName = "companyDiskStore";
-
-    final InternalCache mockCache = mockContext.mock(InternalCache.class, "Cache");
 
     final Region mockCompanyRegion = mockContext.mock(Region.class, "/CompanyRegion");
     final Region mockContractorsRegion =
@@ -1237,7 +1238,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
 
     final DiskStoreDetails diskStoreDetails = new DiskStoreDetails(diskStoreName, "memberOne");
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(mockCache);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     function.setRegionDetails(mockCache, mockDiskStore, diskStoreDetails);
 
@@ -1261,7 +1262,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertEquals(expectedDiskStoreName, function.getDiskStoreName(mockCacheServer));
   }
@@ -1281,7 +1282,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertEquals(DiskStoreDetails.DEFAULT_DISK_STORE_NAME,
         function.getDiskStoreName(mockCacheServer));
@@ -1298,7 +1299,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertNull(function.getDiskStoreName(mockCacheServer));
   }
@@ -1323,7 +1324,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isUsingDiskStore(mockCacheServer, mockDiskStore));
   }
@@ -1346,7 +1347,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertFalse(function.isUsingDiskStore(mockCacheServer, mockDiskStore));
   }
@@ -1369,7 +1370,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isUsingDiskStore(mockCacheServer, mockDiskStore));
   }
@@ -1377,8 +1378,6 @@ public class DescribeDiskStoreFunctionJUnitTest {
   @Test
   public void testSetCacheServerDetails() {
     final String diskStoreName = "testDiskStore";
-
-    final InternalCache mockCache = mockContext.mock(InternalCache.class, "Cache");
 
     final CacheServer mockCacheServer1 = mockContext.mock(CacheServer.class, "CacheServer1");
     final CacheServer mockCacheServer2 = mockContext.mock(CacheServer.class, "CacheServer2");
@@ -1421,7 +1420,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
 
     final DiskStoreDetails diskStoreDetails = new DiskStoreDetails(diskStoreName, "memberOne");
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     function.setCacheServerDetails(mockCache, mockDiskStore, diskStoreDetails);
 
@@ -1441,7 +1440,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertEquals(expectedDiskStoreName, function.getDiskStoreName(mockGatewaySender));
   }
@@ -1457,7 +1456,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertEquals(DiskStoreDetails.DEFAULT_DISK_STORE_NAME,
         function.getDiskStoreName(mockGatewaySender));
@@ -1474,7 +1473,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isPersistent(mockGatewaySender));
   }
@@ -1490,7 +1489,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isPersistent(mockGatewaySender));
   }
@@ -1512,7 +1511,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isUsingDiskStore(mockGatewaySender, mockDiskStore));
   }
@@ -1532,7 +1531,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertFalse(function.isUsingDiskStore(mockGatewaySender, mockDiskStore));
   }
@@ -1552,7 +1551,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isUsingDiskStore(mockGatewaySender, mockDiskStore));
   }
@@ -1560,8 +1559,6 @@ public class DescribeDiskStoreFunctionJUnitTest {
   @Test
   public void testSetPdxSerializationDetails() {
     final String diskStoreName = "testDiskStore";
-
-    final InternalCache mockCache = mockContext.mock(InternalCache.class, "Cache");
 
     final DiskStore mockDiskStore = mockContext.mock(DiskStore.class, "DiskStore");
 
@@ -1578,7 +1575,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
 
     final DiskStoreDetails diskStoreDetails = new DiskStoreDetails(diskStoreName, "memberOne");
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(mockCache);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     function.setPdxSerializationDetails(mockCache, mockDiskStore, diskStoreDetails);
 
@@ -1587,8 +1584,6 @@ public class DescribeDiskStoreFunctionJUnitTest {
 
   @Test
   public void testSetPdxSerializationDetailsWhenDiskStoreMismatch() {
-    final InternalCache mockCache = mockContext.mock(InternalCache.class, "Cache");
-
     final DiskStore mockDiskStore = mockContext.mock(DiskStore.class, "DiskStore");
 
     mockContext.checking(new Expectations() {
@@ -1604,7 +1599,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
 
     final DiskStoreDetails diskStoreDetails = new DiskStoreDetails("testDiskStore", "memberOne");
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(mockCache);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     function.setPdxSerializationDetails(mockCache, mockDiskStore, diskStoreDetails);
 
@@ -1613,8 +1608,6 @@ public class DescribeDiskStoreFunctionJUnitTest {
 
   @Test
   public void testSetPdxSerializationDetailsWhenPdxIsNotPersistent() {
-    final InternalCache mockCache = mockContext.mock(InternalCache.class, "Cache");
-
     final DiskStore mockDiskStore = mockContext.mock(DiskStore.class, "DiskStore");
 
     mockContext.checking(new Expectations() {
@@ -1626,7 +1619,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
 
     final DiskStoreDetails diskStoreDetails = new DiskStoreDetails("testDiskStore", "memberOne");
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(mockCache);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     function.setPdxSerializationDetails(mockCache, mockDiskStore, diskStoreDetails);
 
@@ -1646,7 +1639,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertEquals(expectedDiskStoreName, function.getDiskStoreName(mockQueue));
   }
@@ -1662,7 +1655,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertEquals(DiskStoreDetails.DEFAULT_DISK_STORE_NAME, function.getDiskStoreName(mockQueue));
   }
@@ -1686,7 +1679,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isUsingDiskStore(mockQueue, mockDiskStore));
   }
@@ -1708,7 +1701,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertFalse(function.isUsingDiskStore(mockQueue, mockDiskStore));
   }
@@ -1728,7 +1721,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertFalse(function.isUsingDiskStore(mockQueue, mockDiskStore));
   }
@@ -1750,7 +1743,7 @@ public class DescribeDiskStoreFunctionJUnitTest {
       }
     });
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(null);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     assertTrue(function.isUsingDiskStore(mockQueue, mockDiskStore));
   }
@@ -1758,8 +1751,6 @@ public class DescribeDiskStoreFunctionJUnitTest {
   @Test
   public void testSetAsyncEventQueueDetails() {
     final String diskStoreName = "testDiskStore";
-
-    final InternalCache mockCache = mockContext.mock(InternalCache.class, "Cache");
 
     final AsyncEventQueue mockQueue1 = mockContext.mock(AsyncEventQueue.class, "AsyncEvenQueue1");
     final AsyncEventQueue mockQueue2 = mockContext.mock(AsyncEventQueue.class, "AsyncEvenQueue2");
@@ -1793,25 +1784,11 @@ public class DescribeDiskStoreFunctionJUnitTest {
 
     final DiskStoreDetails diskStoreDetails = new DiskStoreDetails(diskStoreName, "memberOne");
 
-    final DescribeDiskStoreFunction function = createDescribeDiskStoreFunction(mockCache);
+    final DescribeDiskStoreFunction function = new DescribeDiskStoreFunction();
 
     function.setAsyncEventQueueDetails(mockCache, mockDiskStore, diskStoreDetails);
 
     assertAsyncEventQueueDetails(expectedAsyncEventQueueDetails, diskStoreDetails);
-  }
-
-  private static class TestDescribeDiskStoreFunction extends DescribeDiskStoreFunction {
-
-    private final Cache cache;
-
-    public TestDescribeDiskStoreFunction(final Cache cache) {
-      this.cache = cache;
-    }
-
-    @Override
-    protected Cache getCache() {
-      return this.cache;
-    }
   }
 
   private static class TestResultSender implements ResultSender {

@@ -24,14 +24,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionFactory;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -48,7 +45,9 @@ import org.apache.geode.distributed.LocatorLauncher.LocatorState;
 import org.apache.geode.internal.process.io.EmptyFileWriter;
 import org.apache.geode.internal.process.io.IntegerFileWriter;
 import org.apache.geode.internal.process.io.StringFileWriter;
+import org.apache.geode.test.junit.categories.FlakyTest;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.rules.ExecutorServiceRule;
 
 /**
  * Integration tests for {@link FileProcessController}.
@@ -70,7 +69,9 @@ public class FileProcessControllerIntegrationTest {
   private File stopRequestFile;
   private int pid;
   private FileControllerParameters params;
-  private ExecutorService executor;
+
+  @Rule
+  public ExecutorServiceRule executorServiceRule = new ExecutorServiceRule();
 
   @Rule
   public ErrorCollector errorCollector = new ErrorCollector();
@@ -96,13 +97,6 @@ public class FileProcessControllerIntegrationTest {
     when(params.getProcessId()).thenReturn(pid);
     when(params.getProcessType()).thenReturn(processType);
     when(params.getDirectory()).thenReturn(temporaryFolder.getRoot());
-
-    executor = Executors.newSingleThreadExecutor();
-  }
-
-  @After
-  public void tearDown() throws Exception {
-    assertThat(executor.shutdownNow()).isEmpty();
   }
 
   @Test
@@ -125,7 +119,7 @@ public class FileProcessControllerIntegrationTest {
     FileProcessController controller = new FileProcessController(params, pid, 2, MINUTES);
 
     // when: status is called in one thread
-    executor.execute(() -> {
+    executorServiceRule.execute(() -> {
       try {
         statusRef.set(controller.status());
       } catch (Exception e) {
@@ -153,7 +147,7 @@ public class FileProcessControllerIntegrationTest {
     FileProcessController controller = new FileProcessController(params, pid, 2, MINUTES);
 
     // when: status is called in one thread
-    executor.execute(() -> {
+    executorServiceRule.execute(() -> {
       try {
         statusRef.set(controller.status());
       } catch (Exception e) {
@@ -195,13 +189,14 @@ public class FileProcessControllerIntegrationTest {
   }
 
   @Test
+  @Category(FlakyTest.class) // GEODE-3778
   public void status_withStatusRequestFileExists_doesNotFail() throws Exception {
     // arrange
     FileProcessController controller = new FileProcessController(params, pid);
     assertThat(statusRequestFile.createNewFile()).isTrue();
 
     // act
-    executor.execute(() -> {
+    executorServiceRule.execute(() -> {
       try {
         statusRef.set(controller.status());
       } catch (Exception e) {
@@ -212,7 +207,7 @@ public class FileProcessControllerIntegrationTest {
     new StringFileWriter(statusFile).writeToFile(STATUS_JSON);
 
     // assert
-    assertThat(statusRequestFile).exists();
+    await().until(() -> assertThat(statusRequestFile).exists());
   }
 
   @Test
@@ -222,7 +217,7 @@ public class FileProcessControllerIntegrationTest {
     FileProcessController controller = new FileProcessController(params, pid, 2, MINUTES);
 
     // act
-    executor.execute(() -> {
+    executorServiceRule.execute(() -> {
       try {
         assertThatThrownBy(() -> statusRef.set(controller.status()))
             .isInstanceOf(InterruptedException.class);

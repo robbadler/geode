@@ -18,7 +18,6 @@ package org.apache.geode.management.internal.web.shell;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -37,9 +36,9 @@ import org.apache.geode.management.internal.ManagementConstants;
 import org.apache.geode.management.internal.cli.CommandRequest;
 import org.apache.geode.security.NotAuthorizedException;
 import org.apache.geode.security.SimpleTestSecurityManager;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorStarterRule;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
+import org.apache.geode.test.junit.rules.LocatorStarterRule;
 
 @Category(IntegrationTest.class)
 public class HttpOperationInvokerSecurityTest {
@@ -49,15 +48,15 @@ public class HttpOperationInvokerSecurityTest {
       new LocatorStarterRule().withSecurityManager(SimpleTestSecurityManager.class).withAutoStart();
 
   @ClassRule
-  public static GfshShellConnectionRule gfsh = new GfshShellConnectionRule();
+  public static GfshCommandRule gfsh = new GfshCommandRule();
 
   private static HttpOperationInvoker invoker;
   private static CommandRequest request;
 
   @Test
-  public void performBeanOperationsNoAuthorizationCheck() throws Exception {
-    gfsh.secureConnectAndVerify(locator.getHttpPort(), GfshShellConnectionRule.PortType.http,
-        "test", "test");
+  public void performBeanOperationsHasAuthorizationCheck() throws Exception {
+    gfsh.secureConnectAndVerify(locator.getHttpPort(), GfshCommandRule.PortType.http, "test",
+        "test");
     invoker = (HttpOperationInvoker) gfsh.getGfsh().getOperationInvoker();
 
     Integer distributedSystemId =
@@ -70,11 +69,11 @@ public class HttpOperationInvokerSecurityTest {
     DistributedSystemMXBean bean = invoker.getDistributedSystemMXBean();
     assertThat(bean).isInstanceOf(DistributedSystemMXBean.class);
 
-    String[] gatewayReceivers =
-        (String[]) invoker.invoke(ManagementConstants.OBJECTNAME__DISTRIBUTEDSYSTEM_MXBEAN,
-            "listGatewayReceivers", new Object[0], new String[0]);
+    assertThatThrownBy(
+        () -> invoker.invoke(ManagementConstants.OBJECTNAME__DISTRIBUTEDSYSTEM_MXBEAN,
+            "listGatewayReceivers", new Object[0], new String[0]))
+                .isInstanceOf(NotAuthorizedException.class);
 
-    assertThat(gatewayReceivers).isEmpty();
     ObjectName objectName = ObjectName.getInstance("GemFire:type=Member,*");
     QueryExp query = Query.eq(Query.attr("Name"), Query.value("mock"));
 
@@ -85,15 +84,13 @@ public class HttpOperationInvokerSecurityTest {
 
   @Test
   public void processCommandHasAuthorizationCheck() throws Exception {
-    gfsh.secureConnectAndVerify(locator.getHttpPort(), GfshShellConnectionRule.PortType.http,
-        "test", "test");
+    gfsh.secureConnectAndVerify(locator.getHttpPort(), GfshCommandRule.PortType.http, "test",
+        "test");
 
     invoker = (HttpOperationInvoker) gfsh.getGfsh().getOperationInvoker();
 
     request = mock(CommandRequest.class);
-    when(request.getHttpRequestUrl(anyString())).thenCallRealMethod();
     when(request.getUserInput()).thenReturn("list members");
-
 
     assertThatThrownBy(() -> invoker.processCommand(request))
         .isInstanceOf(NotAuthorizedException.class);

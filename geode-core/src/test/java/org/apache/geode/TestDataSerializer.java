@@ -12,24 +12,18 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-import org.apache.geode.internal.cache.tier.sockets.DataSerializerPropogationDUnitTest;
+import org.apache.geode.internal.cache.tier.sockets.DataSerializerPropagationDUnitTest;
 
-/**
- *
- */
 public class TestDataSerializer extends DataSerializer {
 
   static {
-    DataSerializerPropogationDUnitTest.successfullyLoadedTestDataSerializer = true;
+    DataSerializerPropagationDUnitTest.successfullyLoadedTestDataSerializer = true;
   }
 
   private String name;
@@ -44,7 +38,7 @@ public class TestDataSerializer extends DataSerializer {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.DataSerializer#getSupportedClasses()
    */
   @Override
@@ -55,7 +49,7 @@ public class TestDataSerializer extends DataSerializer {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.DataSerializer#toData(java.lang.Object, java.io.DataOutput)
    */
   @Override
@@ -67,7 +61,7 @@ public class TestDataSerializer extends DataSerializer {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.DataSerializer#fromData(java.io.DataInput)
    */
   @Override
@@ -77,7 +71,7 @@ public class TestDataSerializer extends DataSerializer {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.DataSerializer#getId()
    */
   @Override
@@ -125,4 +119,3 @@ class TestSupportedClass3 {
     return this.field;
   }
 }
-

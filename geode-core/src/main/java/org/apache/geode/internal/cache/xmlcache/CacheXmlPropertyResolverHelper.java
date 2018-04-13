@@ -26,7 +26,7 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
 /**
  * Helper class for CacheXmlPropertyResolver. Helps in parsing ${...${}..}..${} strings.
- * 
+ *
  * @since GemFire 6.6
  */
 public class CacheXmlPropertyResolverHelper {
@@ -56,10 +56,6 @@ public class CacheXmlPropertyResolverHelper {
 
   private String prefixForSuffix = DEFAULT_PREFIX_FOR_SUFFIX;
 
-  /**
-   * @param propPrefix
-   * @param propSuffix
-   */
   public CacheXmlPropertyResolverHelper(String propPrefix, String propSuffix) {
     if (propPrefix != null && propSuffix != null) {
       String validPrefix = validSuffixAndPrefixes.get(propSuffix);
@@ -77,9 +73,7 @@ public class CacheXmlPropertyResolverHelper {
   /**
    * Parses the given string which are supposed to be like ${} for system and/or Gemfire properties
    * to be replaced. This will return property.name from ${property.name}.
-   * 
-   * @param unparsedString
-   * @return parsedString
+   *
    */
   protected String parseResolvablePropString(String unparsedString, PropertyResolver resolver,
       Set<String> visitedReplaceableStrings) {
@@ -134,10 +128,7 @@ public class CacheXmlPropertyResolverHelper {
   /**
    * Finds index of suffix in a string from a specified index. Like finds index of "}" in string
    * "${my.prop.name}" starting from index 2, which is 14.
-   * 
-   * @param buf
-   * @param index
-   * @return suffix
+   *
    */
   private int findSuffixIndex(StringBuilder buf, int index) {
     int inNestedProperty = 0;

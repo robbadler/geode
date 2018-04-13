@@ -34,8 +34,8 @@ import org.apache.geode.management.internal.cli.json.GfJsonObject;
 import org.apache.geode.management.internal.cli.shell.Gfsh;
 
 /**
- * 
- * 
+ *
+ *
  * @since GemFire 7.0
  */
 public abstract class AbstractResultData implements ResultData {
@@ -89,8 +89,7 @@ public abstract class AbstractResultData implements ResultData {
   }
 
   /**
-   * 
-   * @param headerText
+   *
    * @return this ResultData
    * @throws ResultDataException If the value is non-finite number or if the key is null.
    */
@@ -176,12 +175,6 @@ public abstract class AbstractResultData implements ResultData {
     return this;
   }
 
-  /**
-   * @param byteDataArray
-   * @throws GfJsonException
-   * @throws DataFormatException
-   * @throws IOException
-   */
   public static void readFileDataAndDump(GfJsonArray byteDataArray, String directory)
       throws GfJsonException, DataFormatException, IOException {
     boolean overwriteAllExisting = false;

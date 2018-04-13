@@ -14,9 +14,25 @@
  */
 package org.apache.geode.internal.cache;
 
-import org.apache.geode.cache.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.cache.CacheWriterException;
+import org.apache.geode.cache.EntryNotFoundException;
+import org.apache.geode.cache.Operation;
+import org.apache.geode.cache.RegionAttributes;
+import org.apache.geode.cache.RegionDestroyedException;
+import org.apache.geode.cache.TimeoutException;
 import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.internal.cache.lru.LRUStatistics;
 import org.apache.geode.internal.cache.versions.RegionVersionVector;
 import org.apache.geode.internal.cache.versions.VersionSource;
 import org.apache.geode.internal.cache.wan.AbstractGatewaySender;
@@ -29,12 +45,6 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.offheap.OffHeapRegionEntryHelper;
 import org.apache.geode.internal.offheap.annotations.Released;
-import org.apache.logging.log4j.Logger;
-
-import java.util.*;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public abstract class AbstractBucketRegionQueue extends BucketRegion {
   protected static final Logger logger = LogService.getLogger();
@@ -47,8 +57,6 @@ public abstract class AbstractBucketRegionQueue extends BucketRegion {
       * Long.getLong(DistributionConfig.GEMFIRE_PREFIX + "GATEWAY_QUEUE_THROTTLE_SIZE_MB", -1);
   private final long throttleTime =
       Long.getLong(DistributionConfig.GEMFIRE_PREFIX + "GATEWAY_QUEUE_THROTTLE_TIME_MS", 100);
-
-  private final LRUStatistics stats;
 
   private final ReentrantReadWriteLock initializationLock = new ReentrantReadWriteLock();
 
@@ -65,7 +73,6 @@ public abstract class AbstractBucketRegionQueue extends BucketRegion {
   AbstractBucketRegionQueue(String regionName, RegionAttributes attrs, LocalRegion parentRegion,
       InternalCache cache, InternalRegionArguments internalRegionArgs) {
     super(regionName, attrs, parentRegion, cache, internalRegionArgs);
-    this.stats = ((AbstractLRURegionMap) getRegionMap()).getLRUStatistics();
     this.gatewaySenderStats =
         this.getPartitionedRegion().getParallelGatewaySender().getStatistics();
   }
@@ -76,6 +83,8 @@ public abstract class AbstractBucketRegionQueue extends BucketRegion {
     return false;
   }
 
+  private final Object waitForEntriesToBeRemoved = new Object();
+
   protected void waitIfQueueFull() {
     if (maximumSize <= 0) {
       return;
@@ -84,10 +93,10 @@ public abstract class AbstractBucketRegionQueue extends BucketRegion {
     // Make the put block if the queue has reached the maximum size
     // If the queue is over the maximum size, the put will wait for
     // the given throttle time until there is space in the queue
-    if (stats.getCounter() > maximumSize) {
+    if (getEvictionCounter() > maximumSize) {
       try {
-        synchronized (this.stats) {
-          this.stats.wait(throttleTime);
+        synchronized (this.waitForEntriesToBeRemoved) {
+          this.waitForEntriesToBeRemoved.wait(throttleTime);
         }
       } catch (InterruptedException e) {
         // If the thread is interrupted, just continue on
@@ -98,8 +107,8 @@ public abstract class AbstractBucketRegionQueue extends BucketRegion {
 
   protected void notifyEntriesRemoved() {
     if (maximumSize > 0) {
-      synchronized (this.stats) {
-        this.stats.notifyAll();
+      synchronized (this.waitForEntriesToBeRemoved) {
+        this.waitForEntriesToBeRemoved.notifyAll();
       }
     }
   }
@@ -138,7 +147,7 @@ public abstract class AbstractBucketRegionQueue extends BucketRegion {
   }
 
   @Override
-  protected void basicDestroyBeforeRemoval(RegionEntry entry, EntryEventImpl event) {
+  public void basicDestroyBeforeRemoval(RegionEntry entry, EntryEventImpl event) {
     /**
      * We are doing local destroy on this bucket. No need to send destroy operation to remote nodes.
      */
@@ -171,26 +180,6 @@ public abstract class AbstractBucketRegionQueue extends BucketRegion {
   public ReentrantReadWriteLock getInitializationLock() {
     return initializationLock;
   }
-
-  /**
-   * Does a get that attempts to not fault values in from disk or make the entry the most recent in
-   * the LRU.
-   */
-  /*
-   * protected Object optimalGet(Object k) { // Get the object at that key (to remove the index).
-   * Object object = null; try { object = getValueInVM(k); // OFFHEAP deserialize if (object ==
-   * null) { // must be on disk // fault it in w/o putting it back in the region object =
-   * getValueOnDiskOrBuffer(k); if (object == null) { // try memory one more time in case it was
-   * already faulted back in object = getValueInVM(k); // OFFHEAP deserialize if (object == null) {
-   * // if we get this far give up and just do a get object = get(k); } else { if (object instanceof
-   * CachedDeserializable) { object = ((CachedDeserializable)object).getDeserializedValue( this,
-   * this.getRegionEntry(k)); } } } } else { if (object instanceof CachedDeserializable) { object =
-   * ((CachedDeserializable)object).getDeserializedValue(this, this.getRegionEntry(k)); } } } catch
-   * (EntryNotFoundException ok) { // just return null; } if (object == Token.TOMBSTONE) { object =
-   * null; }
-   * 
-   * return object; }
-   */
 
   public void destroyKey(Object key) throws ForceReattemptException {
     if (logger.isDebugEnabled()) {
@@ -345,7 +334,7 @@ public abstract class AbstractBucketRegionQueue extends BucketRegion {
   }
 
   @Override
-  protected void basicDestroy(final EntryEventImpl event, final boolean cacheWrite,
+  public void basicDestroy(final EntryEventImpl event, final boolean cacheWrite,
       Object expectedOldValue)
       throws EntryNotFoundException, CacheWriterException, TimeoutException {
     try {
@@ -382,11 +371,8 @@ public abstract class AbstractBucketRegionQueue extends BucketRegion {
    * It should be an atomic operation. If the key has been added to the eventSeqNumQueue then make
    * sure that the value is in the Bucket before the eventSeqNumQueue is available for
    * peek/remove/take from other thread.
-   * 
-   * @param key
-   * @param value
+   *
    * @return boolean which shows whether the operation was successful or not.
-   * @throws ForceReattemptException
    */
   public boolean addToQueue(Object key, Object value) throws ForceReattemptException {
 
@@ -499,10 +485,6 @@ public abstract class AbstractBucketRegionQueue extends BucketRegion {
     return this.initialized;
   }
 
-  /**
-   * 
-   * @param key
-   */
   public void addToFailedBatchRemovalMessageKeys(Object key) {
     failedBatchRemovalMessageKeys.add(key);
   }

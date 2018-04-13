@@ -27,7 +27,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.awaitility.Awaitility;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -58,12 +57,13 @@ import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * This DUnit contains various tests to ensure new implementation of ha region queues works as
  * expected.
- * 
+ *
  * @since GemFire 5.7
  */
 @Category({DistributedTest.class, ClientSubscriptionTest.class})
@@ -1071,13 +1071,15 @@ public class HARQueueNewImplDUnitTest extends JUnit4DistributedTestCase {
 
       Iterator iter = msgsRegion.entrySet().iterator();
       while (iter.hasNext()) {
-        Region.Entry entry = (Region.Entry) iter.next();
-        HAEventWrapper wrapper = (HAEventWrapper) entry.getKey();
-        ClientUpdateMessage cum = (ClientUpdateMessage) entry.getValue();
-        Object key = cum.getKeyOfInterest();
-        logger.fine("key<feedCount, regionCount>: " + key + "<" + ((Long) map.get(key)).longValue()
-            + ", " + wrapper.getReferenceCount() + ">");
-        assertEquals(((Long) map.get(key)).longValue(), wrapper.getReferenceCount());
+        Awaitility.await().atMost(60, TimeUnit.SECONDS).until(() -> {
+          Region.Entry entry = (Region.Entry) iter.next();
+          HAEventWrapper wrapper = (HAEventWrapper) entry.getKey();
+          ClientUpdateMessage cum = (ClientUpdateMessage) entry.getValue();
+          Object key = cum.getKeyOfInterest();
+          logger.fine("key<feedCount, regionCount>: " + key + "<"
+              + ((Long) map.get(key)).longValue() + ", " + wrapper.getReferenceCount() + ">");
+          assertEquals(((Long) map.get(key)).longValue(), wrapper.getReferenceCount());
+        });
       }
     } catch (Exception e) {
       fail("failed in verifyQueueData()" + e);

@@ -37,14 +37,11 @@ import org.apache.geode.codeAnalysis.decode.CompiledClass;
 import org.apache.geode.codeAnalysis.decode.CompiledField;
 import org.apache.geode.codeAnalysis.decode.CompiledMethod;
 
-
-
 public class CompiledClassUtils {
   /**
    * Parse the given class files and return a map of name->Dclass. Any IO exceptions are consumed by
    * this method and written to stderr.
-   * 
-   * @param classFiles
+   *
    * @return the parsed classes
    */
   public static Map<String, CompiledClass> parseClassFiles(List<File> classFiles) {
@@ -66,7 +63,7 @@ public class CompiledClassUtils {
   /**
    * Parse the files in the given jar file and return a map of name->CompiledClass. Any IO
    * exceptions are consumed by this method and written to stderr.
-   * 
+   *
    * @param jar the jar file holding classes
    */
   public static Map<String, CompiledClass> parseClassFilesInJar(File jar) {
@@ -119,7 +116,7 @@ public class CompiledClassUtils {
 
   /**
    * returns a collection of all of the .class files in the given list of files and directories.
-   * 
+   *
    * @param filenames a list of the files and directories to examine
    * @param recursive whether to recurse into subdirectories
    * @return a sorted list of the .class files found
@@ -193,7 +190,7 @@ public class CompiledClassUtils {
       if (comparison == 0) {
         ClassAndMethods nc = newclass;
         newclass = null;
-        if (gold.methodCode.size() != nc.numMethods()) {
+        if (gold.methods.size() != nc.numMethods()) {
           changedClassesSb.append(nc).append(": method count\n");
           continue;
         }
@@ -201,7 +198,7 @@ public class CompiledClassUtils {
         for (Map.Entry<String, CompiledMethod> entry : nc.methods.entrySet()) {
           CompiledMethod method = entry.getValue();
           String name = method.name();
-          byte[] goldCode = gold.methodCode.get(name);
+          Integer goldCode = gold.methods.get(name);
           if (goldCode == null) {
             if (comma) {
               changedClassesSb.append(", and ");
@@ -212,19 +209,19 @@ public class CompiledClassUtils {
             changedClassesSb.append(name).append(" was added");
             continue; // only report one diff per class
           }
-          String diff;
-          if ((diff = codeDiff(goldCode, method.getCode().code)) != null) {
+          if (goldCode != method.getCode().code.length) {
             if (comma) {
               changedClassesSb.append(", and ");
             } else {
               changedClassesSb.append(nc).append(":  ");
               comma = true;
             }
-            changedClassesSb.append(name).append(diff);
+            changedClassesSb.append(name)
+                .append(" (len=" + method.getCode().code.length + ",expected=" + goldCode + ")");
             continue;
           }
         }
-        for (Map.Entry<String, byte[]> entry : gold.methodCode.entrySet()) {
+        for (Map.Entry<String, Integer> entry : gold.methods.entrySet()) {
           if (!nc.methods.containsKey(entry.getKey())) {
             if (comma) {
               changedClassesSb.append(", and ");
@@ -256,8 +253,6 @@ public class CompiledClassUtils {
     return result;
   }
 
-
-
   public static void storeClassesAndMethods(List<ClassAndMethods> cams, File file)
       throws IOException {
     FileWriter fw = new FileWriter(file);
@@ -269,20 +264,6 @@ public class CompiledClassUtils {
     out.flush();
     out.close();
   }
-
-  static String codeDiff(byte[] method1, byte[] method2) {
-    if (method1.length != method2.length) {
-      return " (len=" + method2.length + ",expected=" + method1.length + ")";
-    }
-    // for (int i=0; i<method1.length; i++) {
-    // if (method1[i] != method2[i]) {
-    // return "(code["+i+"])";
-    // }
-    // }
-    return null;
-  }
-
-
 
   public static List<ClassAndVariableDetails> loadClassesAndVariables(File file)
       throws IOException {
@@ -418,8 +399,6 @@ public class CompiledClassUtils {
     return result;
   }
 
-
-
   public static void storeClassesAndVariables(List<ClassAndVariables> cams, File file)
       throws IOException {
     FileWriter fw = new FileWriter(file);
@@ -431,5 +410,4 @@ public class CompiledClassUtils {
     out.flush();
     out.close();
   }
-
 }

@@ -14,19 +14,16 @@
  */
 package org.apache.geode.internal.cache.wan.parallel;
 
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.internal.cache.wan.concurrent.ConcurrentParallelGatewaySenderOperation_2_DUnitTest;
 import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class ParallelGatewaySenderOperation_2_DUnitTest
     extends ConcurrentParallelGatewaySenderOperation_2_DUnitTest {
 

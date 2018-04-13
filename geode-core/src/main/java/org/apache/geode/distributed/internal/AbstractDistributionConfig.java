@@ -229,7 +229,7 @@ public abstract class AbstractDistributionConfig extends AbstractConfig
    * <p>
    * Starting in 5.1.0.4, we accept locators in the format "host@bind-address[port]" to allow use of
    * numeric IPv6 addresses
-   * 
+   *
    * @return The locator string in the traditional "host:bind-address[port]" format.
    *
    * @throws IllegalArgumentException If <code>value</code> is not a valid locator configuration
@@ -681,7 +681,7 @@ public abstract class AbstractDistributionConfig extends AbstractConfig
   /**
    * child class can override this method to return a list of modifiable attributes no matter what
    * the default is
-   * 
+   *
    * @return an empty list
    */
   public List<String> getModifiableAttributes() {
@@ -694,7 +694,7 @@ public abstract class AbstractDistributionConfig extends AbstractConfig
   /**
    * child class can override this method to return a list of unModifiable attributes no matter what
    * the default is
-   * 
+   *
    * @return an empty list
    */
   public List<String> getUnModifiableAttributes() {
@@ -1086,7 +1086,8 @@ public abstract class AbstractDistributionConfig extends AbstractConfig
         LocalizedStrings.AbstractDistributionConfig_USE_SHARED_CONFIGURATION.toLocalizedString());
     m.put(LOAD_CLUSTER_CONFIGURATION_FROM_DIR,
         LocalizedStrings.AbstractDistributionConfig_LOAD_SHARED_CONFIGURATION_FROM_DIR
-            .toLocalizedString(ClusterConfigurationService.CLUSTER_CONFIG_ARTIFACTS_DIR_NAME));
+            .toLocalizedString(
+                InternalClusterConfigurationService.CLUSTER_CONFIG_ARTIFACTS_DIR_NAME));
     m.put(CLUSTER_CONFIGURATION_DIR,
         LocalizedStrings.AbstractDistributionConfig_CLUSTER_CONFIGURATION_DIR.toLocalizedString());
     m.put(SSL_SERVER_ALIAS, LocalizedStrings.AbstractDistributionConfig_SERVER_SSL_ALIAS_0
@@ -1220,6 +1221,9 @@ public abstract class AbstractDistributionConfig extends AbstractConfig
     m.put(SSL_DEFAULT_ALIAS, "The default certificate alias to be used in a multi-key keystore");
     m.put(SSL_WEB_SERVICE_REQUIRE_AUTHENTICATION,
         "This property determines is the HTTP service with use mutual ssl authentication.");
+    m.put(VALIDATE_SERIALIZABLE_OBJECTS,
+        "If true checks incoming java serializable objects against a filter");
+    m.put(SERIALIZABLE_OBJECT_FILTER, "The filter to check incoming java serializables against");
 
     dcAttDescriptions = Collections.unmodifiableMap(m);
 
@@ -1228,7 +1232,7 @@ public abstract class AbstractDistributionConfig extends AbstractConfig
   /**
    * Used by unit tests.
    */
-  static public String[] _getAttNames() {
+  public static String[] _getAttNames() {
     return dcValidAttributeNames;
   }
 

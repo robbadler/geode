@@ -44,7 +44,7 @@ import org.apache.geode.internal.logging.LogService;
 
 /**
  * Does a region removeAll on a server
- * 
+ *
  * @since GemFire 8.1
  */
 public class RemoveAllOp {
@@ -58,7 +58,7 @@ public class RemoveAllOp {
   /**
    * Does a region removeAll on a server using connections from the given pool to communicate with
    * the server.
-   * 
+   *
    * @param pool the pool to use to communicate with the server.
    * @param region the name of the region to do the removeAll on
    * @param keys Collection of keys to remove
@@ -78,7 +78,7 @@ public class RemoveAllOp {
   /**
    * Does a region put on a server using connections from the given pool to communicate with the
    * server.
-   * 
+   *
    * @param pool the pool to use to communicate with the server.
    * @param region the name of the region to do the removeAll on
    * @param keys the Collection of keys to remove
@@ -165,7 +165,6 @@ public class RemoveAllOp {
       boolean oneSubMapRetryFailed = false;
       Set<ServerLocation> failedServerSet = failedServers.keySet();
       for (ServerLocation failedServer : failedServerSet) {
-        // Throwable failedServers.values().iterator().next();
         RuntimeException savedRTE = failedServers.get(failedServer);
         if (savedRTE instanceof PutAllPartialResultException) {
           // will not retry for BulkOpPartialResultException

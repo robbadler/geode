@@ -41,8 +41,8 @@ import java.text.MessageFormat;
 import org.apache.geode.cache.PartitionAttributesFactory;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.distributed.ConfigurationProperties;
-import org.apache.geode.distributed.internal.ClusterConfigurationService;
 import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.InternalClusterConfigurationService;
 import org.apache.geode.internal.cache.xmlcache.CacheXml;
 import org.apache.geode.management.internal.cli.shell.Gfsh;
 
@@ -79,9 +79,21 @@ public class CliStrings {
   public static final String GROUPS = "groups";
   public static final String MEMBER = "member";
   public static final String MEMBERS = "members";
+  public static final String IFEXISTS = "if-exists";
+  public static final String IFNOTEXISTS = "if-not-exists";
   public static final String JAR = "jar";
   public static final String JARS = "jars";
 
+  public static final String IFEXISTS_HELP =
+      "If true, the command will be a no-op if the entity does not exist.";
+  public static final String IFNOTEXISTS_HELP =
+      "If true, the command will be a no-op if the entity does exist.";
+  public static final String ENTRY_IDLE_TIME_CUSTOM_EXPIRY = "entry-idle-time-custom-expiry";
+  public static final String ENTRY_TTL_CUSTOM_EXPIRY = "entry-time-to-live-custom-expiry";
+  public static final String ENTRY_IDLE_TIME_CUSTOM_EXPIRY_HELP =
+      "The name of the class implementing CustomExpiry for entry idle time. Append json string for initialization properties.";
+  public static final String ENTRY_TTL_CUSTOM_EXPIRY_HELP =
+      "The name of the class implementing CustomExpiry for entry time to live. Append json string for initialization properties.";
   private static final String LOG_LEVEL_VALUES =
       "Possible values for log-level include: ALL, TRACE, DEBUG, INFO, WARN, ERROR, FATAL, OFF.";
 
@@ -210,7 +222,7 @@ public class CliStrings {
   public static final String SHARED_CONFIGURATION_NO_LOCATORS_WITH_SHARED_CONFIGURATION =
       "No locators with cluster configuration enabled.";
   public static final String SHARED_CONFIGURATION_FAILED_TO_PERSIST_COMMAND_CHANGES =
-      "Failed to persist the configuration changes due to this command, Revert the command to maintain consistency.\nPlease use \"status cluster-config-service\" to determine whether Cluster configuration service is RUNNING.";
+      "This change is not persisted in the cluster configuration, either because the cluster configuration service is not running or the command is operating on targeted members.";
   /* Other Constants */
   public static final String GFSH__MSG__NO_LONGER_CONNECTED_TO_0 = "No longer connected to {0}.";
   public static final String GFSHPARSER__MSG__REQUIRED_ARGUMENT_0 = "Required Argument: \"{0}\"";
@@ -549,7 +561,7 @@ public class CliStrings {
           + CONNECT__DEFAULT_BASE_URL + "'";
   public static final String CONNECT__USE_HTTP = "use-http";
   public static final String CONNECT__USE_HTTP__HELP =
-      "Connects to Manager by sending HTTP requests to HTTP service hosting the Management REST API.  You must first 'disconnect' in order to reconnect to the Manager via locator or jmx-manager using JMX.";
+      "[Deprecated: inferred by the presence of --url]. Connects to Manager by sending HTTP requests to HTTP service hosting the Management REST API. You must first 'disconnect' in order to reconnect to the Manager via locator or jmx-manager using JMX.";
   public static final String CONNECT__USERNAME = "user";
   public static final String CONNECT__USERNAME__HELP =
       "User name to securely connect to the jmx-manager. If the --password parameter is not specified then it will be prompted for.";
@@ -581,7 +593,7 @@ public class CliStrings {
       "The gfsecurity.properties file for configuring gfsh to connect to the Locator/Manager. The file's path can be absolute or relative to gfsh directory.";
   public static final String CONNECT__USE_SSL = "use-ssl";
   public static final String CONNECT__USE_SSL__HELP =
-      "Whether to use SSL for communication with Locator and/or JMX Manager. If set to \"true\", \"gfsecurity.properties\" will also be read. SSL Options take precedence over the properties file. If none are specified, defaults will be used. The default value for this options is \"false\".";
+      "Whether to use SSL for communication with Locator and/or JMX Manager. If set to \"true\", \"gfsecurity.properties\" will also be read. SSL Options take precedence over the properties file. If none are specified, defaults will be used. The default value for this options is \"false\". This option is only required if JMX is to be used over SSL. For http, the protocol is inferred from the URL.";
   public static final String CONNECT__MSG__CONNECTING_TO_MANAGER_AT_0 =
       "Connecting to Manager at {0} ..";
   public static final String CONNECT__MSG__CONNECTING_TO_MANAGER_HTTP_SERVICE_AT_0 =
@@ -731,11 +743,11 @@ public class CliStrings {
       "Name/Id of the member in which the index will be created.";
   public static final String CREATE_INDEX__TYPE = "type";
   public static final String CREATE_INDEX__TYPE__HELP =
-      "Type of the index. Valid values are: range, key and hash.";
+      "Type of the index. Valid values are: range and key. Deprecated: Since Geode 1.4, hash should not be used.";
   public static final String CREATE_INDEX__GROUP__HELP =
       "Group of members in which the index will be created.";
   public static final String CREATE_INDEX__INVALID__INDEX__TYPE__MESSAGE =
-      "Invalid index type,value must be one of the following: range, key or hash.";
+      "Invalid index type. Value must be either range or key.";
   public static final String CREATE_INDEX__SUCCESS__MSG =
       "Index successfully created with following details";
   public static final String CREATE_INDEX__FAILURE__MSG =
@@ -815,10 +827,10 @@ public class CliStrings {
       "Group(s) of members on which the region will be created.";
   public static final String CREATE_REGION__USEATTRIBUTESFROM = "template-region";
   public static final String CREATE_REGION__USEATTRIBUTESFROM__HELP =
-      "Name/Path of the region whose attributes should be duplicated when creating this region.";
+      "Name/Path of the region whose attributes should be duplicated when creating this region. Deprecated: Since Geode 1.5, regions should be created explicitly so that undesirable attributes are not copied inadvertently.";
   public static final String CREATE_REGION__SKIPIFEXISTS = "skip-if-exists";
-  public static final String CREATE_REGION__SKIPIFEXISTS__HELP =
-      "Skip region creation if the region already exists.";
+  public static final String CREATE_REGION__IFNOTEXISTS__HELP =
+      "By default, an attempt to create a duplicate region is reported as an error. If this option is specified without a value or is specified with a value of true, then gfsh displays a \"Skipping...\" acknowledgement, but does not throw an error. Deprecated: the alias --skip-if-exists is deprecated since Geode 1.5.";
   public static final String CREATE_REGION__KEYCONSTRAINT = "key-constraint";
   public static final String CREATE_REGION__KEYCONSTRAINT__HELP =
       "Fully qualified class name of the objects allowed as region keys. Ensures that keys for region entries are all of the same class.";
@@ -858,6 +870,18 @@ public class CliStrings {
       "region-time-to-live-expiration-action";
   public static final String CREATE_REGION__REGIONEXPIRATIONTTLACTION__HELP =
       "Action to be taken on a region that has exceeded the TTL expiration.";
+  public static final String CREATE_REGION__EVICTION_ACTION = "eviction-action";
+  public static final String CREATE_REGION__EVICTION_ACTION__HELP =
+      "The eviction action to apply. Must be either 'local-destroy' or 'overflow-to-disk'";
+  public static final String CREATE_REGION__EVICTION_MAX_MEMORY = "eviction-max-memory";
+  public static final String CREATE_REGION__EVICTION_MAX_MEMORY__HELP =
+      "Activates LRU eviction based on the region's memory usage specified by this value (in megabytes).";
+  public static final String CREATE_REGION__EVICTION_ENTRY_COUNT = "eviction-entry-count";
+  public static final String CREATE_REGION__EVICTION_ENTRY_COUNT__HELP =
+      "Activates LRU eviction based on the region's entry count specified by this value.";
+  public static final String CREATE_REGION__EVICTION_OBJECT_SIZER = "eviction-object-sizer";
+  public static final String CREATE_REGION__EVICTION_OBJECT_SIZER__HELP =
+      "A custom class which implements ObjectSizer in order to perform max memory eviction.";
   public static final String CREATE_REGION__DISKSTORE = "disk-store";
   public static final String CREATE_REGION__DISKSTORE__HELP =
       "Disk Store to be used by this region. \"list disk-store\" can be used to display existing disk stores.";
@@ -873,13 +897,13 @@ public class CliStrings {
       "Whether the server should conflate its messages to the client. A false value causes all server-client messages to be sent individually.";
   public static final String CREATE_REGION__CACHELISTENER = "cache-listener";
   public static final String CREATE_REGION__CACHELISTENER__HELP =
-      "Fully qualified class name of a plug-in to be instantiated for receiving after-event notification of changes to the region and its entries. Any number of cache listeners can be configured.";
+      "Fully qualified class name of a plug-in to be instantiated for receiving after-event notification of changes to the region and its entries. Append json string for initialization properties. Any number of cache listeners can be configured.";
   public static final String CREATE_REGION__CACHELOADER = "cache-loader";
   public static final String CREATE_REGION__CACHELOADER__HELP =
-      "Fully qualified class name of a plug-in to be instantiated for receiving notification of cache misses in the region. At most, one cache loader can be defined in each member for the region. For distributed regions, a cache loader may be invoked remotely from other members that have the region defined.";
+      "Fully qualified class name of a plug-in to be instantiated for receiving notification of cache misses in the region. Append json string for initialization properties. At most, one cache loader can be defined in each member for the region. For distributed regions, a cache loader may be invoked remotely from other members that have the region defined.";
   public static final String CREATE_REGION__CACHEWRITER = "cache-writer";
   public static final String CREATE_REGION__CACHEWRITER__HELP =
-      "Fully qualified class name of a plug-in to be instantiated for receiving before-event notification of changes to the region and its entries. The plug-in may cancel the event. At most, one cache writer can be defined in each member for the region.";
+      "Fully qualified class name of a plug-in to be instantiated for receiving before-event notification of changes to the region and its entries. Append json string for initialization properties. The plug-in may cancel the event. At most, one cache writer can be defined in each member for the region.";
   public static final String CREATE_REGION__ASYNCEVENTQUEUEID = "async-event-queue-id";
   public static final String CREATE_REGION__ASYNCEVENTQUEUEID__HELP =
       "IDs of the Async Event Queues that will be used for write-behind operations.";
@@ -1037,6 +1061,24 @@ public class CliStrings {
 
   public static final String CREATE_REGION__MSG__INVALID_PARTITION_RESOLVER =
       "{0} is an invalid Partition Resolver.";
+
+  public static final String CREATE_REGION__MSG__BOTH_EVICTION_VALUES =
+      "eviction-max-memory and eviction-entry-count cannot both be specified.";
+
+  public static final String CREATE_REGION__MSG__MISSING_EVICTION_ACTION =
+      "eviction-action must be specified.";
+
+  public static final String CREATE_REGION__MSG__INVALID_EVICTION_ACTION =
+      "eviction-action must be 'local-destroy' or 'overflow-to-disk'";
+
+  public static final String CREATE_REGION__MSG__INVALID_EVICTION_OBJECT_SIZER_AND_ENTRY_COUNT =
+      "eviction-object-sizer cannot be specified with eviction-entry-count";
+
+  public static final String CREATE_REGION__MSG__INVALID_EVICTION_OBJECT_SIZER_WITHOUT_MAX_MEMORY =
+      "eviction-object-sizer cannot be specified without eviction-max-memory";
+
+  public static final String CREATE_REGION__MSG__OBJECT_SIZER_MUST_BE_OBJECTSIZER_AND_DECLARABLE =
+      "eviction-object-sizer must implement both ObjectSizer and Declarable interfaces";
 
   /* debug command */
   public static final String DEBUG = "debug";
@@ -1314,7 +1356,7 @@ public class CliStrings {
   public static final String EXECUTE_FUNCTION__MSG__ERROR_IN_EXECUTING_0_ON_MEMBER_1_ON_REGION_2_DETAILS_3 =
       "While executing function : {0} on member : {1} one region : {2} error occurred : {3}";
   public static final String EXECUTE_FUNCTION__MSG__MEMBER_SHOULD_NOT_HAVE_FILTER_FOR_EXECUTION =
-      "Filters for executing on \"member\"/\"members of group\" is not supported.";
+      "Filters for executing on member or group is not supported.";
 
   /* exit command */
   public static final String EXIT = "exit";
@@ -1387,7 +1429,7 @@ public class CliStrings {
       "Log entries that occurred before this time will be exported. The default is no limit. Format: yyyy/MM/dd/HH/mm/ss/SSS/z OR yyyy/MM/dd";
   public static final String EXPORT_LOGS__MERGELOG = "merge-log";
   public static final String EXPORT_LOGS__MERGELOG__HELP =
-      "Whether to merge logs after exporting to the target directory. Deprecated: Since Geode1.2, no longer used.";
+      "Whether to merge logs after exporting to the target directory. Deprecated: Since Geode 1.2, no longer used.";
   public static final String EXPORT_LOGS__MSG__CANNOT_MERGE =
       "Could not merge the files in target directory";
   public static final String EXPORT_LOGS__MSG__SPECIFY_ONE_OF_OPTION =
@@ -1765,6 +1807,8 @@ public class CliStrings {
       "String or JSON text from which to create the value.  Examples include: \"manager\", \"100L\" and \"('value': 'widget')\".";
   public static final String PUT__PUTIFABSENT = "skip-if-exists";
   public static final String PUT__PUTIFABSENT__HELP =
+      "(Deprecated: Use --if-not-exists). Skip the put operation when an entry with the same key already exists. The default is to overwrite the entry (false).";
+  public static final String PUT__PUTIFNOTEXISTS__HELP =
       "Skip the put operation when an entry with the same key already exists. The default is to overwrite the entry (false).";
   public static final String PUT__KEYCLASS = "key-class";
   public static final String PUT__KEYCLASS__HELP =
@@ -1792,7 +1836,7 @@ public class CliStrings {
   public static final String QUERY__INTERACTIVE = "interactive";
   public static final String QUERY__QUERY__HELP = "The OQL string.";
   public static final String QUERY__INTERACTIVE__HELP =
-      "Deprecated. This option has no effect, but is kept around to maintain backwards compatibility with existing scripts.";
+      "Deprecated: Since Geode 1.4. This option has no effect, but is kept around to maintain backwards compatibility with existing scripts.";
   public static final String QUERY__MSG__QUERY_EMPTY = "Query is either empty or Null";
   public static final String QUERY__MSG__INVALID_QUERY = "Query is invalid due for error : <{0}>";
   public static final String QUERY__MSG__REGIONS_NOT_FOUND =
@@ -1883,9 +1927,6 @@ public class CliStrings {
       "Clears the region by removing all entries. Partitioned region does not support remove-all";
   public static final String REMOVE__MSG__REGIONNAME_EMPTY = "Region name is either empty or Null";
   public static final String REMOVE__MSG__KEY_EMPTY = "Key is Null";
-  public static final String REMOVE__MSG__VALUE_EMPTY = "Value is either empty or Null";
-  public static final String REMOVE__MSG__REGION_NOT_FOUND_ON_ALL_MEMBERS =
-      "Region <{0}> not found in any of the members";
   public static final String REMOVE__MSG__REGION_NOT_FOUND = "Region <{0}> Not Found";
   public static final String REMOVE__MSG__KEY_NOT_FOUND_REGION = "Key is not present in the region";
   public static final String REMOVE__MSG__CLEARED_ALL_CLEARS = "Cleared all keys in the region";
@@ -2006,9 +2047,10 @@ public class CliStrings {
   public static final String SHOW_METRICS__CATEGORY__HELP =
       "Categories available based upon the parameters specified are:\n"
           + "- no parameters specified: cluster, cache, diskstore, query\n"
-          + "- region specified: cluster, region, partition, diskstore, callback, eviction\n"
-          + "- member specified: member, jvm, region, serialization, communication, function, transaction, diskstore, lock, eviction, distribution, offheap\n"
-          + "- member and region specified: region, partition, diskstore, callback, eviction";
+          + "- region specified: callback, cluster, diskstore, eviction, partition, region\n"
+          + "- member specified: communication, diskstore, distribution, eviction, function, jvm, lock, member, offheap, region, serialization, transaction\n"
+          + "- member and port specified: cacheserver, communication, diskstore, distribution, eviction, function, jvm, lock, member, notification, offheap, query, region, serialization, transaction\n"
+          + "- member and region specified: callback, diskstore, eviction, partition, region";
   public static final String SHOW_METRICS__FILE = "file";
   public static final String SHOW_METRICS__FILE__HELP =
       "Name of the file to which metrics will be written.";
@@ -2021,6 +2063,8 @@ public class CliStrings {
       "Port number of the Cache Server whose metrics are to be displayed/exported. This can only be used along with the --member parameter.";
   public static final String SHOW_METRICS__CANNOT__USE__CACHESERVERPORT =
       "If the --port parameter is specified, then the --member parameter must also be specified.";
+  public static final String SHOW_METRICS__CANNOT__USE__REGION__WITH__CACHESERVERPORT =
+      "The --region and --port parameters are mutually exclusive. Please only use one or the other.";
   public static final String SHOW_METRICS__CACHE__SERVER__NOT__FOUND =
       "Metrics for the Cache Server with port : {0} and member : {1} not found.\n Please check the port number and the member name/id";
 
@@ -2079,8 +2123,6 @@ public class CliStrings {
       "Cannot execute change log-level.";
   public static final String CHANGE_LOGLEVEL__COLUMN_MEMBER = "Member";
   public static final String CHANGE_LOGLEVEL__COLUMN_STATUS = "Changed log-level";
-  public static final String CHANGE_LOGLEVEL__MSG_NO_MEMBERS =
-      "No members were observed for changing log-level.";
 
   /* 'sleep' command */
   public static final String SLEEP = "sleep";
@@ -2122,7 +2164,9 @@ public class CliStrings {
   public static final String CREATE_GATEWAYRECEIVER__MANUALSTART = "manual-start";
   public static final String CREATE_GATEWAYRECEIVER__MANUALSTART__HELP =
       "Whether manual start is to be enabled or the receiver will start automatically after creation.";
-
+  public static final String CREATE_GATEWAYRECEIVER__HOSTNAMEFORSENDERS = "hostname-for-senders";
+  public static final String CREATE_GATEWAYRECEIVER__HOSTNAMEFORSENDERS__HELP =
+      "The host name that server locators will tell GatewaySenders this GatewayReceiver is listening on.";
 
   /* start gateway-receiver */
   public static final String START_GATEWAYRECEIVER = "start gateway-receiver";
@@ -2152,7 +2196,8 @@ public class CliStrings {
       "Whether this is Parallel GatewaySender.";
   public static final String CREATE_GATEWAYSENDER__MANUALSTART = "manual-start";
   public static final String CREATE_GATEWAYSENDER__MANUALSTART__HELP =
-      "Whether manual start is to be enabled or the sender will start automatically after creation.";
+      "Whether manual start is to be enabled or the sender will start automatically after creation.\n"
+          + "Deprecated: Since Geode 1.4. Manual start of senders is deprecated and will be removed in a later release.";
   public static final String CREATE_GATEWAYSENDER__SOCKETBUFFERSIZE = SOCKET_BUFFER_SIZE;
   public static final String CREATE_GATEWAYSENDER__SOCKETBUFFERSIZE__HELP =
       "The buffer size of the socket connection between this GatewaySender and its receiving GatewayReceiver.";
@@ -2203,6 +2248,8 @@ public class CliStrings {
       "Could not instantiate class \"{0}\" specified for \"{1}\".";
   public static final String CREATE_GATEWAYSENDER__MSG__COULD_NOT_ACCESS_CLASS_0_SPECIFIED_FOR_1 =
       "Could not access class \"{0}\" specified for \"{1}\".";
+  public static final String CREATE_GATEWAYSENDER__MSG__CAN_NOT_CREATE_DIFFERENT_VERSIONS =
+      "Gateway Sender cannot be created until all members are the current version";
 
   /* stop gateway-receiver */
   public static final String START_GATEWAYSENDER = "start gateway-sender";
@@ -2352,9 +2399,9 @@ public class CliStrings {
   public static final String START_LOCATOR__RUN_MESSAGE = "Starting a Geode Locator in %1$s...";
   public static final String START_LOCATOR__CONNECT = "connect";
   public static final String START_LOCATOR__CONNECT__HELP =
-      "When connect is set to false , Gfsh does not automatically connect to the locator which is started using this command.";
-  public static final String START_LOCATOR__USE__0__TO__CONNECT =
-      "Please use \"{0}\" to connect Gfsh to the locator.";
+      "When connect is set to false or when locator is started with a security manager using --J=-Dgemfire.security-manager option, Gfsh does not automatically connect to the locator which is started using this command.";
+  public static final String START_LOCATOR__USE__0__TO__CONNECT_WITH_SECURITY =
+      "Security Manager is enabled - unable to auto-connect. Please use \"{0}\" to connect Gfsh to the locator.";
   public static final String START_LOCATOR__ENABLE__SHARED__CONFIGURATION =
       ENABLE_CLUSTER_CONFIGURATION;
   public static final String START_LOCATOR__ENABLE__SHARED__CONFIGURATION__HELP =
@@ -2363,9 +2410,10 @@ public class CliStrings {
   public static final String START_LOCATOR__LOAD__SHARED_CONFIGURATION__FROM__FILESYSTEM =
       "load-cluster-configuration-from-dir";
   public static final String START_LOCATOR__LOAD__SHARED_CONFIGURATION__FROM__FILESYSTEM__HELP =
-      "When \" " + START_LOCATOR__LOAD__SHARED_CONFIGURATION__FROM__FILESYSTEM
+      "Deprecated: Since Geode 1.6, use import cluster-configuration command instead. When \" "
+          + START_LOCATOR__LOAD__SHARED_CONFIGURATION__FROM__FILESYSTEM
           + " \" is set to true, the locator loads the cluster configuration from the \""
-          + ClusterConfigurationService.CLUSTER_CONFIG_ARTIFACTS_DIR_NAME + "\" directory.";
+          + InternalClusterConfigurationService.CLUSTER_CONFIG_ARTIFACTS_DIR_NAME + "\" directory.";
   public static final String START_LOCATOR__CLUSTER__CONFIG__DIR = "cluster-config-dir";
   public static final String START_LOCATOR__CLUSTER__CONFIG__DIR__HELP =
       "Directory used by the cluster configuration service to store the cluster configuration on the filesystem";
@@ -2375,6 +2423,9 @@ public class CliStrings {
   public static final String START_LOCATOR__HTTP_SERVICE_BIND_ADDRESS = "http-service-bind-address";
   public static final String START_LOCATOR__HTTP_SERVICE_BIND_ADDRESS__HELP =
       "The IP address on which the HTTP Service will be bound.  By default, the Server is bound to all local addresses.";
+  public static final String START_LOCATOR__REDIRECT_OUTPUT = "redirect-output";
+  public static final String START_LOCATOR__REDIRECT_OUTPUT__HELP =
+      "Causes the member to redirect standard out and standard error to its own log file";
 
   /* 'start manager' command */
   public static final String START_MANAGER = "start manager";
@@ -2648,7 +2699,7 @@ public class CliStrings {
       "Member name or ID of the Locator in the Geode cluster.";
   public static final String STATUS_LOCATOR__PID = "pid";
   public static final String STATUS_LOCATOR__PID__HELP =
-      "Process ID (PID) of the running Locator. Deprecated: Since Geode1.2. Requires the JDK tools.jar which is not included on the classpath by default. Use --dir instead.";
+      "Process ID (PID) of the running Locator. Deprecated: Since Geode 1.2. Requires the JDK tools.jar which is not included on the classpath by default. Use --dir instead.";
   public static final String STATUS_LOCATOR__PORT = "port";
   public static final String STATUS_LOCATOR__PORT__HELP =
       "Port on which the Locator is listening. The default is 10334.";
@@ -2672,7 +2723,7 @@ public class CliStrings {
       "No Geode Cache Server with member name or ID {0} could be found.";
   public static final String STATUS_SERVER__PID = "pid";
   public static final String STATUS_SERVER__PID__HELP =
-      "Process ID (PID) of the running Geode Cache Server. Deprecated: Since Geode1.2. Requires the JDK tools.jar which is not included on the classpath by default. Use --dir instead.";
+      "Process ID (PID) of the running Geode Cache Server. Deprecated: Since Geode 1.2. Requires the JDK tools.jar which is not included on the classpath by default. Use --dir instead.";
 
   /* stop gateway-receiver */
   public static final String STOP_GATEWAYRECEIVER = "stop gateway-receiver";
@@ -2705,7 +2756,7 @@ public class CliStrings {
       "Member name or ID of the Locator in the Geode cluster.";
   public static final String STOP_LOCATOR__PID = "pid";
   public static final String STOP_LOCATOR__PID__HELP =
-      "The process id (PID) of the running Locator. Deprecated: Since Geode1.2. Requires the JDK tools.jar which is not included on the classpath by default. Use --dir instead.";
+      "The process id (PID) of the running Locator. Deprecated: Since Geode 1.2. Requires the JDK tools.jar which is not included on the classpath by default. Use --dir instead.";
   public static final String STOP_LOCATOR__GENERAL_ERROR_MESSAGE =
       "An error occurred while attempting to stop a Locator: %1$s";
   public static final String STOP_LOCATOR__LOCATOR_IS_CACHE_SERVER_ERROR_MESSAGE =
@@ -2736,7 +2787,7 @@ public class CliStrings {
       "No Cache Server with member name or ID {0} could be found.";
   public static final String STOP_SERVER__PID = "pid";
   public static final String STOP_SERVER__PID__HELP =
-      "Process ID (PID) of the running Geode Cache Server. Deprecated: Since Geode1.2. Requires the JDK tools.jar which is not included on the classpath by default. Use --dir instead.";
+      "Process ID (PID) of the running Geode Cache Server. Deprecated: Since Geode 1.2. Requires the JDK tools.jar which is not included on the classpath by default. Use --dir instead.";
   public static final String STOP_SERVER__SHUTDOWN_MEMBER_MESSAGE =
       "Cache Server {0} has been requested to stop.";
   public static final String STOP_SERVER__STOPPING_SERVER_MESSAGE =
@@ -2841,7 +2892,7 @@ public class CliStrings {
   public static final String HEADER_GATEWAY_RECEIVER = "GatewayReceiver";
   public static final String RESULT_PORT = "Port";
   public static final String RESULT_SENDERS_COUNT = "Sender Count";
-  public static final String RESULT_SENDER_CONNECTED = "Sender's Connected";
+  public static final String RESULT_SENDER_CONNECTED = "Senders Connected";
   public static final String SECTION_GATEWAY_SENDER_AVAILABLE = "Available GatewaySender Section";
   public static final String SECTION_GATEWAY_SENDER_NOT_AVAILABLE =
       "Not Available GatewaySender Section";
@@ -3066,11 +3117,12 @@ public class CliStrings {
   public static final String CONFIGURE_PDX__PORTABLE__AUTO__SERIALIZER__CLASSES =
       "portable-auto-serializable-classes";
   public static final String CONFIGURE_PDX__PORTABLE__AUTO__SERIALIZER__CLASSES__HELP =
-      "the patterns which are matched against domain class names to determine whether they should be serialized";
+      "The patterns that are matched against domain class names to determine whether they should be serialized. Serialization done by the auto-serializer will throw an exception if the object of these classes are not portable to non-java languages (check-portability=true).";
 
   public static final String CONFIGURE_PDX__AUTO__SERIALIZER__CLASSES = "auto-serializable-classes";
   public static final String CONFIGURE_PDX__AUTO__SERIALIZER__CLASSES__HELP =
-      "the patterns which are matched against domain class names to determine whether they should be serialized, serialization done by the auto-serializer will throw an exception if the object of these classes are not portable to non-java languages";
+      "The patterns that are matched against domain class names to determine whether they should be auto-serialized. Serialization done by the auto-serializer will not throw an exception if the object of these classes are not portable to non-java languages (check-portability=false).";
+
   public static final String CONFIGURE_PDX__NORMAL__MEMBERS__WARNING =
       "The command would only take effect on new data members joining the distributed system. It won't affect the existing data members";
   public static final String CONFIGURE_PDX__ERROR__MESSAGE =
@@ -3123,8 +3175,9 @@ public class CliStrings {
       "Password to securely connect to the cluster.";
   public static final String START_SERVER__MSG__PASSWORD_MUST_BE_SPECIFIED =
       "password must be specified.";
-
-
+  public static final String START_SERVER__REDIRECT_OUTPUT = "redirect-output";
+  public static final String START_SERVER__REDIRECT_OUTPUT__HELP =
+      "Causes the member to redirect standard out and standard error to its own log file.";
 
   /**
    * Creates a MessageFormat with the given pattern and uses it to format the given argument.

@@ -59,6 +59,14 @@ import org.apache.geode.internal.util.Breadcrumbs;
  */
 public abstract class DistributionMessage implements DataSerializableFixedID, Cloneable {
 
+  /**
+   * WARNING: setting this to true may break dunit tests.
+   * <p>
+   * see org.apache.geode.cache30.ClearMultiVmCallBkDUnitTest
+   */
+  private static final boolean INLINE_PROCESS =
+      !Boolean.getBoolean("DistributionManager.enqueueOrderedMessages");
+
   private static final Logger logger = LogService.getLogger();
 
   /**
@@ -160,7 +168,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
     this.acker = acker;
   }
 
-  public ReplySender getReplySender(DM dm) {
+  public ReplySender getReplySender(DistributionManager dm) {
     if (acker != null) {
       return acker;
     } else {
@@ -175,18 +183,18 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
   /**
    * If true then this message most be sent on an ordered channel. If false then it can be
    * unordered.
-   * 
+   *
    * @since GemFire 5.5
    */
   public boolean orderedDelivery() {
     final int processorType = getProcessorType();
     switch (processorType) {
-      case DistributionManager.SERIAL_EXECUTOR:
+      case ClusterDistributionManager.SERIAL_EXECUTOR:
         // no need to use orderedDelivery for PR ops particularly when thread
         // does not own resources
         // case DistributionManager.PARTITIONED_REGION_EXECUTOR:
         return true;
-      case DistributionManager.REGION_FUNCTION_EXECUTION_EXECUTOR:
+      case ClusterDistributionManager.REGION_FUNCTION_EXECUTION_EXECUTOR:
         // allow nested distributed functions to be executed from within the
         // execution of a function
         return false;
@@ -210,7 +218,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
 
   /**
    * Causes this message to be send using multicast if v is true.
-   * 
+   *
    * @since GemFire 5.0
    */
   public void setMulticast(boolean v) {
@@ -219,7 +227,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
 
   /**
    * Return true if this message should be sent using multicast.
-   * 
+   *
    * @since GemFire 5.0
    */
   public boolean getMulticast() {
@@ -323,29 +331,25 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
   /**
    * Return the Executor in which to process this message.
    */
-  protected Executor getExecutor(DistributionManager dm) {
+  protected Executor getExecutor(ClusterDistributionManager dm) {
     return dm.getExecutor(getProcessorType(), sender);
   }
-
-  // private Executor getExecutor(DistributionManager dm, Class clazz) {
-  // return dm.getExecutor(getProcessorType());
-  // }
 
   public abstract int getProcessorType();
 
   /**
    * Processes this message. This method is invoked by the receiver of the message.
-   * 
+   *
    * @param dm the distribution manager that is processing the message.
    */
-  protected abstract void process(DistributionManager dm);
+  protected abstract void process(ClusterDistributionManager dm);
 
   /**
    * Scheduled action to take when on this message when we are ready to process it.
    */
-  protected void scheduleAction(final DistributionManager dm) {
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.trace(LogMarker.DM, "Processing '{}'", this);
+  protected void scheduleAction(final ClusterDistributionManager dm) {
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace(LogMarker.DM_VERBOSE, "Processing '{}'", this);
     }
     String reason = dm.getCancelCriterion().cancelInProgress();
     if (reason != null) {
@@ -409,9 +413,9 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
   /**
    * Schedule this message's process() method in a thread determined by getExecutor()
    */
-  protected void schedule(final DistributionManager dm) {
-    boolean inlineProcess = DistributionManager.INLINE_PROCESS
-        && getProcessorType() == DistributionManager.SERIAL_EXECUTOR && !isPreciousThread();
+  protected void schedule(final ClusterDistributionManager dm) {
+    boolean inlineProcess = INLINE_PROCESS
+        && getProcessorType() == ClusterDistributionManager.SERIAL_EXECUTOR && !isPreciousThread();
 
     boolean forceInline = this.acker != null || getInlineProcess() || Connection.isDominoThread();
 
@@ -473,7 +477,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
     } // not inline
   }
 
-  protected boolean mayAddToMultipleSerialGateways(DistributionManager dm) {
+  protected boolean mayAddToMultipleSerialGateways(ClusterDistributionManager dm) {
     // subclasses should override this method if processing
     // them may add to multiple serial gateways.
     return false;
@@ -591,7 +595,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
 
   /**
    * Sets the timestamp of this message to the current time (in nanos).
-   * 
+   *
    * @return the number of elapsed nanos since this message's last timestamp
    */
   public long resetTimestamp() {
@@ -622,7 +626,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
   }
 
   /**
-   * 
+   *
    * @return null if message is not conflatable. Otherwise return a key that can be used to identify
    *         the entry to conflate.
    * @since GemFire 4.2.2
@@ -643,7 +647,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
    * Severe alert processing enables suspect processing at the ack-wait-threshold and issuing of a
    * severe alert at the end of the ack-severe-alert-threshold. Some messages should not support
    * this type of processing (e.g., GII, or DLockRequests)
-   * 
+   *
    * @return whether severe-alert processing may be performed on behalf of this message
    */
   public boolean isSevereAlertCompatible() {
@@ -652,7 +656,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
 
   /**
    * Returns true if the message is for internal-use such as a meta-data region.
-   * 
+   *
    * @return true if the message is for internal-use such as a meta-data region
    * @since GemFire 7.0
    */

@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 import javax.management.Notification;
 import javax.management.ObjectName;
@@ -56,7 +57,7 @@ import org.apache.geode.management.membership.MembershipListener;
 /**
  * This is the concrete implementation of ManagementService which is the gateway to various JMX
  * operations over a GemFire System
- * 
+ *
  * @since GemFire 7.0
  */
 public class SystemManagementService extends BaseManagementService {
@@ -149,7 +150,7 @@ public class SystemManagementService extends BaseManagementService {
 
   /**
    * This method will initialize all the internal components for Management and Monitoring
-   * 
+   *
    * It will a)start an JMX connectorServer b) create a notification hub c)register the
    * ManagementFunction
    */
@@ -355,6 +356,13 @@ public class SystemManagementService extends BaseManagementService {
       }
       return federatingManager.findAllProxies(member);
     }
+  }
+
+  @Override
+  public Set<ObjectName> getAsyncEventQueueMBeanNames(DistributedMember member) {
+    Set<ObjectName> mBeanNames = this.queryMBeanNames(member);
+    return mBeanNames.stream().filter(x -> "AsyncEventQueue".equals(x.getKeyProperty("service")))
+        .collect(Collectors.toSet());
   }
 
   @Override
@@ -658,27 +666,27 @@ public class SystemManagementService extends BaseManagementService {
 
   public void memberJoined(InternalDistributedMember id) {
     for (ProxyListener listener : proxyListeners) {
-      listener.memberJoined(id);
+      listener.memberJoined(system.getDistributionManager(), id);
     }
   }
 
   public void memberDeparted(InternalDistributedMember id, boolean crashed) {
     for (ProxyListener listener : proxyListeners) {
-      listener.memberDeparted(id, crashed);
+      listener.memberDeparted(system.getDistributionManager(), id, crashed);
     }
   }
 
   public void memberSuspect(InternalDistributedMember id, InternalDistributedMember whoSuspected,
       String reason) {
     for (ProxyListener listener : proxyListeners) {
-      listener.memberSuspect(id, whoSuspected, reason);
+      listener.memberSuspect(system.getDistributionManager(), id, whoSuspected, reason);
     }
   }
 
   public void quorumLost(Set<InternalDistributedMember> failures,
       List<InternalDistributedMember> remaining) {
     for (ProxyListener listener : proxyListeners) {
-      listener.quorumLost(failures, remaining);
+      listener.quorumLost(system.getDistributionManager(), failures, remaining);
     }
   }
 

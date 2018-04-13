@@ -14,18 +14,14 @@
  */
 package org.apache.geode.internal.cache.execute;
 
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
 
 import java.util.HashSet;
 import java.util.Properties;
 import java.util.Set;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
@@ -36,18 +32,19 @@ import org.apache.geode.cache.Region;
 import org.apache.geode.cache.Scope;
 import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
-import org.apache.geode.cache.execute.FunctionService;
-import org.apache.geode.cache.partition.PartitionRegionHelper;
-import org.apache.geode.cache30.CacheTestCase;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.internal.Assert;
 import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.Invoke;
 import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.FunctionServiceTest;
 
 @SuppressWarnings("serial")
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, FunctionServiceTest.class})
 public class MultiRegionFunctionExecutionDUnitTest extends JUnit4CacheTestCase {
 
   VM vm0 = null;
@@ -156,9 +153,19 @@ public class MultiRegionFunctionExecutionDUnitTest extends JUnit4CacheTestCase {
     }).getResult();
   }
 
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties props = super.getDistributedSystemProperties();
+    props.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.internal.cache.execute.MultiRegionFunctionExecutionDUnitTest*"
+            + ";org.apache.geode.test.dunit.**" + ";org.apache.geode.test.junit.rules.**"
+            + ";com.sun.proxy.**");
+    return props;
+  }
+
   public void createCache() {
     try {
-      Properties props = new Properties();
+      Properties props = getDistributedSystemProperties();
       DistributedSystem ds = getSystem(props);
       assertNotNull(ds);
       ds.disconnect();

@@ -14,10 +14,13 @@
  */
 package org.apache.geode.codeAnalysis;
 
-import org.apache.geode.test.junit.categories.IntegrationTest;
 import org.junit.experimental.categories.Category;
 
-@Category(IntegrationTest.class)
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.WanTest;
+
+
+@Category({IntegrationTest.class, WanTest.class})
 public class AnalyzeWANSerializablesJUnitTest extends AnalyzeSerializablesJUnitTest {
 
   @Override

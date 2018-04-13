@@ -17,11 +17,15 @@ package org.apache.geode.internal.cache.extension.mock;
 
 import static org.apache.geode.internal.cache.extension.mock.MockExtensionXmlParser.*;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
+import org.apache.geode.DataSerializable;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.execute.Function;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.cache.execute.ResultSender;
@@ -33,11 +37,11 @@ import org.apache.geode.management.internal.configuration.domain.XmlEntity;
 
 /**
  * Function to create {@link MockCacheExtension} on a {@link Region}.
- * 
+ *
  *
  * @since GemFire 8.1
  */
-public class CreateMockCacheExtensionFunction extends FunctionAdapter {
+public class CreateMockCacheExtensionFunction implements Function, DataSerializable {
 
   private static final long serialVersionUID = 1L;
 
@@ -76,11 +80,19 @@ public class CreateMockCacheExtensionFunction extends FunctionAdapter {
   }
 
   /**
-   * @param value
-   * @return
    * @since GemFire 8.1
    */
   public static Object[] toArgs(final String value) {
     return new Object[] {value};
+  }
+
+  @Override
+  public void toData(DataOutput out) throws IOException {
+
+  }
+
+  @Override
+  public void fromData(DataInput in) throws IOException, ClassNotFoundException {
+
   }
 }

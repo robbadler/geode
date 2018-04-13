@@ -18,6 +18,7 @@ package org.apache.geode.modules.session;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.function.Function;
+
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
@@ -26,9 +27,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
-/**
- *
- */
 public class CommandServlet extends HttpServlet {
 
   private ServletContext context;
@@ -36,9 +34,6 @@ public class CommandServlet extends HttpServlet {
   /**
    * The standard servlet method overridden.
    *
-   * @param request
-   * @param response
-   * @throws IOException
    */
   @Override
   protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -101,7 +96,6 @@ public class CommandServlet extends HttpServlet {
   /**
    * Save a reference to the ServletContext for later use.
    *
-   * @param config
    */
   @Override
   public void init(ServletConfig config) {

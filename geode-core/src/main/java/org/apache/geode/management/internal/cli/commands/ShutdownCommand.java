@@ -39,7 +39,6 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.internal.cli.AbstractCliAroundInterceptor;
-import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.internal.cli.GfshParseResult;
 import org.apache.geode.management.internal.cli.functions.ShutDownFunction;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
@@ -47,7 +46,7 @@ import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
-public class ShutdownCommand implements GfshCommand {
+public class ShutdownCommand extends InternalGfshCommand {
   private static final String DEFAULT_TIME_OUT = "10";
   private static final Logger logger = LogService.getLogger();
 
@@ -60,19 +59,19 @@ public class ShutdownCommand implements GfshCommand {
       @CliOption(key = CliStrings.SHUTDOWN__TIMEOUT, unspecifiedDefaultValue = DEFAULT_TIME_OUT,
           help = CliStrings.SHUTDOWN__TIMEOUT__HELP) int userSpecifiedTimeout,
       @CliOption(key = CliStrings.INCLUDE_LOCATORS, unspecifiedDefaultValue = "false",
+          specifiedDefaultValue = "true",
           help = CliStrings.INCLUDE_LOCATORS_HELP) boolean shutdownLocators) {
     try {
-
       if (userSpecifiedTimeout < Integer.parseInt(DEFAULT_TIME_OUT)) {
         return ResultBuilder.createInfoResult(CliStrings.SHUTDOWN__MSG__IMPROPER_TIMEOUT);
       }
 
       // convert to milliseconds
       long timeout = userSpecifiedTimeout * 1000;
-      InternalCache cache = getCache();
-      int numDataNodes = CliUtil.getAllNormalMembers(cache).size();
-      Set<DistributedMember> locators = CliUtil.getAllMembers(cache);
-      Set<DistributedMember> dataNodes = CliUtil.getAllNormalMembers(cache);
+      InternalCache cache = (InternalCache) getCache();
+      int numDataNodes = getAllNormalMembers().size();
+      Set<DistributedMember> locators = getAllMembers();
+      Set<DistributedMember> dataNodes = getAllNormalMembers();
       locators.removeAll(dataNodes);
 
       if (!shutdownLocators && numDataNodes == 0) {
@@ -81,7 +80,7 @@ public class ShutdownCommand implements GfshCommand {
 
       String managerName = cache.getJmxManagerAdvisor().getDistributionManager().getId().getId();
 
-      final DistributedMember manager = CliUtil.getDistributedMemberByNameOrId(managerName);
+      final DistributedMember manager = getMember(managerName);
 
       dataNodes.remove(manager);
 
@@ -123,7 +122,7 @@ public class ShutdownCommand implements GfshCommand {
     } catch (TimeoutException tex) {
       return ResultBuilder.createInfoResult(CliStrings.SHUTDOWN_TIMEDOUT);
     } catch (Exception ex) {
-      ex.printStackTrace();
+      logger.error(ex.getMessage(), ex);
       return ResultBuilder.createUserErrorResult(ex.getMessage());
     }
     // @TODO. List all the nodes which could be successfully shutdown

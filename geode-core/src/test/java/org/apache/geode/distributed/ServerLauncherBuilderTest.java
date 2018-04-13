@@ -115,6 +115,11 @@ public class ServerLauncherBuilderTest {
   }
 
   @Test
+  public void getRedirectOutputReturnsNullByDefault() throws Exception {
+    assertThat(new Builder().getRedirectOutput()).isNull();
+  }
+
+  @Test
   public void getServerBindAddressReturnsNullByDefault() throws Exception {
     assertThat(new Builder().getServerBindAddress()).isNull();
   }
@@ -204,6 +209,13 @@ public class ServerLauncherBuilderTest {
     Builder builder = new Builder();
 
     assertThat(builder.setServerBindAddress(null)).isSameAs(builder);
+  }
+
+  @Test
+  public void setRedirectOutputReturnsBuilderInstance() throws Exception {
+    Builder builder = new Builder();
+
+    assertThat(builder.setRedirectOutput(Boolean.TRUE)).isSameAs(builder);
   }
 
   @Test
@@ -562,24 +574,34 @@ public class ServerLauncherBuilderTest {
     assertThat(builder.getServerPort()).isEqualTo(Integer.valueOf(CacheServer.DEFAULT_PORT));
   }
 
+
   @Test
   public void setServerPortToZeroOrGreaterUsesValue() throws Exception {
     Builder builder = new Builder();
 
     builder.setServerPort(0);
     assertThat(builder.getServerPort().intValue()).isEqualTo(0);
+    assertThat(builder.isServerPortSetByUser()).isFalse();
 
     builder.setServerPort(1);
     assertThat(builder.getServerPort().intValue()).isEqualTo(1);
+    assertThat(builder.isServerPortSetByUser()).isTrue();
 
     builder.setServerPort(80);
     assertThat(builder.getServerPort().intValue()).isEqualTo(80);
+    assertThat(builder.isServerPortSetByUser()).isTrue();
 
     builder.setServerPort(1024);
     assertThat(builder.getServerPort().intValue()).isEqualTo(1024);
+    assertThat(builder.isServerPortSetByUser()).isTrue();
 
     builder.setServerPort(65535);
     assertThat(builder.getServerPort().intValue()).isEqualTo(65535);
+    assertThat(builder.isServerPortSetByUser()).isTrue();
+
+    builder.setServerPort(0);
+    assertThat(builder.getServerPort().intValue()).isEqualTo(0);
+    assertThat(builder.isServerPortSetByUser()).isFalse();
   }
 
   @Test
@@ -803,7 +825,7 @@ public class ServerLauncherBuilderTest {
         .setServerBindAddress(InetAddress.getLocalHost().getHostAddress()).setServerPort(11235)
         .setCriticalHeapPercentage(90.0f).setEvictionHeapPercentage(75.0f).setMaxConnections(100)
         .setMaxMessageCount(512).setMaxThreads(8).setMessageTimeToLive(120000)
-        .setSocketBufferSize(32768).build();
+        .setSocketBufferSize(32768).setRedirectOutput(Boolean.TRUE).build();
 
     assertThat(launcher.getCommand()).isEqualTo(Command.STOP);
     assertThat(launcher.getMemberName()).isEqualTo("serverOne");
@@ -822,6 +844,7 @@ public class ServerLauncherBuilderTest {
     assertThat(launcher.isForcing()).isTrue();
     assertThat(launcher.isHelping()).isFalse();
     assertThat(launcher.isRebalancing()).isTrue();
+    assertThat(launcher.isRedirectingOutput()).isTrue();
     assertThat(launcher.isRunning()).isFalse();
   }
 

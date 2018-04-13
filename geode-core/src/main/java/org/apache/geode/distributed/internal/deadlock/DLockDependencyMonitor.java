@@ -26,7 +26,7 @@ import org.apache.geode.distributed.internal.locks.DLockToken;
 
 /**
  * Report dependencies on dlocks that exist in theis VM.
- * 
+ *
  *
  */
 public class DLockDependencyMonitor implements DependencyMonitor {
@@ -34,7 +34,6 @@ public class DLockDependencyMonitor implements DependencyMonitor {
 
   static {
     INSTANCE = new DLockDependencyMonitor();
-    // DependencyMonitorManager.addMonitor(INSTANCE);
   }
 
 

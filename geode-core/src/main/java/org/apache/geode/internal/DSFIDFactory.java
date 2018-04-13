@@ -24,12 +24,6 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireError;
-import org.apache.geode.admin.internal.FinishBackupRequest;
-import org.apache.geode.admin.internal.FinishBackupResponse;
-import org.apache.geode.admin.internal.FlushToDiskRequest;
-import org.apache.geode.admin.internal.FlushToDiskResponse;
-import org.apache.geode.admin.internal.PrepareBackupRequest;
-import org.apache.geode.admin.internal.PrepareBackupResponse;
 import org.apache.geode.admin.internal.SystemMemberCacheEventProcessor;
 import org.apache.geode.admin.jmx.internal.StatAlertNotification;
 import org.apache.geode.cache.InterestResultPolicy;
@@ -96,6 +90,7 @@ import org.apache.geode.distributed.internal.membership.gms.locator.FindCoordina
 import org.apache.geode.distributed.internal.membership.gms.locator.FindCoordinatorResponse;
 import org.apache.geode.distributed.internal.membership.gms.locator.GetViewRequest;
 import org.apache.geode.distributed.internal.membership.gms.locator.GetViewResponse;
+import org.apache.geode.distributed.internal.membership.gms.messages.FinalCheckPassedMessage;
 import org.apache.geode.distributed.internal.membership.gms.messages.HeartbeatMessage;
 import org.apache.geode.distributed.internal.membership.gms.messages.HeartbeatRequestMessage;
 import org.apache.geode.distributed.internal.membership.gms.messages.InstallViewMessage;
@@ -238,6 +233,7 @@ import org.apache.geode.internal.cache.InvalidatePartitionedRegionMessage;
 import org.apache.geode.internal.cache.InvalidateRegionOperation.InvalidateRegionMessage;
 import org.apache.geode.internal.cache.JtaAfterCompletionMessage;
 import org.apache.geode.internal.cache.JtaBeforeCompletionMessage;
+import org.apache.geode.internal.cache.LatestLastAccessTimeMessage;
 import org.apache.geode.internal.cache.MemberFunctionStreamingMessage;
 import org.apache.geode.internal.cache.Node;
 import org.apache.geode.internal.cache.PRQueryProcessor;
@@ -245,17 +241,7 @@ import org.apache.geode.internal.cache.PartitionRegionConfig;
 import org.apache.geode.internal.cache.PreferBytesCachedDeserializable;
 import org.apache.geode.internal.cache.RegionEventImpl;
 import org.apache.geode.internal.cache.ReleaseClearLockMessage;
-import org.apache.geode.internal.cache.RemoteContainsKeyValueMessage;
-import org.apache.geode.internal.cache.RemoteDestroyMessage;
-import org.apache.geode.internal.cache.RemoteFetchEntryMessage;
-import org.apache.geode.internal.cache.RemoteFetchVersionMessage;
-import org.apache.geode.internal.cache.RemoteGetMessage;
-import org.apache.geode.internal.cache.RemoteInvalidateMessage;
-import org.apache.geode.internal.cache.RemotePutAllMessage;
-import org.apache.geode.internal.cache.RemotePutMessage;
-import org.apache.geode.internal.cache.RemoteRegionOperation;
-import org.apache.geode.internal.cache.RemoteRegionOperation.RemoteRegionOperationReplyMessage;
-import org.apache.geode.internal.cache.RemoteRemoveAllMessage;
+import org.apache.geode.internal.cache.RemoveCacheServerProfileMessage;
 import org.apache.geode.internal.cache.RoleEventImpl;
 import org.apache.geode.internal.cache.SearchLoadAndWriteProcessor;
 import org.apache.geode.internal.cache.ServerPingMessage;
@@ -279,6 +265,12 @@ import org.apache.geode.internal.cache.UpdateAttributesProcessor;
 import org.apache.geode.internal.cache.UpdateEntryVersionOperation.UpdateEntryVersionMessage;
 import org.apache.geode.internal.cache.UpdateOperation;
 import org.apache.geode.internal.cache.VMCachedDeserializable;
+import org.apache.geode.internal.cache.backup.AbortBackupRequest;
+import org.apache.geode.internal.cache.backup.BackupResponse;
+import org.apache.geode.internal.cache.backup.FinishBackupRequest;
+import org.apache.geode.internal.cache.backup.FlushToDiskRequest;
+import org.apache.geode.internal.cache.backup.FlushToDiskResponse;
+import org.apache.geode.internal.cache.backup.PrepareBackupRequest;
 import org.apache.geode.internal.cache.compression.SnappyCompressedCachedDeserializable;
 import org.apache.geode.internal.cache.control.ResourceAdvisor.ResourceManagerProfile;
 import org.apache.geode.internal.cache.control.ResourceAdvisor.ResourceProfileMessage;
@@ -350,8 +342,6 @@ import org.apache.geode.internal.cache.partitioned.PutMessage;
 import org.apache.geode.internal.cache.partitioned.PutMessage.PutReplyMessage;
 import org.apache.geode.internal.cache.partitioned.QueryMessage;
 import org.apache.geode.internal.cache.partitioned.RegionAdvisor;
-import org.apache.geode.internal.cache.partitioned.RemoteFetchKeysMessage;
-import org.apache.geode.internal.cache.partitioned.RemoteSizeMessage;
 import org.apache.geode.internal.cache.partitioned.RemoveAllPRMessage;
 import org.apache.geode.internal.cache.partitioned.RemoveBucketMessage;
 import org.apache.geode.internal.cache.partitioned.RemoveBucketMessage.RemoveBucketReplyMessage;
@@ -372,7 +362,6 @@ import org.apache.geode.internal.cache.snapshot.FlowController.FlowControlAbortM
 import org.apache.geode.internal.cache.snapshot.FlowController.FlowControlAckMessage;
 import org.apache.geode.internal.cache.snapshot.SnapshotPacket;
 import org.apache.geode.internal.cache.snapshot.SnapshotPacket.SnapshotRecord;
-import org.apache.geode.internal.cache.tier.sockets.ServerInterestRegistrationMessage;
 import org.apache.geode.internal.cache.tier.sockets.ClientBlacklistProcessor.ClientBlacklistMessage;
 import org.apache.geode.internal.cache.tier.sockets.ClientDataSerializerMessage;
 import org.apache.geode.internal.cache.tier.sockets.ClientInstantiatorMessage;
@@ -388,8 +377,22 @@ import org.apache.geode.internal.cache.tier.sockets.ObjectPartList;
 import org.apache.geode.internal.cache.tier.sockets.ObjectPartList651;
 import org.apache.geode.internal.cache.tier.sockets.RemoveClientFromBlacklistMessage;
 import org.apache.geode.internal.cache.tier.sockets.SerializedObjectPartList;
+import org.apache.geode.internal.cache.tier.sockets.ServerInterestRegistrationMessage;
 import org.apache.geode.internal.cache.tier.sockets.VersionedObjectList;
 import org.apache.geode.internal.cache.tx.DistTxEntryEvent;
+import org.apache.geode.internal.cache.tx.RemoteClearMessage;
+import org.apache.geode.internal.cache.tx.RemoteClearMessage.RemoteClearReplyMessage;
+import org.apache.geode.internal.cache.tx.RemoteContainsKeyValueMessage;
+import org.apache.geode.internal.cache.tx.RemoteDestroyMessage;
+import org.apache.geode.internal.cache.tx.RemoteFetchEntryMessage;
+import org.apache.geode.internal.cache.tx.RemoteFetchKeysMessage;
+import org.apache.geode.internal.cache.tx.RemoteFetchVersionMessage;
+import org.apache.geode.internal.cache.tx.RemoteGetMessage;
+import org.apache.geode.internal.cache.tx.RemoteInvalidateMessage;
+import org.apache.geode.internal.cache.tx.RemotePutAllMessage;
+import org.apache.geode.internal.cache.tx.RemotePutMessage;
+import org.apache.geode.internal.cache.tx.RemoteRemoveAllMessage;
+import org.apache.geode.internal.cache.tx.RemoteSizeMessage;
 import org.apache.geode.internal.cache.versions.DiskRegionVersionVector;
 import org.apache.geode.internal.cache.versions.DiskVersionTag;
 import org.apache.geode.internal.cache.versions.VMRegionVersionVector;
@@ -397,8 +400,7 @@ import org.apache.geode.internal.cache.versions.VMVersionTag;
 import org.apache.geode.internal.cache.wan.GatewaySenderAdvisor;
 import org.apache.geode.internal.cache.wan.GatewaySenderEventCallbackArgument;
 import org.apache.geode.internal.cache.wan.GatewaySenderEventImpl;
-import org.apache.geode.internal.cache.wan.parallel.ParallelQueueBatchRemovalMessage;
-import org.apache.geode.internal.cache.wan.parallel.ParallelQueueBatchRemovalMessage.BatchRemovalReplyMessage;
+import org.apache.geode.internal.cache.wan.GatewaySenderQueueEntrySynchronizationOperation;
 import org.apache.geode.internal.cache.wan.parallel.ParallelQueueRemovalMessage;
 import org.apache.geode.internal.cache.wan.serial.BatchDestroyOperation;
 import org.apache.geode.management.internal.JmxManagerAdvisor.JmxManagerProfile;
@@ -407,7 +409,6 @@ import org.apache.geode.management.internal.JmxManagerLocatorRequest;
 import org.apache.geode.management.internal.JmxManagerLocatorResponse;
 import org.apache.geode.management.internal.ManagerStartupMessage;
 import org.apache.geode.management.internal.cli.functions.CliFunctionResult;
-import org.apache.geode.management.internal.configuration.messages.ConfigurationRequest;
 import org.apache.geode.management.internal.configuration.messages.ConfigurationResponse;
 import org.apache.geode.pdx.internal.CheckTypeRegistryState;
 import org.apache.geode.pdx.internal.EnumId;
@@ -474,6 +475,7 @@ public class DSFIDFactory implements DataSerializableFixedID {
   }
 
   private static void registerDSFIDTypes() {
+    registerDSFID(FINAL_CHECK_PASSED_MESSAGE, FinalCheckPassedMessage.class);
     registerDSFID(NETWORK_PARTITION_MESSAGE, NetworkPartitionMessage.class);
     registerDSFID(REMOVE_MEMBER_REQUEST, RemoveMemberMessage.class);
     registerDSFID(HEARTBEAT_REQUEST, HeartbeatRequestMessage.class);
@@ -491,8 +493,8 @@ public class DSFIDFactory implements DataSerializableFixedID {
     registerDSFID(JOIN_RESPONSE, JoinResponseMessage.class);
     registerDSFID(JOIN_REQUEST, JoinRequestMessage.class);
     registerDSFID(CLIENT_TOMBSTONE_MESSAGE, ClientTombstoneMessage.class);
-    registerDSFID(R_REGION_OP, RemoteRegionOperation.class);
-    registerDSFID(R_REGION_OP_REPLY, RemoteRegionOperationReplyMessage.class);
+    registerDSFID(R_CLEAR_MSG, RemoteClearMessage.class);
+    registerDSFID(R_CLEAR_MSG_REPLY, RemoteClearReplyMessage.class);
     registerDSFID(WAIT_FOR_VIEW_INSTALLATION, WaitForViewInstallation.class);
     registerDSFID(DISPATCHED_AND_CURRENT_EVENTS, DispatchedAndCurrentEvents.class);
     registerDSFID(DISTRIBUTED_MEMBER, InternalDistributedMember.class);
@@ -573,6 +575,7 @@ public class DSFIDFactory implements DataSerializableFixedID {
     registerDSFID(REMOTE_PUTALL_MESSAGE, RemotePutAllMessage.class);
     registerDSFID(VERSION_TAG, VMVersionTag.class);
     registerDSFID(ADD_CACHESERVER_PROFILE_UPDATE, AddCacheServerProfileMessage.class);
+    registerDSFID(REMOVE_CACHESERVER_PROFILE_UPDATE, RemoveCacheServerProfileMessage.class);
     registerDSFID(SERVER_INTEREST_REGISTRATION_MESSAGE, ServerInterestRegistrationMessage.class);
     registerDSFID(FILTER_PROFILE_UPDATE, FilterProfile.OperationMessage.class);
     registerDSFID(PR_GET_MESSAGE, GetMessage.class);
@@ -828,6 +831,7 @@ public class DSFIDFactory implements DataSerializableFixedID {
     registerDSFID(DURABLE_CLIENT_INFO_REQUEST, DurableClientInfoRequest.class);
     registerDSFID(DURABLE_CLIENT_INFO_RESPONSE, DurableClientInfoResponse.class);
     registerDSFID(CLIENT_INTEREST_MESSAGE, ClientInterestMessageImpl.class);
+    registerDSFID(LATEST_LAST_ACCESS_TIME_MESSAGE, LatestLastAccessTimeMessage.class);
     registerDSFID(STAT_ALERT_DEFN_NUM_THRESHOLD, NumberThresholdDecoratorImpl.class);
     registerDSFID(STAT_ALERT_DEFN_GAUGE_THRESHOLD, GaugeThresholdDecoratorImpl.class);
     registerDSFID(CLIENT_HEALTH_STATS, ClientHealthStats.class);
@@ -869,16 +873,18 @@ public class DSFIDFactory implements DataSerializableFixedID {
     registerDSFID(CLIENT_MEMBERSHIP_MESSAGE, ClientMembershipMessage.class);
     registerDSFID(END_BUCKET_CREATION_MESSAGE, EndBucketCreationMessage.class);
     registerDSFID(PREPARE_BACKUP_REQUEST, PrepareBackupRequest.class);
-    registerDSFID(PREPARE_BACKUP_RESPONSE, PrepareBackupResponse.class);
+    registerDSFID(BACKUP_RESPONSE, BackupResponse.class); // in older versions this was
+                                                          // FinishBackupResponse which is
+                                                          // compatible
     registerDSFID(FINISH_BACKUP_REQUEST, FinishBackupRequest.class);
-    registerDSFID(FINISH_BACKUP_RESPONSE, FinishBackupResponse.class);
+    registerDSFID(FINISH_BACKUP_RESPONSE, BackupResponse.class); // for backwards compatibility map
+                                                                 // FINISH_BACKUP_RESPONSE to
+                                                                 // BackupResponse
     registerDSFID(COMPACT_REQUEST, CompactRequest.class);
     registerDSFID(COMPACT_RESPONSE, CompactResponse.class);
     registerDSFID(FLOW_CONTROL_PERMIT_MESSAGE, FlowControlPermitMessage.class);
     registerDSFID(REQUEST_FILTERINFO_MESSAGE, InitialImageOperation.RequestFilterInfoMessage.class);
     registerDSFID(PARALLEL_QUEUE_REMOVAL_MESSAGE, ParallelQueueRemovalMessage.class);
-    registerDSFID(PARALLEL_QUEUE_BATCH_REMOVAL_MESSAGE, ParallelQueueBatchRemovalMessage.class);
-    registerDSFID(PARALLEL_QUEUE_BATCH_REMOVAL_REPLY, BatchRemovalReplyMessage.class);
     registerDSFID(BATCH_DESTROY_MESSAGE, BatchDestroyOperation.DestroyMessage.class);
     registerDSFID(FIND_REMOTE_TX_MESSAGE, FindRemoteTXMessage.class);
     registerDSFID(FIND_REMOTE_TX_REPLY, FindRemoteTXMessageReply.class);
@@ -926,6 +932,11 @@ public class DSFIDFactory implements DataSerializableFixedID {
     registerDSFID(PR_DESTROY_ON_DATA_STORE_MESSAGE, DestroyRegionOnDataStoreMessage.class);
     registerDSFID(SHUTDOWN_ALL_GATEWAYHUBS_REQUEST, ShutdownAllGatewayHubsRequest.class);
     registerDSFID(BUCKET_COUNT_LOAD_PROBE, BucketCountLoadProbe.class);
+    registerDSFID(GATEWAY_SENDER_QUEUE_ENTRY_SYNCHRONIZATION_MESSAGE,
+        GatewaySenderQueueEntrySynchronizationOperation.GatewaySenderQueueEntrySynchronizationMessage.class);
+    registerDSFID(GATEWAY_SENDER_QUEUE_ENTRY_SYNCHRONIZATION_ENTRY,
+        GatewaySenderQueueEntrySynchronizationOperation.GatewaySenderQueueEntrySynchronizationEntry.class);
+    registerDSFID(ABORT_BACKUP_REQUEST, AbortBackupRequest.class);
   }
 
   /**
@@ -962,8 +973,6 @@ public class DSFIDFactory implements DataSerializableFixedID {
         return Token.TOMBSTONE;
       case NULL_TOKEN:
         return readNullToken(in);
-      case CONFIGURATION_REQUEST:
-        return readConfigurationRequest(in);
       case CONFIGURATION_RESPONSE:
         return readConfigurationResponse(in);
       case PR_DESTROY_ON_DATA_STORE_MESSAGE:
@@ -1046,23 +1055,9 @@ public class DSFIDFactory implements DataSerializableFixedID {
     return serializable;
   }
 
-  private static DataSerializableFixedID readSnappyCompressedCachedDeserializable(DataInput in)
-      throws IOException, ClassNotFoundException {
-    DataSerializableFixedID serializable = new SnappyCompressedCachedDeserializable();
-    serializable.fromData(in);
-    return serializable;
-  }
-
   private static DataSerializableFixedID readNullToken(DataInput in)
       throws IOException, ClassNotFoundException {
     DataSerializableFixedID serializable = (NullToken) IndexManager.NULL;
-    serializable.fromData(in);
-    return serializable;
-  }
-
-  private static DataSerializableFixedID readConfigurationRequest(DataInput in)
-      throws IOException, ClassNotFoundException {
-    DataSerializableFixedID serializable = new ConfigurationRequest();
     serializable.fromData(in);
     return serializable;
   }

@@ -14,24 +14,20 @@
  */
 package org.apache.geode.cache.client.internal;
 
-import org.apache.geode.cache.client.internal.AbstractOp;
-import org.apache.geode.cache.client.internal.ConnectionStats;
-import org.apache.geode.cache.client.internal.ExecutablePool;
-import org.apache.geode.cache.client.internal.QueryOp;
 import org.apache.geode.cache.client.internal.QueryOp.QueryOpImpl;
 import org.apache.geode.cache.query.SelectResults;
 import org.apache.geode.internal.cache.tier.MessageType;
 
 /**
  * Creates a CQ and fetches initial results on a server
- * 
+ *
  * @since GemFire 5.7
  */
 public class CreateCQWithIROp {
   /**
    * Create a continuous query on the server using connections from the given pool to communicate
    * with the server.
-   * 
+   *
    * @param pool the pool to use to communicate with the server.
    * @param cqName name of the CQ to create
    * @param queryStr string OQL statement to be executed

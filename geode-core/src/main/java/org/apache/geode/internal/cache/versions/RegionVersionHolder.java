@@ -38,17 +38,17 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
  * member.
  *
  * RegionVersionHolders should be modified under synchronization on the holder.
- * 
+ *
  * Starting in 7.0.1 the holder has a BitSet that records the most recent versions. The variable
  * bitSetVersion corresponds to bit zero, and subsequent bits represent bitSetVersion+1, +2, etc.
  * The method mergeBitSet() should be used to dump the BitSet's exceptions into the regular
  * exceptions list prior to performing operations like exceptions- comparisons or dominance checks.
- * 
+ *
  * Starting in 8.0, the holder introduced a special exception to describe following use case of
  * unfinished operation: Operation R4 and R5 are applied locally, but never distributed to P. So P's
  * RVV for R is still 3. After R GIIed from P, R's RVV becomes R5(3-6), i.e. Exception's nextVersion
  * is currentVersion+1.
- * 
+ *
  */
 public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
 
@@ -70,8 +70,7 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
   /**
    * This contructor should only be used for cloning a RegionVersionHolder or initializing and
    * invalid version holder (with version -1)
-   * 
-   * @param ver
+   *
    */
   public RegionVersionHolder(long ver) {
     this.version = ver;
@@ -198,13 +197,13 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
       }
       if (e.previousVersion < missingVersion && missingVersion < e.nextVersion) {
         String fine = null;
-        if (logger.isTraceEnabled(LogMarker.RVV)) {
+        if (logger.isTraceEnabled(LogMarker.RVV_VERBOSE)) {
           fine = e.toString();
         }
         e.add(missingVersion);
         if (e.isFilled()) {
           if (fine != null) {
-            logger.trace(LogMarker.RVV, "Filled exception {}", fine);
+            logger.trace(LogMarker.RVV_VERBOSE, "Filled exception {}", fine);
           }
           it.remove();
         } else if (e.shouldChangeForm()) {
@@ -227,8 +226,8 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
     int length = BIT_SET_WIDTH;
     int bitCountToFlush = length * 3 / 4;
 
-    if (logger.isTraceEnabled(LogMarker.RVV)) {
-      logger.trace(LogMarker.RVV, "flushing RVV bitset bitSetVersion={}; bits={}",
+    if (logger.isTraceEnabled(LogMarker.RVV_VERBOSE)) {
+      logger.trace(LogMarker.RVV_VERBOSE, "flushing RVV bitset bitSetVersion={}; bits={}",
           this.bitSetVersion, this.bitSet);
     }
     // see if we can shift part of the bits so that exceptions in the recent bits can
@@ -241,9 +240,9 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
       // the exceptions list includes a "next version" that indicates a received version.
       addBitSetExceptions(bitCountToFlush, this.bitSetVersion + bitCountToFlush);
     }
-    if (logger.isTraceEnabled(LogMarker.RVV)) {
-      logger.trace(LogMarker.RVV, "After flushing bitSetVersion={}; bits={}", this.bitSetVersion,
-          this.bitSet);
+    if (logger.isTraceEnabled(LogMarker.RVV_VERBOSE)) {
+      logger.trace(LogMarker.RVV_VERBOSE, "After flushing bitSetVersion={}; bits={}",
+          this.bitSetVersion, this.bitSet);
     }
   }
 
@@ -260,17 +259,17 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
    * corresponds to this.bitSetVersion. This scans the bitset looking for gaps that are recorded as
    * RVV exceptions. The scan terminates at numBits or when the last set bit is found. The bitSet is
    * adjusted and a new bitSetVersion is established.
-   * 
+   *
    * @param newVersion the desired new bitSetVersion, which may be > the max representable in the
    *        bitset
    * @param numBits the desired number of bits to flush from the bitset
    */
   private void addBitSetExceptions(int numBits, long newVersion) {
-    final boolean isDebugEnabled_RVV = logger.isTraceEnabled(LogMarker.RVV);
+    final boolean isDebugEnabled_RVV = logger.isTraceEnabled(LogMarker.RVV_VERBOSE);
     int lastSetIndex = -1;
 
     if (isDebugEnabled_RVV) {
-      logger.trace(LogMarker.RVV, "addBitSetExceptions({},{})", numBits, newVersion);
+      logger.trace(LogMarker.RVV_VERBOSE, "addBitSetExceptions({},{})", numBits, newVersion);
     }
 
     for (int idx = 0; idx < numBits;) {
@@ -288,7 +287,7 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
         nextReceivedVersion = (long) (nextReceivedIndex) + this.bitSetVersion;
         idx = nextReceivedIndex + 1;
         if (isDebugEnabled_RVV) {
-          logger.trace(LogMarker.RVV,
+          logger.trace(LogMarker.RVV_VERBOSE,
               "found gap in bitSet: missing bit at index={}; next set index={}", nextMissingIndex,
               nextReceivedIndex);
         }
@@ -296,8 +295,8 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
         // We can't flush any more bits from the bit set because there
         // are no more received versions
         if (isDebugEnabled_RVV) {
-          logger.trace(LogMarker.RVV, "terminating flush at bit {} because of missing entries",
-              lastSetIndex);
+          logger.trace(LogMarker.RVV_VERBOSE,
+              "terminating flush at bit {} because of missing entries", lastSetIndex);
         }
         this.bitSetVersion += lastSetIndex;
         this.bitSet.clear();
@@ -310,7 +309,7 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
       if (nextReceivedVersion > nextMissingVersion) {
         addException(nextMissingVersion - 1, nextReceivedVersion);
         if (isDebugEnabled_RVV) {
-          logger.trace(LogMarker.RVV, "Added rvv exception e<rv{} - rv{}>",
+          logger.trace(LogMarker.RVV_VERBOSE, "Added rvv exception e<rv{} - rv{}>",
               (nextMissingVersion - 1), nextReceivedVersion);
         }
       }
@@ -370,8 +369,9 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
   }
 
   private void logRecordVersion(long version) {
-    if (logger.isTraceEnabled(LogMarker.RVV)) {
-      logger.trace(LogMarker.RVV, "Added rvv exception e<rv{} - rv{}>", this.version, version);
+    if (logger.isTraceEnabled(LogMarker.RVV_VERBOSE)) {
+      logger.trace(LogMarker.RVV_VERBOSE, "Added rvv exception e<rv{} - rv{}>", this.version,
+          version);
     }
   }
 
@@ -412,7 +412,7 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
 
   /**
    * Initialize this version holder from another version holder This is called during GII.
-   * 
+   *
    * It's more likely that the other holder has seen most of the versions, and this version holder
    * only has a few updates that happened since the GII started. So we apply our seen versions to
    * the other version holder and then initialize this version holder from the other version holder.
@@ -502,7 +502,7 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
   /**
    * Returns true if this version hold has an exception in the exception list for the given version
    * number.
-   * 
+   *
    * This differs from contains because it returns true if v is greater than the last seen version
    * for this holder.
    */
@@ -629,9 +629,9 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.DataSerializable#toData(java.io.DataOutput)
-   * 
+   *
    * Version Holders serialized to disk, so if the serialization format of version holder changes,
    * we need to upgrade our persistence format.
    */
@@ -650,7 +650,7 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.DataSerializable#fromData(java.io.DataInput)
    */
   public void fromData(DataInput in) throws IOException {
@@ -671,9 +671,9 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
   /*
    * Warning: this hashcode uses mutable state and is only good for as long as the holder is not
    * modified. It was added for unit testing.
-   * 
+   *
    * (non-Javadoc)
-   * 
+   *
    * @see java.lang.Object#hashCode()
    */
   public synchronized int hashCode() {
@@ -747,8 +747,7 @@ public class RegionVersionHolder<T> implements Cloneable, DataSerializable {
   /**
    * Canonicalize an ordered set of exceptions. In the canonical form, none of the RVVExceptions
    * have any received versions.
-   * 
-   * @param exceptions
+   *
    * @return The canonicalized set of exceptions.
    */
   protected List<RVVException> canonicalExceptions(List<RVVException> exceptions) {

@@ -14,11 +14,17 @@
  */
 package org.apache.geode.internal.net;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
+import java.net.Socket;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.internal.admin.SSLConfig;
 import org.apache.geode.test.junit.categories.UnitTest;
 import org.apache.geode.util.test.TestUtil;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
 @Category(UnitTest.class)
 public class SocketCreatorJUnitTest {
@@ -34,6 +40,17 @@ public class SocketCreatorJUnitTest {
     // GEODE-3393: This would fail with java.io.FileNotFoundException: $USER_HOME/.keystore
     new SocketCreator(testSSLConfig);
 
+  }
+
+  @Test
+  public void testConfigureServerSSLSocketSetsSoTimeout() throws Exception {
+    final SocketCreator socketCreator = new SocketCreator(mock(SSLConfig.class));
+    final Socket socket = mock(Socket.class);
+
+    final int timeout = 1938236;
+    socketCreator.startHandshakeIfSocketIsSSL(socket, timeout);
+
+    verify(socket).setSoTimeout(timeout);
   }
 
   private String getSingleKeyKeystore() {

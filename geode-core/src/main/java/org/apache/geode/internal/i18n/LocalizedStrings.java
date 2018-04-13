@@ -32,7 +32,7 @@ import org.apache.geode.i18n.StringId;
  * }
  * }
  * </code>
- * 
+ *
  * @since GemFire 6.0
  */
 public class LocalizedStrings {
@@ -286,7 +286,7 @@ public class LocalizedStrings {
           "CacheClientNotifier: The requested durable client has the same identifier ( {0} ) as an existing durable client ( {1} ). Duplicate durable clients are not allowed.");
   public static final StringId CacheClientNotifier_CACHECLIENTNOTIFIER_UNSUCCESSFULLY_REGISTERED_CLIENT_WITH_IDENTIFIER__0 =
       new StringId(1143,
-          "CacheClientNotifier: Unsuccessfully registered client with identifier  {0}");
+          "CacheClientNotifier: Unsuccessfully registered client with identifier  {0} and response code {1}");
   public static final StringId CacheClientNotifier_CANNOT_NOTIFY_CLIENTS_TO_PERFORM_OPERATION_0_ON_EVENT_1 =
       new StringId(1144,
           "CacheClientNotifier: Cannot notify clients to perform operation {0} on event {1}");
@@ -1305,7 +1305,7 @@ public class LocalizedStrings {
   public static final StringId NewLRUClockHand_SKIPPING_RECENTLY_USED_ENTRY =
       new StringId(1817, "skipping recently used entry {0}");
   public static final StringId NewLRUClockHand_UNLINKENTRY_CALLED =
-      new StringId(1818, "unlinkEntry called for {0}");
+      new StringId(1818, "destroyEntry called for {0}");
 
   public static final StringId Oplog_FAILED_READING_FILE_DURING_RECOVERY_FROM_0 =
       new StringId(1820, "Failed to read file during recovery from \"{0}\"");
@@ -1594,8 +1594,6 @@ public class LocalizedStrings {
   public static final StringId ServerConnection_0_HANDSHAKE_ACCEPT_FAILED_ON_SOCKET_1_2 =
       new StringId(1988, "{0}: Handshake accept failed on socket {1}: {2}");
 
-  public static final StringId ServerConnection_0_RECEIVED_UNKNOWN_HANDSHAKE_REPLY_CODE_1 =
-      new StringId(1991, "{0}: Received Unknown handshake reply code: {1}");
   public static final StringId ServerConnection_RECEIVED_UNKNOWN_HANDSHAKE_REPLY_CODE =
       new StringId(1992, "Received Unknown handshake reply code.");
   public static final StringId ServerConnection_0_UNEXPECTED_CANCELLATION =
@@ -1942,7 +1940,7 @@ public class LocalizedStrings {
   public static final StringId AbstractDistributionConfig_UNKNOWN_LOCATOR_HOST_0 =
       new StringId(2177, "Unknown locator host:  {0}");
 
-  public static final StringId AbstractLRURegionMap_UNKNOWN_EVICTION_ACTION_0 =
+  public static final StringId UNKNOWN_EVICTION_ACTION_0 =
       new StringId(2179, "Unknown eviction action:  {0}");
   public static final StringId AbstractPoolCache_ABSTRACTPOOLEDCACHEGETPOOLEDCONNECTIONFROMPOOLLOGIN_TIMEOUT_EXCEEDED =
       new StringId(2180,
@@ -2086,6 +2084,8 @@ public class LocalizedStrings {
           "Method '' {0} '' in class '' {1} '' is not accessible to the query processor");
   public static final StringId AttributeDescriptor_NO_PUBLIC_ATTRIBUTE_NAMED_0_WAS_FOUND_IN_CLASS_1 =
       new StringId(2253, "No public attribute named '' {0} '' was found in class  {1}");
+  public static final StringId AttributeDescriptor_NO_ACCESS_BECAUSE_METHOD_WAS_BLACKLISTED =
+      new StringId(2254, "No access to attribute named '' {0} '' because it has been blacklisted");
 
   public static final StringId AvailablePort_UNKNOWN_PROTOCOL_0 =
       new StringId(2258, "Unknown protocol:  {0}");
@@ -2122,7 +2122,7 @@ public class LocalizedStrings {
   public static final StringId CacheClientProxy_EXCEPTION_OCCURRED_WHILE_TRYING_TO_CREATE_A_MESSAGE_QUEUE =
       new StringId(2297, "Exception occurred while trying to create a message queue.");
   public static final StringId GatewayEventRemoteDispatcher_0_COULD_NOT_CONNECT_1 =
-      new StringId(2298, "{0} : Could not connect. {1}");
+      new StringId(2298, "{0} : Could not connect due to: {1}");
 
   public static final StringId CacheCollector_UNABLE_TO_MIX_REGION_AND_ENTRY_SNAPSHOTS_IN_CACHECOLLECTOR =
       new StringId(2300, "Unable to mix region and entry snapshots in CacheCollector.");
@@ -6647,7 +6647,7 @@ public class LocalizedStrings {
       new StringId(5028, "Error deserializing values");
   public static final StringId DistributedRegion_INITIALIZED_FROM_DISK = new StringId(5030,
       "Region {0} recovered from the local disk. Old persistent ID: {1}, new persistent ID {2}");
-  public static final StringId BackupManager_README = new StringId(5031,
+  public static final StringId BackupService_README = new StringId(5031,
       "This directory contains a backup of the persistent data for a single gemfire VM. The layout is:\n\ndiskstores\n\tA backup of the persistent disk stores in the VM\nuser\n\tAny files specified by the backup element in the cache.xml file.\nconfig\n\tThe cache.xml and gemfire.properties for the backed up member.\nrestore.[sh|bat]\n\tA script to restore the backup.\n\nPlease note that the config is not restored, only the diskstores and user files.");
   public static final StringId PartitionedRegion_MULTIPLE_TARGET_NODE_FOUND_FOR =
       new StringId(5032, "Multiple target nodes found for single hop operation");
@@ -7124,8 +7124,6 @@ public class LocalizedStrings {
   public static final StringId Launcher_Status_ONLINE = new StringId(5255, "online");
   public static final StringId Launcher_Status_STARTING = new StringId(5256, "starting");
   public static final StringId Launcher_Status_STOPPED = new StringId(5257, "stopped");
-  public static final StringId Launcher_Command_FAILED_TO_GET_SHARED_CONFIGURATION =
-      new StringId(5258, "Unable to retrieve cluster configuration from the locator.");
 
   public static final StringId LocatorLauncher_Builder_INVALID_HOSTNAME_FOR_CLIENTS_ERROR_MESSAGE =
       new StringId(5260,
@@ -7213,7 +7211,7 @@ public class LocalizedStrings {
       new StringId(5305,
           "Exception occurred while handling call to {0}.afterAcknowledgement for event {1}:");
   public static final StringId GatewayReceiverImpl_USING_LOCAL_HOST =
-      new StringId(5399, "No bind-address or hostname-for-sender is specified, Using local host ");
+      new StringId(5399, "No bind-address or hostname-for-senders specified, Using local host ");
   public static final StringId GatewayReceiverImpl_COULD_NOT_GET_HOST_NAME =
       new StringId(5400, "Could not get host name");
   public static final StringId CqService_ERROR_SENDING_CQ_CONNECTION_STATUS =
@@ -7611,6 +7609,9 @@ public class LocalizedStrings {
   public static final StringId LuceneService_CANNOT_CREATE_INDEX_0_ON_REGION_1_WITH_ANALYZER_2_ON_FIELD_3_BECAUSE_ANOTHER_MEMBER_DEFINES_THE_SAME_INDEX_WITH_ANALYZER_4_ON_THAT_FIELD =
       new StringId(6631,
           "Cannot create Lucene index {0} on region {1} with analyzer {2} on field {3} because another member defines the same index with analyzer {4} on that field.");
+  public static final StringId LuceneService_CANNOT_CREATE_INDEX_0_ON_REGION_1_WITH_SERIALIZER_2_BECAUSE_ANOTHER_MEMBER_DEFINES_THE_SAME_INDEX_WITH_DIFFERENT_SERIALIZER_3 =
+      new StringId(6632,
+          "Cannot create Lucene index {0} on region {1} with serializer {2} because another member defines the same index with different serializer {3}.");
 
   public static final StringId AbstractDistributionConfig_CLUSTER_SSL_ALIAS_0 = new StringId(6633,
       "SSL communication uses the this alias when determining the key to use from the keystore for SSL. Defaults to \"{0}\".");
@@ -7696,6 +7697,22 @@ public class LocalizedStrings {
 
   public static final StringId LuceneServiceImpl_REGION_0_CANNOT_BE_DESTROYED = new StringId(6660,
       "Region {0} cannot be destroyed because it defines Lucene index(es) [{1}]. Destroy all Lucene indexes before destroying the region.");
+
+  public static final StringId AbstractGatewaySender_CAUGHT_EXCEPTION_ENQUEUEING_SYNCHRONIZATION_EVENT =
+      new StringId(6661,
+          "{0}: Caught the following exception attempting to enqueue synchronization event={1}:");
+  public static final StringId GemFireCacheImpl_CAUGHT_EXCEPTION_SYNCHRONIZING_EVENTS =
+      new StringId(6662,
+          "Caught the following exception attempting to synchronize events from member={0}; regionPath={1}; entriesToSynchronize={2}:");
+  public static final StringId GatewaySenderQueueEntrySynchronizationReplyProcessor_REPLY_IS_EMPTY =
+      new StringId(6663,
+          "Synchronization event reply from member={0}; regionPath={1}; key={2}; entryVersion={3} is empty");
+  public static final StringId AbstractGatewaySender_PROVIDING_SYNCHRONIZATION_EVENT =
+      new StringId(6664, "{0}: Providing synchronization event for key={1}; timestamp={2}: {3}");
+  public static final StringId AbstractGatewaySender_ENQUEUEING_SYNCHRONIZATION_EVENT =
+      new StringId(6665, "{0}: Enqueueing synchronization event: {1}");
+  public static final StringId PoolImpl_CACHE_MUST_BE_CREATED_BEFORE_CREATING_POOL =
+      new StringId(6666, "Cache must be created before creating pool");
 
   /** Testing strings, messageId 90000-99999 **/
 

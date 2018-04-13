@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -43,7 +43,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
  * Moves the bucket to the recipient's PartitionedRegionDataStore. The recipient will create an
  * extra redundant copy of the bucket and then send a {@link RemoveBucketMessage} to the specified
  * source for the bucket.
- * 
+ *
  * Usage: MoveBucketResponse response = MoveBucketMessage.send( InternalDistributedMember,
  * PartitionedRegion, int bucketId); if (response != null && response.waitForResponse()) { // bucket
  * was moved }
@@ -69,7 +69,7 @@ public class MoveBucketMessage extends PartitionMessage {
   /**
    * Sends a message to move the bucket from <code>source</code> member to the
    * <code>recipient</code> member.
-   * 
+   *
    * @param recipient the member to move the bucket to
    * @param region the PartitionedRegion of the bucket
    * @param bucketId the bucket to move
@@ -84,6 +84,7 @@ public class MoveBucketMessage extends PartitionMessage {
     MoveBucketResponse response = new MoveBucketResponse(region.getSystem(), recipient, region);
     MoveBucketMessage msg =
         new MoveBucketMessage(recipient, region.getPRId(), response, bucketId, source);
+    msg.setTransactionDistributed(region.getCache().getTxManager().isDistributed());
 
     Set<InternalDistributedMember> failures = region.getDistributionManager().putOutgoing(msg);
     if (failures != null && failures.size() > 0) {
@@ -105,8 +106,8 @@ public class MoveBucketMessage extends PartitionMessage {
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion region,
-      long startTime) throws ForceReattemptException {
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm,
+      PartitionedRegion region, long startTime) throws ForceReattemptException {
 
     PartitionedRegionDataStore dataStore = region.getDataStore();
     boolean moved = dataStore.moveBucket(this.bucketId, this.source, true);
@@ -162,8 +163,8 @@ public class MoveBucketMessage extends PartitionMessage {
     }
 
     /** Send a reply */
-    public static void send(InternalDistributedMember recipient, int processorId, DM dm,
-        ReplyException re, boolean moved) {
+    public static void send(InternalDistributedMember recipient, int processorId,
+        DistributionManager dm, ReplyException re, boolean moved) {
       Assert.assertTrue(recipient != null, "MoveBucketReplyMessage NULL recipient");
       MoveBucketReplyMessage m = new MoveBucketReplyMessage(processorId, re, moved);
       m.setRecipient(recipient);
@@ -175,24 +176,24 @@ public class MoveBucketMessage extends PartitionMessage {
     }
 
     @Override
-    public void process(final DM dm, final ReplyProcessor21 processor) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 processor) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "MoveBucketReplyMessage process invoking reply processor with processorId: {}",
             this.processorId);
       }
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "MoveBucketReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "MoveBucketReplyMessage processor not found");
         }
         return;
       }
       processor.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} processed {}", processor, this);
       }
       dm.getStats().incReplyMessageTime(NanoTimer.getTime() - startTime);
     }
@@ -242,8 +243,8 @@ public class MoveBucketMessage extends PartitionMessage {
         if (msg instanceof MoveBucketReplyMessage) {
           MoveBucketReplyMessage reply = (MoveBucketReplyMessage) msg;
           this.moved = reply.moved();
-          if (logger.isTraceEnabled(LogMarker.DM)) {
-            logger.trace(LogMarker.DM, "MoveBucketResponse is {}", moved);
+          if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+            logger.trace(LogMarker.DM_VERBOSE, "MoveBucketResponse is {}", moved);
           }
         }
       } finally {
@@ -281,7 +282,7 @@ public class MoveBucketMessage extends PartitionMessage {
           logger.debug(msg, t);
           return false;
         }
-        e.handleAsUnexpected();
+        e.handleCause();
       }
       return this.moved;
     }

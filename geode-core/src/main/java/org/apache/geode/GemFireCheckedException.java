@@ -20,7 +20,7 @@ package org.apache.geode;
  * <p>
  * This class ought to be called <em>GemFireException</em>, but that name is reserved for an older
  * class that extends {@link java.lang.RuntimeException}.
- * 
+ *
  * @see org.apache.geode.GemFireException
  * @since GemFire 5.1
  */
@@ -70,10 +70,6 @@ public abstract class GemFireCheckedException extends Exception {
       return null;
     Throwable root = this.getCause();
     while (root != null) {
-      // if ( ! ( root instanceof GemFireCheckedException )) {
-      // break;
-      // }
-      // GemFireCheckedException tmp = (GemFireCheckedException) root;
       if (root.getCause() == null) {
         break;
       } else {

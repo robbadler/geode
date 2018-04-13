@@ -20,7 +20,19 @@ import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 
+import java.io.File;
+import java.io.FilenameFilter;
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.commons.io.FileUtils;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.DataSerializer;
 import org.apache.geode.ToDataException;
 import org.apache.geode.cache.Cache;
@@ -37,7 +49,6 @@ import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.HeapDataOutputStream;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
-import org.apache.geode.pdx.PdxInitializationException;
 import org.apache.geode.pdx.SimpleClass.SimpleEnum;
 import org.apache.geode.pdx.internal.EnumId;
 import org.apache.geode.pdx.internal.EnumInfo;
@@ -45,21 +56,7 @@ import org.apache.geode.pdx.internal.PdxType;
 import org.apache.geode.pdx.internal.PeerTypeRegistration;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 import org.apache.geode.test.junit.categories.SerializationTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
-import java.io.File;
-import java.io.FilenameFilter;
-import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
-/**
- *
- */
 @Category({IntegrationTest.class, SerializationTest.class})
 public class PdxAttributesJUnitTest {
 
@@ -385,8 +382,7 @@ public class PdxAttributesJUnitTest {
 
   /**
    * Test that loner VMs lazily determine if they are a client or a peer.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testLazyLoner() throws Exception {

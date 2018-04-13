@@ -22,17 +22,11 @@ import org.apache.geode.memcached.GemFireMemcachedServer.Protocol;
 /**
  * All memcached commands specified by {@link Command} implement this interface to process a command
  * from the client.
- * 
+ *
  *
  */
 public interface CommandProcessor {
 
-  /**
-   * 
-   * @param reader
-   * @param protocol
-   * @param cache
-   */
-  public ByteBuffer processCommand(RequestReader reader, Protocol protocol, Cache cache);
+  ByteBuffer processCommand(RequestReader reader, Protocol protocol, Cache cache);
 
 }

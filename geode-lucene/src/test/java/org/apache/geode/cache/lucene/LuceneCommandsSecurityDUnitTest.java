@@ -40,23 +40,24 @@ import org.apache.geode.management.internal.cli.result.ErrorResultData;
 import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
 import org.apache.geode.security.SimpleTestSecurityManager;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
 import org.apache.geode.test.dunit.rules.MemberVM;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.LuceneTest;
 import org.apache.geode.test.junit.categories.SecurityTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 
-@Category({DistributedTest.class, SecurityTest.class})
+@Category({DistributedTest.class, SecurityTest.class, LuceneTest.class})
 @RunWith(JUnitParamsRunner.class)
 public class LuceneCommandsSecurityDUnitTest {
 
   @Rule
-  public LocatorServerStartupRule locatorServer = new LocatorServerStartupRule();
+  public ClusterStartupRule locatorServer = new ClusterStartupRule();
 
   @Rule
-  public GfshShellConnectionRule gfshShell = new GfshShellConnectionRule();
+  public GfshCommandRule gfshShell = new GfshCommandRule();
 
-  private MemberVM locator;
+  protected MemberVM locator;
 
   @Before
   public void before() throws Exception {
@@ -84,8 +85,8 @@ public class LuceneCommandsSecurityDUnitTest {
   @Parameters(method = "getCreateIndexUserNameAndExpectedResponses")
   public void verifyCreateIndexPermissions(UserNameAndExpectedResponse user) throws Exception {
     // Connect gfsh
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, user.getUserName(), user.getUserName());
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        user.getUserName(), user.getUserName());
 
     // Attempt to create lucene index
     CommandResult result = this.gfshShell.executeCommand(getCreateIndexCommand());
@@ -108,8 +109,8 @@ public class LuceneCommandsSecurityDUnitTest {
     createIndexAndRegion();
 
     // Connect gfsh
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, user.getUserName(), user.getUserName());
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        user.getUserName(), user.getUserName());
 
     // Attempt to search lucene index
     CommandResult result = this.gfshShell.executeCommand(getSearchIndexCommand());
@@ -132,8 +133,8 @@ public class LuceneCommandsSecurityDUnitTest {
     createIndexAndRegion();
 
     // Connect gfsh
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, user.getUserName(), user.getUserName());
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        user.getUserName(), user.getUserName());
 
     // Attempt to search lucene index
     CommandResult result = this.gfshShell.executeCommand(getListIndexesCommand());
@@ -156,8 +157,8 @@ public class LuceneCommandsSecurityDUnitTest {
     createIndexAndRegion();
 
     // Connect gfsh
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, user.getUserName(), user.getUserName());
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        user.getUserName(), user.getUserName());
 
     // Attempt to search lucene index
     CommandResult result = this.gfshShell.executeCommand(getDescribeIndexCommand());
@@ -181,8 +182,8 @@ public class LuceneCommandsSecurityDUnitTest {
     createIndexAndRegion();
 
     // Connect gfsh
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, user.getUserName(), user.getUserName());
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        user.getUserName(), user.getUserName());
 
     // Attempt to search lucene index
     CommandResult result = this.gfshShell.executeCommand(getDestroyIndexCommand());
@@ -191,16 +192,16 @@ public class LuceneCommandsSecurityDUnitTest {
     verifyResult(user, result);
   }
 
-  private void createIndexAndRegion() throws Exception {
+  protected void createIndexAndRegion() throws Exception {
     // Connect gfsh to locator with permissions necessary to create an index and region
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, "cluster,data", "cluster,data");
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        "cluster,data", "cluster,data");
 
     // Create lucene index
-    this.gfshShell.executeAndVerifyCommand(getCreateIndexCommand());
+    this.gfshShell.executeAndAssertThat(getCreateIndexCommand()).statusIsSuccess();
 
     // Create region
-    this.gfshShell.executeAndVerifyCommand(getCreateRegionCommand());
+    this.gfshShell.executeAndAssertThat(getCreateRegionCommand()).statusIsSuccess();
 
     // Disconnect gfsh
     this.gfshShell.disconnect();
@@ -217,7 +218,7 @@ public class LuceneCommandsSecurityDUnitTest {
     assertTrue(this.gfshShell.getGfshOutput().contains(user.getExpectedResponse()));
   }
 
-  private String getCreateIndexCommand() {
+  protected String getCreateIndexCommand() {
     CommandStringBuilder csb = new CommandStringBuilder(LuceneCliStrings.LUCENE_CREATE_INDEX);
     csb.addOption(LuceneCliStrings.LUCENE__INDEX_NAME, INDEX_NAME);
     csb.addOption(LuceneCliStrings.LUCENE__REGION_PATH, REGION_NAME);
@@ -225,7 +226,7 @@ public class LuceneCommandsSecurityDUnitTest {
     return csb.toString();
   }
 
-  private String getCreateRegionCommand() {
+  protected String getCreateRegionCommand() {
     CommandStringBuilder csb = new CommandStringBuilder(CliStrings.CREATE_REGION);
     csb.addOption(CliStrings.CREATE_REGION__REGION, REGION_NAME);
     csb.addOption(CliStrings.CREATE_REGION__REGIONSHORTCUT,

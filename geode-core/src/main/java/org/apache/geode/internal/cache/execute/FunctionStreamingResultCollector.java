@@ -36,6 +36,7 @@ import org.apache.geode.cache.execute.FunctionInvocationTargetException;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.ReplyException;
@@ -48,10 +49,6 @@ import org.apache.geode.internal.cache.PrimaryBucketException;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 
-/**
- * 
- *
- */
 public class FunctionStreamingResultCollector extends ReplyProcessor21 implements ResultCollector {
 
   private static final Logger logger = LogService.getLogger();
@@ -376,7 +373,8 @@ public class FunctionStreamingResultCollector extends ReplyProcessor21 implement
   }
 
   @Override
-  public void memberDeparted(final InternalDistributedMember id, final boolean crashed) {
+  public void memberDeparted(DistributionManager distributionManager,
+      final InternalDistributedMember id, final boolean crashed) {
     if (id != null) {
       synchronized (this.members) {
         if (removeMember(id, true)) {
@@ -423,7 +421,7 @@ public class FunctionStreamingResultCollector extends ReplyProcessor21 implement
 
   /**
    * Waits for the response from the recipient
-   * 
+   *
    * @throws CacheException if the recipient threw a cache exception during message processing
    * @throws ForceReattemptException if the recipient left the distributed system before the
    *         response was received.
@@ -462,7 +460,7 @@ public class FunctionStreamingResultCollector extends ReplyProcessor21 implement
       if (e.getCause() instanceof FunctionException) {
         throw (FunctionException) e.getCause();
       }
-      e.handleAsUnexpected();
+      e.handleCause();
     }
 
     return timedOut;

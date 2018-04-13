@@ -21,8 +21,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Set;
-// import org.apache.geode.internal.*;
-// import org.apache.geode.distributed.internal.*;
 import java.util.concurrent.RejectedExecutionException;
 
 import org.apache.logging.log4j.Logger;
@@ -32,15 +30,13 @@ import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.CacheEvent;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.CacheWriterException;
 import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.Operation;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.TimeoutException;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionAdvisor;
-import org.apache.geode.distributed.internal.DistributionManager;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
@@ -50,9 +46,6 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
-/**
- * 
- */
 public class DestroyRegionOperation extends DistributedCacheOperation {
 
   private static final Logger logger = LogService.getLogger();
@@ -87,7 +80,7 @@ public class DestroyRegionOperation extends DistributedCacheOperation {
 
   /**
    * Creates new instance of DestroyRegionOperation
-   * 
+   *
    * @param notifyOfRegionDeparture was added to fix bug 41111. If false then don't deliver
    *        afterRemoteRegionDeparture events.
    */
@@ -162,13 +155,12 @@ public class DestroyRegionOperation extends DistributedCacheOperation {
           getSender());
     }
 
-    private Runnable destroyOp(final DistributionManager dm, final LocalRegion lclRgn,
+    private Runnable destroyOp(final ClusterDistributionManager dm, final LocalRegion lclRgn,
         final boolean sendReply) {
       return new Runnable() {
         public void run() {
           final int oldLevel =
               LocalRegion.setThreadInitLevelRequirement(LocalRegion.BEFORE_INITIAL_IMAGE);
-          // do this before CacheFactory.getInstance for bug 33471
 
           Throwable thr = null;
           try {
@@ -179,9 +171,8 @@ public class DestroyRegionOperation extends DistributedCacheOperation {
               boolean waitForBucketInitializationToComplete = true;
               CacheDistributionAdvisee advisee = null;
               try {
-                advisee =
-                    PartitionedRegionHelper.getProxyBucketRegion(GemFireCacheImpl.getInstance(),
-                        regionPath, waitForBucketInitializationToComplete);
+                advisee = PartitionedRegionHelper.getProxyBucketRegion(dm.getCache(), regionPath,
+                    waitForBucketInitializationToComplete);
               } catch (PRLocallyDestroyedException ignore) {
                 // region not found - it's been destroyed
               } catch (RegionDestroyedException ignore) {
@@ -204,7 +195,7 @@ public class DestroyRegionOperation extends DistributedCacheOperation {
             } // lclRegion == null
 
             // refetch to use special destroy region logic
-            final LocalRegion lr = getRegionFromPath(dm.getSystem(), lclRgn.getFullPath());
+            final LocalRegion lr = getRegionFromPath(dm, lclRgn.getFullPath());
             if (lr == null) {
               if (logger.isDebugEnabled())
                 logger.debug("{} region not found, nothing to do", this);
@@ -275,7 +266,7 @@ public class DestroyRegionOperation extends DistributedCacheOperation {
 
     /** Return true if a reply should be sent */
     @Override
-    protected void basicProcess(final DistributionManager dm, final LocalRegion lclRgn) {
+    protected void basicProcess(final ClusterDistributionManager dm, final LocalRegion lclRgn) {
       Assert.assertTrue(this.serialNum != DistributionAdvisor.ILLEGAL_SERIAL);
       try {
         this.lockRoot = null;
@@ -297,12 +288,12 @@ public class DestroyRegionOperation extends DistributedCacheOperation {
       }
     }
 
-    protected LocalRegion getRegionFromPath(InternalDistributedSystem sys, String path) {
+    protected LocalRegion getRegionFromPath(ClusterDistributionManager dm, String path) {
       // allow a destroyed region to be returned if we're dealing with a
       // shared region, since another cache may
       // have already destroyed it in shared memory, in which our listeners
       // still need to be called and java region object cleaned up.
-      InternalCache cache = (InternalCache) CacheFactory.getInstance(sys);
+      InternalCache cache = dm.getExistingCache();
 
       // only get the region while holding the appropriate destroy lock.
       // this prevents us from getting a "stale" region
@@ -427,7 +418,7 @@ public class DestroyRegionOperation extends DistributedCacheOperation {
     }
 
     @Override
-    protected boolean operateOnRegion(CacheEvent event, DistributionManager dm)
+    protected boolean operateOnRegion(CacheEvent event, ClusterDistributionManager dm)
         throws EntryNotFoundException {
       Assert.assertTrue(false,
           LocalizedStrings.DestroyRegionOperation_REGION_DESTRUCTION_MESSAGE_IMPLEMENTATION_IS_IN_BASICPROCESS__NOT_THIS_METHOD

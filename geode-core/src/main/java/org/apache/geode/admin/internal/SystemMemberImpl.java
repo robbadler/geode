@@ -14,9 +14,27 @@
  */
 package org.apache.geode.admin.internal;
 
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.CancelException;
 import org.apache.geode.SystemFailure;
-import org.apache.geode.admin.*;
+import org.apache.geode.admin.AdminDistributedSystem;
+import org.apache.geode.admin.AdminException;
+import org.apache.geode.admin.CacheDoesNotExistException;
+import org.apache.geode.admin.ConfigurationParameter;
+import org.apache.geode.admin.RuntimeAdminException;
+import org.apache.geode.admin.StatisticResource;
+import org.apache.geode.admin.SystemMemberCache;
+import org.apache.geode.admin.SystemMemberType;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.Role;
 import org.apache.geode.distributed.internal.DistributionConfig;
@@ -28,10 +46,6 @@ import org.apache.geode.internal.admin.GemFireVM;
 import org.apache.geode.internal.admin.StatResource;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.logging.log4j.Logger;
-
-import java.net.InetAddress;
-import java.util.*;
 
 /**
  * Member of a GemFire system.
@@ -57,9 +71,6 @@ public class SystemMemberImpl implements org.apache.geode.admin.SystemMember,
 
   /** Host name of the machine this member resides on */
   protected String host;
-
-  /** The internal configuration this impl delegates to for runtime config */
-  // private Config config;
 
   /**
    * The configuration parameters for this member. Maps the name of the ConfigurationParameter to
@@ -105,12 +116,12 @@ public class SystemMemberImpl implements org.apache.geode.admin.SystemMember,
   /**
    * Constructs the instance of SystemMember using the corresponding InternalDistributedMember
    * instance of a DS member for the given AdminDistributedSystem.
-   * 
+   *
    * @param system Current AdminDistributedSystem instance
    * @param member InternalDistributedMember instance for which a SystemMember instance is to be
    *        constructed.
    * @throws AdminException if construction of SystemMember fails
-   * 
+   *
    * @since GemFire 6.5
    */
   protected SystemMemberImpl(AdminDistributedSystem system, InternalDistributedMember member)
@@ -330,12 +341,7 @@ public class SystemMemberImpl implements org.apache.geode.admin.SystemMember,
       throw new RuntimeAdminException(e);
     } catch (java.lang.Exception e) {
       logger.warn(e.getMessage(), e);
-    }
-    // catch (java.lang.RuntimeException e) {
-    // logWriter.warning(e);
-    // throw e;
-    // }
-    catch (VirtualMachineError err) {
+    } catch (VirtualMachineError err) {
       SystemFailure.initiateFailure(err);
       // If this ever returns, rethrow the error. We're poisoned
       // now, so don't let this thread continue.
@@ -402,9 +408,9 @@ public class SystemMemberImpl implements org.apache.geode.admin.SystemMember,
 
   /**
    * Updates this SystemMember instance using the corresponding InternalDistributedMember
-   * 
+   *
    * @param member InternalDistributedMember instance to update this SystemMember
-   * 
+   *
    * @since GemFire 6.5
    */
   private void updateByInternalDistributedMember(InternalDistributedMember member) {
@@ -484,4 +490,3 @@ public class SystemMemberImpl implements org.apache.geode.admin.SystemMember,
     return this.internalId;
   }
 }
-

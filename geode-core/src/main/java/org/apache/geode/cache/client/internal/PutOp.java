@@ -14,6 +14,11 @@
  */
 package org.apache.geode.cache.client.internal;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.cache.Operation;
@@ -33,14 +38,9 @@ import org.apache.geode.internal.cache.tier.sockets.Part;
 import org.apache.geode.internal.cache.versions.VersionTag;
 import org.apache.geode.internal.logging.LogService;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-
-import org.apache.logging.log4j.Logger;
-
 /**
  * Does a region put (or create) on a server
- * 
+ *
  * @since GemFire 5.7
  */
 public class PutOp {
@@ -50,7 +50,7 @@ public class PutOp {
   /**
    * Does a region put on a server using connections from the given pool to communicate with the
    * server.
-   * 
+   *
    * @param pool the pool to use to communicate with the server.
    * @param region the region to do the put on
    * @param key the entry key to do the put on
@@ -108,7 +108,7 @@ public class PutOp {
    * This is a unit test method. It does a region put on a server using the given connection from
    * the given pool to communicate with the server. Do not call this method if the value is Delta
    * instance.
-   * 
+   *
    * @param con the connection to use
    * @param pool the pool to use to communicate with the server.
    * @param regionName the name of the region to do the put on
@@ -294,14 +294,14 @@ public class PutOp {
 
     /*
      * Process a response that contains an ack.
-     * 
+     *
      * @param msg the message containing the response
-     * 
+     *
      * @param con Connection on which this op is executing
-     * 
+     *
      * @throws Exception if response could not be processed or we received a response with a server
      * exception.
-     * 
+     *
      * @since GemFire 6.1
      */
     @Override
@@ -334,9 +334,6 @@ public class PutOp {
             DataInputStream din = new DataInputStream(in);
             oldValue = DataSerializer.readObject(din);
           }
-          // if (lw.fineEnabled()) {
-          // lw.fine("read old value from server response: " + oldValue);
-          // }
         }
         // if the server has versioning we will attach it to the client's event
         // here so it can be applied to the cache
@@ -353,7 +350,7 @@ public class PutOp {
 
     /**
      * Process a response that contains an ack.
-     * 
+     *
      * @param msg the message containing the response
      * @param opName text describing this op
      * @param con Connection on which this op is executing
@@ -388,7 +385,6 @@ public class PutOp {
           throw new ServerOperationException(s, (Throwable) part.getObject());
           // Get the exception toString part.
           // This was added for c++ thin client and not used in java
-          // Part exceptionToStringPart = msg.getPart(1);
         } else if (isErrorResponse(msgType)) {
           throw new ServerOperationException(part.getString());
         } else {
@@ -446,7 +442,7 @@ public class PutOp {
     /**
      * Attempts to read a response to this operation by reading it from the given connection, and
      * returning it.
-     * 
+     *
      * @param cnx the connection to read the response from
      * @return the result of the operation or <code>null</code if the operation has no result.
      * @throws Exception if the execute failed
@@ -466,7 +462,7 @@ public class PutOp {
           }
         } else {
           try {
-            msg.recv();
+            msg.receive();
           } finally {
             msg.unsetComms();
             processSecureBytes(cnx, msg);

@@ -19,8 +19,8 @@ import org.apache.geode.internal.cache.PartitionedRegion;
 /**
  * This interface is used by testing/debugging code to be notified of different events. See the
  * documentation for class PartitionedRegionObserverHolder for details.
- * 
- * 
+ *
+ *
  */
 
 public interface PartitionedRegionObserver {
@@ -28,12 +28,12 @@ public interface PartitionedRegionObserver {
   /**
    * This callback is called just before calculating starting bucket id on datastore
    */
-  public void beforeCalculatingStartingBucketId();
+  void beforeCalculatingStartingBucketId();
 
-  public void beforeBucketCreation(PartitionedRegion region, int bucketId);
+  void beforeBucketCreation(PartitionedRegion region, int bucketId);
 
   /**
    * Called after a bucket region is created, but before it is added to the map of buckets.
    */
-  public void beforeAssignBucket(PartitionedRegion partitionedRegion, int bucketId);
+  void beforeAssignBucket(PartitionedRegion partitionedRegion, int bucketId);
 }

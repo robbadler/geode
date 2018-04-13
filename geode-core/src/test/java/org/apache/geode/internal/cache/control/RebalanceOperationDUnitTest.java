@@ -452,8 +452,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
   /**
    * Test that we correctly use the redundancy-zone property to determine where to place redundant
    * copies of a buckets.
-   * 
-   * @param simulate
+   *
    */
   public void enforceZone(final boolean simulate) {
 
@@ -815,11 +814,6 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
     return doRebalance(simulate, manager, null, null);
   }
 
-  /**
-   * @param simulate
-   * @param manager
-   * @return
-   */
   private RebalanceResults doRebalance(final boolean simulate, ResourceManager manager,
       Set<String> includes, Set<String> excludes) {
     RebalanceResults results = null;
@@ -1029,8 +1023,6 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
       @Override
       public void run() {
         GemFireCacheImpl cache = spy(getGemfireCache());
-        // set the spied cache instance
-        GemFireCacheImpl origCache = GemFireCacheImpl.setInstanceForTests(cache);
 
         PartitionedRegion origRegion = (PartitionedRegion) cache.getRegion("region1");
         PartitionedRegion spyRegion = spy(origRegion);
@@ -1043,6 +1035,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
 
         doReturn(parRegions).when(cache).getPartitionedRegions();
         doReturn(redundancyProvider).when(spyRegion).getRedundancyProvider();
+
 
         // simulate create bucket fails on member2 and test if it creates on member3
         doReturn(false).when(redundancyProvider).createBackupBucketOnMember(anyInt(),
@@ -1097,9 +1090,6 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
         assertEquals(results.getTotalBucketCreatesCompleted(),
             stats.getRebalanceBucketCreatesCompleted());
         assertEquals(1, stats.getRebalanceBucketCreatesFailed());
-
-        // set the original cache
-        GemFireCacheImpl.setInstanceForTests(origCache);
       }
     });
 
@@ -1661,8 +1651,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Check to make sure that we balance buckets between two hosts with no redundancy.
-   * 
-   * @param simulate
+   *
    */
   public void moveBucketsNoRedundancy(final boolean simulate) {
     Host host = Host.getHost(0);
@@ -1792,8 +1781,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Check to make sure that we balance buckets between two hosts with no redundancy.
-   * 
-   * @param simulate
+   *
    */
   public void filterRegions(final boolean simulate) {
     Host host = Host.getHost(0);
@@ -2386,8 +2374,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
   /**
    * Test to make sure that we move buckets to balance between three hosts with a redundancy of 1
    * and two colocated regions. Makes sure that the buckets stay colocated when we move them.
-   * 
-   * @param simulate
+   *
    */
   public void moveBucketsColocatedRegions(final boolean simulate) {
     Host host = Host.getHost(0);
@@ -2509,8 +2496,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test to make sure that moving primaries waits for a put
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testWaitForPut() throws Exception {
@@ -2523,8 +2509,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test to make sure that moving primaries waits for a put
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testWaitForInvalidate() throws Exception {
@@ -2537,8 +2522,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test to make sure that moving primaries waits for a put
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testWaitForDestroy() throws Exception {
@@ -2551,8 +2535,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test to make sure that moving primaries waits for a put
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testWaitForCacheLoader() throws Exception {
@@ -2567,8 +2550,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test to ensure that we wait for in progress write operations before moving a primary.
-   * 
-   * @throws Exception
+   *
    */
   public void runTestWaitForOperation(final Operation op) throws Exception {
     Host host = Host.getHost(0);
@@ -2854,7 +2836,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
 
     /*
      * Simulates a rebalance if simulation flag is set. Otherwise, performs a rebalance.
-     * 
+     *
      * A rebalance will replace offline buckets, so this should restore redundancy
      */
     rebalanceVM.invoke(new SerializableRunnable("simulateRebalance") {
@@ -2999,8 +2981,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Check to make sure that we balance buckets between two hosts with no redundancy.
-   * 
-   * @param simulate
+   *
    */
   public void balanceBucketsByCount(final boolean simulate) {
     Host host = Host.getHost(0);
@@ -3123,8 +3104,7 @@ public class RebalanceOperationDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test to ensure that we wait for in progress write operations before moving a primary.
-   * 
-   * @throws CancellationException
+   *
    */
   public void moveBucketsWithUnrecoveredValuesRedundancy(final boolean simulate) {
     Host host = Host.getHost(0);

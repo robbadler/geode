@@ -20,13 +20,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.apache.geode.internal.cache.BucketRegion;
-import org.apache.geode.test.junit.categories.UnitTest;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-@Category(UnitTest.class)
+import org.apache.geode.internal.cache.BucketRegion;
+import org.apache.geode.test.junit.categories.LuceneTest;
+import org.apache.geode.test.junit.categories.UnitTest;
+
+@Category({UnitTest.class, LuceneTest.class})
 public class BucketTargetingMapTest {
 
   private BucketRegion region;

@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.Operation;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.ReplyMessage;
@@ -47,7 +47,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 
 /**
  * This message class sends tombstone GC information to other PR holders
- * 
+ *
  * @since GemFire 7.0
  */
 public class PRTombstoneMessage extends PartitionMessageWithDirectReply
@@ -75,6 +75,7 @@ public class PRTombstoneMessage extends PartitionMessageWithDirectReply
     PartitionResponse p = new Response(r.getSystem(), recipients);
     PRTombstoneMessage m =
         new PRTombstoneMessage(recipients, r.getPartitionedRegion().getPRId(), p, keys, eventID);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
     r.getDistributionManager().putOutgoing(m);
 
     try {
@@ -93,10 +94,10 @@ public class PRTombstoneMessage extends PartitionMessageWithDirectReply
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(final DistributionManager dm, PartitionedRegion r,
-      long startTime) throws ForceReattemptException {
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.debug("PRTombstoneMessage operateOnRegion: {}", r.getFullPath());
+  protected boolean operateOnPartitionedRegion(final ClusterDistributionManager dm,
+      PartitionedRegion r, long startTime) throws ForceReattemptException {
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace("PRTombstoneMessage operateOnRegion: {}", r.getFullPath());
     }
     FilterProfile fp = r.getFilterProfile();
     if (this.keys != null && this.keys.size() > 0) { // sanity check

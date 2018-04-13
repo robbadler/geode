@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.CacheException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DirectReplyProcessor;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
@@ -70,7 +70,7 @@ public class ContainsKeyValueMessage extends PartitionMessageWithDirectReply {
    * {@link org.apache.geode.cache.Region#containsKey(Object)}or
    * {@link org.apache.geode.cache.Region#containsValueForKey(Object)} depending on the
    * <code>valueCheck</code> argument
-   * 
+   *
    * @param recipient the member that the contains keys/value message is sent to
    * @param r the PartitionedRegion that contains the bucket
    * @param key the key to be queried
@@ -89,6 +89,7 @@ public class ContainsKeyValueMessage extends PartitionMessageWithDirectReply {
         new ContainsKeyValueResponse(r.getSystem(), Collections.singleton(recipient), key);
     ContainsKeyValueMessage m =
         new ContainsKeyValueMessage(recipient, r.getPRId(), p, key, bucketId, valueCheck);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
 
     Set failures = r.getDistributionManager().putOutgoing(m);
     if (failures != null && failures.size() > 0) {
@@ -105,7 +106,7 @@ public class ContainsKeyValueMessage extends PartitionMessageWithDirectReply {
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion r,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion r,
       long startTime) throws CacheException, ForceReattemptException {
     PartitionedRegionDataStore ds = r.getDataStore();
     final boolean replyVal;
@@ -196,23 +197,23 @@ public class ContainsKeyValueMessage extends PartitionMessageWithDirectReply {
 
     /**
      * Processes this message. This method is invoked by the receiver of the message.
-     * 
+     *
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    public void process(final DM dm, ReplyProcessor21 processor) {
+    public void process(final DistributionManager dm, ReplyProcessor21 processor) {
       final long startTime = getTimestamp();
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "ContainsKeyValueReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "ContainsKeyValueReplyMessage processor not found");
         }
         return;
       }
       processor.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} Processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} Processed {}", processor, this);
       }
       dm.getStats().incReplyMessageTime(DistributionStats.getStatTime() - startTime);
     }
@@ -250,7 +251,7 @@ public class ContainsKeyValueMessage extends PartitionMessageWithDirectReply {
   /**
    * A processor to capture the value returned by
    * {@link org.apache.geode.internal.cache.partitioned.ContainsKeyValueMessage.ContainsKeyValueReplyMessage}
-   * 
+   *
    * @since GemFire 5.0
    */
   public static class ContainsKeyValueResponse extends PartitionResponse {
@@ -270,8 +271,8 @@ public class ContainsKeyValueMessage extends PartitionMessageWithDirectReply {
           ContainsKeyValueReplyMessage reply = (ContainsKeyValueReplyMessage) msg;
           this.returnValue = reply.doesItContainKeyValue();
           this.returnValueReceived = true;
-          if (logger.isTraceEnabled(LogMarker.DM)) {
-            logger.trace(LogMarker.DM, "ContainsKeyValueResponse return value is {}",
+          if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+            logger.trace(LogMarker.DM_VERBOSE, "ContainsKeyValueResponse return value is {}",
                 this.returnValue);
           }
         }
@@ -292,9 +293,6 @@ public class ContainsKeyValueMessage extends PartitionMessageWithDirectReply {
       } catch (ForceReattemptException rce) {
         rce.checkKey(key);
         throw rce;
-      } catch (PrimaryBucketException pbe) {
-        // Is this necessary?
-        throw pbe;
       } catch (CacheException ce) {
         logger.debug("ContainsKeyValueResponse got remote CacheException; forcing reattempt. {}",
             ce.getMessage(), ce);

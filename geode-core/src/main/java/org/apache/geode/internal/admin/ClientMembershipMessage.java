@@ -20,14 +20,14 @@ import java.io.IOException;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.admin.internal.AdminDistributedSystemImpl;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.PooledDistributionMessage;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 
 /**
  * A PooledDistributionMessage for notifying admin members about changes in Client Membership
  * received through BridgeMembership
- * 
+ *
  */
 public class ClientMembershipMessage extends PooledDistributionMessage {
   public static final int JOINED = 0;
@@ -46,7 +46,7 @@ public class ClientMembershipMessage extends PooledDistributionMessage {
 
   /**
    * Parameterized constructor
-   * 
+   *
    * @param clientId Id of the client
    * @param clientHost host the client was running on (could be null)
    * @param eventType whether client joined, left or crashed. Should be one of
@@ -60,11 +60,11 @@ public class ClientMembershipMessage extends PooledDistributionMessage {
   }
 
   /**
-   * 
-   * @see org.apache.geode.distributed.internal.DistributionMessage#process(org.apache.geode.distributed.internal.DistributionManager)
+   *
+   * @see org.apache.geode.distributed.internal.DistributionMessage#process(ClusterDistributionManager)
    */
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     AdminDistributedSystemImpl adminDs = AdminDistributedSystemImpl.getConnectedInstance();
 
     /*
@@ -84,7 +84,7 @@ public class ClientMembershipMessage extends PooledDistributionMessage {
   }
 
   /**
-   * 
+   *
    * @see org.apache.geode.internal.DataSerializableFixedID#getDSFID()
    */
   public int getDSFID() {
@@ -148,7 +148,7 @@ public class ClientMembershipMessage extends PooledDistributionMessage {
 
   /**
    * String representation of this message.
-   * 
+   *
    * @return String representation of this message.
    */
   @Override

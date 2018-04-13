@@ -14,23 +14,8 @@
  */
 package org.apache.geode.pdx;
 
-import org.apache.geode.DataSerializer;
-import org.apache.geode.SerializationException;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.internal.HeapDataOutputStream;
-import org.apache.geode.internal.PdxSerializerObject;
-import org.apache.geode.internal.Version;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
-import org.apache.geode.pdx.internal.AutoSerializableManager;
-import org.apache.geode.pdx.internal.PdxField;
-import org.apache.geode.pdx.internal.PdxInstanceImpl;
-import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.apache.geode.test.junit.categories.SerializationTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.*;
 
 import java.io.*;
 import java.lang.reflect.Field;
@@ -42,8 +27,23 @@ import java.net.URLClassLoader;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
-import static org.junit.Assert.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.DataSerializer;
+import org.apache.geode.SerializationException;
+import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.internal.HeapDataOutputStream;
+import org.apache.geode.internal.PdxSerializerObject;
+import org.apache.geode.internal.Version;
+import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.pdx.internal.AutoSerializableManager;
+import org.apache.geode.pdx.internal.PdxField;
+import org.apache.geode.pdx.internal.PdxInstanceImpl;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.SerializationTest;
 
 @Category({IntegrationTest.class, SerializationTest.class})
 public class AutoSerializableJUnitTest {
@@ -62,8 +62,7 @@ public class AutoSerializableJUnitTest {
 
   @Before
   public void setUp() throws Exception {
-    System.setProperty(
-        DistributionConfig.GEMFIRE_PREFIX + "auto.serialization.no.hardcoded.excludes", "true");
+    System.setProperty(AutoSerializableManager.NO_HARDCODED_EXCLUDES_PARAM, "true");
   }
 
   @After
@@ -1057,7 +1056,7 @@ public class AutoSerializableJUnitTest {
     setupSerializer();
     Properties props = new Properties();
     props.put("classes", "org.apache.geode.pdx.DomainObject");
-    serializer.init(props);
+    serializer.initialize(null, props);
 
     assertEquals(4, manager.getFields(DomainObject.class).size());
   }
@@ -1070,7 +1069,7 @@ public class AutoSerializableJUnitTest {
     setupSerializer();
     Properties props = new Properties();
     props.put("classes", "org.apache.geode.pdx.DomainObject#exclude=long.*");
-    serializer.init(props);
+    serializer.initialize(this.c, props);
 
     assertEquals(3, manager.getFields(DomainObject.class).size());
   }
@@ -1080,7 +1079,7 @@ public class AutoSerializableJUnitTest {
     setupSerializer();
     Properties props = new Properties();
     props.put("classes", "org.apache.geode.pdx.DomainObject#exclude=string.* ,");
-    serializer.init(props);
+    serializer.initialize(this.c, props);
 
     assertEquals(1, manager.getFields(DomainObject.class).size());
   }
@@ -1093,7 +1092,7 @@ public class AutoSerializableJUnitTest {
     setupSerializer();
     Properties props = new Properties();
     props.put("classes", "org.apache.geode.pdx.DomainObjectPdxAuto#identity=long.*");
-    serializer.init(props);
+    serializer.initialize(this.c, props);
 
     DomainObject objOut = new DomainObjectPdxAuto(4);
     objOut.set("string_0", "test string value");
@@ -1118,7 +1117,7 @@ public class AutoSerializableJUnitTest {
     Properties props = new Properties();
     props.put("classes",
         "org.apache.geode.pdx.DomainObjectPdxAuto#identity=long.*#exclude=string.*");
-    serializer.init(props);
+    serializer.initialize(this.c, props);
 
     assertEquals(27, manager.getFields(DomainObjectPdxAuto.class).size());
 
@@ -1146,7 +1145,7 @@ public class AutoSerializableJUnitTest {
     Properties props = new Properties();
     props.put("classes",
         "org.apache.geode.pdx.DomainObjectPdxAuto#identity=long.*#exclude=string.*#, com.another.class.Foo");
-    serializer.init(props);
+    serializer.initialize(this.c, props);
 
     assertEquals(27, manager.getFields(DomainObjectPdxAuto.class).size());
 
@@ -1174,7 +1173,7 @@ public class AutoSerializableJUnitTest {
     Properties props = new Properties();
     props.put("classes",
         "org.apache.geode.pdx.DomainObjectPdxAuto#identity=long.*#exclude=string.*, com.another.class.Foo");
-    serializer.init(props);
+    serializer.initialize(this.c, props);
 
     assertEquals(27, manager.getFields(DomainObjectPdxAuto.class).size());
 
@@ -1202,7 +1201,7 @@ public class AutoSerializableJUnitTest {
     Properties props = new Properties();
     props.put("classes", "org.apache.geode.pdx.DomainObjectPdxAuto#exclude=string.*, "
         + "org.apache.geode.pdx.DomainObjectPdxAuto#exclude=long.*");
-    serializer.init(props);
+    serializer.initialize(this.c, props);
 
     assertEquals(26, manager.getFields(DomainObjectPdxAuto.class).size());
   }
@@ -1216,7 +1215,7 @@ public class AutoSerializableJUnitTest {
     Properties props = new Properties();
     props.put("classes",
         "Pdx#exclude=string.*#exclude=badField, Pdx#identity=id.*, PdxAuto#exclude=long.*#identity=id.*");
-    serializer.init(props);
+    serializer.initialize(this.c, props);
 
     Properties result = serializer.getConfig();
     assertEquals(
@@ -1224,12 +1223,48 @@ public class AutoSerializableJUnitTest {
         result.getProperty("classes"));
 
     manager.resetCaches();
-    serializer.init(result);
+    serializer.initialize(this.c, result);
 
     result = serializer.getConfig();
     assertEquals(
         "Pdx, PdxAuto, Pdx#identity=id.*, PdxAuto#identity=id.*, Pdx#exclude=string.*, Pdx#exclude=badField, PdxAuto#exclude=long.*",
         result.getProperty("classes"));
+  }
+
+  /*
+   * Tests the exclusion algorithm to verify that it can be disabled.
+   */
+  @Test
+  public void testNoHardCodedExcludes() {
+    System.setProperty(AutoSerializableManager.NO_HARDCODED_EXCLUDES_PARAM, "true");
+    setupSerializer();
+    assertFalse(manager.isExcluded("com.gemstone.gemfire.GemFireException"));
+    assertFalse(manager.isExcluded("com.gemstoneplussuffix.gemfire.GemFireException"));
+    assertFalse(manager.isExcluded("org.apache.geode.GemFireException"));
+    assertFalse(manager.isExcluded("org.apache.geodeplussuffix.gemfire.GemFireException"));
+    assertFalse(manager.isExcluded("javax.management.MBeanException"));
+    assertFalse(manager.isExcluded("javaxplussuffix.management.MBeanException"));
+    assertFalse(manager.isExcluded("java.lang.Exception"));
+    assertFalse(manager.isExcluded("javaplussuffix.lang.Exception"));
+    assertFalse(manager.isExcluded("com.example.Moof"));
+  }
+
+  /*
+   * Tests the exclusion algorithm to verify that it does not cast too wide of a net.
+   */
+  @Test
+  public void testHardCodedExcludes() {
+    System.setProperty(AutoSerializableManager.NO_HARDCODED_EXCLUDES_PARAM, "false");
+    setupSerializer();
+    assertTrue(manager.isExcluded("com.gemstone.gemfire.GemFireException"));
+    assertFalse(manager.isExcluded("com.gemstoneplussuffix.gemfire.GemFireException"));
+    assertTrue(manager.isExcluded("org.apache.geode.GemFireException"));
+    assertFalse(manager.isExcluded("org.apache.geodeplussuffix.gemfire.GemFireException"));
+    assertTrue(manager.isExcluded("javax.management.MBeanException"));
+    assertFalse(manager.isExcluded("javaxplussuffix.management.MBeanException"));
+    assertTrue(manager.isExcluded("java.lang.Exception"));
+    assertFalse(manager.isExcluded("javaplussuffix.lang.Exception"));
+    assertFalse(manager.isExcluded("com.example.Moof"));
   }
 
   /*

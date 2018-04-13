@@ -31,9 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.geode.test.junit.categories.ClientServerTest;
-import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
+import org.awaitility.Awaitility;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -94,12 +94,14 @@ import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
+import org.apache.geode.test.junit.categories.ClientServerTest;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
 
 /**
  * Tests putAll for c/s. Also tests removeAll
- * 
+ *
  * @since GemFire 5.0.23
  */
 @Category({DistributedTest.class, ClientServerTest.class, ClientSubscriptionTest.class})
@@ -374,7 +376,7 @@ public class PutAllCSDUnitTest extends ClientServerTestCase {
      * ads = AdminDistributedSystemFactory.getDistributedSystem(config); ads.connect();
      * DistributedMember distributedMember = system.getDistributedMember(); SystemMember member =
      * ads.lookupSystemMember(distributedMember);
-     * 
+     *
      * StatisticResource[] resources = member.getStats(); for (int i=0; i<resources.length; i++) {
      * System.out.println("GGG:"+resources[i].getType()); if
      * (resources[i].getType().equals("CacheServerClientStats")) { Statistic[] stats =
@@ -2972,8 +2974,10 @@ public class PutAllCSDUnitTest extends ClientServerTestCase {
       }
     });
 
-    LogWriterUtils.getLogWriter().info("event counters : " + myListener.sc);
-    assertEquals(numberOfEntries, myListener.sc.num_create_event);
+    LogWriterUtils.getLogWriter().info("event counters before wait : " + myListener.sc);
+    Awaitility.await().atMost(10, TimeUnit.SECONDS)
+        .until(() -> assertEquals(numberOfEntries, myListener.sc.num_create_event));
+    LogWriterUtils.getLogWriter().info("event counters after wait : " + myListener.sc);
     assertEquals(0, myListener.sc.num_update_event);
 
     server1.invoke(removeExceptionTag1(expectedExceptions));
@@ -4493,7 +4497,7 @@ public class PutAllCSDUnitTest extends ClientServerTestCase {
     public void afterInvalidate(EntryEvent event) {
       sc.num_invalidate_event++;
       LogWriterUtils.getLogWriter().info("local invalidate is triggered for " + event.getKey()
-          + ":num_invalidte_event=" + sc.num_invalidate_event);
+          + ":num_invalidate_event=" + sc.num_invalidate_event);
     }
 
     @Override
@@ -4503,7 +4507,7 @@ public class PutAllCSDUnitTest extends ClientServerTestCase {
         assertEquals("removeAllCallback", event.getCallbackArgument());
       }
       LogWriterUtils.getLogWriter().info("local destroy is triggered for " + event.getKey()
-          + ":num_invalidte_event=" + sc.num_destroy_event);
+          + ":num_destroy_event=" + sc.num_destroy_event);
     }
   }
 

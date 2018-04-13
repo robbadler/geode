@@ -40,13 +40,10 @@ import org.apache.commons.modeler.Registry;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 
-import org.apache.geode.LogWriter;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.admin.RuntimeAdminException;
-import org.apache.geode.admin.internal.AdminDistributedSystemImpl;
 import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.i18n.LocalizedStrings;
-import org.apache.geode.internal.logging.InternalLogWriter;
 import org.apache.geode.internal.logging.LogService;
 
 /**
@@ -90,7 +87,7 @@ public class MBeanUtil {
       new HashMap<NotificationListener, Map<RefreshNotificationType, Integer>>();
 
   /** key=ObjectName, value=ManagedResource */
-  private final static Map<ObjectName, ManagedResource> managedResources =
+  private static final Map<ObjectName, ManagedResource> managedResources =
       new HashMap<ObjectName, ManagedResource>();
 
   static {
@@ -103,7 +100,7 @@ public class MBeanUtil {
 
   /**
    * Initializes Mbean Server, Registry, Refresh Timer & registers Server Notification Listener.
-   * 
+   *
    * @return reference to the mbeanServer
    */
   static MBeanServer start() {
@@ -163,7 +160,6 @@ public class MBeanUtil {
         registry.setMBeanServer(mbeanServer);
 
         String mbeansResource = getOSPath("/org/apache/geode/admin/jmx/mbeans-descriptors.xml");
-        // System.out.println(LocalizedStrings.MBeanUtil_LOADING_RESOURCE_0.toLocalizedString(mbeansResource));
 
         URL url = ClassPathLoader.getLatest().getResource(MBeanUtil.class, mbeansResource);
         raiseOnFailure(url != null, LocalizedStrings.MBeanUtil_FAILED_TO_FIND_0
@@ -440,16 +436,12 @@ public class MBeanUtil {
    */
   static void validateRefreshTimer() {
     if (refreshTimerObjectName == null || refreshTimer == null) {
-      // if (refreshTimerObjectName == null) System.out.println("refreshTimerObjectName is null");
-      // if (refreshTimer == null) System.out.println("refreshTimer is null");
-      // System.out.println("[validateRefreshTimer] createRefreshTimer");
       createRefreshTimer();
     }
 
     raiseOnFailure(refreshTimer != null, "Failed to validate Refresh Timer");
 
     if (mbeanServer != null && !mbeanServer.isRegistered(refreshTimerObjectName)) {
-      // System.out.println("[validateRefreshTimer] registerMBean");
       try {
         mbeanServer.registerMBean(refreshTimer, refreshTimerObjectName);
       } catch (JMException e) {
@@ -572,7 +564,7 @@ public class MBeanUtil {
 
   /**
    * Returns true if a MBean with given ObjectName is registered.
-   * 
+   *
    * @param objectName ObjectName to use for checking if MBean is registered
    * @return true if MBeanServer is not null & MBean with given ObjectName is registered with the
    *         MBeanServer
@@ -732,7 +724,7 @@ public class MBeanUtil {
   /**
    * Logs the stack trace for the given Throwable if logger is initialized else prints the stack
    * trace using System.out.
-   * 
+   *
    * @param level severity level to log at
    * @param throwable Throwable to log stack trace for
    */
@@ -743,7 +735,7 @@ public class MBeanUtil {
   /**
    * Logs the stack trace for the given Throwable if logger is initialized else prints the stack
    * trace using System.out.
-   * 
+   *
    * @param level severity level to log at
    * @param throwable Throwable to log stack trace for
    * @param message user friendly error message to show
@@ -754,7 +746,7 @@ public class MBeanUtil {
 
   /**
    * Raises RuntimeAdminException with given 'message' if given 'condition' is false.
-   * 
+   *
    * @param condition condition to evaluate
    * @param message failure message
    */
@@ -764,4 +756,3 @@ public class MBeanUtil {
     }
   }
 }
-

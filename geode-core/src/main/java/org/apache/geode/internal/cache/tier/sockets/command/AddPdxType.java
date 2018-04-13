@@ -24,7 +24,6 @@ import org.apache.geode.internal.cache.tier.sockets.BaseCommand;
 import org.apache.geode.internal.cache.tier.sockets.Message;
 import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.security.AuthorizeRequest;
 import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.pdx.internal.PdxType;
 import org.apache.geode.pdx.internal.TypeRegistry;
@@ -32,7 +31,7 @@ import org.apache.geode.pdx.internal.TypeRegistry;
 public class AddPdxType extends BaseCommand {
   private static final Logger logger = LogService.getLogger();
 
-  private final static AddPdxType singleton = new AddPdxType();
+  private static final AddPdxType singleton = new AddPdxType();
 
   public static Command getCommand() {
     return singleton;

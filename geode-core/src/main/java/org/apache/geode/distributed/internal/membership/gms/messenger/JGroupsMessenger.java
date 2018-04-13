@@ -20,7 +20,50 @@ import static org.apache.geode.internal.DataSerializableFixedID.FIND_COORDINATOR
 import static org.apache.geode.internal.DataSerializableFixedID.JOIN_REQUEST;
 import static org.apache.geode.internal.DataSerializableFixedID.JOIN_RESPONSE;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import org.apache.logging.log4j.Logger;
+import org.jgroups.Address;
+import org.jgroups.Event;
+import org.jgroups.JChannel;
+import org.jgroups.Message;
+import org.jgroups.Message.Flag;
+import org.jgroups.Message.TransientFlag;
+import org.jgroups.ReceiverAdapter;
+import org.jgroups.View;
+import org.jgroups.ViewId;
+import org.jgroups.conf.ClassConfigurator;
+import org.jgroups.protocols.UDP;
+import org.jgroups.protocols.pbcast.NAKACK2;
+import org.jgroups.protocols.pbcast.NakAckHeader2;
+import org.jgroups.stack.IpAddress;
+import org.jgroups.util.Digest;
+import org.jgroups.util.UUID;
+
 import org.apache.geode.DataSerializer;
 import org.apache.geode.ForcedDisconnectException;
 import org.apache.geode.GemFireConfigException;
@@ -29,9 +72,9 @@ import org.apache.geode.SystemConnectException;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
 import org.apache.geode.distributed.DurableClientAttributes;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DMStats;
 import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionStats;
 import org.apache.geode.distributed.internal.HighPriorityDistributionMessage;
@@ -61,48 +104,6 @@ import org.apache.geode.internal.logging.log4j.AlertAppender;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.net.SocketCreator;
 import org.apache.geode.internal.tcp.MemberShunnedException;
-import org.apache.logging.log4j.Logger;
-import org.jgroups.Address;
-import org.jgroups.Event;
-import org.jgroups.JChannel;
-import org.jgroups.Message;
-import org.jgroups.Message.Flag;
-import org.jgroups.Message.TransientFlag;
-import org.jgroups.ReceiverAdapter;
-import org.jgroups.View;
-import org.jgroups.ViewId;
-import org.jgroups.conf.ClassConfigurator;
-import org.jgroups.protocols.UDP;
-import org.jgroups.protocols.pbcast.NAKACK2;
-import org.jgroups.protocols.pbcast.NakAckHeader2;
-import org.jgroups.stack.IpAddress;
-import org.jgroups.util.Digest;
-import org.jgroups.util.UUID;
-
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 
 @SuppressWarnings("StatementWithEmptyBody")
@@ -195,8 +196,6 @@ public class JGroupsMessenger implements Messenger {
 
     String properties;
     try {
-      // PlainConfigurator config = PlainConfigurator.getInstance(is);
-      // properties = config.getProtocolStackString();
       StringBuilder sb = new StringBuilder(3000);
       BufferedReader br;
       br = new BufferedReader(new InputStreamReader(is, "US-ASCII"));
@@ -408,7 +407,7 @@ public class JGroupsMessenger implements Messenger {
     mbrs.addAll(v.getMembers().stream().map(JGAddress::new).collect(Collectors.toList()));
     ViewId vid = new ViewId(new JGAddress(v.getCoordinator()), v.getViewId());
     View jgv = new View(vid, new ArrayList<>(mbrs));
-    logger.trace("installing JGroups view: {}", jgv);
+    logger.trace("installing view into JGroups stack: {}", jgv);
     this.myChannel.down(new Event(Event.VIEW_CHANGE, jgv));
 
     addressesWithIoExceptionsProcessed.clear();
@@ -484,29 +483,15 @@ public class JGroupsMessenger implements Messenger {
         logger
             .info("Unable to find getPhysicallAddress method in UDP - parsing its address instead");
       }
-
-      // if (this.jgAddress == null) {
-      // String addr = udp.getLocalPhysicalAddress();
-      // int cidx = addr.lastIndexOf(':'); // IPv6 literals might have colons
-      // String host = addr.substring(0, cidx);
-      // int jgport = Integer.parseInt(addr.substring(cidx+1, addr.length()));
-      // try {
-      // this.jgAddress = new JGAddress(logicalAddress, new IpAddress(InetAddress.getByName(host),
-      // jgport));
-      // } catch (UnknownHostException e) {
-      // myChannel.disconnect();
-      // throw new SystemConnectException("unable to initialize jgroups address", e);
-      // }
-      // }
     }
 
     // install the address in the JGroups channel protocols
     myChannel.down(new Event(Event.SET_LOCAL_ADDRESS, this.jgAddress));
 
     DistributionConfig config = services.getConfig().getDistributionConfig();
-    boolean isLocator =
-        (services.getConfig().getTransport().getVmKind() == DistributionManager.LOCATOR_DM_TYPE)
-            || !services.getConfig().getDistributionConfig().getStartLocator().isEmpty();
+    boolean isLocator = (services.getConfig().getTransport()
+        .getVmKind() == ClusterDistributionManager.LOCATOR_DM_TYPE)
+        || !services.getConfig().getDistributionConfig().getStartLocator().isEmpty();
 
     // establish the DistributedSystem's address
     DurableClientAttributes dca = null;
@@ -714,7 +699,6 @@ public class JGroupsMessenger implements Messenger {
         }
         final String channelClosed =
             LocalizedStrings.GroupMembershipService_CHANNEL_CLOSED.toLocalizedString();
-        // services.getManager().membershipFailure(channelClosed, problem);
         throw new DistributedSystemDisconnectedException(channelClosed, problem);
       }
     } // useMcast
@@ -792,7 +776,6 @@ public class JGroupsMessenger implements Messenger {
           }
           final String channelClosed =
               LocalizedStrings.GroupMembershipService_CHANNEL_CLOSED.toLocalizedString();
-          // services.getManager().membershipFailure(channelClosed, problem);
           throw new DistributedSystemDisconnectedException(channelClosed, problem);
         }
       } // send individually
@@ -821,7 +804,7 @@ public class JGroupsMessenger implements Messenger {
    * This is the constructor to use to create a JGroups message holding a GemFire
    * DistributionMessage. It sets the appropriate flags in the Message and properly serializes the
    * DistributionMessage for the recipient's product version
-   * 
+   *
    * @param gfmsg the DistributionMessage
    * @param src the sender address
    * @param version the version of the recipient
@@ -949,7 +932,7 @@ public class JGroupsMessenger implements Messenger {
     // which is fairly rare
     msg.setFlag(Flag.DONT_BUNDLE);
 
-    if (gfmsg.getProcessorType() == DistributionManager.HIGH_PRIORITY_EXECUTOR
+    if (gfmsg.getProcessorType() == ClusterDistributionManager.HIGH_PRIORITY_EXECUTOR
         || gfmsg instanceof HighPriorityDistributionMessage || AlertAppender.isThreadAlerting()) {
       msg.setFlag(Flag.OOB);
       msg.setFlag(Flag.NO_FC);
@@ -992,9 +975,6 @@ public class JGroupsMessenger implements Messenger {
           new DataInputStream(new ByteArrayInputStream(buf, jgmsg.getOffset(), jgmsg.getLength()));
 
       short ordinal = Version.readOrdinal(dis);
-
-      // logger.info("JGroupsMessenger read ordinal {} version is {}. My version is {}",
-      // ordinal, Version.fromOrdinalOrCurrent(ordinal), Version.CURRENT);
 
       if (ordinal < Version.CURRENT_ORDINAL) {
         dis = new VersionedDataInputStream(dis, Version.fromOrdinalNoThrow(ordinal, true));
@@ -1074,7 +1054,6 @@ public class JGroupsMessenger implements Messenger {
       if (readPK) {
         // need to read PK
         pk = InternalDataSerializer.readByteArray(dis);
-        // encrypt.setPublicKey(publickey, mbr);
         data = InternalDataSerializer.readByteArray(dis);
         // using prefixed pk from sender
         data = encryptLocal.decryptData(data, pk);
@@ -1288,7 +1267,7 @@ public class JGroupsMessenger implements Messenger {
         // multicast to them, avoiding deserialization cost and classpath
         // problems
         if ((services.getConfig().getTransport()
-            .getVmKind() == DistributionManager.ADMIN_ONLY_DM_TYPE)
+            .getVmKind() == ClusterDistributionManager.ADMIN_ONLY_DM_TYPE)
             && (msg instanceof DistributedCacheOperation.CacheOperationMessage)) {
           return;
         }

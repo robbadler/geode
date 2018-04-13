@@ -14,14 +14,9 @@
  */
 package org.apache.geode.cache30;
 
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
+import org.junit.Test;
 
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.CacheException;
@@ -346,7 +341,6 @@ public abstract class CacheListenerTestCase extends CacheLoaderTestCase {
 
     region = createRegion(name, attrs);
     assertTrue(region.getAttributes().getCacheListener() != null);
-    // org.apache.geode.internal.util.DebuggerSupport.waitForJavaDebugger(getLogWriter());
     region.destroyRegion();
     Wait.pause(100); // extra pause
     assertTrue(region.isDestroyed());
@@ -368,8 +362,6 @@ public abstract class CacheListenerTestCase extends CacheLoaderTestCase {
   public void testCacheListenerAfterRegionInvalidate() throws CacheException, InterruptedException {
 
     final String name = this.getUniqueName();
-    // Object arg = "ARG";
-    // final String exception = "EXCEPTION";
 
     TestCacheListener listener = new TestCacheListener() {
       private boolean closed = false;

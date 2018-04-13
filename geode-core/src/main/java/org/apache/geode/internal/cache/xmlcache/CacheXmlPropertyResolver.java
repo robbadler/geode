@@ -26,7 +26,7 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
 /**
  * Property resolver for resolving ${} like strings with system or Gemfire properties in Cache.xml
- * 
+ *
  * @since GemFire 6.6
  */
 public class CacheXmlPropertyResolver implements PropertyResolver {
@@ -65,8 +65,7 @@ public class CacheXmlPropertyResolver implements PropertyResolver {
   /**
    * Sets <code>propertyOverridden</code> with one of the constants specified in this
    * {@link CacheXmlPropertyResolver} class.
-   * 
-   * @param propertyOverridden
+   *
    */
   public void setPropertyOverridden(int propertyOverridden) {
     this.propertyOverridden = propertyOverridden;
@@ -85,9 +84,7 @@ public class CacheXmlPropertyResolver implements PropertyResolver {
    * returns the replacement of the property found in available properties. If no string replacement
    * is found then {@link IllegalArgumentException} would be thrown based on
    * <code>ignoreUnresolvedProperties</code> flag being set by {@link CacheXmlParser}.
-   * 
-   * @param replaceString
-   * @return resolvedString
+   *
    */
   public String resolveReplaceString(String replaceString) {
     String replacement = null;
@@ -106,12 +103,6 @@ public class CacheXmlPropertyResolver implements PropertyResolver {
     return replacement;
   }
 
-  /**
-   * @param stringWithPrefixAndSuffix
-   * @param prefix
-   * @param suffix
-   * @return string
-   */
   public String processUnresolvableString(String stringWithPrefixAndSuffix, String prefix,
       String suffix) {
     String resolvedString = null;

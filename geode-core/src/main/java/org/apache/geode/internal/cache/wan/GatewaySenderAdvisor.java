@@ -33,9 +33,9 @@ import org.apache.geode.cache.util.Gateway;
 import org.apache.geode.cache.wan.GatewaySender.OrderPolicy;
 import org.apache.geode.cache.wan.GatewayTransportFilter;
 import org.apache.geode.distributed.DistributedLockService;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionAdvisee;
 import org.apache.geode.distributed.internal.DistributionAdvisor;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.ServerLocation;
 import org.apache.geode.distributed.internal.locks.DLockService;
@@ -43,7 +43,6 @@ import org.apache.geode.distributed.internal.membership.InternalDistributedMembe
 import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.Version;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.UpdateAttributesProcessor;
 import org.apache.geode.internal.i18n.LocalizedStrings;
@@ -332,7 +331,7 @@ public class GatewaySenderAdvisor extends DistributionAdvisor {
    * Find out if this sender is the eldest in the DS. Returns true if: 1. No other sender is running
    * 2. At least one sender is running in the system apart from this sender AND this sender's start
    * time is lesser of all (i.e. this sender is oldest)
-   * 
+   *
    * @return boolean true if this eldest sender; false otherwise
    */
   private boolean adviseEldestGatewaySender() {
@@ -673,7 +672,7 @@ public class GatewaySenderAdvisor extends DistributionAdvisor {
       }
     }
 
-    private final static Version[] serializationVersions = new Version[] {Version.GFE_80};
+    private static final Version[] serializationVersions = new Version[] {Version.GFE_80};
 
     @Override
     public Version[] getSerializationVersions() {
@@ -686,8 +685,8 @@ public class GatewaySenderAdvisor extends DistributionAdvisor {
     }
 
     @Override
-    public void processIncoming(DistributionManager dm, String adviseePath, boolean removeProfile,
-        boolean exchangeProfiles, final List<Profile> replyProfiles) {
+    public void processIncoming(ClusterDistributionManager dm, String adviseePath,
+        boolean removeProfile, boolean exchangeProfiles, final List<Profile> replyProfiles) {
       InternalCache cache = dm.getCache();
       if (cache != null) {
         AbstractGatewaySender sender = (AbstractGatewaySender) cache.getGatewaySender(adviseePath);

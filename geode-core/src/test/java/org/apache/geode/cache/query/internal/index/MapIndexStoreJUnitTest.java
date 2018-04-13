@@ -37,16 +37,17 @@ import org.apache.geode.cache.query.internal.index.IndexStore.IndexStoreEntry;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.RegionEntry;
 import org.apache.geode.internal.cache.RegionEntryContext;
-import org.apache.geode.internal.cache.VMThinRegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VMThinRegionEntryHeap;
 import org.apache.geode.internal.cache.persistence.query.CloseableIterator;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
 /**
  * Test class that will be extended to provide the IndexStorage structure to test Tests apis of the
  * IndexStorage
  *
  */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLIndexTest.class})
 public class MapIndexStoreJUnitTest {
 
   IndexStore indexDataStructure;

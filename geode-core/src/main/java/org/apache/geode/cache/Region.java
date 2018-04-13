@@ -67,16 +67,16 @@ import org.apache.geode.cache.snapshot.RegionSnapshotService;
  * in turn has parent region <i>1st_level_region</i>; and region <i>1st_level_region</i> is a child
  * of the root region. Then,the user can get the region <i>3rd_level_region</i> from the root region
  * by issuing:
- * 
+ *
  * <pre>
  *  <code>
  *  region3 = root.getSubregion("1st_level_region/2nd_level_region/3rd_level_region");
  *  </code>
  * </pre>
- * 
+ *
  * or the user can get the region <i>3rd_level_region</i> from region <i>1st_level_region</i> by
  * issuing
- * 
+ *
  * <pre>
  *  <code>
  *  region3 = region1.getSubregion("2nd_level_region/3rd_level_region");
@@ -132,7 +132,7 @@ import org.apache.geode.cache.snapshot.RegionSnapshotService;
  * CacheListener called on the client. Any local state on the client will be updated to be
  * consistent with the state change made on the server.
  * <p>
- * 
+ *
  * @see RegionAttributes
  * @see AttributesFactory
  * @see AttributesMutator
@@ -142,10 +142,10 @@ import org.apache.geode.cache.snapshot.RegionSnapshotService;
 
 public interface Region<K, V> extends ConcurrentMap<K, V> {
   /** The region name separator character. */
-  public static final char SEPARATOR_CHAR = '/';
+  char SEPARATOR_CHAR = '/';
 
   /** The region name separator character, represented as a string for convenience. */
-  public static final String SEPARATOR = "/";
+  String SEPARATOR = "/";
 
   /**
    * Returns the name of this region. A region's name can be any non-empty String providing it does
@@ -156,7 +156,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @return the name of this region
    */
-  public String getName();
+  String getName();
 
   /**
    * Returns the full path of this region starting with a forward slash, followed by the root,
@@ -166,7 +166,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @return the full path of this region
    */
-  public String getFullPath();
+  String getFullPath();
 
   /**
    * Gets the parent region of this region. If this region is a root region, returns null.
@@ -176,7 +176,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @return the parent region which contains this region; null, if this region is the root region
    * @see Region#createSubregion(String, RegionAttributes) createSubregion
    */
-  public <PK, PV> Region<PK, PV> getParentRegion();
+  <PK, PV> Region<PK, PV> getParentRegion();
 
   /**
    * Returns the <code>RegionAttributes</code> for this region. This object is backed by this
@@ -191,7 +191,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see AttributesFactory
    * @see #getAttributesMutator
    */
-  public RegionAttributes<K, V> getAttributes();
+  RegionAttributes<K, V> getAttributes();
 
 
   /**
@@ -201,7 +201,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @return the <code>AttributesMutator</code> object
    * @see #getAttributes
    */
-  public AttributesMutator<K, V> getAttributesMutator();
+  AttributesMutator<K, V> getAttributesMutator();
 
   /**
    * Returns the <code>CacheStatistics</code> for this region.
@@ -210,7 +210,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws StatisticsDisabledException if statistics have been disabled for this region
    * @throws UnsupportedOperationException If the region is a partitioned region
    */
-  public CacheStatistics getStatistics() throws StatisticsDisabledException;
+  CacheStatistics getStatistics() throws StatisticsDisabledException;
 
   /**
    * Invalidates this region. Invalidation cascades to all entries and subregions. After the
@@ -225,7 +225,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws TimeoutException if timed out getting distributed lock for <code>Scope.GLOBAL</code>
    * @see CacheListener#afterRegionInvalidate
    */
-  public void invalidateRegion() throws TimeoutException;
+  void invalidateRegion() throws TimeoutException;
 
   /**
    * Invalidates this region. The invalidation will cascade to all the subregions and cached
@@ -235,7 +235,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * <code>Scope.LOCAL</code>.
    * <p>
    * Does not update any <code>CacheStatistics</code>.
-   * 
+   *
    * @param aCallbackArgument a user-defined parameter to pass to callback events triggered by this
    *        method. Can be null. Should be serializable.
    * @throws org.apache.geode.distributed.LeaseExpiredException if lease expired on distributed lock
@@ -244,7 +244,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws IllegalArgumentException if aCallbackArgument is not serializable
    * @see CacheListener#afterRegionInvalidate
    */
-  public void invalidateRegion(Object aCallbackArgument) throws TimeoutException;
+  void invalidateRegion(Object aCallbackArgument) throws TimeoutException;
 
 
 
@@ -260,7 +260,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws UnsupportedOperationException If the region is a partitioned region
    * @see CacheListener#afterRegionInvalidate
    */
-  public void localInvalidateRegion();
+  void localInvalidateRegion();
 
   /**
    * Invalidates this region in the local cache only, and provides a user-defined argument to the
@@ -269,7 +269,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * In order to remove all the entries and the region, destroyRegion should be used.
    *
    * Does not update any <code>CacheStatistics</code>.
-   * 
+   *
    * @param aCallbackArgument a user-defined parameter to pass to callback events triggered by this
    *        method. Can be null.
    * @throws IllegalStateException if the region is distributed and
@@ -278,7 +278,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheListener#afterRegionInvalidate
    */
 
-  public void localInvalidateRegion(Object aCallbackArgument);
+  void localInvalidateRegion(Object aCallbackArgument);
 
 
   /**
@@ -297,7 +297,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheListener#afterRegionDestroy
    * @see CacheWriter#beforeRegionDestroy
    */
-  public void destroyRegion() throws CacheWriterException, TimeoutException;
+  void destroyRegion() throws CacheWriterException, TimeoutException;
 
   /**
    * Destroys the whole region and provides a user-defined parameter object to any
@@ -319,7 +319,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheListener#afterRegionDestroy
    * @see CacheWriter#beforeRegionDestroy
    */
-  public void destroyRegion(Object aCallbackArgument) throws CacheWriterException, TimeoutException;
+  void destroyRegion(Object aCallbackArgument) throws CacheWriterException, TimeoutException;
 
   /**
    * Destroys the whole region in the local cache only. No <code>CacheWriter</code> is invoked.
@@ -332,7 +332,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @see CacheListener#afterRegionDestroy
    */
-  public void localDestroyRegion();
+  void localDestroyRegion();
 
   /**
    * Destroys the whole region in the local cache only, and provides a user-defined argument to a
@@ -343,12 +343,12 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * object will get {@link RegionDestroyedException} exception.
    * <p>
    * Does not update any <code>CacheStatistics</code>.
-   * 
+   *
    * @param aCallbackArgument a user-defined parameter to pass to callback events triggered by this
    *        call. Can be null.
    * @see CacheListener#afterRegionDestroy
    */
-  public void localDestroyRegion(Object aCallbackArgument);
+  void localDestroyRegion(Object aCallbackArgument);
 
   /**
    * Does a localDestroyRegion, but leaves behind the disk files if this is a region with
@@ -361,14 +361,14 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see Region#localDestroyRegion()
    * @see CacheListener#afterRegionDestroy
    */
-  public void close();
+  void close();
 
   /**
    * Obtains the snapshot service to allow the cache data to be imported or exported.
-   * 
+   *
    * @return the snapshot service for the region
    */
-  public RegionSnapshotService<K, V> getSnapshotService();
+  RegionSnapshotService<K, V> getSnapshotService();
 
   /**
    * Saves the data in this region in a snapshot file. The data is a "concurrent" snapshot in that
@@ -381,10 +381,10 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws IOException if encountered while writing the file
    * @throws UnsupportedOperationException If the region is a partitioned region
    * @see #loadSnapshot
-   * 
+   *
    * @deprecated as of 7.0 use {@link #getSnapshotService()}
    */
-  public void saveSnapshot(OutputStream outputStream) throws IOException;
+  void saveSnapshot(OutputStream outputStream) throws IOException;
 
   /**
    * Loads data from a file that was previously created with the saveSnapshot method. This method
@@ -429,10 +429,10 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws UnsupportedOperationException If the region is a partitioned region
    *
    * @see RegionReinitializedException
-   * 
+   *
    * @deprecated as of 7.0 use {@link #getSnapshotService()}
    */
-  public void loadSnapshot(InputStream inputStream)
+  void loadSnapshot(InputStream inputStream)
       throws IOException, ClassNotFoundException, CacheWriterException, TimeoutException;
 
   /**
@@ -447,7 +447,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see Region Region
    * @see Region#getFullPath
    */
-  public <SK, SV> Region<SK, SV> getSubregion(String path);
+  <SK, SV> Region<SK, SV> getSubregion(String path);
 
 
   /**
@@ -479,7 +479,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @deprecated as of 7.0 use {@link RegionFactory#createSubregion(Region, String)} or
    *             {@link ClientRegionFactory#createSubregion(Region, String)}.
    */
-  public <SK, SV> Region<SK, SV> createSubregion(String subregionName,
+  <SK, SV> Region<SK, SV> createSubregion(String subregionName,
       RegionAttributes<SK, SV> aRegionAttributes) throws RegionExistsException, TimeoutException;
 
   /**
@@ -498,7 +498,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *        recursively
    * @return a Set of subregions
    */
-  public Set<Region<?, ?>> subregions(boolean recursive);
+  Set<Region<?, ?>> subregions(boolean recursive);
 
 
   /**
@@ -508,7 +508,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @return the Region.Entry for the specified key or null if not found in this region
    * @throws NullPointerException if key is null
    */
-  public Entry<K, V> getEntry(Object key);
+  Entry<K, V> getEntry(Object key);
 
   /**
    * Returns the value associated with the specified key. If the value is not present locally for
@@ -557,7 +557,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheWriter#beforeCreate
    * @see CacheWriter#beforeUpdate
    */
-  public V get(Object key) throws CacheLoaderException, TimeoutException;
+  V get(Object key) throws CacheLoaderException, TimeoutException;
 
   /**
    * Returns the value associated with the specified key, passing the callback argument to any cache
@@ -613,7 +613,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheWriter#beforeCreate
    * @see CacheWriter#beforeUpdate
    */
-  public V get(Object key, Object aCallbackArgument) throws TimeoutException, CacheLoaderException;
+  V get(Object key, Object aCallbackArgument) throws TimeoutException, CacheLoaderException;
 
   /**
    * Places a new value into an entry in this region with the specified key. If there is already an
@@ -651,7 +651,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheWriter#beforeCreate
    * @see CacheWriter#beforeUpdate
    */
-  public V put(K key, V value) throws TimeoutException, CacheWriterException;
+  V put(K key, V value) throws TimeoutException, CacheWriterException;
 
 
   /**
@@ -696,11 +696,12 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheWriter#beforeCreate
    * @see CacheWriter#beforeUpdate
    */
-  public V put(K key, V value, Object aCallbackArgument)
-      throws TimeoutException, CacheWriterException;
+  V put(K key, V value, Object aCallbackArgument) throws TimeoutException, CacheWriterException;
 
   /**
-   * Creates a new entry in this region with the specified key and value.
+   * Creates a new entry in this region with the specified key and value if and only if an entry
+   * does not already exist for the specified key. If an entry already exists for the specified
+   * key, throws {@link EntryExistsException}.
    *
    * <p>
    * Updates the {@link CacheStatistics#getLastAccessedTime} and
@@ -732,8 +733,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheWriter#beforeCreate
    * @see CacheWriter#beforeUpdate
    */
-  public void create(K key, V value)
-      throws TimeoutException, EntryExistsException, CacheWriterException;
+  void create(K key, V value) throws TimeoutException, EntryExistsException, CacheWriterException;
 
   /**
    * Creates a new entry in this region with the specified key and value, providing a user-defined
@@ -770,7 +770,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheWriter#beforeCreate
    * @see CacheWriter#beforeUpdate
    */
-  public void create(K key, V value, Object aCallbackArgument)
+  void create(K key, V value, Object aCallbackArgument)
       throws TimeoutException, EntryExistsException, CacheWriterException;
 
   /**
@@ -790,7 +790,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws EntryNotFoundException if the entry does not exist in this region
    * @see CacheListener#afterInvalidate
    */
-  public void invalidate(Object key) throws TimeoutException, EntryNotFoundException;
+  void invalidate(Object key) throws TimeoutException, EntryNotFoundException;
 
   /**
    * Invalidates the entry with the specified key, and provides a user-defined argument to the
@@ -813,7 +813,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheListener#afterInvalidate
    */
 
-  public void invalidate(Object key, Object aCallbackArgument)
+  void invalidate(Object key, Object aCallbackArgument)
       throws TimeoutException, EntryNotFoundException;
 
   /**
@@ -834,7 +834,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws UnsupportedOperationInTransactionException If called in a transactional context
    * @see CacheListener#afterInvalidate
    */
-  public void localInvalidate(Object key) throws EntryNotFoundException;
+  void localInvalidate(Object key) throws EntryNotFoundException;
 
   /**
    * Invalidates the value with the specified key in the local cache only, and provides a
@@ -856,7 +856,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws UnsupportedOperationInTransactionException If called in a transactional context
    * @see CacheListener#afterInvalidate
    */
-  public void localInvalidate(Object key, Object aCallbackArgument) throws EntryNotFoundException;
+  void localInvalidate(Object key, Object aCallbackArgument) throws EntryNotFoundException;
 
 
   /**
@@ -885,8 +885,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheListener#afterDestroy
    * @see CacheWriter#beforeDestroy
    */
-  public V destroy(Object key)
-      throws TimeoutException, EntryNotFoundException, CacheWriterException;
+  V destroy(Object key) throws TimeoutException, EntryNotFoundException, CacheWriterException;
 
 
   /**
@@ -919,7 +918,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheListener#afterDestroy
    * @see CacheWriter#beforeDestroy
    */
-  public V destroy(Object key, Object aCallbackArgument)
+  V destroy(Object key, Object aCallbackArgument)
       throws TimeoutException, EntryNotFoundException, CacheWriterException;
 
   /**
@@ -937,7 +936,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws UnsupportedOperationInTransactionException If called in a transactional context
    * @see CacheListener#afterDestroy
    */
-  public void localDestroy(Object key) throws EntryNotFoundException;
+  void localDestroy(Object key) throws EntryNotFoundException;
 
   /**
    * Destroys the value with the specified key in the local cache only, and provides a user-defined
@@ -957,7 +956,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws UnsupportedOperationInTransactionException If called in a transactional context
    * @see CacheListener#afterDestroy
    */
-  public void localDestroy(Object key, Object aCallbackArgument) throws EntryNotFoundException;
+  void localDestroy(Object key, Object aCallbackArgument) throws EntryNotFoundException;
 
   /**
    * Returns a set of keys in the region.
@@ -974,7 +973,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @return a Set of all the keys
    */
-  public Set<K> keySet();
+  Set<K> keySet();
 
   /**
    * Returns a Collection of values in this region.
@@ -991,10 +990,10 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * <p>
    * Null values are not included in the result collection.
-   * 
+   *
    * @return a Collection of all the objects cached in this region
    */
-  public Collection<V> values();
+  Collection<V> values();
 
   /**
    * Returns the <code>Set</code> of <code>Region.Entry</code> objects in this region. If the
@@ -1016,28 +1015,28 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @return a Set of all the cached objects
    * @see Region.Entry
    */
-  public Set<Region.Entry<?, ?>> entrySet(boolean recursive);
+  Set<Region.Entry<?, ?>> entrySet(boolean recursive);
 
   /**
    * Returns the <code>Cache</code> associated with this region.
    * <p>
    * Does not throw a <code>CacheClosedException</code> if the Cache is closed.
-   * 
+   *
    * @return the Cache
    * @deprecated as of 6.5 use {@link #getRegionService()} instead.
    */
   @Deprecated
-  public Cache getCache();
+  Cache getCache();
 
   /**
    * Returns the <code>cache</code> associated with this region.
    * <p>
    * Does not throw a <code>CacheClosedException</code> if the cache is closed.
-   * 
+   *
    * @return the cache
    * @since GemFire 6.5
    */
-  public RegionService getRegionService();
+  RegionService getRegionService();
 
   /**
    * Returns the application-defined object associated with this region. GemFire does not use this
@@ -1045,30 +1044,30 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @return the user attribute object or null if it has not been set
    */
-  public Object getUserAttribute();
+  Object getUserAttribute();
 
   /**
    * Sets the application-defined object associated with this region. GemFire does not use this
    * object for any purpose.
-   * 
+   *
    * @param value the application-defined object
    */
-  public void setUserAttribute(Object value);
+  void setUserAttribute(Object value);
 
   /**
    * Returns whether this region has been destroyed.
    *
    * <p>
    * Does not throw a <code>RegionDestroyedException</code> if this region has been destroyed.
-   * 
+   *
    * @return true if this region has been destroyed
    */
-  public boolean isDestroyed();
+  boolean isDestroyed();
 
   /**
    * Returns whether there is a valid (non-null) value present for the specified key. This method is
    * equivalent to:
-   * 
+   *
    * <pre>
    * Entry e = getEntry(key);
    * return e != null && e.getValue() != null;
@@ -1077,7 +1076,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @param key the key to check for a valid value
    * @return true if there is an entry in this region for the specified key and it has a valid value
    */
-  public boolean containsValueForKey(Object key);
+  boolean containsValueForKey(Object key);
 
   /**
    * Returns whether the specified key currently exists in this region. This method is equivalent to
@@ -1086,7 +1085,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @param key the key to check for an existing entry
    * @return true if there is an entry in this region for the specified key
    */
-  public boolean containsKey(Object key);
+  boolean containsKey(Object key);
 
 
   /**
@@ -1113,7 +1112,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @throws IllegalStateException if the scope of this region is not global
    * @throws UnsupportedOperationException If the region is a partitioned region
    */
-  public Lock getRegionDistributedLock() throws IllegalStateException;
+  Lock getRegionDistributedLock() throws IllegalStateException;
 
   /**
    * For {@link Scope#GLOBAL} regions, gets a <em>distributed</em> lock on the entry with the
@@ -1124,7 +1123,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * global scope. For example, if an application needs to get two values out of a region with
    * global scope and guarantee that the first value is not modified before the second value is
    * retrieved, it can use this lock in the following manner:
-   * 
+   *
    * <pre>
    * Lock entry1Lock = myRegion.getDistributedLock(key1);
    * Lock entry2Lock = myRegion.getDistributedLock(key2);
@@ -1147,13 +1146,13 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * When a region has global scope, the following operations automatically acquire a distributed
    * lock on an entry: <code>create</code>, <code>put</code>, <code>destroy</code>,
    * <code>invalidate</code>, and <code>get</code> that causes a loader to be invoked.
-   * 
+   *
    * @return a <code>Lock</code> used for acquiring a distributed lock on an entry
    * @throws IllegalStateException if the scope of this region is not global
    * @throws NullPointerException if key is null
    * @throws UnsupportedOperationException If the region is a partitioned region
    */
-  public Lock getDistributedLock(Object key) throws IllegalStateException;
+  Lock getDistributedLock(Object key) throws IllegalStateException;
 
   /**
    * Initiates a flush to asynchronously write unwritten region entries to disk.
@@ -1166,7 +1165,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @deprecated use {@link DiskStore#flush} instead.
    */
   @Deprecated
-  public void writeToDisk();
+  void writeToDisk();
 
   /**
    * Determines whether there is a value in this <code>Region</code> that matches the given
@@ -1186,8 +1185,8 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 4.0
    */
-  public boolean existsValue(String queryPredicate) throws FunctionDomainException,
-      TypeMismatchException, NameResolutionException, QueryInvocationTargetException;
+  boolean existsValue(String queryPredicate) throws FunctionDomainException, TypeMismatchException,
+      NameResolutionException, QueryInvocationTargetException;
 
   /**
    * Filters the values of this region using the <code>queryPredicate</code>. The queryPredicate
@@ -1211,7 +1210,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 4.0
    */
-  public <E> SelectResults<E> query(String queryPredicate) throws FunctionDomainException,
+  <E> SelectResults<E> query(String queryPredicate) throws FunctionDomainException,
       TypeMismatchException, NameResolutionException, QueryInvocationTargetException;
 
   /**
@@ -1232,8 +1231,8 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see QueryService
    * @since GemFire 4.0
    */
-  public Object selectValue(String queryPredicate) throws FunctionDomainException,
-      TypeMismatchException, NameResolutionException, QueryInvocationTargetException;
+  Object selectValue(String queryPredicate) throws FunctionDomainException, TypeMismatchException,
+      NameResolutionException, QueryInvocationTargetException;
 
   /**
    * Asks the region to start writing to a new oplog (if persistence/overflow is turned on). The old
@@ -1249,7 +1248,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @deprecated use {@link DiskStore#forceRoll} instead.
    */
   @Deprecated
-  public void forceRolling();
+  void forceRolling();
 
   /**
    * Specifies this member to become the grantor for this region's lock service. The grantor will be
@@ -1275,7 +1274,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 4.0
    */
-  public void becomeLockGrantor();
+  void becomeLockGrantor();
 
   /**
    * Removes all local entries from this region. This is not a distributed operation. This operation
@@ -1287,21 +1286,21 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see CacheListener#afterRegionClear
    *
    */
-  public void localClear();
+  void localClear();
 
   ////// Map API's ////
   /**
    * Removes all entries from this region. Clear will be distributed to other caches if the scope is
    * not <code>Scope.LOCAL</code>.
    * <p>
-   * 
+   *
    * @since GemFire 5.0
    * @see java.util.Map#clear()
    * @see CacheListener#afterRegionClear
    * @see CacheWriter#beforeRegionClear
    * @throws UnsupportedOperationException If the region is a partitioned region
    */
-  public void clear();
+  void clear();
 
   /**
    * Returns true if this region maps one or more keys to the specified value. More formally,
@@ -1312,7 +1311,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @since GemFire 5.0
    * @see java.util.Map#containsValue(Object)
    */
-  public boolean containsValue(Object value);
+  boolean containsValue(Object value);
 
   /**
    * Returns the <code>Set</code> of <code>Region.Entry</code> objects in this region.
@@ -1335,36 +1334,36 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @since GemFire 5.0
    * @see java.util.Map#entrySet()
    */
-  public Set<Map.Entry<K, V>> entrySet(); // @todo darrel: should be Region.Entry
+  Set<Map.Entry<K, V>> entrySet(); // @todo darrel: should be Region.Entry
 
   /**
    * Returns true if this region contains no entries.
-   * 
+   *
    * @since GemFire 5.0
    * @see java.util.Map#isEmpty()
    * @return true if this region contains no entries.
    */
-  public boolean isEmpty();
+  boolean isEmpty();
 
   /**
    * Copies all of the entries from the specified map to this region. The effect of this call is
    * equivalent to that of calling {@link #put(Object, Object)} on this region once for each entry
    * in the specified map. This operation will be distributed to other caches if the scope is not
    * <code>Scope.LOCAL</code>.
-   * 
+   *
    * @param map the key/value pairs to put in this region.
    * @since GemFire 5.0
    * @see java.util.Map#putAll(Map map)
    * @throws LowMemoryException if a low memory condition is detected.
    */
-  public void putAll(Map<? extends K, ? extends V> map);
+  void putAll(Map<? extends K, ? extends V> map);
 
   /**
    * Copies all of the entries from the specified map to this region. The effect of this call is
    * equivalent to that of calling {@link #put(Object, Object, Object)} on this region once for each
    * entry in the specified map. This operation will be distributed to other caches if the scope is
    * not <code>Scope.LOCAL</code>.
-   * 
+   *
    * @param map the key/value pairs to put in this region.
    * @param aCallbackArgument a user-defined parameter to pass to callback events triggered by this
    *        method. May be null. Must be serializable if this operation is distributed.
@@ -1372,7 +1371,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @see java.util.Map#putAll(Map map)
    * @throws LowMemoryException if a low memory condition is detected.
    */
-  public void putAll(Map<? extends K, ? extends V> map, Object aCallbackArgument);
+  void putAll(Map<? extends K, ? extends V> map, Object aCallbackArgument);
 
   /**
    * Removes all of the entries for the specified keys from this region. The effect of this call is
@@ -1380,12 +1379,12 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * specified collection. If an entry does not exist that key is skipped; EntryNotFoundException is
    * not thrown. This operation will be distributed to other caches if the scope is not
    * <code>Scope.LOCAL</code>.
-   * 
+   *
    * @param keys the keys to remove from this region.
    * @since GemFire 8.1
    * @see Region#destroy(Object)
    */
-  public void removeAll(Collection<? extends K> keys);
+  void removeAll(Collection<? extends K> keys);
 
   /**
    * Removes all of the entries for the specified keys from this region. The effect of this call is
@@ -1393,14 +1392,14 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * in the specified collection. If an entry does not exist that key is skipped;
    * EntryNotFoundException is not thrown. This operation will be distributed to other caches if the
    * scope is not <code>Scope.LOCAL</code>.
-   * 
+   *
    * @param keys the keys to remove from this region.
    * @param aCallbackArgument a user-defined parameter to pass to callback events triggered by this
    *        method. May be null. Must be serializable if this operation is distributed.
    * @since GemFire 8.1
    * @see Region#destroy(Object, Object)
    */
-  public void removeAll(Collection<? extends K> keys, Object aCallbackArgument);
+  void removeAll(Collection<? extends K> keys, Object aCallbackArgument);
 
   /**
    * Gets values for all the keys in the input Collection. If a given key does not exist in the
@@ -1409,18 +1408,18 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * Note that the keys collection should extend K since a load may be done and the key in that case
    * will be stored in the region. The keys parameter was not changed to extend K for backwards
    * compatibility.
-   * 
+   *
    * @param keys A Collection of keys
    * @return A Map of values for the input keys
    *
    * @since GemFire 5.7
    */
-  public Map<K, V> getAll(Collection<?> keys);
+  Map<K, V> getAll(Collection<?> keys);
 
   /**
    * Gets and returns values for all the keys in the input Collection. If a given key does not exist
    * in the region then that key's value in the returned map will be <code>null</code>.
-   * 
+   *
    * @param <T> the type of the keys passed to getAll
    * @param keys A Collection of keys
    * @param aCallbackArgument an argument passed into the CacheLoader if a loader is used. This same
@@ -1434,7 +1433,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 8.1
    */
-  public <T extends K> Map<T, V> getAll(Collection<T> keys, Object aCallbackArgument);
+  <T extends K> Map<T, V> getAll(Collection<T> keys, Object aCallbackArgument);
 
 
   /**
@@ -1467,22 +1466,22 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 5.0
    */
-  public V remove(Object key);
+  V remove(Object key);
 
   /**
    * Returns the number of entries present in this region.
-   * 
+   *
    * For {@link DataPolicy#PARTITION}, this is a distributed operation that returns the number of
    * entries present in entire region.
-   * 
+   *
    * For all other types of regions, it returns the number of entries present locally, and it is not
    * a distributed operation.
-   * 
+   *
    * @since GemFire 5.0
    * @see java.util.Map#size()
    * @return the number of entries present in this region
    */
-  public int size();
+  int size();
 
   /**
    *
@@ -1495,16 +1494,16 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * @return <tt>true</tt> if the specified object is equal to this region.
    * @see Object#equals
    */
-  public boolean equals(Object other);
+  boolean equals(Object other);
 
   /**
    * Returns the hash code value for this region. The hash code of a region is based on identity and
    * uses {@link Object#hashCode}.
-   * 
+   *
    * @return the hash code value for this region.
    * @see Object#hashCode()
    */
-  public int hashCode();
+  int hashCode();
 
   /**
    * Sends a request to the CacheServer to register interest in a key for this client. Updates to
@@ -1513,29 +1512,47 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * cleared from the client and current value for this key is inserted into the local cache before
    * this call returns.
    *
-   * @param key The key on which to register interest. If the key is a <code>List</code>, then all
-   *        the keys in the <code>List</code> will be registered. The key can also be the special
-   *        token 'ALL_KEYS', which will register interest in all keys in the region. In effect,
-   *        this will cause an update to any key in this region in the CacheServer to be pushed to
-   *        the client.
+   * @param key The key on which to register interest.
+   *
+   *        <p>
+   *        ###Deprecated behavior###
+   *        </p>
+   *        <p>
+   *        The following <code>List</code> and
+   *        'ALL_KEYS' behavior is now deprecated. As an alternative, please use
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForKeys(Iterable, InterestResultPolicy)}
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForAllKeys(InterestResultPolicy)}
+   *        </p>
+   *
+   *        <p>
+   *        If the key is a <code>List</code>, then all the keys in the
+   *        <code>List</code> will be registered. The key can also be the special token 'ALL_KEYS',
+   *        which will register interest in all keys in the region. In effect, this will cause an
+   *        update to any key in this region in the CacheServer to be pushed to the client.
+   *        </p>
+   *
+   *        <p>
+   *        <i>Using 'ALL_KEYS' is the same as calling {@link #registerInterestRegex(String)} with
+   *        ".*" as the argument. This means that all keys of any type are pushed to the client and
+   *        inserted into the local cache.</i>
+   *        </p>
+   *        ###End of deprecation###
    *
    *        <p>
    *        This method uses the default <code>InterestResultPolicy</code>.
    *        </p>
    *
    *        <p>
-   *        <i>Using 'ALL_KEYS' is the same as calling {@link #registerInterestRegex(String)} with
-   *        ".*" as the argument. This means that all keys any type are pushed to the client and
-   *        inserted into the local cache.</i>
-   *        </p>
-   * 
-   *        <p>
    *        If you locally-destroy a key and your region has concurrency-checks-enabled turned off
    *        you will not receive invalidation events from your interest subscription for that key.
    *        When concurrency-checks-enabled is turned on GemFire will accept invalidation and
    *        deliver these events to your client cache.
    *        </p>
-   * 
+   *
    * @see InterestResultPolicy
    *
    * @since GemFire 4.2
@@ -1545,7 +1562,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *         enabled.
    * @throws UnsupportedOperationException if the region is a replicate with distributed scope.
    */
-  public void registerInterest(K key);
+  void registerInterest(K key);
 
   /**
    * Sends a request to the CacheServer to register interest in a key for this client. Updates to
@@ -1553,7 +1570,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * currently supported only on clients in a client server topology. This key is first locally
    * cleared from the client and current value for this key is inserted into the local cache before
    * this call returns. (if requested).
-   * 
+   *
    * <p>
    * If you locally-destroy a key and your region has concurrency-checks-enabled turned off you will
    * not receive invalidation events from your interest subscription for that key. When
@@ -1561,17 +1578,35 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * events to your client cache.
    * </p>
    *
-   * @param key The key on which to register interest. If the key is a <code>List</code>, then all
-   *        the keys in the <code>List</code> will be registered. The key can also be the special
-   *        token 'ALL_KEYS', which will register interest in all keys in the region. In effect,
-   *        this will cause an update to any key in this region in the CacheServer to be pushed to
-   *        the client.
+   * @param key The key on which to register interest.
+   *
+   *        <p>
+   *        ###Deprecated behavior###
+   *        </p>
+   *        <p>
+   *        The following <code>List</code> and
+   *        'ALL_KEYS' behavior is now deprecated. As an alternative, please use
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForKeys(Iterable, InterestResultPolicy)}
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForAllKeys(InterestResultPolicy)}
+   *        </p>
+   *
+   *        <p>
+   *        If the key is a <code>List</code>, then all the keys in the
+   *        <code>List</code> will be registered. The key can also be the special token 'ALL_KEYS',
+   *        which will register interest in all keys in the region. In effect, this will cause an
+   *        update to any key in this region in the CacheServer to be pushed to the client.
+   *        </p>
    *
    *        <p>
    *        <i>Using 'ALL_KEYS' is the same as calling {@link #registerInterestRegex(String)} with
    *        ".*" as the argument. This means that all keys of any type are pushed to the client and
    *        inserted into the local cache.</i>
    *        </p>
+   *        ###End of deprecation###
    *
    * @param policy The interest result policy. This can be one of:
    *        <ul>
@@ -1590,7 +1625,272 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 4.2.3
    */
-  public void registerInterest(K key, InterestResultPolicy policy);
+  void registerInterest(K key, InterestResultPolicy policy);
+
+
+  /**
+   * Sends a request to the CacheServer to register interest in all keys for this client. Updates to
+   * any key by other clients will be pushed to this client by the CacheServer. This method is
+   * currently supported only on clients in a client server topology. The keys are first locally
+   * cleared from the client and current value for the keys are inserted into the local cache before
+   * this call returns.
+   *
+   * @since Geode 1.5
+   *
+   * @throws UnsupportedOperationException if the region is not configured with a pool name.
+   * @throws SubscriptionNotEnabledException if the region's pool does not have subscriptions
+   *         enabled.
+   * @throws UnsupportedOperationException if the region is a replicate with distributed scope.
+   */
+  default void registerInterestForAllKeys() {
+    registerInterestRegex(".*");
+  }
+
+
+  /**
+   * Sends a request to the CacheServer to register interest in for all keys for this client.
+   * Updates to any key by other clients will be pushed to this client by the CacheServer. This
+   * method is currently supported only on clients in a client server topology. The keys are first
+   * locally cleared from the client and current value for the keys are inserted into the local
+   * cache before this call returns. (if requested).
+   *
+   * <p>
+   * If you locally-destroy a key and your region has concurrency-checks-enabled turned off you will
+   * not receive invalidation events from your interest subscription for that key. When
+   * concurrency-checks-enabled is turned on GemFire will accept invalidation and deliver these
+   * events to your client cache.
+   * </p>
+   *
+   * @param policy The interest result policy. This can be one of:
+   *        <ul>
+   *        <li>InterestResultPolicy.NONE - does not initialize the local cache</li>
+   *        <li>InterestResultPolicy.KEYS - initializes the local cache with the keys satisfying the
+   *        request</li>
+   *        <li>InterestResultPolicy.KEYS_VALUES - initializes the local cache with the keys and
+   *        current values satisfying the request</li>
+   *        </ul>
+   * @throws UnsupportedOperationException if the region is not configured with a pool name.
+   * @throws SubscriptionNotEnabledException if the region's pool does not have subcriptions
+   *         enabled.
+   * @throws UnsupportedOperationException if the region is a replicate with distributed scope.
+   *
+   * @see InterestResultPolicy
+   *
+   * @since Geode 1.5
+   */
+  default void registerInterestForAllKeys(InterestResultPolicy policy) {
+    registerInterestRegex(".*", policy);
+  }
+
+  /**
+   * Sends a request to the CacheServer to register interest in all keys for this client. Updates to
+   * any key by other clients will be pushed to this client by the CacheServer. This method is
+   * currently supported only on clients in a client server topology. The keys are first locally
+   * cleared from the client and the current value for the keys are inserted into the local cache
+   * before this call returns (if requested).
+   *
+   * @param policy The interest result policy. This can be one of:
+   *        <ul>
+   *        <li>InterestResultPolicy.NONE - does not initialize the local cache</li>
+   *        <li>InterestResultPolicy.KEYS - initializes the local cache with the keys satisfying the
+   *        request</li>
+   *        <li>InterestResultPolicy.KEYS_VALUES - initializes the local cache with the keys and
+   *        current values satisfying the request</li>
+   *        </ul>
+   * @param isDurable true if the register interest is durable
+   * @throws UnsupportedOperationException if the region is not configured with a pool name.
+   * @throws SubscriptionNotEnabledException if the region's pool does not have subscriptions
+   *         enabled.
+   * @throws UnsupportedOperationException if the region is a replicate with distributed scope.
+   *
+   * @see InterestResultPolicy
+   *
+   * @since Geode 1.5
+   */
+  default void registerInterestForAllKeys(InterestResultPolicy policy, boolean isDurable) {
+    registerInterestRegex(".*", policy, isDurable);
+  }
+
+
+  /**
+   * Sends a request to the CacheServer to register interest in all keys for this client. Updates to
+   * any key by other clients will be pushed to this client by the CacheServer. This method is
+   * currently supported only on clients in a client server topology. The keys are first locally
+   * cleared from the client and the current value for the keys are inserted into the local cache
+   * before this call returns (if requested).
+   *
+   * <p>
+   * If you locally-destroy a key and your region has concurrency-checks-enabled turned off you will
+   * not receive invalidation events from your interest subscription for that key. When
+   * concurrency-checks-enabled is turned on GemFire will accept invalidation and deliver these
+   * events to your client cache.
+   * </p>
+   *
+   * @param policy The interest result policy. This can be one of:
+   *        <ul>
+   *        <li>InterestResultPolicy.NONE - does not initialize the local cache</li>
+   *        <li>InterestResultPolicy.KEYS - initializes the local cache with the keys satisfying the
+   *        request</li>
+   *        <li>InterestResultPolicy.KEYS_VALUES - initializes the local cache with the keys and
+   *        current values satisfying the request</li>
+   *        </ul>
+   * @param isDurable true if the register interest is durable
+   * @param receiveValues defaults to true. set to false to receive create or update events as
+   *        invalidates similar to notify-by-subscription false.
+   * @throws UnsupportedOperationException if the region is not configured with a pool name.
+   * @throws SubscriptionNotEnabledException if the region's pool does not have subscriptions
+   *         enabled.
+   * @throws UnsupportedOperationException if the region is a replicate with distributed scope.
+   *
+   * @see InterestResultPolicy
+   *
+   * @since Geode 1.5
+   */
+  default void registerInterestForAllKeys(InterestResultPolicy policy, boolean isDurable,
+      boolean receiveValues) {
+    registerInterestRegex(".*", policy, isDurable, receiveValues);
+  }
+
+  /**
+   * Sends a request to the CacheServer to register interest for all key in the iterable for this
+   * client. Updates to any of the keys in the iterable by other clients will be pushed to this
+   * client by the CacheServer. This method is currently supported only on clients in a client
+   * server topology. The keys are first locally cleared from the client and current value for the
+   * keys are inserted into the local cache before this call returns. (if requested).
+   *
+   * <p>
+   * If you locally-destroy a key and your region has concurrency-checks-enabled turned off you will
+   * not receive invalidation events from your interest subscription for that key. When
+   * concurrency-checks-enabled is turned on GemFire will accept invalidation and deliver these
+   * events to your client cache.
+   * </p>
+   *
+   * @param iterable The <code>Iterable</code> of keys on which to register interest.
+   * @throws UnsupportedOperationException if the region is not configured with a pool name.
+   * @throws SubscriptionNotEnabledException if the region's pool does not have subcriptions
+   *         enabled.
+   * @throws UnsupportedOperationException if the region is a replicate with distributed scope.
+   **
+   * @since Geode 1.5
+   */
+  default void registerInterestForKeys(Iterable<K> iterable) {
+    iterable.forEach(k -> registerInterest(k));
+  }
+
+  /**
+   * Sends a request to the CacheServer to register interest for all key in the iterable for this
+   * client. Updates to any of the keys in the iterable by other clients will be pushed to this
+   * client by the CacheServer. This method is currently supported only on clients in a client
+   * server topology. The keys are first locally cleared from the client and current value for the
+   * keys are inserted into the local cache before this call returns. (if requested).
+   *
+   * <p>
+   * If you locally-destroy a key and your region has concurrency-checks-enabled turned off you will
+   * not receive invalidation events from your interest subscription for that key. When
+   * concurrency-checks-enabled is turned on GemFire will accept invalidation and deliver these
+   * events to your client cache.
+   * </p>
+   *
+   * @param iterable The <code>Iterable</code> of keys on which to register interest.
+   * @param policy The interest result policy. This can be one of:
+   *        <ul>
+   *        <li>InterestResultPolicy.NONE - does not initialize the local cache</li>
+   *        <li>InterestResultPolicy.KEYS - initializes the local cache with the keys satisfying the
+   *        request</li>
+   *        <li>InterestResultPolicy.KEYS_VALUES - initializes the local cache with the keys and
+   *        current values satisfying the request</li>
+   *        </ul>
+   * @throws UnsupportedOperationException if the region is not configured with a pool name.
+   * @throws SubscriptionNotEnabledException if the region's pool does not have subcriptions
+   *         enabled.
+   * @throws UnsupportedOperationException if the region is a replicate with distributed scope.
+   *
+   * @see InterestResultPolicy
+   *
+   * @since Geode 1.5
+   */
+  default void registerInterestForKeys(Iterable<K> iterable, InterestResultPolicy policy) {
+    iterable.forEach(k -> registerInterest(k, policy));
+  }
+
+  /**
+   * Sends a request to the CacheServer to register interest for all key in the iterable for this
+   * client. Updates to any of the keys in the iterable by other clients will be pushed to this
+   * client by the CacheServer. This method is currently supported only on clients in a client
+   * server topology. The keys are first locally cleared from the client and current value for the
+   * keys are inserted into the local cache before this call returns. (if requested).
+   *
+   * <p>
+   * If you locally-destroy a key and your region has concurrency-checks-enabled turned off you will
+   * not receive invalidation events from your interest subscription for that key. When
+   * concurrency-checks-enabled is turned on GemFire will accept invalidation and deliver these
+   * events to your client cache.
+   * </p>
+   *
+   * @param iterable The <code>Iterable</code> of keys on which to register interest.
+   * @param policy The interest result policy. This can be one of:
+   *        <ul>
+   *        <li>InterestResultPolicy.NONE - does not initialize the local cache</li>
+   *        <li>InterestResultPolicy.KEYS - initializes the local cache with the keys satisfying the
+   *        request</li>
+   *        <li>InterestResultPolicy.KEYS_VALUES - initializes the local cache with the keys and
+   *        current values satisfying the request</li>
+   *        </ul>
+   * @param isDurable true if the register interest is durable
+   * @throws UnsupportedOperationException if the region is not configured with a pool name.
+   * @throws SubscriptionNotEnabledException if the region's pool does not have subcriptions
+   *         enabled.
+   * @throws UnsupportedOperationException if the region is a replicate with distributed scope.
+   *
+   * @see InterestResultPolicy
+   *
+   * @since Geode 1.5
+   */
+  default void registerInterestForKeys(Iterable<K> iterable, InterestResultPolicy policy,
+      boolean isDurable) {
+    iterable.forEach(k -> registerInterest(k, policy, isDurable));
+  }
+
+  /**
+   * Sends a request to the CacheServer to register interest for all key in the iterable for this
+   * client. Updates to any of the keys in the iterable by other clients will be pushed to this
+   * client by the CacheServer. This method is currently supported only on clients in a client
+   * server topology. The keys are first locally cleared from the client and current value for the
+   * keys are inserted into the local cache before this call returns. (if requested).
+   *
+   * <p>
+   * If you locally-destroy a key and your region has concurrency-checks-enabled turned off you will
+   * not receive invalidation events from your interest subscription for that key. When
+   * concurrency-checks-enabled is turned on GemFire will accept invalidation and deliver these
+   * events to your client cache.
+   * </p>
+   *
+   * @param iterable The <code>Iterable</code> of keys on which to register interest.
+   * @param policy The interest result policy. This can be one of:
+   *        <ul>
+   *        <li>InterestResultPolicy.NONE - does not initialize the local cache</li>
+   *        <li>InterestResultPolicy.KEYS - initializes the local cache with the keys satisfying the
+   *        request</li>
+   *        <li>InterestResultPolicy.KEYS_VALUES - initializes the local cache with the keys and
+   *        current values satisfying the request</li>
+   *        </ul>
+   * @param isDurable true if the register interest is durable
+   * @param receiveValues defaults to true. set to false to receive create or update events as
+   *        invalidates similar to notify-by-subscription false.
+   * @throws UnsupportedOperationException if the region is not configured with a pool name.
+   * @throws SubscriptionNotEnabledException if the region's pool does not have subcriptions
+   *         enabled.
+   * @throws UnsupportedOperationException if the region is a replicate with distributed scope.
+   *
+   * @see InterestResultPolicy
+   *
+   * @since Geode 1.5
+   */
+  default void registerInterestForKeys(Iterable<K> iterable, InterestResultPolicy policy,
+      boolean isDurable, boolean receiveValues) {
+    iterable.forEach(k -> registerInterest(k, policy, isDurable, receiveValues));
+  }
+
 
   /**
    * Sends a request to the CacheServer to register interest in a regular expression pattern for
@@ -1610,7 +1910,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * <p>
    * The regular expression string is compiled using the {@link java.util.regex.Pattern} class.
    * </p>
-   * 
+   *
    * <p>
    * If you locally-destroy a key and your region has concurrency-checks-enabled turned off you will
    * not receive invalidation events from your interest subscription for that key. When
@@ -1629,7 +1929,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 4.2.3
    */
-  public void registerInterestRegex(String regex);
+  void registerInterestRegex(String regex);
 
   /**
    * Sends a request to the CacheServer to register interest in a regular expression pattern for
@@ -1669,7 +1969,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 4.2.3
    */
-  public void registerInterestRegex(String regex, InterestResultPolicy policy);
+  void registerInterestRegex(String regex, InterestResultPolicy policy);
 
   /**
    * Sends a request to the CacheServer to unregister interest in a key for this client. Updates to
@@ -1682,7 +1982,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 4.2
    */
-  public void unregisterInterest(K key);
+  void unregisterInterest(K key);
 
   /**
    * Sends a request to the CacheServer to unregister interest in a regular expression pattern for
@@ -1695,7 +1995,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 4.2.3
    */
-  public void unregisterInterestRegex(String regex);
+  void unregisterInterestRegex(String regex);
 
   /**
    * Returns the list of keys on which this client is interested and will be notified of changes.
@@ -1706,7 +2006,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 4.2
    */
-  public List<K> getInterestList();
+  List<K> getInterestList();
 
 
   /**
@@ -1716,20 +2016,38 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * cleared from the client and the current value for this key is inserted into the local cache
    * before this call returns.
    *
-   * @param key The key on which to register interest. If the key is a <code>List</code>, then all
-   *        the keys in the <code>List</code> will be registered. The key can also be the special
-   *        token 'ALL_KEYS', which will register interest in all keys in the region. In effect,
-   *        this will cause an update to any key in this region in the CacheServer to be pushed to
-   *        the client.
+   * @param key The key on which to register interest.
    *
    *        <p>
-   *        This method uses the default <code>InterestResultPolicy</code>.
+   *        ###Deprecated behavior###
+   *        </p>
+   *        <p>
+   *        The following <code>List</code> and
+   *        'ALL_KEYS' behavior is now deprecated. As an alternative, please use
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForKeys(Iterable, InterestResultPolicy)}
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForAllKeys(InterestResultPolicy)}
+   *        </p>
+   *
+   *        <p>
+   *        If the key is a <code>List</code>, then all the keys in the
+   *        <code>List</code> will be registered. The key can also be the special token 'ALL_KEYS',
+   *        which will register interest in all keys in the region. In effect, this will cause an
+   *        update to any key in this region in the CacheServer to be pushed to the client.
    *        </p>
    *
    *        <p>
    *        <i>Using 'ALL_KEYS' is the same as calling {@link #registerInterestRegex(String)} with
-   *        ".*" as the argument. This means that all keys any type are pushed to the client and
+   *        ".*" as the argument. This means that all keys of any type are pushed to the client and
    *        inserted into the local cache.</i>
+   *        </p>
+   *        ###End of deprecation###
+   *
+   *        <p>
+   *        This method uses the default <code>InterestResultPolicy</code>.
    *        </p>
    *
    *        <p>
@@ -1750,7 +2068,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *         enabled.
    * @throws UnsupportedOperationException if the region is a replicate with distributed scope.
    */
-  public void registerInterest(K key, boolean isDurable);
+  void registerInterest(K key, boolean isDurable);
 
   /**
    * Sends a request to the CacheServer to register interest in a key for this client. Updates to
@@ -1766,24 +2084,41 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * events to your client cache.
    * </p>
    *
-   * @param key The key on which to register interest. If the key is a <code>List</code>, then all
-   *        the keys in the <code>List</code> will be registered. The key can also be the special
-   *        token 'ALL_KEYS', which will register interest in all keys in the region. In effect,
-   *        this will cause an update to any key in this region in the CacheServer to be pushed to
-   *        the client.
+   * @param key The key on which to register interest.
    *
    *        <p>
-   *        This method uses the default <code>InterestResultPolicy</code>.
+   *        ###Deprecated behavior###
+   *        </p>
+   *        <p>
+   *        The following <code>List</code> and
+   *        'ALL_KEYS' behavior is now deprecated. As an alternative, please use
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForKeys(Iterable, InterestResultPolicy)}
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForAllKeys(InterestResultPolicy)}
+   *        </p>
+   *
+   *        <p>
+   *        If the key is a <code>List</code>, then all the keys in the
+   *        <code>List</code> will be registered. The key can also be the special token 'ALL_KEYS',
+   *        which will register interest in all keys in the region. In effect, this will cause an
+   *        update to any key in this region in the CacheServer to be pushed to the client.
    *        </p>
    *
    *        <p>
    *        <i>Using 'ALL_KEYS' is the same as calling {@link #registerInterestRegex(String)} with
-   *        ".*" as the argument. This means that all keys any type are pushed to the client and
+   *        ".*" as the argument. This means that all keys of any type are pushed to the client and
    *        inserted into the local cache.</i>
    *        </p>
+   *        ###End of deprecation###
    *
+   *        <p>
+   *        This method uses the default <code>InterestResultPolicy</code>.
+   *        </p>
    * @param isDurable true if the register interest is durable
-   * 
+   *
    * @param receiveValues defaults to true. set to false to receive create or update events as
    *        invalidates similar to notify-by-subscription false.
    *
@@ -1796,7 +2131,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *         enabled.
    * @throws UnsupportedOperationException if the region is a replicate with distributed scope.
    */
-  public void registerInterest(K key, boolean isDurable, boolean receiveValues);
+  void registerInterest(K key, boolean isDurable, boolean receiveValues);
 
   /**
    * Sends a request to the CacheServer to register interest in a key for this client. Updates to
@@ -1812,17 +2147,35 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * events to your client cache.
    * </p>
    *
-   * @param key The key on which to register interest. If the key is a <code>List</code>, then all
-   *        the keys in the <code>List</code> will be registered. The key can also be the special
-   *        token 'ALL_KEYS', which will register interest in all keys in the region. In effect,
-   *        this will cause an update to any key in this region in the CacheServer to be pushed to
-   *        the client.
+   * @param key The key on which to register interest.
+   *
+   *        <p>
+   *        ###Deprecated behavior###
+   *        </p>
+   *        <p>
+   *        The following <code>List</code> and
+   *        'ALL_KEYS' behavior is now deprecated. As an alternative, please use
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForKeys(Iterable, InterestResultPolicy)}
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForAllKeys(InterestResultPolicy)}
+   *        </p>
+   *
+   *        <p>
+   *        If the key is a <code>List</code>, then all the keys in the
+   *        <code>List</code> will be registered. The key can also be the special token 'ALL_KEYS',
+   *        which will register interest in all keys in the region. In effect, this will cause an
+   *        update to any key in this region in the CacheServer to be pushed to the client.
+   *        </p>
    *
    *        <p>
    *        <i>Using 'ALL_KEYS' is the same as calling {@link #registerInterestRegex(String)} with
    *        ".*" as the argument. This means that all keys of any type are pushed to the client and
    *        inserted into the local cache.</i>
    *        </p>
+   *        ###End of deprecation###
    *
    * @param policy The interest result policy. This can be one of:
    *        <ul>
@@ -1844,7 +2197,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 6.0.3
    */
-  public void registerInterest(K key, InterestResultPolicy policy, boolean isDurable,
+  void registerInterest(K key, InterestResultPolicy policy, boolean isDurable,
       boolean receiveValues);
 
   /**
@@ -1854,17 +2207,35 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * cleared from the client and the current value for this key is inserted into the local cache
    * before this call returns (if requested).
    *
-   * @param key The key on which to register interest. If the key is a <code>List</code>, then all
-   *        the keys in the <code>List</code> will be registered. The key can also be the special
-   *        token 'ALL_KEYS', which will register interest in all keys in the region. In effect,
-   *        this will cause an update to any key in this region in the CacheServer to be pushed to
-   *        the client.
+   * @param key The key on which to register interest.
+   *
+   *        <p>
+   *        ###Deprecated behavior###
+   *        </p>
+   *        <p>
+   *        The following <code>List</code> and
+   *        'ALL_KEYS' behavior is now deprecated. As an alternative, please use
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForKeys(Iterable, InterestResultPolicy)}
+   *        </p>
+   *        <p>
+   *        {@link #registerInterestForAllKeys(InterestResultPolicy)}
+   *        </p>
+   *
+   *        <p>
+   *        If the key is a <code>List</code>, then all the keys in the
+   *        <code>List</code> will be registered. The key can also be the special token 'ALL_KEYS',
+   *        which will register interest in all keys in the region. In effect, this will cause an
+   *        update to any key in this region in the CacheServer to be pushed to the client.
+   *        </p>
    *
    *        <p>
    *        <i>Using 'ALL_KEYS' is the same as calling {@link #registerInterestRegex(String)} with
    *        ".*" as the argument. This means that all keys of any type are pushed to the client and
    *        inserted into the local cache.</i>
    *        </p>
+   *        ###End of deprecation###
    *
    *        <p>
    *        If you locally-destroy a key and your region has concurrency-checks-enabled turned off
@@ -1891,7 +2262,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 5.5
    */
-  public void registerInterest(K key, InterestResultPolicy policy, boolean isDurable);
+  void registerInterest(K key, InterestResultPolicy policy, boolean isDurable);
 
   /**
    * Sends a request to the CacheServer to register interest in a regular expression pattern for
@@ -1931,7 +2302,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 5.5
    */
-  public void registerInterestRegex(String regex, boolean isDurable);
+  void registerInterestRegex(String regex, boolean isDurable);
 
   /**
    * Sends a request to the CacheServer to register interest in a regular expression pattern for
@@ -1973,7 +2344,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 6.0.3
    */
-  public void registerInterestRegex(String regex, boolean isDurable, boolean receiveValues);
+  void registerInterestRegex(String regex, boolean isDurable, boolean receiveValues);
 
   /**
    * Sends a request to the CacheServer to register interest in a regular expression pattern for
@@ -2014,7 +2385,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 5.5
    */
-  public void registerInterestRegex(String regex, InterestResultPolicy policy, boolean isDurable);
+  void registerInterestRegex(String regex, InterestResultPolicy policy, boolean isDurable);
 
   /**
    * Sends a request to the CacheServer to register interest in a regular expression pattern for
@@ -2057,7 +2428,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 6.0.3
    */
-  public void registerInterestRegex(String regex, InterestResultPolicy policy, boolean isDurable,
+  void registerInterestRegex(String regex, InterestResultPolicy policy, boolean isDurable,
       boolean receiveValues);
 
   /**
@@ -2070,7 +2441,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 4.2.3
    */
-  public List<String> getInterestListRegex();
+  List<String> getInterestListRegex();
 
   /**
    * Returns a set of keys in the region on the server.
@@ -2080,7 +2451,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 5.0.2
    */
-  public Set<K> keySetOnServer();
+  Set<K> keySetOnServer();
 
   /**
    * Returns whether the specified key currently exists in this region on the server.
@@ -2091,7 +2462,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since GemFire 5.0.2
    */
-  public boolean containsKeyOnServer(Object key);
+  boolean containsKeyOnServer(Object key);
 
   /**
    * Returns the number of entries present in this region on the server. Entries stored in this
@@ -2102,7 +2473,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since Geode 1.2.0
    */
-  public int sizeOnServer();
+  int sizeOnServer();
 
   /**
    * Returns true if this region contains no entries on the server.
@@ -2112,19 +2483,19 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    *
    * @since Geode 1.2.0
    */
-  public boolean isEmptyOnServer();
+  boolean isEmptyOnServer();
 
   /**
    * If the specified key is not already associated with a value, associate it with the given value.
    * This is equivalent to
-   * 
+   *
    * <pre>
    * if (!map.containsKey(key))
    *   return map.put(key, value);
    * else
    *   return map.get(key);
    * </pre>
-   * 
+   *
    * except that the action is performed atomically.
    *
    * <p>
@@ -2137,7 +2508,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * <p>
    * Region allows the value parameter to be null, which will create an invalid entry.
    * </p>
-   * 
+   *
    * @param key key with which the specified value is to be associated
    * @param value value to be associated with the specified key
    * @return the previous value associated with the specified key, or <tt>null</tt> if there was no
@@ -2165,7 +2536,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
 
   /**
    * Removes the entry for a key only if currently mapped to a given value. This is equivalent to
-   * 
+   *
    * <pre>
    * if (map.containsKey(key) &amp;&amp; map.get(key).equals(value)) {
    *   map.remove(key);
@@ -2173,7 +2544,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * } else
    *   return false;
    * </pre>
-   * 
+   *
    * except that the action is performed atomically.
    * <p>
    * As of 8.5, if value is an Array then Arrays.equals or Arrays.deepEquals is used instead of
@@ -2188,7 +2559,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * <p>
    * Region allows the value parameter to be null, which will match an invalid entry.
    * </p>
-   * 
+   *
    * @param key key with which the specified value is associated
    * @param value value expected to be associated with the specified key
    * @return <tt>true</tt> if the value was removed
@@ -2211,7 +2582,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
 
   /**
    * Replaces the entry for a key only if currently mapped to a given value. This is equivalent to
-   * 
+   *
    * <pre>
    * if (map.containsKey(key) &amp;&amp; map.get(key).equals(oldValue)) {
    *   map.put(key, newValue);
@@ -2219,7 +2590,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * } else
    *   return false;
    * </pre>
-   * 
+   *
    * except that the action is performed atomically.
    * <p>
    * As of 8.5, if value is an Array then Arrays.equals or Arrays.deepEquals is used instead of
@@ -2234,7 +2605,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * <p>
    * Region allows the oldValue parameter to be null, which will match an invalid entry.
    * </p>
-   * 
+   *
    * @param key key with which the specified value is associated
    * @param oldValue value expected to be associated with the specified key
    * @param newValue value to be associated with the specified key
@@ -2259,14 +2630,14 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
 
   /**
    * Replaces the entry for a key only if currently mapped to some value. This is equivalent to
-   * 
+   *
    * <pre>
    * if (map.containsKey(key)) {
    *   return map.put(key, value);
    * } else
    *   return null;
    * </pre>
-   * 
+   *
    * except that the action is performed atomically.
    * <p>
    * ConcurrentMap operations are supported on partitioned and replicated regions and in client
@@ -2309,14 +2680,14 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
    * Cache is closed at the time of invocation, or an <code>EntryDestroyedException</code> if the
    * entry has been destroyed.
    */
-  public interface Entry<K, V> extends Map.Entry<K, V> {
+  interface Entry<K, V> extends Map.Entry<K, V> {
 
     /**
      * Returns the key for this entry.
      *
      * @return the key for this entry
      */
-    public K getKey();
+    K getKey();
 
     /**
      * Returns the value of this entry in the local cache. Does not invoke a
@@ -2324,14 +2695,14 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
      *
      * @return the value or <code>null</code> if this entry is invalid
      */
-    public V getValue();
+    V getValue();
 
     /**
      * Returns the region that contains this entry.
      *
      * @return the Region that contains this entry
      */
-    public Region<K, V> getRegion();
+    Region<K, V> getRegion();
 
     /**
      * This method checks to see if the entry is in the in-process cache, or is in another process.
@@ -2341,7 +2712,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
      * corresponding key. To see an updated snapshot of a non-local Entry, you must fetch the entry
      * from the Region again.
      */
-    public boolean isLocal();
+    boolean isLocal();
 
     /**
      * Returns the statistics for this entry.
@@ -2349,14 +2720,14 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
      * @return the CacheStatistics for this entry
      * @throws StatisticsDisabledException if statistics have been disabled for this region
      */
-    public CacheStatistics getStatistics();
+    CacheStatistics getStatistics();
 
     /**
      * Returns the user attribute for this entry in the local cache.
      *
      * @return the user attribute for this entry
      */
-    public Object getUserAttribute();
+    Object getUserAttribute();
 
     /**
      * Sets the user attribute for this entry. Does not distribute the user attribute to other
@@ -2365,7 +2736,7 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
      * @param userAttribute the user attribute for this entry
      * @return the previous user attribute or null no user attributes has been set for this entry
      */
-    public Object setUserAttribute(Object userAttribute);
+    Object setUserAttribute(Object userAttribute);
 
     /**
      * Returns whether this entry has been destroyed.
@@ -2374,11 +2745,11 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
      *
      * @return true if this entry has been destroyed
      */
-    public boolean isDestroyed();
+    boolean isDestroyed();
 
     /**
      * Sets the value of this entry. It has similar to calling a put on the key of this Entry
-     * 
+     *
      * @param value Object the value to be set
      * @return the previous value object stored locally for this entry. If the entry did not exist
      *         then <code>null</code> is returned. If the entry was "invalid" then <code>null</code>
@@ -2392,6 +2763,6 @@ public interface Region<K, V> extends ConcurrentMap<K, V> {
      * @since GemFire 5.0
      * @see Region#put(Object, Object)
      */
-    public V setValue(V value);
+    V setValue(V value);
   }
 }

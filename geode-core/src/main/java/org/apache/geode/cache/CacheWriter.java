@@ -37,6 +37,10 @@ package org.apache.geode.cache;
  * initiator of the operation, regardless of whether the initiator is in the same VM as the
  * <code>CacheWriter</code>.
  *
+ * <p>
+ * WARNING: To avoid risk of deadlock, do not invoke CacheFactory.getAnyInstance() from within any
+ * callback methods. Instead use EntryEvent.getRegion().getCache() or
+ * RegionEvent.getRegion().getCache().
  *
  * @see AttributesFactory#setCacheWriter
  * @see RegionAttributes#getCacheWriter
@@ -58,7 +62,7 @@ public interface CacheWriter<K, V> extends CacheCallback {
    * @see Region#put(Object, Object)
    * @see Region#get(Object)
    */
-  public void beforeUpdate(EntryEvent<K, V> event) throws CacheWriterException;
+  void beforeUpdate(EntryEvent<K, V> event) throws CacheWriterException;
 
   /**
    * Called before an entry is created. Entry creation is initiated by a <code>create</code>, a
@@ -67,7 +71,7 @@ public interface CacheWriter<K, V> extends CacheCallback {
    * {@link CacheEvent#getOperation() Operation}'s {@link Operation#isLoad()} method. The entry
    * being created may already exist in the local cache where this <code>CacheWriter</code> is
    * installed, but it does not yet exist in the cache where the operation was initiated.
-   * 
+   *
    * @param event an EntryEvent that provides information about the operation in progress
    * @throws CacheWriterException if thrown will abort the operation in progress, and the exception
    *         will be propagated back to caller that initiated the operation
@@ -75,7 +79,7 @@ public interface CacheWriter<K, V> extends CacheCallback {
    * @see Region#put(Object, Object)
    * @see Region#get(Object)
    */
-  public void beforeCreate(EntryEvent<K, V> event) throws CacheWriterException;
+  void beforeCreate(EntryEvent<K, V> event) throws CacheWriterException;
 
   /**
    * Called before an entry is destroyed. The entry being destroyed may or may not exist in the
@@ -88,7 +92,7 @@ public interface CacheWriter<K, V> extends CacheCallback {
    *
    * @see Region#destroy(Object)
    */
-  public void beforeDestroy(EntryEvent<K, V> event) throws CacheWriterException;
+  void beforeDestroy(EntryEvent<K, V> event) throws CacheWriterException;
 
   /**
    * Called before a region is destroyed. The <code>CacheWriter</code> will not additionally be
@@ -109,15 +113,15 @@ public interface CacheWriter<K, V> extends CacheCallback {
    *
    * @see Region#destroyRegion()
    */
-  public void beforeRegionDestroy(RegionEvent<K, V> event) throws CacheWriterException;
+  void beforeRegionDestroy(RegionEvent<K, V> event) throws CacheWriterException;
 
   /**
    * Called before a region is cleared. The <code>CacheWriter</code> will not additionally be called
    * for each entry that is cleared in the region as a result of a region clear.
-   * 
+   *
    * <p>
    * WARNING: This method should not clear/destroy any regions
-   * 
+   *
    *
    * @param event a RegionEvent that provides information about the operation
    *
@@ -126,5 +130,5 @@ public interface CacheWriter<K, V> extends CacheCallback {
    *
    * @see Region#clear
    */
-  public void beforeRegionClear(RegionEvent<K, V> event) throws CacheWriterException;
+  void beforeRegionClear(RegionEvent<K, V> event) throws CacheWriterException;
 }

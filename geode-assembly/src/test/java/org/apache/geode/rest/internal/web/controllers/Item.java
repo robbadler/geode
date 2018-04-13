@@ -14,7 +14,6 @@
  */
 package org.apache.geode.rest.internal.web.controllers;
 
-import java.io.Serializable;
 
 import org.apache.geode.internal.lang.ObjectUtils;
 import org.apache.geode.pdx.PdxReader;
@@ -24,7 +23,7 @@ import org.apache.geode.pdx.PdxWriter;
 /**
  * The Item class models item entity in the real world.
  * <p/>
- * 
+ *
  * @since GemFire 8.0
  */
 

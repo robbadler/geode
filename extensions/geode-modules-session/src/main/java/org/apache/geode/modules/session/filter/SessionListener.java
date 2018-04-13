@@ -15,12 +15,12 @@
 
 package org.apache.geode.modules.session.filter;
 
-import org.apache.geode.distributed.DistributedSystemDisconnectedException;
+import javax.servlet.http.HttpSessionEvent;
+import javax.servlet.http.HttpSessionListener;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.servlet.http.HttpSessionEvent;
-import javax.servlet.http.HttpSessionListener;
 
 /**
  * Listener to destroy gemfire sessions when native sessions are destroyed.

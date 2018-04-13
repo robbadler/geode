@@ -14,10 +14,6 @@
  */
 package org.apache.geode;
 
-// import org.apache.geode.distributed.DistributedSystem;
-// import org.apache.geode.internal.statistics.StatArchiveFormat;
-// import java.io.IOException;
-// import java.io.Reader;
 
 /**
  * Instances of this interface provide methods that create instances of {@link Statistics}. It can
@@ -33,11 +29,11 @@ package org.apache.geode;
  * increase and decrease or a <I>counter</I> meaning that its value is strictly increasing. Marking
  * a statistic as a counter allows statistic display tools to properly display a statistics whose
  * value "wraps around" (that is, exceeds its maximum value).
- * 
+ *
  * <P>
  * The following code is an example of how to create a type using the api. In this example the type
  * has two stats whose values always increase:
- * 
+ *
  * <pre>
     StatisticsFactory f = ...;
     StatisticsType t = f.createType(
@@ -56,16 +52,16 @@ package org.apache.geode;
     this.sampleCountId = this.samplerStats.nameToId("sampleCount");
     this.sampleTimeId = this.samplerStats.nameToId("sampleTime");
  * </pre>
- * 
+ *
  * Later on the stat ids can be used to increment the stats:
- * 
+ *
  * <pre>
  * this.samplerStats.incInt(this.sampleCountId, 1);
  * this.samplerStats.incLong(this.sampleTimeId, nanosSpentWorking / 1000000);
  * </pre>
  * <P>
  * The following is an example of how to create the same type using XML. The XML data:
- * 
+ *
  * <pre>
     &lt;?xml version="1.0" encoding="UTF-8"?&gt;
     &lt;!DOCTYPE statistics PUBLIC
@@ -85,16 +81,16 @@ package org.apache.geode;
       &lt;/type&gt;
     &lt;/statistics&gt;
  * </pre>
- * 
+ *
  * The code to create the type:
- * 
+ *
  * <pre>
       StatisticsFactory f = ...;
       Reader r = new InputStreamReader("fileContainingXmlData"));
       StatisticsType type = f.createTypesFromXml(r)[0];
  * </pre>
  * <P>
- * 
+ *
  * @see <A href="package-summary.html#statistics">Package introduction</A>
  *
  *
@@ -107,7 +103,7 @@ public interface StatisticsFactory extends StatisticsTypeFactory {
    * <p>
    * The created instance may not be {@link Statistics#isAtomic atomic}.
    */
-  public Statistics createStatistics(StatisticsType type);
+  Statistics createStatistics(StatisticsType type);
 
   /**
    * Creates and returns a {@link Statistics} instance of the given {@link StatisticsType type},
@@ -115,7 +111,7 @@ public interface StatisticsFactory extends StatisticsTypeFactory {
    * <p>
    * The created instance may not be {@link Statistics#isAtomic atomic}.
    */
-  public Statistics createStatistics(StatisticsType type, String textId);
+  Statistics createStatistics(StatisticsType type, String textId);
 
   /**
    * Creates and returns a {@link Statistics} instance of the given {@link StatisticsType type},
@@ -123,7 +119,7 @@ public interface StatisticsFactory extends StatisticsTypeFactory {
    * <p>
    * The created instance may not be {@link Statistics#isAtomic atomic}.
    */
-  public Statistics createStatistics(StatisticsType type, String textId, long numericId);
+  Statistics createStatistics(StatisticsType type, String textId, long numericId);
 
   /**
    * Creates and returns a {@link Statistics} instance of the given {@link StatisticsType type} with
@@ -131,7 +127,7 @@ public interface StatisticsFactory extends StatisticsTypeFactory {
    * <p>
    * The created instance will be {@link Statistics#isAtomic atomic}.
    */
-  public Statistics createAtomicStatistics(StatisticsType type);
+  Statistics createAtomicStatistics(StatisticsType type);
 
   /**
    * Creates and returns a {@link Statistics} instance of the given {@link StatisticsType type},
@@ -139,7 +135,7 @@ public interface StatisticsFactory extends StatisticsTypeFactory {
    * <p>
    * The created instance will be {@link Statistics#isAtomic atomic}.
    */
-  public Statistics createAtomicStatistics(StatisticsType type, String textId);
+  Statistics createAtomicStatistics(StatisticsType type, String textId);
 
   /**
    * Creates and returns a {@link Statistics} instance of the given {@link StatisticsType type},
@@ -147,20 +143,20 @@ public interface StatisticsFactory extends StatisticsTypeFactory {
    * <p>
    * The created instance will be {@link Statistics#isAtomic atomic}.
    */
-  public Statistics createAtomicStatistics(StatisticsType type, String textId, long numericId);
+  Statistics createAtomicStatistics(StatisticsType type, String textId, long numericId);
 
   /**
    * Returns an array of all the existing statistics of the given type.
    */
-  public Statistics[] findStatisticsByType(StatisticsType type);
+  Statistics[] findStatisticsByType(StatisticsType type);
 
   /**
    * Returns an array of all the existing statistics with the given textId.
    */
-  public Statistics[] findStatisticsByTextId(String textId);
+  Statistics[] findStatisticsByTextId(String textId);
 
   /**
    * Returns an array of all the existing statistics with the given numericId.
    */
-  public Statistics[] findStatisticsByNumericId(long numericId);
+  Statistics[] findStatisticsByNumericId(long numericId);
 }

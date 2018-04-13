@@ -30,17 +30,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import org.apache.geode.distributed.internal.ClusterConfigurationService;
+import org.apache.geode.distributed.internal.InternalClusterConfigurationService;
 import org.apache.geode.distributed.internal.InternalLocator;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.management.internal.configuration.utils.ZipUtils;
 import org.apache.geode.security.SimpleTestSecurityManager;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
 import org.apache.geode.test.dunit.rules.MemberVM;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.SecurityTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 import org.apache.geode.test.junit.rules.serializable.SerializableTemporaryFolder;
 
 @Category({DistributedTest.class, SecurityTest.class})
@@ -54,18 +54,16 @@ public class ClusterConfigWithSecurityDUnitTest {
   public SerializableTemporaryFolder temporaryFolder = new SerializableTemporaryFolder();
 
   @Rule
-  public LocatorServerStartupRule lsRule = new LocatorServerStartupRule();
+  public ClusterStartupRule lsRule = new ClusterStartupRule();
 
   @Rule
-  public GfshShellConnectionRule connector = new GfshShellConnectionRule();
+  public GfshCommandRule connector = new GfshCommandRule();
 
   @Before
   public void before() throws Exception {
     clusterConfigZipPath = buildSecureClusterConfigZip();
-
-    locatorProps = new Properties();
-    locatorProps.setProperty(SECURITY_MANAGER, SimpleTestSecurityManager.class.getName());
-    locator0 = lsRule.startLocatorVM(0, locatorProps);
+    locator0 =
+        lsRule.startLocatorVM(0, x -> x.withSecurityManager(SimpleTestSecurityManager.class));
   }
 
   @Test
@@ -79,8 +77,8 @@ public class ClusterConfigWithSecurityDUnitTest {
 
     // the second locator should inherit the first locator's security props
     locator1.invoke(() -> {
-      InternalLocator locator = LocatorServerStartupRule.locatorStarter.getLocator();
-      ClusterConfigurationService sc = locator.getSharedConfiguration();
+      InternalLocator locator = ClusterStartupRule.getLocator();
+      InternalClusterConfigurationService sc = locator.getSharedConfiguration();
       Properties clusterConfigProps = sc.getConfiguration("cluster").getGemfireProperties();
       assertThat(clusterConfigProps.getProperty(SECURITY_MANAGER))
           .isEqualTo(SimpleTestSecurityManager.class.getName());
@@ -93,12 +91,14 @@ public class ClusterConfigWithSecurityDUnitTest {
     connector.connect(locator0, CliStrings.CONNECT__USERNAME, "cluster",
         CliStrings.CONNECT__PASSWORD, "cluster");
 
-    connector.executeAndVerifyCommand(
-        "import cluster-configuration --zip-file-name=" + clusterConfigZipPath);
+    connector
+        .executeAndAssertThat(
+            "import cluster-configuration --zip-file-name=" + clusterConfigZipPath)
+        .statusIsSuccess();
 
     locator0.invoke(() -> {
-      InternalLocator locator = LocatorServerStartupRule.locatorStarter.getLocator();
-      ClusterConfigurationService sc = locator.getSharedConfiguration();
+      InternalLocator locator = ClusterStartupRule.getLocator();
+      InternalClusterConfigurationService sc = locator.getSharedConfiguration();
       Properties properties = sc.getConfiguration("cluster").getGemfireProperties();
       assertThat(properties.getProperty(MCAST_PORT)).isEqualTo("0");
       assertThat(properties.getProperty(LOG_FILE_SIZE_LIMIT)).isEqualTo("8000");
@@ -119,7 +119,7 @@ public class ClusterConfigWithSecurityDUnitTest {
 
     // cluster config specifies a security-manager so integrated security should be enabled
     server.invoke(() -> {
-      InternalCache cache = LocatorServerStartupRule.serverStarter.getCache();
+      InternalCache cache = ClusterStartupRule.getCache();
       Properties properties = cache.getDistributedSystem().getSecurityProperties();
       assertThat(properties.getProperty(SECURITY_MANAGER))
           .isEqualTo(SimpleTestSecurityManager.class.getName());

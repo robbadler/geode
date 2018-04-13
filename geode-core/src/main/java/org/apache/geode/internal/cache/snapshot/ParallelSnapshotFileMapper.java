@@ -16,8 +16,6 @@ package org.apache.geode.internal.cache.snapshot;
 
 import java.io.File;
 
-import org.apache.logging.log4j.LogManager;
-
 import org.apache.geode.cache.snapshot.RegionSnapshotService;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
@@ -55,7 +53,7 @@ public class ParallelSnapshotFileMapper implements SnapshotFileMapper {
    * Combines the ip address and port of a distributed member to create a unique identifier for the
    * member. As this string will be used in file names, the periods (ipv4) and colons (ipv6) are
    * stripped out.
-   * 
+   *
    * @param member the member to create a unique id for
    * @return a String based on the ip address and host of the member
    */

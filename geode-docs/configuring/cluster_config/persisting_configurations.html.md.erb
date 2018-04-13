@@ -58,7 +58,7 @@ This section provides a walk-through example of configuring a simple <%=vars.pro
     Process ID: 5203
     Uptime: 15 seconds
     <%=vars.product_name%> Version: <%=vars.product_version%>
-    Java Version: 1.8.0_101
+    Java Version: 1.8.0_<%=vars.min_java_update%>
     Log File: /Users/username/my_geode/locator1/locator1.log
     JVM Arguments: -Dgemfire.enable-cluster-configuration=true
     -Dgemfire.load-cluster-configuration-from-dir=false
@@ -84,7 +84,7 @@ This section provides a walk-through example of configuring a simple <%=vars.pro
     Process ID: 5627
     Uptime: 2 seconds
     <%=vars.product_name%> Version: <%=vars.product_version%>
-    Java Version: 1.8.0_101
+    Java Version: 1.8.0_<%=vars.min_java_update%>
     Log File: /Users/username/my_geode/server1/server1.log
     JVM Arguments: -Dgemfire.default.locators=192.0.2.0[10334] -Dgemfire.groups=group1
     -Dgemfire.use-cluster-configuration=true -XX:OnOutOfMemoryError=kill -KILL %p
@@ -100,7 +100,7 @@ This section provides a walk-through example of configuring a simple <%=vars.pro
     Process ID: 5634
     Uptime: 2 seconds
     <%=vars.product_name%> Version: <%=vars.product_version%>
-    Java Version: 1.8.0_101
+    Java Version: 1.8.0_<%=vars.min_java_update%>
     Log File: /Users/username/my_geode/server2/server2.log
     JVM Arguments: -Dgemfire.default.locators=192.0.2.0[10334] -Dgemfire.groups=group1
     -Dgemfire.use-cluster-configuration=true -XX:OnOutOfMemoryError=kill -KILL %p
@@ -116,7 +116,7 @@ This section provides a walk-through example of configuring a simple <%=vars.pro
     Process ID: 5637
     Uptime: 2 seconds
     <%=vars.product_name%> Version: <%=vars.product_version%>
-    Java Version: 1.8.0_101
+    Java Version: 1.8.0_<%=vars.min_java_update%>
     Log File: /Users/username/my_geode/server3/server3.log
     JVM Arguments: -Dgemfire.default.locators=192.0.2.0[10334]
     -Dgemfire.use-cluster-configuration=true -XX:OnOutOfMemoryError=kill -KILL %p
@@ -146,17 +146,17 @@ This section provides a walk-through example of configuring a simple <%=vars.pro
 
     Note that `region1` is created on all cache servers that specified the group named `group1` when starting the cache server (`server1` and `server2`, in this example). `region2` is created on all members because no group was specified.
 
-6.  Deploy jar files. Use the `gfsh deploy` command to deploy application jar files to all members or to a specified group of members. The following example deploys the `mx4j-3.0.1.jar` and `mx4j.jar` files from the distribution. (Note: This is only an example, you do not need to deploy these files to use the Cluster Configuration Service. Alternately, you can use any two jar files for this demonstration.)
+6.  Deploy jar files. Use the `gfsh deploy` command to deploy application jar files to all members or to a specified group of members. The following example deploys the `mx4j-3.0.1.jar` and `ra.jar` files from the distribution. (Note: This is only an example, you do not need to deploy these files to use the Cluster Configuration Service. Alternately, you can use any two jar files for this demonstration.)
 
     ``` pre
-    gfsh>deploy --groups=group1 --jars=/lib/mail.jar
+    gfsh>deploy --groups=group1 --jars=/lib/mx4j-3.0.1.jar
     Post substitution: deploy --groups=group1 --jars=/Users/username/Apache_Geode_1.0.0_Linux/lib/mx4j-3.0.1.jar
     Member  |    Deployed JAR    | Deployed JAR Location
     ------- | ------------------ | -------------------------------------------------------
     server1 | mx4j-3.0.1.jar     | /Users/username/my_geode/server1/vf.gf#mx4j-3.0.1.jar#1
     server2 | mx4j-3.0.1.jar     | /Users/username/my_geode/server2/vf.gf#mx4j-3.0.1.jar#1
 
-    gfsh>deploy --jars=/lib/mx4j.jar
+    gfsh>deploy --jars=/lib/ra.jar
     Post substitution: deploy --jar=/Users/username/Apache_Geode_1.0.0_Linux/lib/ra.jar
     Member  | Deployed JAR | Deployed JAR Location
     ------- | ------------ | -----------------------------------------------
@@ -171,7 +171,7 @@ This section provides a walk-through example of configuring a simple <%=vars.pro
     You can use the `gfsh export cluster-configuration` command to create a zip file that contains the cluster's persisted configuration. The zip file contains a copy of the contents of the `cluster_config` directory. For example:
 
     ``` pre
-    gfsh>export cluster-configuration --zip-file-name=myClConfig.zip --dir=/Users/username
+    gfsh>export cluster-configuration --zip-file-name=/Users/username/myClConfig.zip
     ```
 
     <%=vars.product_name_long%> writes the cluster configuration to the specified zip file.
@@ -220,7 +220,7 @@ This section provides a walk-through example of configuring a simple <%=vars.pro
     Process ID: 5749
     Uptime: 15 seconds
     <%=vars.product_name%> Version: <%=vars.product_version%>
-    Java Version: 1.8.0_101
+    Java Version: 1.8.0_<%=vars.min_java_update%>
     Log File: /Users/username/new_geode/locator2/locator2.log
     JVM Arguments: -Dgemfire.enable-cluster-configuration=true
     -Dgemfire.load-cluster-configuration-from-dir=false
@@ -253,7 +253,7 @@ This section provides a walk-through example of configuring a simple <%=vars.pro
     Process ID: 5813
     Uptime: 4 seconds
     <%=vars.product_name%> Version: <%=vars.product_version%>
-    Java Version: 1.8.0_101
+    Java Version: 1.8.0_<%=vars.min_java_update%>
     Log File: /Users/username/new_geode/server4/server4.log
     JVM Arguments: -Dgemfire.default.locators=192.0.2.0[10335]
     -Dgemfire.use-cluster-configuration=true -XX:OnOutOfMemoryError=kill -KILL %p
@@ -273,7 +273,7 @@ This section provides a walk-through example of configuring a simple <%=vars.pro
     Process ID: 5954
     Uptime: 2 seconds
     <%=vars.product_name%> Version: <%=vars.product_version%>
-    Java Version: 1.8.0_101
+    Java Version: 1.8.0_<%=vars.min_java_update%>
     Log File: /Users/username/new_geode/server5/server5.log
     JVM Arguments: -Dgemfire.default.locators=192.0.2.0[10335] -Dgemfire.groups=group1
     -Dgemfire.use-cluster-configuration=true -XX:OnOutOfMemoryError=kill -KILL %p

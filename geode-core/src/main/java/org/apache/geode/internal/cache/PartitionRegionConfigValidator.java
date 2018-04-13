@@ -35,10 +35,6 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
-/**
- * 
- * 
- */
 public class PartitionRegionConfigValidator {
 
   private static final Logger logger = LogService.getLogger();
@@ -205,7 +201,7 @@ public class PartitionRegionConfigValidator {
   /**
    * The 2nd step of Eviction Attributes validation to ensure that all VMs are reasonably similar to
    * prevent weird config. issues.
-   * 
+   *
    * @param prconfEa the eviction attributes currently used by other VMs
    * @see AttributesFactory#validateAttributes(RegionAttributes)
    * @see #validateEvictionAttributesAgainstLocalMaxMemory()
@@ -258,7 +254,7 @@ public class PartitionRegionConfigValidator {
    * The 3rd step of EvictionAttributes validation, where mutation is acceptible This should be done
    * before buckets are created. Validate EvictionAttributes with respect to localMaxMemory
    * potentially changing the eviction attributes.
-   * 
+   *
    * @see AttributesFactory#validateAttributes(RegionAttributes)
    * @see #validateDistributedEvictionAttributes(EvictionAttributes)
    */
@@ -301,7 +297,7 @@ public class PartitionRegionConfigValidator {
     final PartitionAttributesImpl userPA =
         (PartitionAttributesImpl) pr.getAttributes().getPartitionAttributes();
 
-    userPA.validateColocation(); // do this here to fix bug 47197
+    userPA.validateColocation(pr.getCache()); // do this here to fix bug 47197
 
     PartitionedRegion colocatedPR = ColocationHelper.getColocatedRegion(pr);
     if (colocatedPR != null) {
@@ -453,9 +449,6 @@ public class PartitionRegionConfigValidator {
     }
   }
 
-  /**
-   * @param prconf
-   */
   public void validateFixedPABetweenDataStores(PartitionRegionConfig prconf) {
     boolean isDataStore = this.pr.localMaxMemory > 0;
     boolean isFixedPR = this.pr.fixedPAttrs != null;

@@ -18,8 +18,8 @@ import org.apache.geode.management.cli.Result.Status;
 import org.apache.geode.management.internal.cli.json.GfJsonObject;
 
 /**
- * 
- * 
+ *
+ *
  * @since GemFire 7.0
  */
 public interface ResultData {
@@ -31,7 +31,6 @@ public interface ResultData {
   String TYPE_COMPOSITE = "composite";
   String TYPE_ERROR = "error";
   String TYPE_INFO = "info";
-  String TYPE_OBJECT = "object";
   String TYPE_TABULAR = "table";
 
   String getHeader();

@@ -14,10 +14,10 @@
  */
 package org.apache.geode.test.dunit.tests;
 
-import static org.apache.geode.test.dunit.Assert.*;
-import static org.apache.geode.test.dunit.Invoke.*;
 import static com.googlecode.catchexception.CatchException.*;
 import static com.googlecode.catchexception.throwable.CatchThrowable.*;
+import static org.apache.geode.test.dunit.Assert.*;
+import static org.apache.geode.test.dunit.Invoke.*;
 import static org.hamcrest.Matchers.*;
 
 import java.util.Properties;
@@ -37,11 +37,9 @@ import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * This class tests the basic functionality of the distributed unit test framework.
- *
- * @see JUnit4BasicDUnitTest
  */
 @Category(DistributedTest.class)
-@SuppressWarnings("unused")
+@SuppressWarnings({"serial", "unused"})
 public class JUnit4BasicDUnitTest extends JUnit4DistributedTestCase {
 
   private static final String MESSAGE_FOR_remoteThrowException = "Test exception.  Please ignore.";

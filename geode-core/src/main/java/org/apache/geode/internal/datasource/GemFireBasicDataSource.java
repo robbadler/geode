@@ -21,18 +21,16 @@ import java.util.Properties;
 
 import org.apache.logging.log4j.Logger;
 
-import org.apache.geode.i18n.LogWriterI18n;
+import org.apache.geode.i18n.StringId;
 import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.i18n.LocalizedStrings;
-import org.apache.geode.internal.jta.TransactionUtils;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
-import org.apache.geode.i18n.StringId;
 
 /**
  * GemFireBasicDataSource extends AbstractDataSource. This is a datasource class which provides
  * connections. fromthe databse without any pooling.
- * 
+ *
  */
 public class GemFireBasicDataSource extends AbstractDataSource {
   private static final Logger logger = LogService.getLogger();
@@ -47,8 +45,6 @@ public class GemFireBasicDataSource extends AbstractDataSource {
    * jdk 1.6
    *
    * @param iface - a Class defining an interface.
-   * @throws SQLException
-   * @return boolean
    */
   public boolean isWrapperFor(Class iface) throws SQLException {
     return true;
@@ -59,7 +55,6 @@ public class GemFireBasicDataSource extends AbstractDataSource {
    * required by jdk 1.6
    *
    * @param iface - a Class defining an interface.
-   * @throws SQLException
    * @return java.lang.Object
    */
   public Object unwrap(Class iface) throws SQLException {
@@ -68,9 +63,8 @@ public class GemFireBasicDataSource extends AbstractDataSource {
 
   /**
    * Creates a new instance of GemFireBasicDataSource
-   * 
+   *
    * @param configs The ConfiguredDataSourceProperties containing the datasource properties.
-   * @throws SQLException
    */
   public GemFireBasicDataSource(ConfiguredDataSourceProperties configs) throws SQLException {
     super(configs);
@@ -80,8 +74,7 @@ public class GemFireBasicDataSource extends AbstractDataSource {
   /**
    * Implementation of datasource interface function. This method is used to get the connection from
    * the database. Default user name and password will be used.
-   * 
-   * @throws SQLException
+   *
    * @return ???
    */
   @Override
@@ -113,10 +106,9 @@ public class GemFireBasicDataSource extends AbstractDataSource {
   /**
    * Implementation of datasource function. This method is used to get the connection. The specified
    * user name and passowrd will be used.
-   * 
+   *
    * @param clUsername The username for the database connection.
    * @param clPassword The password for the database connection.
-   * @throws SQLException
    * @return ???
    */
   @Override

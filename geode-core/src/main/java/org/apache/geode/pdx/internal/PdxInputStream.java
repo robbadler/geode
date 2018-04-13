@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.pdx.internal;
 
 import java.io.IOException;
@@ -23,14 +20,14 @@ import java.util.Date;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireException;
-import org.apache.geode.pdx.PdxSerializationException;
 import org.apache.geode.internal.offheap.StoredObject;
 import org.apache.geode.internal.tcp.ByteBufferInputStream;
 import org.apache.geode.internal.tcp.ImmutableByteBufferInputStream;
+import org.apache.geode.pdx.PdxSerializationException;
 
 /**
  * Used by PdxReaderImpl to manage the raw bytes of a PDX.
- * 
+ *
  * @since GemFire 6.6
  */
 public class PdxInputStream extends ImmutableByteBufferInputStream {
@@ -38,7 +35,7 @@ public class PdxInputStream extends ImmutableByteBufferInputStream {
   /**
    * Create a pdx input stream by whose contents are the first length bytes from the given input
    * stream.
-   * 
+   *
    * @param existing the input stream whose content will go into this stream. Note that this
    *        existing stream will be read by this class (a copy is not made) so it should not be
    *        changed externally.
@@ -50,7 +47,7 @@ public class PdxInputStream extends ImmutableByteBufferInputStream {
 
   /**
    * Create a pdx input stream whose contents are the given bytes
-   * 
+   *
    * @param bytes the content of this stream. Note that this byte array will be read by this class
    *        (a copy is not made) so it should not be changed externally.
    */
@@ -60,7 +57,7 @@ public class PdxInputStream extends ImmutableByteBufferInputStream {
 
   /**
    * Create a pdx input stream whose contents are the given bytes
-   * 
+   *
    * @param bb the content of this stream. Note that bb will be read by this class (a copy is not
    *        made) so it should not be changed externally.
    */
@@ -70,7 +67,7 @@ public class PdxInputStream extends ImmutableByteBufferInputStream {
 
   /**
    * Create a pdx input stream by copying another. A somewhat shallow copy is made.
-   * 
+   *
    * @param copy the input stream to copy. Note that this copy stream will be read by this class (a
    *        copy is not made) so it should not be changed externally.
    */

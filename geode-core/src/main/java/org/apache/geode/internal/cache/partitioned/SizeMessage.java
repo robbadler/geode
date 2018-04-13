@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.CacheException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionStats;
@@ -47,7 +47,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 
 /**
  * This message is used to determine the number of Entries in a Region, or its size.
- * 
+ *
  * @since GemFire 5.0
  */
 public class SizeMessage extends PartitionMessage {
@@ -70,7 +70,7 @@ public class SizeMessage extends PartitionMessage {
   /**
    * The message sent to a set of {@link InternalDistributedMember}s to caculate the number of
    * Entries in each of their buckets
-   * 
+   *
    * @param recipients members to receive the message
    * @param regionId the <code>PartitionedRegion<code> regionId
    * @param processor the reply processor used to wait on the response
@@ -90,7 +90,7 @@ public class SizeMessage extends PartitionMessage {
   /**
    * sends a message to the given recipients asking for the size of either their primary bucket
    * entries or the values sets of their primary buckets
-   * 
+   *
    * @param recipients recipients of the message
    * @param r the local PartitionedRegion instance
    * @param bucketIds the buckets to look for, or null for all buckets
@@ -100,13 +100,14 @@ public class SizeMessage extends PartitionMessage {
     Assert.assertTrue(recipients != null, "SizeMessage NULL recipients set");
     SizeResponse p = new SizeResponse(r.getSystem(), recipients);
     SizeMessage m = new SizeMessage(recipients, r.getPRId(), p, bucketIds, estimate);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
     r.getDistributionManager().putOutgoing(m);
     return p;
   }
 
   /**
    * This message may be sent to nodes before the PartitionedRegion is completely initialized due to
-   * the RegionAdvisor(s) knowing about the existance of a partitioned region at a very early part
+   * the RegionAdvisor(s) knowing about the existence of a partitioned region at a very early part
    * of the initialization
    */
   @Override
@@ -135,7 +136,7 @@ public class SizeMessage extends PartitionMessage {
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion r,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion r,
       long startTime) throws CacheException, ForceReattemptException {
     Map<Integer, SizeEntry> sizes;
     if (r != null) {
@@ -166,8 +167,12 @@ public class SizeMessage extends PartitionMessage {
             dm, r.isInternalRegion());
       }
     } else {
-      logger.warn(LocalizedMessage.create(
-          LocalizedStrings.SizeMessage_SIZEMESSAGE_REGION_NOT_FOUND_FOR_THIS_MEMBER, regionId));
+      if (logger.isDebugEnabled()) {
+        // Note that this is more likely to happen with this message
+        // because of it returning false from failIfRegionMissing.
+        logger.debug(LocalizedMessage.create(
+            LocalizedStrings.SizeMessage_SIZEMESSAGE_REGION_NOT_FOUND_FOR_THIS_MEMBER, regionId));
+      }
       ReplyMessage.send(getSender(), getProcessorId(),
           new ReplyException(new ForceReattemptException(
               LocalizedStrings.SizeMessage_0_COULD_NOT_FIND_PARTITIONED_REGION_WITH_ID_1
@@ -217,8 +222,8 @@ public class SizeMessage extends PartitionMessage {
     }
 
     /** Send an ack */
-    public static void send(InternalDistributedMember recipient, int processorId, DM dm,
-        Map<Integer, SizeEntry> sizes) {
+    public static void send(InternalDistributedMember recipient, int processorId,
+        DistributionManager dm, Map<Integer, SizeEntry> sizes) {
       Assert.assertTrue(recipient != null, "SizeReplyMessage NULL reply message");
       SizeReplyMessage m = new SizeReplyMessage(processorId, sizes);
       m.setRecipient(recipient);
@@ -227,27 +232,28 @@ public class SizeMessage extends PartitionMessage {
 
     /**
      * Processes this message. This method is invoked by the receiver of the message.
-     * 
+     *
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    public void process(final DM dm, final ReplyProcessor21 processor) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 processor) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} process invoking reply processor with processorId: {}",
-            getClass().getName(), this.processorId);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
+            "{} process invoking reply processor with processorId: {}", getClass().getName(),
+            this.processorId);
       }
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "{} processor not found", getClass().getName());
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "{} processor not found", getClass().getName());
         }
         return;
       }
       processor.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} processed {}", processor, this);
       }
       dm.getStats().incReplyMessageTime(DistributionStats.getStatTime() - startTime);
     }
@@ -286,7 +292,7 @@ public class SizeMessage extends PartitionMessage {
   /**
    * A processor to capture the value returned by
    * {@link org.apache.geode.internal.cache.partitioned.GetMessage.GetReplyMessage}
-   * 
+   *
    * @since GemFire 5.0
    */
   public static class SizeResponse extends ReplyProcessor21 {

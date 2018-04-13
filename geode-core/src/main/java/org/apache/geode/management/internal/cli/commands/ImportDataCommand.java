@@ -15,7 +15,6 @@
 
 package org.apache.geode.management.internal.cli.commands;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.springframework.shell.core.annotation.CliCommand;
@@ -35,7 +34,7 @@ import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.security.ResourcePermission.Operation;
 import org.apache.geode.security.ResourcePermission.Resource;
 
-public class ImportDataCommand implements GfshCommand {
+public class ImportDataCommand extends InternalGfshCommand {
   private final ImportDataFunction importDataFunction = new ImportDataFunction();
 
   @CliCommand(value = CliStrings.IMPORT_DATA, help = CliStrings.IMPORT_DATA__HELP)
@@ -56,13 +55,9 @@ public class ImportDataCommand implements GfshCommand {
           specifiedDefaultValue = "true",
           help = CliStrings.IMPORT_DATA__PARALLEL_HELP) boolean parallel) {
 
-    getSecurityService().authorize(Resource.DATA, Operation.WRITE, regionName);
+    authorize(Resource.DATA, Operation.WRITE, regionName);
 
-    final DistributedMember targetMember = CliUtil.getDistributedMemberByNameOrId(memberNameOrId);
-    if (targetMember == null) {
-      return ResultBuilder.createUserErrorResult(
-          CliStrings.format(CliStrings.IMPORT_DATA__MEMBER__NOT__FOUND, memberNameOrId));
-    }
+    final DistributedMember targetMember = getMember(memberNameOrId);
 
     Optional<Result> validationResult = validatePath(filePath, dirPath, parallel);
     if (validationResult.isPresent()) {
@@ -74,8 +69,8 @@ public class ImportDataCommand implements GfshCommand {
       String path = dirPath != null ? dirPath : filePath;
       final Object args[] = {regionName, path, invokeCallbacks, parallel};
 
-      ResultCollector<?, ?> rc = CliUtil.executeFunction(importDataFunction, args, targetMember);
-      result = DataCommandUtil.getFunctionResult(rc, CliStrings.IMPORT_DATA);
+      ResultCollector<?, ?> rc = executeFunction(importDataFunction, args, targetMember);
+      result = CliUtil.getFunctionResult(rc, CliStrings.IMPORT_DATA);
     } catch (CacheClosedException e) {
       result = ResultBuilder.createGemFireErrorResult(e.getMessage());
     } catch (FunctionInvocationTargetException e) {

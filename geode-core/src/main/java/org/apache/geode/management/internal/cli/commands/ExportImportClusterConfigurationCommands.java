@@ -18,31 +18,32 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerException;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.Logger;
 import org.springframework.shell.core.annotation.CliCommand;
 import org.springframework.shell.core.annotation.CliOption;
+import org.xml.sax.SAXException;
 
+import org.apache.geode.cache.configuration.CacheConfig;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.ClusterConfigurationService;
+import org.apache.geode.distributed.internal.InternalClusterConfigurationService;
 import org.apache.geode.distributed.internal.InternalLocator;
-import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.internal.cli.AbstractCliAroundInterceptor;
-import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.internal.cli.GfshParseResult;
 import org.apache.geode.management.internal.cli.functions.CliFunctionResult;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
@@ -64,7 +65,7 @@ import org.apache.geode.security.ResourcePermission.Resource;
  * Commands for the cluster configuration
  */
 @SuppressWarnings("unused")
-public class ExportImportClusterConfigurationCommands implements GfshCommand {
+public class ExportImportClusterConfigurationCommands extends InternalGfshCommand {
 
   @CliCommand(value = {CliStrings.EXPORT_SHARED_CONFIG},
       help = CliStrings.EXPORT_SHARED_CONFIG__HELP)
@@ -93,11 +94,11 @@ public class ExportImportClusterConfigurationCommands implements GfshCommand {
     }
 
     File zipFile = tempDir.resolve("exportedCC.zip").toFile();
-    ClusterConfigurationService sc = locator.getSharedConfiguration();
+    InternalClusterConfigurationService sc = locator.getSharedConfiguration();
 
     Result result;
     try {
-      for (Configuration config : sc.getEntireConfiguration().values()) {
+      for (Configuration config : sc.getConfigurationRegion().values()) {
         sc.writeConfigToFile(config);
       }
       ZipUtils.zipDirectory(sc.getSharedConfigurationDirPath(), zipFile.getCanonicalPath());
@@ -128,77 +129,81 @@ public class ExportImportClusterConfigurationCommands implements GfshCommand {
       isFileUploaded = true, relatedTopic = {CliStrings.TOPIC_GEODE_CONFIG})
   @ResourceOperation(resource = Resource.CLUSTER, operation = Operation.MANAGE)
   @SuppressWarnings("unchecked")
-  public Result importSharedConfig(@CliOption(key = {CliStrings.IMPORT_SHARED_CONFIG__ZIP},
-      mandatory = true, help = CliStrings.IMPORT_SHARED_CONFIG__ZIP__HELP) String zip) {
+  public Result importSharedConfig(
+      @CliOption(key = {CliStrings.IMPORT_SHARED_CONFIG__ZIP}, mandatory = true,
+          help = CliStrings.IMPORT_SHARED_CONFIG__ZIP__HELP) String zip)
+      throws IOException, TransformerException, SAXException, ParserConfigurationException {
 
-    InternalLocator locator = InternalLocator.getLocator();
+    InternalClusterConfigurationService sc =
+        (InternalClusterConfigurationService) getConfigurationService();
 
-    if (!locator.isSharedConfigurationRunning()) {
-      ErrorResultData errorData = ResultBuilder.createErrorResultData();
-      errorData.addLine(CliStrings.SHARED_CONFIGURATION_NOT_STARTED);
-      return ResultBuilder.buildResult(errorData);
+    if (sc == null) {
+      return ResultBuilder.createGemFireErrorResult(CliStrings.SHARED_CONFIGURATION_NOT_STARTED);
     }
 
-    InternalCache cache = getCache();
+    Set<DistributedMember> servers = getAllNormalMembers();
 
-    Set<DistributedMember> servers = CliUtil.getAllNormalMembers(cache);
+    // check if running servers are vanilla servers
+    if (servers.size() > 0) {
+      Set<String> groupNames = sc.getConfigurationRegion().keySet();
+      for (String groupName : groupNames) {
+        CacheConfig cacheConfig = sc.getCacheConfig(groupName);
+        if (cacheConfig != null) {
+          if (cacheConfig.getRegion().size() > 0 || cacheConfig.getAsyncEventQueue().size() > 0
+              || cacheConfig.getDiskStore().size() > 0
+              || cacheConfig.getCustomCacheElements().size() > 0
+              || cacheConfig.getJndiBindings().size() > 0
+              || cacheConfig.getGatewayReceiver() != null
+              || cacheConfig.getGatewaySender().size() > 0) {
+            return ResultBuilder.createGemFireErrorResult(
+                "Running servers have existing cluster configuration applied already.");
+          }
+        }
+      }
 
-    Set<String> regionsWithData = servers.stream().map(this::getRegionNamesOnServer)
-        .flatMap(Collection::stream).collect(toSet());
+      // further checks in case any servers has regions not defined by the cluster configuration to
+      // avoid data loss.
+      Set<String> serverRegionNames = servers.stream().map(this::getRegionNamesOnServer)
+          .flatMap(Collection::stream).collect(toSet());
 
-    if (!regionsWithData.isEmpty()) {
-      return ResultBuilder
-          .createGemFireErrorResult("Cannot import cluster configuration with existing regions: "
-              + regionsWithData.stream().collect(joining(",")));
+      if (!serverRegionNames.isEmpty()) {
+        return ResultBuilder
+            .createGemFireErrorResult("Cannot import cluster configuration with existing regions: "
+                + serverRegionNames.stream().collect(joining(",")));
+      }
     }
 
-    byte[][] shellBytesData = CommandExecutionContext.getBytesFromShell();
-    String zipFileName = CliUtil.bytesToNames(shellBytesData)[0];
-    byte[] zipBytes = CliUtil.bytesToData(shellBytesData)[0];
+    List<String> filePathFromShell = CommandExecutionContext.getFilePathFromShell();
 
     Result result;
     InfoResultData infoData = ResultBuilder.createInfoResultData();
-    File zipFile = new File(zipFileName);
-    try {
-      ClusterConfigurationService sc = locator.getSharedConfiguration();
+    String zipFilePath = filePathFromShell.get(0);
 
-      // backup the old config
-      for (Configuration config : sc.getEntireConfiguration().values()) {
-        sc.writeConfigToFile(config);
-      }
-      sc.renameExistingSharedConfigDirectory();
-
-      FileUtils.writeByteArrayToFile(zipFile, zipBytes);
-      ZipUtils.unzip(zipFileName, sc.getSharedConfigurationDirPath());
-
-      // load it from the disk
-      sc.loadSharedConfigurationFromDisk();
-      infoData.addLine(CliStrings.IMPORT_SHARED_CONFIG__SUCCESS__MSG);
-
-    } catch (Exception e) {
-      ErrorResultData errorData = ResultBuilder.createErrorResultData();
-      errorData.addLine("Import failed");
-      if (Gfsh.getCurrentInstance() != null) {
-        Gfsh.getCurrentInstance().logSevere(e.getMessage(), e);
-      }
-      result = ResultBuilder.buildResult(errorData);
-      // if import is unsuccessful, don't need to bounce the server.
-      return result;
-    } finally {
-      FileUtils.deleteQuietly(zipFile);
+    // backup the old config
+    for (Configuration config : sc.getConfigurationRegion().values()) {
+      sc.writeConfigToFile(config);
     }
+    sc.renameExistingSharedConfigDirectory();
+
+    ZipUtils.unzip(zipFilePath, sc.getSharedConfigurationDirPath());
+
+    // load it from the disk
+    sc.loadSharedConfigurationFromDisk();
+    infoData.addLine(CliStrings.IMPORT_SHARED_CONFIG__SUCCESS__MSG);
 
     // Bounce the cache of each member
-    Set<CliFunctionResult> functionResults =
-        servers.stream().map(this::reCreateCache).collect(toSet());
+    if (servers.size() > 0) {
+      List<CliFunctionResult> functionResults =
+          executeAndGetFunctionResult(new RecreateCacheFunction(), null, servers);
 
-    for (CliFunctionResult functionResult : functionResults) {
-      if (functionResult.isSuccessful()) {
-        infoData.addLine("Successfully applied the imported cluster configuration on "
-            + functionResult.getMemberIdOrName());
-      } else {
-        infoData.addLine("Failed to apply the imported cluster configuration on "
-            + functionResult.getMemberIdOrName() + " due to " + functionResult.getMessage());
+      for (CliFunctionResult functionResult : functionResults) {
+        if (functionResult.isSuccessful()) {
+          infoData.addLine("Successfully applied the imported cluster configuration on "
+              + functionResult.getMemberIdOrName());
+        } else {
+          infoData.addLine("Failed to apply the imported cluster configuration on "
+              + functionResult.getMemberIdOrName() + " due to " + functionResult.getMessage());
+        }
       }
     }
 
@@ -207,15 +212,8 @@ public class ExportImportClusterConfigurationCommands implements GfshCommand {
   }
 
   private Set<String> getRegionNamesOnServer(DistributedMember server) {
-    ResultCollector rc = CliUtil.executeFunction(new GetRegionNamesFunction(), null, server);
+    ResultCollector rc = executeFunction(new GetRegionNamesFunction(), null, server);
     List<Set<String>> results = (List<Set<String>>) rc.getResult();
-
-    return results.get(0);
-  }
-
-  private CliFunctionResult reCreateCache(DistributedMember server) {
-    ResultCollector rc = CliUtil.executeFunction(new RecreateCacheFunction(), null, server);
-    List<CliFunctionResult> results = (List<CliFunctionResult>) rc.getResult();
 
     return results.get(0);
   }
@@ -229,8 +227,7 @@ public class ExportImportClusterConfigurationCommands implements GfshCommand {
 
     @Override
     public Result preExecution(GfshParseResult parseResult) {
-      Map<String, String> paramValueMap = parseResult.getParamValueStrings();
-      String zip = paramValueMap.get(CliStrings.EXPORT_SHARED_CONFIG__FILE);
+      String zip = parseResult.getParamValueAsString(CliStrings.EXPORT_SHARED_CONFIG__FILE);
 
       if (!zip.endsWith(".zip")) {
         return ResultBuilder
@@ -259,9 +256,7 @@ public class ExportImportClusterConfigurationCommands implements GfshCommand {
   public static class ImportInterceptor extends AbstractCliAroundInterceptor {
 
     public Result preExecution(GfshParseResult parseResult) {
-      Map<String, String> paramValueMap = parseResult.getParamValueStrings();
-
-      String zip = paramValueMap.get(CliStrings.IMPORT_SHARED_CONFIG__ZIP);
+      String zip = parseResult.getParamValueAsString(CliStrings.IMPORT_SHARED_CONFIG__ZIP);
 
       zip = StringUtils.trim(zip);
 
@@ -274,16 +269,14 @@ public class ExportImportClusterConfigurationCommands implements GfshCommand {
             CliStrings.format(CliStrings.INVALID_FILE_EXTENSION, CliStrings.ZIP_FILE_EXTENSION));
       }
 
-      FileResult fileResult;
+      FileResult fileResult = new FileResult();
 
-      try {
-        fileResult = new FileResult(new String[] {zip});
-      } catch (FileNotFoundException fnfex) {
-        return ResultBuilder.createUserErrorResult("'" + zip + "' not found.");
-      } catch (IOException ioex) {
-        return ResultBuilder
-            .createGemFireErrorResult(ioex.getClass().getName() + ": " + ioex.getMessage());
+      File zipFile = new File(zip);
+      if (!zipFile.exists()) {
+        return ResultBuilder.createUserErrorResult(zip + " not found");
       }
+
+      fileResult.addFile(zipFile);
 
       return fileResult;
     }

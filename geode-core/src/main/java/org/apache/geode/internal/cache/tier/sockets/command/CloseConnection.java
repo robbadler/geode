@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
 import java.io.IOException;
@@ -31,7 +28,7 @@ import org.apache.geode.internal.security.SecurityService;
 
 public class CloseConnection extends BaseCommand {
 
-  private final static CloseConnection singleton = new CloseConnection();
+  private static final CloseConnection singleton = new CloseConnection();
 
   public static Command getCommand() {
     return singleton;

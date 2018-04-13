@@ -27,10 +27,10 @@ import org.apache.geode.cache.DataPolicy;
  * persistent files are assigned a unique ID. After a failure of all members, during recovery, the
  * persistent members will wait for all persistent copies of the region to be recovered before
  * completing region initialization.
- * 
+ *
  * This pattern describes what unique ids the currently recovering persistent members are waiting
  * for. See {@link AdminDistributedSystem#getMissingPersistentMembers()}
- * 
+ *
  * @since GemFire 6.5
  *
  */
@@ -39,17 +39,17 @@ public interface PersistentID extends DataSerializable {
   /**
    * The host on which the persistent data was last residing
    */
-  public abstract InetAddress getHost();
+  InetAddress getHost();
 
   /**
    * The directory which the persistent data was last residing in.
    */
-  public abstract String getDirectory();
+  String getDirectory();
 
   /**
    * The unique identifier for the persistent data.
-   * 
+   *
    * @since GemFire 7.0
    */
-  public abstract UUID getUUID();
+  UUID getUUID();
 }

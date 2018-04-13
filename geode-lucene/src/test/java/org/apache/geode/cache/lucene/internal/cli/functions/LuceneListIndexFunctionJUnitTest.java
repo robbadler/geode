@@ -29,7 +29,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.ResultSender;
@@ -40,9 +39,10 @@ import org.apache.geode.cache.lucene.internal.LuceneServiceImpl;
 import org.apache.geode.cache.lucene.internal.cli.LuceneIndexDetails;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.test.fake.Fakes;
+import org.apache.geode.test.junit.categories.LuceneTest;
 import org.apache.geode.test.junit.categories.UnitTest;
 
-@Category(UnitTest.class)
+@Category({UnitTest.class, LuceneTest.class})
 
 public class LuceneListIndexFunctionJUnitTest {
 
@@ -57,6 +57,7 @@ public class LuceneListIndexFunctionJUnitTest {
     FunctionContext context = mock(FunctionContext.class);
     ResultSender resultSender = mock(ResultSender.class);
     when(context.getResultSender()).thenReturn(resultSender);
+    when(context.getCache()).thenReturn(cache);
 
     LuceneIndexImpl index1 = getMockLuceneIndex("index1");
     LuceneIndexImpl index2 = getMockLuceneIndex("index2");
@@ -71,8 +72,6 @@ public class LuceneListIndexFunctionJUnitTest {
     when(service.getAllIndexes()).thenReturn(allIndexes);
 
     LuceneListIndexFunction function = new LuceneListIndexFunction();
-    function = spy(function);
-    Mockito.doReturn(cache).when(function).getCache();
     function.execute(context);
 
     ArgumentCaptor<Set> resultCaptor = ArgumentCaptor.forClass(Set.class);

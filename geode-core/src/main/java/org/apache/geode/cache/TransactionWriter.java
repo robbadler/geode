@@ -21,10 +21,15 @@ package org.apache.geode.cache;
  * and only one TransactionWriter will be fired in the entire distributed system for each
  * transaction.
  *
+ * <p>
  * This writer can be used to update a backend data source before the GemFire cache is updated
  * during commit. If the backend update fails, the implementer can throw a
  * {@link TransactionWriterException} to veto the transaction.
- * 
+ *
+ * <p>
+ * WARNING: To avoid risk of deadlock, do not invoke CacheFactory.getAnyInstance() from within any
+ * callback methods. Instead use TransactionEvent.getCache().
+ *
  * @see CacheTransactionManager#setWriter
  * @since GemFire 6.5
  */
@@ -35,11 +40,11 @@ public interface TransactionWriter extends CacheCallback {
    * Called before the transaction has finished committing, but after conflict checking. Provides an
    * opportunity for implementors to cause transaction abort by throwing a
    * TransactionWriterException
-   * 
+   *
    * @param event the TransactionEvent
    * @see CacheTransactionManager#commit
    * @throws TransactionWriterException in the event that the transaction should be rolled back
    */
-  public void beforeCommit(TransactionEvent event) throws TransactionWriterException;
+  void beforeCommit(TransactionEvent event) throws TransactionWriterException;
 
 }

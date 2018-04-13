@@ -57,12 +57,14 @@ dependencies {
   }
 
   testCompile project(':geode-junit')
+  testCompile files(project(':geode-core').sourceSets.test.output)
 
   provided 'javax.servlet:javax.servlet-api:' + project.'javax.servlet-api.version'
   provided project(':geode-core')
 }
 
 war {
+  rootSpec.exclude("**/*commons-logging-*.jar")
   duplicatesStrategy = DuplicatesStrategy.EXCLUDE
   // this shouldn't be necessary but if it's not specified we're missing some of the jars
   // from the runtime classpath

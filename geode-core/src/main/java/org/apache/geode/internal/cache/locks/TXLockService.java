@@ -15,10 +15,11 @@
 
 package org.apache.geode.internal.cache.locks;
 
-import org.apache.geode.cache.CommitConflictException;
-import org.apache.geode.distributed.internal.locks.*;
-
 import java.util.*;
+
+import org.apache.geode.cache.CommitConflictException;
+import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.distributed.internal.locks.*;
 
 /**
  * Provides transaction locking service for coordinating transactions.
@@ -45,10 +46,10 @@ public abstract class TXLockService {
   }
 
   /** Returns (or creates) the instance of the distributed TXLockService */
-  public static TXLockService createDTLS() {
+  public static TXLockService createDTLS(InternalDistributedSystem system) {
     synchronized (TXLockService.class) {
       if (DTLS == null || DTLS.isDestroyed()) {
-        DTLS = new TXLockServiceImpl(DLockService.DTLS);
+        DTLS = new TXLockServiceImpl(DLockService.DTLS, system);
       }
       return DTLS;
     }
@@ -102,7 +103,7 @@ public abstract class TXLockService {
    * Updates the set of participants for a given tx lock reference.
    *
    * @param txLockId the tx lock reference as generated from the call to <code>txLock</code>
-   * 
+   *
    * @param updatedParticipants the set of new participants generated from the advisor for each
    *        <code>Region</code> in the transaction.
    *
@@ -151,4 +152,3 @@ public abstract class TXLockService {
   abstract void basicDestroy();
 
 }
-

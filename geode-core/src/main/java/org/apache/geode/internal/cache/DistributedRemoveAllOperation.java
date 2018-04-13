@@ -22,6 +22,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Set;
 
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.CacheEvent;
 import org.apache.geode.cache.DataPolicy;
@@ -43,6 +45,8 @@ import org.apache.geode.internal.cache.partitioned.PutAllPRMessage;
 import org.apache.geode.internal.cache.partitioned.RemoveAllPRMessage;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
 import org.apache.geode.internal.cache.tier.sockets.VersionedObjectList;
+import org.apache.geode.internal.cache.tx.RemotePutAllMessage;
+import org.apache.geode.internal.cache.tx.RemoteRemoveAllMessage;
 import org.apache.geode.internal.cache.versions.ConcurrentCacheModificationException;
 import org.apache.geode.internal.cache.versions.DiskVersionTag;
 import org.apache.geode.internal.cache.versions.VersionSource;
@@ -51,13 +55,12 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.offheap.annotations.Released;
 import org.apache.geode.internal.offheap.annotations.Retained;
 import org.apache.geode.internal.offheap.annotations.Unretained;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Handles distribution of a Region.removeAll operation.
  *
  * TODO: extend DistributedCacheOperation instead of AbstractUpdateOperation
- * 
+ *
  * @since GemFire 8.1
  */
 public class DistributedRemoveAllOperation extends AbstractUpdateOperation {
@@ -214,7 +217,7 @@ public class DistributedRemoveAllOperation extends AbstractUpdateOperation {
     try {
       ev.setPossibleDuplicate(entry.isPossibleDuplicate());
       ev.setIsRedestroyedEntry(entry.getRedestroyedEntry());
-      if (entry.versionTag != null && region.concurrencyChecksEnabled) {
+      if (entry.versionTag != null && region.getConcurrencyChecksEnabled()) {
         VersionSource id = entry.versionTag.getMemberID();
         if (id != null) {
           entry.versionTag.setMemberID(ev.getRegion().getVersionVector().getCanonicalId(id));
@@ -605,9 +608,8 @@ public class DistributedRemoveAllOperation extends AbstractUpdateOperation {
 
   /**
    * Create RemoveAllPRMessage for notify only (to adjunct nodes)
-   * 
+   *
    * @param bucketId create message to send to this bucket
-   * @return RemoveAllPRMessage
    */
   public RemoveAllPRMessage createPRMessagesNotifyOnly(int bucketId) {
     final EntryEventImpl event = getBaseEvent();
@@ -627,7 +629,7 @@ public class DistributedRemoveAllOperation extends AbstractUpdateOperation {
 
   /**
    * Create RemoveAllPRMessages for primary buckets out of this op
-   * 
+   *
    * @return a HashMap contain RemoveAllPRMessages, key is bucket id
    */
   public HashMap<Integer, RemoveAllPRMessage> createPRMessages() {
@@ -740,7 +742,7 @@ public class DistributedRemoveAllOperation extends AbstractUpdateOperation {
     // thread, so
     // we require an ACK if concurrency checks are enabled to make sure that the previous op has
     // finished first.
-    return super.shouldAck() || getRegion().concurrencyChecksEnabled;
+    return super.shouldAck() || getRegion().getConcurrencyChecksEnabled();
   }
 
   private RemoveAllEntryData[] selectVersionlessEntries() {
@@ -794,8 +796,7 @@ public class DistributedRemoveAllOperation extends AbstractUpdateOperation {
   /**
    * version tags are gathered from local operations and remote operation responses. This method
    * gathers all of them and stores them in the given list.
-   * 
-   * @param list
+   *
    */
   protected void fillVersionedObjectList(VersionedObjectList list) {
     for (RemoveAllEntryData entry : this.removeAllData) {
@@ -865,7 +866,7 @@ public class DistributedRemoveAllOperation extends AbstractUpdateOperation {
     /**
      * Does the "remove" of one entry for a "removeAll" operation. Note it calls back to
      * AbstractUpdateOperation.UpdateMessage#basicOperationOnRegion
-     * 
+     *
      * @param entry the entry being removed
      * @param rgn the region the entry is removed from
      */
@@ -902,14 +903,7 @@ public class DistributedRemoveAllOperation extends AbstractUpdateOperation {
 
     /**
      * create an event for a RemoveAllEntryData element
-     * 
-     * @param entry
-     * @param sender
-     * @param context
-     * @param rgn
-     * @param possibleDuplicate
-     * @param needsRouting
-     * @param callbackArg
+     *
      * @return the event to be used in applying the element
      */
     @Retained

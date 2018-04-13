@@ -14,15 +14,27 @@
  */
 package org.apache.geode.admin.internal;
 
-import org.apache.geode.CancelException;
-import org.apache.geode.admin.*;
-import org.apache.geode.internal.Assert;
-import org.apache.geode.internal.admin.*;
-import org.apache.geode.internal.i18n.LocalizedStrings;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.geode.CancelException;
+import org.apache.geode.admin.AdminDistributedSystem;
+import org.apache.geode.admin.DistributedSystemHealthConfig;
+import org.apache.geode.admin.GemFireHealth;
+import org.apache.geode.admin.GemFireHealthConfig;
+import org.apache.geode.internal.Assert;
+import org.apache.geode.internal.admin.GemFireVM;
+import org.apache.geode.internal.admin.GfManagerAgent;
+import org.apache.geode.internal.admin.HealthListener;
+import org.apache.geode.internal.admin.JoinLeaveListener;
+import org.apache.geode.internal.i18n.LocalizedStrings;
 
 /**
  * Provides the implementation of the <code>GemFireHealth</code> administration API. This class is
@@ -84,9 +96,6 @@ public class GemFireHealthImpl implements GemFireHealth, JoinLeaveListener, Heal
    * distributed system.
    */
   protected GemFireHealthImpl(GfManagerAgent agent, AdminDistributedSystem system) {
-    // agent.getDM().getLogger().info("Creating GemFireHealthImpl",
-    // new Exception("Stack trace"));
-
     this.agent = agent;
     this.system = system;
 
@@ -294,9 +303,9 @@ public class GemFireHealthImpl implements GemFireHealth, JoinLeaveListener, Heal
 
   /**
    * Returns the GemFireHealthConfig object for the given host name.
-   * 
+   *
    * @param hostName host name for which the GemFire Health Config is needed
-   * 
+   *
    * @throws IllegalArgumentException if host with given name could not be found
    */
   public synchronized GemFireHealthConfig getGemFireHealthConfig(String hostName) {
@@ -324,10 +333,10 @@ public class GemFireHealthImpl implements GemFireHealth, JoinLeaveListener, Heal
 
   /**
    * Sets the GemFireHealthConfig object for the given host name.
-   * 
+   *
    * @param hostName host name for which the GemFire Health Config is needed
    * @param config GemFireHealthConfig object to set
-   * 
+   *
    * @throws IllegalArgumentException if (1) given host name & the host name in the given config do
    *         not match OR (2) host with given name could not be found OR (3) there are no GemFire
    *         components running on the given host

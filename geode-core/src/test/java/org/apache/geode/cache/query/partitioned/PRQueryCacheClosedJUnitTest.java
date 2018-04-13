@@ -34,14 +34,15 @@ import org.apache.geode.cache.query.data.PortfolioData;
 import org.apache.geode.internal.cache.PartitionedRegionTestHelper;
 import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
 /**
  * Test verifies Region#query()for PartitionedRegion on a single VM with Region#destroyRegion()
  * being called on the same with some delay.
- * 
- * 
+ *
+ *
  */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class PRQueryCacheClosedJUnitTest {
   // PR Region name
   static final String regionName = "portfolios";
@@ -81,9 +82,8 @@ public class PRQueryCacheClosedJUnitTest {
    * 3. Create a Thread and fire queries on the data and verifies the result.<br>
    * 4. Create another Thread and call cache#close()<br>
    * 5. Recreates the cache after a delay of 1500ms
-   * 
-   * 
-   * @throws Exception
+   *
+   *
    */
   @Test
   public void testQueryOnSingleDataStoreWithCacheClose() throws Exception {
@@ -232,9 +232,7 @@ public class PRQueryCacheClosedJUnitTest {
 
   /**
    * Populates the region with the Objects stores in the data Object array.
-   * 
-   * @param region
-   * @param data
+   *
    */
   private void populateData(Region region, Object[] data) {
     logger.info("PRQueryCacheClosedJUnitTest#populateData: Populating Data in the PR Region ");

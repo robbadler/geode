@@ -29,8 +29,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.cache.partition.PartitionMemberInfo;
 import org.apache.geode.cache.partition.PartitionRebalanceInfo;
-import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.MembershipListener;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
@@ -49,31 +49,31 @@ import org.apache.geode.internal.cache.partitioned.rebalance.BucketOperator;
 import org.apache.geode.internal.cache.partitioned.rebalance.BucketOperatorImpl;
 import org.apache.geode.internal.cache.partitioned.rebalance.BucketOperatorWrapper;
 import org.apache.geode.internal.cache.partitioned.rebalance.ParallelBucketOperator;
-import org.apache.geode.internal.cache.partitioned.rebalance.PartitionedRegionLoadModel;
-import org.apache.geode.internal.cache.partitioned.rebalance.PartitionedRegionLoadModel.AddressComparor;
 import org.apache.geode.internal.cache.partitioned.rebalance.RebalanceDirector;
 import org.apache.geode.internal.cache.partitioned.rebalance.SimulatedBucketOperator;
+import org.apache.geode.internal.cache.partitioned.rebalance.model.AddressComparor;
+import org.apache.geode.internal.cache.partitioned.rebalance.model.PartitionedRegionLoadModel;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
 /**
  * This class performs a rebalance on a single partitioned region.
- * 
+ *
  * There are three main classes involved in the rebalance - this class, the
  * PartitionedRegionLoadModel, and the RebalanceDirector. This class owns the overall rebalance
  * process, and takes care of gathering the data from all members, preventing concurrent rebalances,
  * and forwarding operations for the rebalance to the appropriate members.
- * 
+ *
  * The PartitionedRegionLoadModel model of the system that is constructed by this class. It contains
  * information about what buckets are where and how big they are. It has methods to find low
  * redundancy buckets or determine where the best place to move a bucket is.
- * 
+ *
  * The RebalanceDirector is responsible for actually deciding what to do at each step of a
  * rebalance. There are several different director implementations for different types of
  * rebalancing. The most common on is the CompositeDirector, which first satisfies redundancy, moves
  * buckets, and then moves primaries.
- * 
+ *
  * There is also a FPRDirector that creates buckets and moves primaries for fixed partititioned
  * regions.
  */
@@ -101,7 +101,7 @@ public class PartitionedRegionRebalanceOp {
 
   /**
    * Create a rebalance operation for a single region.
-   * 
+   *
    * @param region the region to rebalance
    * @param simulate true to only simulate rebalancing, without actually doing anything
    * @param replaceOfflineData true to replace offline copies of buckets with new live copies of
@@ -116,7 +116,7 @@ public class PartitionedRegionRebalanceOp {
 
   /**
    * Create a rebalance operation for a single region.
-   * 
+   *
    * @param region the region to rebalance
    * @param simulate true to only simulate rebalancing, without actually doing anything
    * @param replaceOfflineData true to replace offline copies of buckets with new live copies of
@@ -147,7 +147,7 @@ public class PartitionedRegionRebalanceOp {
 
   /**
    * Do the actual rebalance
-   * 
+   *
    * @return the details of the rebalance.
    */
   public Set<PartitionRebalanceInfo> execute() {
@@ -282,7 +282,7 @@ public class PartitionedRegionRebalanceOp {
 
   /**
    * Set the list of colocated regions, and check to make sure that colocation is complete.
-   * 
+   *
    * @return true if colocation is complete.
    */
   protected boolean checkAndSetColocatedRegions() {
@@ -326,7 +326,7 @@ public class PartitionedRegionRebalanceOp {
   /**
    * For FPR we will creatd buckets and make primaries as specified by FixedPartitionAttributes. We
    * have to just create buckets and make primaries for the local node.
-   * 
+   *
    * @return the details of the rebalance.
    */
   public Set<PartitionRebalanceInfo> executeFPA() {
@@ -429,9 +429,7 @@ public class PartitionedRegionRebalanceOp {
   /**
    * Build a model of the load on the partitioned region, which can determine which buckets to move,
    * etc.
-   * 
-   * @param detailsMap
-   * @param resourceManager
+   *
    */
   private PartitionedRegionLoadModel buildModel(BucketOperator operator,
       Map<PartitionedRegion, InternalPRInfo> detailsMap, InternalResourceManager resourceManager) {
@@ -439,7 +437,7 @@ public class PartitionedRegionRebalanceOp {
 
     final boolean isDebugEnabled = logger.isDebugEnabled();
 
-    final DM dm = leaderRegion.getDistributionManager();
+    final DistributionManager dm = leaderRegion.getDistributionManager();
     AddressComparor comparor = new AddressComparor() {
 
       public boolean areSameZone(InternalDistributedMember member1,
@@ -511,7 +509,7 @@ public class PartitionedRegionRebalanceOp {
 
   /**
    * Create a redundant bucket on the target member
-   * 
+   *
    * @param target the member on which to create the redundant bucket
    * @param bucketId the identifier of the bucket
    * @return true if the redundant bucket was created
@@ -523,7 +521,7 @@ public class PartitionedRegionRebalanceOp {
 
   /**
    * Remove a redundant bucket on the target member
-   * 
+   *
    * @param target the member on which to create the redundant bucket
    * @param bucketId the identifier of the bucket
    * @return true if the redundant bucket was removed
@@ -546,7 +544,7 @@ public class PartitionedRegionRebalanceOp {
 
   /**
    * Move the primary of a bucket to the target member
-   * 
+   *
    * @param target the member which should be primary
    * @param bucketId the identifier of the bucket
    * @return true if the move was successful
@@ -572,7 +570,7 @@ public class PartitionedRegionRebalanceOp {
 
   /**
    * Move a bucket from the provided source to the target
-   * 
+   *
    * @param source member that contains the bucket
    * @param target member which should receive the bucket
    * @param bucketId the identifier of the bucket
@@ -610,7 +608,8 @@ public class PartitionedRegionRebalanceOp {
 
   private class MembershipChangeListener implements MembershipListener {
 
-    public void memberDeparted(InternalDistributedMember id, boolean crashed) {
+    public void memberDeparted(DistributionManager distributionManager,
+        InternalDistributedMember id, boolean crashed) {
       if (logger.isDebugEnabled()) {
         logger.debug(
             "PartitionedRegionRebalanceOP - membership changed, restarting rebalancing for region {}",
@@ -619,7 +618,8 @@ public class PartitionedRegionRebalanceOp {
       membershipChange = true;
     }
 
-    public void memberJoined(InternalDistributedMember id) {
+    public void memberJoined(DistributionManager distributionManager,
+        InternalDistributedMember id) {
       if (logger.isDebugEnabled()) {
         logger.debug(
             "PartitionedRegionRebalanceOP - membership changed, restarting rebalancing for region {}",
@@ -628,12 +628,12 @@ public class PartitionedRegionRebalanceOp {
       membershipChange = true;
     }
 
-    public void memberSuspect(InternalDistributedMember id, InternalDistributedMember whoSuspected,
-        String reason) {
+    public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
+        InternalDistributedMember whoSuspected, String reason) {
       // do nothing.
     }
 
-    public void quorumLost(Set<InternalDistributedMember> failures,
-        List<InternalDistributedMember> remaining) {}
+    public void quorumLost(DistributionManager distributionManager,
+        Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
   }
 }

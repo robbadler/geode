@@ -20,6 +20,7 @@ import static org.junit.Assert.*;
 import java.beans.PropertyChangeEvent;
 import java.io.IOException;
 import java.io.PrintWriter;
+
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
@@ -29,8 +30,6 @@ import com.meterware.httpunit.WebConversation;
 import com.meterware.httpunit.WebRequest;
 import com.meterware.httpunit.WebResponse;
 import org.apache.catalina.core.StandardWrapper;
-import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.geode.cache.Cache;

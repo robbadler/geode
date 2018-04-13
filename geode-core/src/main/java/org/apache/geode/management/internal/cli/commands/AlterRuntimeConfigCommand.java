@@ -30,6 +30,7 @@ import org.springframework.shell.core.annotation.CliOption;
 
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.InternalClusterConfigurationService;
 import org.apache.geode.internal.cache.xmlcache.CacheXml;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LogLevel;
@@ -47,7 +48,7 @@ import org.apache.geode.management.internal.configuration.domain.XmlEntity;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
-public class AlterRuntimeConfigCommand implements GfshCommand {
+public class AlterRuntimeConfigCommand extends InternalGfshCommand {
   private final AlterRuntimeConfigFunction alterRunTimeConfigFunction =
       new AlterRuntimeConfigFunction();
   private static Logger logger = LogService.getLogger();
@@ -96,7 +97,7 @@ public class AlterRuntimeConfigCommand implements GfshCommand {
 
     Map<String, String> runTimeDistributionConfigAttributes = new HashMap<>();
     Map<String, String> rumTimeCacheAttributes = new HashMap<>();
-    Set<DistributedMember> targetMembers = CliUtil.findMembers(group, memberNameOrId);
+    Set<DistributedMember> targetMembers = findMembers(group, memberNameOrId);
 
     if (targetMembers.isEmpty()) {
       return ResultBuilder.createUserErrorResult(CliStrings.NO_MEMBERS_FOUND_MESSAGE);
@@ -216,7 +217,8 @@ public class AlterRuntimeConfigCommand implements GfshCommand {
       final XmlEntity xmlEntity = XmlEntity.builder().withType(CacheXml.CACHE)
           .withAttributes(rumTimeCacheAttributes).build();
       persistClusterConfiguration(result,
-          () -> getSharedConfiguration().modifyXmlAndProperties(properties, xmlEntity, group));
+          () -> ((InternalClusterConfigurationService) getConfigurationService())
+              .modifyXmlAndProperties(properties, xmlEntity, group));
       return result;
     } else {
       StringBuilder errorMessageBuilder = new StringBuilder();
@@ -234,9 +236,8 @@ public class AlterRuntimeConfigCommand implements GfshCommand {
   public static class AlterRuntimeInterceptor extends AbstractCliAroundInterceptor {
     @Override
     public Result preExecution(GfshParseResult parseResult) {
-      Map<String, String> arguments = parseResult.getParamValueStrings();
       // validate log level
-      String logLevel = arguments.get("log-level");
+      String logLevel = parseResult.getParamValueAsString("log-level");
       if (StringUtils.isNotBlank(logLevel) && (LogLevel.getLevel(logLevel) == null)) {
         return ResultBuilder.createUserErrorResult("Invalid log level: " + logLevel);
       }

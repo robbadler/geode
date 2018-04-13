@@ -25,6 +25,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.ShiroException;
+import org.apache.shiro.session.Session;
 import org.apache.shiro.subject.Subject;
 import org.apache.shiro.subject.support.SubjectThreadState;
 import org.apache.shiro.util.ThreadContext;
@@ -53,13 +54,14 @@ import org.apache.geode.security.SecurityManager;
  */
 public class IntegratedSecurityService implements SecurityService {
   private static Logger logger = LogService.getLogger(LogService.SECURITY_LOGGER_NAME);
+  public static final String CREDENTIALS_SESSION_ATTRIBUTE = "credentials";
 
   private final PostProcessor postProcessor;
   private final SecurityManager securityManager;
 
   /**
    * this creates a security service using a SecurityManager
-   * 
+   *
    * @param provider this provides shiro security manager
    * @param postProcessor this can be null
    */
@@ -112,7 +114,7 @@ public class IntegratedSecurityService implements SecurityService {
     currentUser = SecurityUtils.getSubject();
 
     if (currentUser == null || currentUser.getPrincipal() == null) {
-      throw new GemFireSecurityException("Error: Anonymous User");
+      throw new AuthenticationRequiredException("Failed to find the authenticated user.");
     }
 
     return currentUser;
@@ -136,11 +138,13 @@ public class IntegratedSecurityService implements SecurityService {
       logger.debug("Logging in " + token.getPrincipal());
       currentUser.login(token);
     } catch (ShiroException e) {
-      logger.info(e.getMessage(), e);
+      logger.info("error logging in: " + token.getPrincipal());
       throw new AuthenticationFailedException(
           "Authentication error. Please check your credentials.", e);
     }
 
+    Session currentSession = currentUser.getSession();
+    currentSession.setAttribute(CREDENTIALS_SESSION_ATTRIBUTE, credentials);
     return currentUser;
   }
 
@@ -151,7 +155,7 @@ public class IntegratedSecurityService implements SecurityService {
       logger.debug("Logging out " + currentUser.getPrincipal());
       currentUser.logout();
     } catch (ShiroException e) {
-      logger.info(e.getMessage(), e);
+      logger.info("error logging out: " + currentUser.getPrincipal());
       throw new GemFireSecurityException(e.getMessage(), e);
     }
 
@@ -182,7 +186,7 @@ public class IntegratedSecurityService implements SecurityService {
   @Override
   public ThreadState bindSubject(final Subject subject) {
     if (subject == null) {
-      throw new GemFireSecurityException("Error: Anonymous User");
+      throw new AuthenticationRequiredException("Failed to find the authenticated user.");
     }
 
     ThreadState threadState = new SubjectThreadState(subject);
@@ -229,7 +233,25 @@ public class IntegratedSecurityService implements SecurityService {
       currentUser.checkPermission(context);
     } catch (ShiroException e) {
       String msg = currentUser.getPrincipal() + " not authorized for " + context;
-      logger.info(msg);
+      logger.info("NotAuthorizedException: {}", msg);
+      throw new NotAuthorizedException(msg, e);
+    }
+  }
+
+  @Override
+  public void authorize(ResourcePermission context, Subject currentUser) {
+    if (context == null) {
+      return;
+    }
+    if (context.getResource() == Resource.NULL && context.getOperation() == Operation.NULL) {
+      return;
+    }
+
+    try {
+      currentUser.checkPermission(context);
+    } catch (ShiroException e) {
+      String msg = currentUser.getPrincipal() + " not authorized for " + context;
+      logger.info("NotAuthorizedException: {}", msg);
       throw new NotAuthorizedException(msg, e);
     }
   }

@@ -17,9 +17,9 @@ package org.apache.geode.cache.query.internal;
 
 import java.util.*;
 
-import org.apache.geode.cache.query.*;
 import org.apache.geode.cache.EntryDestroyedException;
 import org.apache.geode.cache.Region;
+import org.apache.geode.cache.query.*;
 import org.apache.geode.internal.cache.PartitionedRegion;
 
 
@@ -136,7 +136,7 @@ public class CompiledPath extends AbstractCompiledValue {
     // getTailID());
     // }
 
-    Object obj = PathUtils.evaluateAttribute(evalRcvr, getTailID());
+    Object obj = PathUtils.evaluateAttribute(context, evalRcvr, getTailID());
     // check for BucketRegion substitution
     PartitionedRegion pr = context.getPartitionedRegion();
     if (pr != null && (obj instanceof Region)) {

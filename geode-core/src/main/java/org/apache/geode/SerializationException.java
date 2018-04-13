@@ -14,20 +14,19 @@
  */
 package org.apache.geode;
 
-import org.apache.geode.GemFireIOException;
 
 /**
  * An exception indicating that a serialization or deserialization failed.
- * 
+ *
  * @since GemFire 5.7
  */
 public class SerializationException extends GemFireIOException {
   private static final long serialVersionUID = 7783018024920098997L;
 
   /**
-   * 
+   *
    * Create a new instance of SerializationException with a detail message
-   * 
+   *
    * @param message the detail message
    */
   public SerializationException(String message) {
@@ -36,7 +35,7 @@ public class SerializationException extends GemFireIOException {
 
   /**
    * Create a new instance of SerializationException with a detail message and cause
-   * 
+   *
    * @param message the detail message
    * @param cause the cause
    */

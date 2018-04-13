@@ -14,7 +14,13 @@
  */
 package org.apache.geode.management.internal;
 
+import java.net.UnknownHostException;
+
 import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.Logger;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.DataPolicy;
@@ -28,12 +34,8 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.net.SSLConfigurationFactory;
 import org.apache.geode.internal.net.SocketCreator;
 import org.apache.geode.internal.security.SecurableCommunicationChannel;
+import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.management.ManagementService;
-import org.apache.logging.log4j.Logger;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
-
-import java.net.UnknownHostException;
 
 /**
  * Agent implementation that controls the HTTP server end points used for REST clients to connect
@@ -49,9 +51,11 @@ public class RestAgent {
 
   private boolean running = false;
   private final DistributionConfig config;
+  private final SecurityService securityService;
 
-  public RestAgent(DistributionConfig config) {
+  public RestAgent(DistributionConfig config, SecurityService securityService) {
     this.config = config;
+    this.securityService = securityService;
   }
 
   public synchronized boolean isRunning() {
@@ -133,8 +137,10 @@ public class RestAgent {
         this.httpServer = JettyHelper.initJetty(httpServiceBindAddress, port,
             SSLConfigurationFactory.getSSLConfigForComponent(SecurableCommunicationChannel.WEB));
 
-        this.httpServer = JettyHelper.addWebApplication(httpServer, "/gemfire-api", gemfireAPIWar);
-        this.httpServer = JettyHelper.addWebApplication(httpServer, "/geode", gemfireAPIWar);
+        this.httpServer = JettyHelper.addWebApplication(httpServer, "/gemfire-api", gemfireAPIWar,
+            securityService);
+        this.httpServer =
+            JettyHelper.addWebApplication(httpServer, "/geode", gemfireAPIWar, securityService);
 
         if (logger.isDebugEnabled()) {
           logger.debug("Starting HTTP embedded server on port ({}) at bind-address ({})...",

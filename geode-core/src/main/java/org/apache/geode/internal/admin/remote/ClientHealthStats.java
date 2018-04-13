@@ -22,14 +22,14 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map.Entry;
+
+import org.apache.geode.DataSerializer;
 import org.apache.geode.internal.DataSerializableFixedID;
 import org.apache.geode.internal.Version;
-import org.apache.geode.management.internal.beans.CacheServerBridge;
-import org.apache.geode.DataSerializer;
 
 /**
  * Bean class act as container for client stats
- * 
+ *
  */
 
 public class ClientHealthStats implements DataSerializableFixedID, Serializable {
@@ -97,7 +97,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method returns total number of successful get requests completed.
-   * 
+   *
    * @return total number of get requests completed successfully.
    */
   public int getNumOfGets() {
@@ -106,7 +106,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method sets the total number of successful get requests completed.
-   * 
+   *
    * @param numOfGets Total number of get requests to be set.
    */
   public void setNumOfGets(int numOfGets) {
@@ -115,7 +115,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method returns the total number of successful put requests completed.
-   * 
+   *
    * @return Total number of put requests completed.
    */
   public int getNumOfPuts() {
@@ -124,7 +124,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method sets the total number of successful put requests completed.
-   * 
+   *
    * @param numOfPuts Total number of put requests to be set.
    */
   public void setNumOfPuts(int numOfPuts) {
@@ -133,7 +133,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method returns total number of cache misses in this client.
-   * 
+   *
    * @return total number of cache misses.
    */
   public int getNumOfMisses() {
@@ -142,7 +142,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method sets total number of cache misses in this client.
-   * 
+   *
    * @param numOfMisses total number of cache misses.
    */
   public void setNumOfMisses(int numOfMisses) {
@@ -151,7 +151,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method returns total number of cache listener calls completed.
-   * 
+   *
    * @return total number of cache listener calls completed.
    */
   public int getNumOfCacheListenerCalls() {
@@ -160,7 +160,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method sets total number of cache listener calls compeleted.
-   * 
+   *
    * @param numOfCacheListenerCalls total number of cache listener calls completed.
    */
   public void setNumOfCacheListenerCalls(int numOfCacheListenerCalls) {
@@ -169,7 +169,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method returns total number of threads in the client VM.
-   * 
+   *
    * @return total number of threads in the client VM
    */
   public int getNumOfThreads() {
@@ -178,7 +178,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method sets the total number of threads in the client VM.
-   * 
+   *
    * @param numOfThreads total number of threads in the client VM
    */
   public void setNumOfThreads(int numOfThreads) {
@@ -187,7 +187,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method returns the CPU time used by the process (in nanoseconds)
-   * 
+   *
    * @return CPU time used by the process (in nanoseconds)
    */
   public long getProcessCpuTime() {
@@ -196,7 +196,7 @@ public class ClientHealthStats implements DataSerializableFixedID, Serializable 
 
   /**
    * This method sets the CPU time used by the process (in nanoseconds).
-   * 
+   *
    * @param processCpuTime CPU time used by the process (in nanoseconds)
    */
   public void setProcessCpuTime(long processCpuTime) {

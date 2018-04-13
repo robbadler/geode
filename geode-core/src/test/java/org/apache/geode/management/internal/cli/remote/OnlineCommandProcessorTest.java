@@ -24,8 +24,10 @@ import static org.mockito.Mockito.when;
 import java.util.Properties;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.rules.TemporaryFolder;
 
 import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.management.cli.Result;
@@ -42,6 +44,9 @@ public class OnlineCommandProcessorTest {
   OnlineCommandProcessor onlineCommandProcessor;
   Result result;
 
+  @Rule
+  public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
   @Before
   public void before() {
     properties = new Properties();
@@ -50,7 +55,8 @@ public class OnlineCommandProcessorTest {
     result = mock(Result.class);
     when(executor.execute(any())).thenReturn(result);
 
-    onlineCommandProcessor = new OnlineCommandProcessor(properties, securityService, executor);
+    onlineCommandProcessor =
+        new OnlineCommandProcessor(properties, securityService, executor, null);
   }
 
 

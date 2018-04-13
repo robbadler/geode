@@ -55,12 +55,13 @@ import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * Tests Interest Registration Functionality
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, ClientSubscriptionTest.class})
 @SuppressWarnings({"deprecation", "rawtypes", "serial", "unchecked"})
 public class HAInterestTestCase extends JUnit4DistributedTestCase {
 
@@ -94,7 +95,7 @@ public class HAInterestTestCase extends JUnit4DistributedTestCase {
   protected static VM server2 = null;
   protected static VM server3 = null;
 
-  protected volatile static boolean exceptionOccurred = false;
+  protected static volatile boolean exceptionOccurred = false;
 
   @Override
   public final void postSetUp() throws Exception {
@@ -142,7 +143,7 @@ public class HAInterestTestCase extends JUnit4DistributedTestCase {
 
   /**
    * Return the current primary waiting for a primary to exist.
-   * 
+   *
    * @since GemFire 5.7
    */
   public static VM getPrimaryVM() {
@@ -152,7 +153,7 @@ public class HAInterestTestCase extends JUnit4DistributedTestCase {
   /**
    * Return the current primary waiting for a primary to exist and for it not to be the oldPrimary
    * (if oldPrimary is NOT null).
-   * 
+   *
    * @since GemFire 5.7
    */
   public static VM getPrimaryVM(final VM oldPrimary) {
@@ -206,7 +207,7 @@ public class HAInterestTestCase extends JUnit4DistributedTestCase {
 
   /**
    * Given a server vm (server1, server2, or server3) return its port.
-   * 
+   *
    * @since GemFire 5.7
    */
   public static int getServerPort(VM vm) {
@@ -224,7 +225,7 @@ public class HAInterestTestCase extends JUnit4DistributedTestCase {
 
   /**
    * Given a server port (PORT1, PORT2, or PORT3) return its vm.
-   * 
+   *
    * @since GemFire 5.7
    */
   public static VM getServerVM(int port) {

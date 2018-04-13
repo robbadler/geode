@@ -23,12 +23,12 @@ import org.apache.geode.DataSerializable;
 /**
  * An extension to {@link DataOutput}, {@link DataInput} used internally in product to indicate that
  * the input/output stream is attached to a GemFire peer having a different version.
- * 
+ *
  * Internal product classes that implement {@link DataSerializableFixedID} and
  * {@link DataSerializable} and change serialization format must check this on DataInput/DataOutput
  * (see {@link InternalDataSerializer#getVersionForDataStream} methods) and deal with serialization
  * with previous {@link Version}s appropriately.
- * 
+ *
  * @since GemFire 7.1
  */
 public interface VersionedDataStream {
@@ -39,5 +39,5 @@ public interface VersionedDataStream {
    * {@link Version}, then this member cannot do any adjustment to serialization and its the remote
    * peer's responsibility to adjust the serialization/deserialization according to this peer.
    */
-  public Version getVersion();
+  Version getVersion();
 }

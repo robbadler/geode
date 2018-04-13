@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- *
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
 import java.io.IOException;
@@ -41,7 +38,7 @@ import org.apache.geode.security.ResourcePermission.Resource;
 
 public class ClearRegion extends BaseCommand {
 
-  private final static ClearRegion singleton = new ClearRegion();
+  private static final ClearRegion singleton = new ClearRegion();
 
   private ClearRegion() {}
 

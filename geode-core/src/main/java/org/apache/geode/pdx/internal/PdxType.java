@@ -18,7 +18,6 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -26,13 +25,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.geode.DataSerializable;
 import org.apache.geode.DataSerializer;
-import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.cache.tier.sockets.OldClientSupportService;
@@ -52,7 +49,7 @@ public class PdxType implements DataSerializable {
   private boolean noDomainClass;
   /**
    * Will be set to true if any fields on this type have been deleted.
-   * 
+   *
    * @since GemFire 8.1
    */
   private boolean hasDeletedField;
@@ -205,7 +202,7 @@ public class PdxType implements DataSerializable {
    * Return true if two pdx types have same class name and the same fields but, unlike equals, field
    * order does not matter. Note a type that expects a domain class can be compatible with one that
    * does not expect a domain class.
-   * 
+   *
    * @param other the other pdx type
    * @return true if two pdx types are compatible.
    */
@@ -387,7 +384,7 @@ public class PdxType implements DataSerializable {
   }
 
   /**
-   * 
+   *
    * @param readFields the fields that have been read
    * @return a List of fields that have not been read (may be empty).
    */
@@ -403,7 +400,7 @@ public class PdxType implements DataSerializable {
 
   /**
    * Return true if the this type has a field that the other type does not have.
-   * 
+   *
    * @param other the type we are comparing to
    * @return true if the this type has a field that the other type does not have.
    */
@@ -463,7 +460,7 @@ public class PdxType implements DataSerializable {
   /**
    * Used to optimize auto deserialization
    */
-  private transient final AtomicReference<AutoClassInfo> autoClassInfo =
+  private final transient AtomicReference<AutoClassInfo> autoClassInfo =
       new AtomicReference<AutoClassInfo>();
 
   public void setAutoInfo(AutoClassInfo autoClassInfo) {

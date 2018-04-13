@@ -17,7 +17,7 @@ package org.apache.geode.cache.operations;
 
 /**
  * Enumeration for various interest types supported by GemFire.
- * 
+ *
  * @since GemFire 5.5
  */
 public final class InterestType {
@@ -25,10 +25,6 @@ public final class InterestType {
   public static final byte TP_KEY = 0;
 
   public static final byte TP_REGEX = 1;
-
-  // public static final byte TP_FILTER_CLASS = 2;
-
-  // public static final byte TP_OQL = 3;
 
   public static final byte TP_LIST = 4;
 
@@ -51,18 +47,6 @@ public final class InterestType {
    */
   public static final InterestType REGULAR_EXPRESSION =
       new InterestType("REGULAR_EXPRESSION", TP_REGEX);
-
-  /**
-   * For registering interest in all key/value pairs that satisfy a provided filtering class.
-   */
-  // public static final InterestType FILTER_CLASS = new InterestType(
-  // "FILTER_CLASS", TP_FILTER_CLASS);
-
-  /**
-   * For registering interest in all key/value pairs that satisfy an OQL query.
-   */
-  // public static final InterestType OQL_QUERY = new InterestType("OQL_QUERY",
-  // TP_OQL);
 
   /** The name of this interest type. */
   private final String name;
@@ -106,20 +90,6 @@ public final class InterestType {
   }
 
   /**
-   * Returns true if this is a filter class interest type.
-   */
-  // public boolean isFilterClass() {
-  // return (this.interestType == TP_FILTER_CLASS);
-  // }
-
-  /**
-   * Returns true if this is an OQL query interest type.
-   */
-  // public boolean isOQLQuery() {
-  // return (this.interestType == TP_OQL);
-  // }
-
-  /**
    * Returns the <code>InterestType</code> represented by specified ordinal.
    */
   public static InterestType fromOrdinal(byte ordinal) {
@@ -128,7 +98,7 @@ public final class InterestType {
 
   /**
    * Returns the ordinal for this interest type.
-   * 
+   *
    * @return the ordinal of this interest type.
    */
   public byte toOrdinal() {
@@ -137,7 +107,7 @@ public final class InterestType {
 
   /**
    * Returns a string representation for this interest type.
-   * 
+   *
    * @return the name of this interest type.
    */
   @Override // GemStoneAddition

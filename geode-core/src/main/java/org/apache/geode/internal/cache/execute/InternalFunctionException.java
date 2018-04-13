@@ -14,7 +14,6 @@
  */
 package org.apache.geode.internal.cache.execute;
 
-import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.cache.execute.FunctionService;
 
@@ -23,12 +22,12 @@ import org.apache.geode.cache.execute.FunctionService;
  * through ResultSender.sendException will be wrapped internally in InternalFunctionException. This
  * InternalFunctionException will be used to decide whether the exception should be added as a part
  * of addResult or exception should be thrown while doing ResultCollector#getResult
- * 
+ *
  * <p>
  * The exception string provides details on the cause of failure.
  * </p>
- * 
- * 
+ *
+ *
  * @since GemFire 6.6
  * @see FunctionService
  */
@@ -38,14 +37,13 @@ public class InternalFunctionException extends FunctionException {
 
   /**
    * Creates new internal function exception with given error message.
-   * 
+   *
    */
   public InternalFunctionException() {}
 
   /**
    * Creates new internal function exception with given error message.
-   * 
-   * @param msg
+   *
    */
   public InternalFunctionException(String msg) {
     super(msg);
@@ -53,9 +51,7 @@ public class InternalFunctionException extends FunctionException {
 
   /**
    * Creates new internal function exception with given error message and optional nested exception.
-   * 
-   * @param msg
-   * @param cause
+   *
    */
   public InternalFunctionException(String msg, Throwable cause) {
     super(msg, cause);
@@ -63,8 +59,7 @@ public class InternalFunctionException extends FunctionException {
 
   /**
    * Creates new internal function exception given throwable as a cause and source of error message.
-   * 
-   * @param cause
+   *
    */
   public InternalFunctionException(Throwable cause) {
     super(cause);

@@ -21,9 +21,7 @@ import java.util.Set;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
-import org.apache.geode.distributed.internal.membership.NetMember;
 import org.apache.geode.distributed.internal.membership.NetView;
-import org.apache.geode.distributed.internal.membership.gms.SuspectMember;
 
 /**
  * Manager presents the GMS services to the outside world and handles startup/shutdown race
@@ -38,15 +36,14 @@ public interface Manager extends Service, MessageHandler {
 
   /**
    * Sends a message using a selected distribution channel (e.g. Messenger or DirectChannel)
-   * 
+   *
    * @return a set of recipients that did not receive the message
    */
   Set<InternalDistributedMember> send(DistributionMessage m) throws NotSerializableException;
 
   /**
    * initiates a Forced Disconnect, shutting down the distributed system and closing the cache
-   * 
-   * @param reason
+   *
    */
   void forceDisconnect(String reason);
 
@@ -57,9 +54,7 @@ public interface Manager extends Service, MessageHandler {
 
   /**
    * Notifies the manager that a member has contacted us who is not in the current membership view
-   * 
-   * @param mbr
-   * @param birthTime
+   *
    */
   void addSurpriseMemberForTesting(DistributedMember mbr, long birthTime);
 
@@ -67,8 +62,7 @@ public interface Manager extends Service, MessageHandler {
    * Tests to see if the given member has been put into "shunned" state, meaning that it has left
    * the distributed system and we should no longer process requests from it. Shunned status
    * eventually times out.
-   * 
-   * @param mbr
+   *
    * @return true if the member is shunned
    */
   boolean isShunned(DistributedMember mbr);
@@ -76,7 +70,7 @@ public interface Manager extends Service, MessageHandler {
   /**
    * returns the lead member from the current membership view. This is typically the oldest member
    * that is not an Admin or Locator member.
-   * 
+   *
    * @return the ID of the lead member
    */
   DistributedMember getLeadMember();
@@ -89,7 +83,7 @@ public interface Manager extends Service, MessageHandler {
 
   /**
    * sometimes we cannot perform multicast messaging, such as during a rolling upgrade.
-   * 
+   *
    * @return true if multicast messaging can be performed
    */
   boolean isMulticastAllowed();
@@ -110,12 +104,6 @@ public interface Manager extends Service, MessageHandler {
    * progress.
    */
   boolean isShutdownStarted();
-
-  // /**
-  // * similar to forceDisconnect but is used solely by Messenger
-  // * to tell Manager that communications have been lost
-  // */
-  // void membershipFailure(String message, Exception cause);
 
   /**
    * Indicate whether we are attempting a reconnect

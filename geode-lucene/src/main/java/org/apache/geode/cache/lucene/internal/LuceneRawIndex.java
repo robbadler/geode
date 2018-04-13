@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -14,9 +14,11 @@
  */
 package org.apache.geode.cache.lucene.internal;
 
+import org.apache.geode.cache.lucene.LuceneSerializer;
 import org.apache.geode.cache.lucene.internal.repository.RepositoryManager;
 import org.apache.geode.cache.lucene.internal.repository.serializer.HeterogeneousLuceneSerializer;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.PartitionedRegion;
 
 public class LuceneRawIndex extends LuceneIndexImpl {
 
@@ -25,17 +27,20 @@ public class LuceneRawIndex extends LuceneIndexImpl {
   }
 
   @Override
-  protected RepositoryManager createRepositoryManager() {
-    HeterogeneousLuceneSerializer mapper = new HeterogeneousLuceneSerializer(getFieldNames());
-    RawLuceneRepositoryManager rawLuceneRepositoryManager =
-        new RawLuceneRepositoryManager(this, mapper);
+  protected RepositoryManager createRepositoryManager(LuceneSerializer luceneSerializer) {
+    HeterogeneousLuceneSerializer mapper = (HeterogeneousLuceneSerializer) luceneSerializer;
+    if (mapper == null) {
+      mapper = new HeterogeneousLuceneSerializer();
+    }
+    RawLuceneRepositoryManager rawLuceneRepositoryManager = new RawLuceneRepositoryManager(this,
+        mapper, cache.getDistributionManager().getWaitingThreadPool());
     return rawLuceneRepositoryManager;
   }
 
   @Override
   protected void createLuceneListenersAndFileChunkRegions(
-      AbstractPartitionedRepositoryManager partitionedRepositoryManager) {
-    partitionedRepositoryManager.setUserRegionForRepositoryManager();
+      PartitionedRepositoryManager partitionedRepositoryManager) {
+    partitionedRepositoryManager.setUserRegionForRepositoryManager((PartitionedRegion) dataRegion);
   }
 
   @Override
@@ -45,4 +50,9 @@ public class LuceneRawIndex extends LuceneIndexImpl {
 
   @Override
   public void destroy(boolean initiator) {}
+
+  @Override
+  public boolean isIndexAvailable(int id) {
+    return true;
+  }
 }

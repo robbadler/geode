@@ -25,26 +25,26 @@ import static org.apache.geode.distributed.ConfigurationProperties.USE_CLUSTER_C
 import static org.apache.geode.internal.AvailablePortHelper.getRandomAvailableTCPPorts;
 import static org.apache.geode.management.ManagementService.getExistingManagementService;
 import static org.apache.geode.test.dunit.DistributedTestUtils.deleteLocatorStateFile;
-import static org.apache.geode.test.dunit.Host.getHost;
 import static org.apache.geode.test.dunit.NetworkUtils.getServerHostName;
+import static org.apache.geode.test.dunit.VM.getVM;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.apache.geode.cache.server.CacheServer;
-import org.apache.geode.cache30.CacheTestCase;
-import org.apache.geode.internal.security.IntegratedSecurityService;
-import org.apache.geode.internal.security.SecurityService;
-import org.apache.geode.management.ManagementService;
-import org.apache.geode.test.dunit.Host;
-import org.apache.geode.test.dunit.VM;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.SecurityTest;
+import java.io.IOException;
+import java.util.Properties;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.io.IOException;
-import java.util.Properties;
+import org.apache.geode.cache.server.CacheServer;
+import org.apache.geode.internal.security.IntegratedSecurityService;
+import org.apache.geode.internal.security.SecurityService;
+import org.apache.geode.management.ManagementService;
+import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.dunit.cache.CacheTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.SecurityTest;
 
 @Category({DistributedTest.class, SecurityTest.class})
 public class SecurityManagerLifecycleDistributedTest extends CacheTestCase {
@@ -53,32 +53,31 @@ public class SecurityManagerLifecycleDistributedTest extends CacheTestCase {
   private VM locatorVM;
 
   @Before
-  public void before() throws Exception {
-    Host host = getHost(0);
-    this.locatorVM = host.getVM(0);
+  public void setUp() throws Exception {
+    locatorVM = getVM(0);
 
     int[] ports = getRandomAvailableTCPPorts(2);
     int locatorPort = ports[0];
     int managerPort = ports[1];
 
-    this.locators = getServerHostName(host) + "[" + locatorPort + "]";
+    locators = getServerHostName() + "[" + locatorPort + "]";
 
-    this.locatorVM.invoke(() -> {
+    locatorVM.invoke(() -> {
       deleteLocatorStateFile(locatorPort);
 
-      Properties properties = new Properties();
-      properties.setProperty(LOCATORS, locators);
-      properties.setProperty(MCAST_PORT, "0");
-      properties.setProperty(START_LOCATOR, locators);
-      properties.setProperty(JMX_MANAGER, "true");
-      properties.setProperty(JMX_MANAGER_PORT, String.valueOf(managerPort));
-      properties.setProperty(JMX_MANAGER_START, "true");
-      properties.setProperty(USE_CLUSTER_CONFIGURATION, "false");
-      properties.setProperty(SECURITY_MANAGER, SpySecurityManager.class.getName());
-      properties.setProperty("security-username", "secure");
-      properties.setProperty("security-password", "secure");
+      Properties config = new Properties();
+      config.setProperty(LOCATORS, locators);
+      config.setProperty(MCAST_PORT, "0");
+      config.setProperty(START_LOCATOR, locators);
+      config.setProperty(JMX_MANAGER, "true");
+      config.setProperty(JMX_MANAGER_PORT, String.valueOf(managerPort));
+      config.setProperty(JMX_MANAGER_START, "true");
+      config.setProperty(USE_CLUSTER_CONFIGURATION, "false");
+      config.setProperty(SECURITY_MANAGER, SpySecurityManager.class.getName());
+      config.setProperty("security-username", "secure");
+      config.setProperty("security-password", "secure");
 
-      getSystem(properties);
+      getSystem(config);
       getCache();
     });
   }
@@ -94,21 +93,21 @@ public class SecurityManagerLifecycleDistributedTest extends CacheTestCase {
 
     verifyCallbacksRegardlessOfManager(false);
 
-    this.locatorVM.invoke(() -> {
+    locatorVM.invoke(() -> {
       verifyCallbacksRegardlessOfManager(true);
     });
   }
 
   private void connectServer() throws IOException {
-    Properties properties = new Properties();
-    properties.setProperty(LOCATORS, locators);
-    properties.setProperty(MCAST_PORT, "0");
-    properties.setProperty(USE_CLUSTER_CONFIGURATION, "false");
-    properties.setProperty(SECURITY_MANAGER, SpySecurityManager.class.getName());
-    properties.setProperty("security-username", "secure");
-    properties.setProperty("security-password", "secure");
+    Properties config = new Properties();
+    config.setProperty(LOCATORS, locators);
+    config.setProperty(MCAST_PORT, "0");
+    config.setProperty(USE_CLUSTER_CONFIGURATION, "false");
+    config.setProperty(SECURITY_MANAGER, SpySecurityManager.class.getName());
+    config.setProperty("security-username", "secure");
+    config.setProperty("security-password", "secure");
 
-    getSystem(properties);
+    getSystem(config);
 
     CacheServer server1 = getCache().addCacheServer();
     server1.setPort(0);

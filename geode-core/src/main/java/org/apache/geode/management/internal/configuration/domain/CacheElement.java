@@ -21,7 +21,6 @@ import static org.apache.geode.management.internal.configuration.utils.XmlUtils.
 import java.io.IOException;
 import java.net.URL;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 import javax.xml.XMLConstants;
@@ -44,7 +43,7 @@ import org.apache.geode.management.internal.configuration.utils.XmlUtils.XPathCo
 /**
  * Domain class to determine the order of an element Currently being used to store order information
  * of child elements of "cache"
- * 
+ *
  *
  */
 // UnitTest CacheElementJUnitTest
@@ -96,19 +95,19 @@ public class CacheElement {
   /**
    * Build <code>cache</code> element map for given <cod>doc</code>'s schemaLocation for
    * {@link CacheXml#GEODE_NAMESPACE}.
-   * 
+   *
    * @param doc {@link Document} to parse schema for.
    * @return Element map
-   * @throws IOException
-   * @throws ParserConfigurationException
-   * @throws SAXException
-   * @throws XPathExpressionException
    * @since GemFire 8.1
    */
   public static LinkedHashMap<String, CacheElement> buildElementMap(final Document doc)
       throws IOException, XPathExpressionException, SAXException, ParserConfigurationException {
-    final Map<String, List<String>> schemaLocationMap =
-        XmlUtils.buildSchemaLocationMap(getAttribute(doc.getFirstChild(),
+    Node cacheNode = doc.getFirstChild();
+    if ("#comment".equals(cacheNode.getNodeName())) {
+      cacheNode = cacheNode.getNextSibling();
+    }
+    final Map<String, String> schemaLocationMap =
+        XmlUtils.buildSchemaLocationMap(getAttribute(cacheNode,
             W3C_XML_SCHEMA_INSTANCE_ATTRIBUTE_SCHEMA_LOCATION, W3C_XML_SCHEMA_INSTANCE_NS_URI));
 
     final LinkedHashMap<String, CacheElement> elementMap = new LinkedHashMap<>();
@@ -124,30 +123,26 @@ public class CacheElement {
   /**
    * Resolve schema from <code>schemaLocationsNape</code> or <code>namespaceUri</code> for given
    * <code>namespaceUri</code>.
-   * 
+   *
    * @param schemaLocationMap {@link Map} of namespaceUri to URLs.
    * @param namespaceUri Namespace URI for schema.
    * @return {@link InputSource} for schema if found.
    * @throws IOException if unable to open {@link InputSource}.
    * @since GemFire 8.1
    */
-  private static InputSource resolveSchema(final Map<String, List<String>> schemaLocationMap,
+  private static InputSource resolveSchema(final Map<String, String> schemaLocationMap,
       String namespaceUri) throws IOException {
     final EntityResolver2 entityResolver = new CacheXmlParser();
 
     InputSource inputSource = null;
 
     // Try loading schema from locations until we find one.
-    final List<String> locations = schemaLocationMap.get(namespaceUri);
-    for (final String location : locations) {
-      try {
-        inputSource = entityResolver.resolveEntity(null, location);
-        if (null != inputSource) {
-          break;
-        }
-      } catch (final SAXException e) {
-        // ignore
-      }
+    final String location = schemaLocationMap.get(namespaceUri);
+
+    try {
+      inputSource = entityResolver.resolveEntity(null, location);
+    } catch (final SAXException e) {
+      // ignore
     }
 
     if (null == inputSource) {
@@ -160,13 +155,9 @@ public class CacheElement {
 
   /**
    * Build element map adding to existing <code>elementMap</code>.
-   * 
+   *
    * @param elementMap to add elements to.
    * @param inputSource to parse elements from.
-   * @throws SAXException
-   * @throws IOException
-   * @throws ParserConfigurationException
-   * @throws XPathExpressionException
    * @since GemFire 8.1
    */
   private static void buildElementMapCacheType(final LinkedHashMap<String, CacheElement> elementMap,
@@ -187,7 +178,7 @@ public class CacheElement {
   /**
    * Build element map for elements matching <code>xPath</code> relative to <code>parent</code> into
    * <code>elementMap</code> .
-   * 
+   *
    * @param elementMap to add elements to
    * @param schema {@link Document} for schema.
    * @param parent {@link Element} to query XPath.
@@ -195,7 +186,6 @@ public class CacheElement {
    * @param xPath XPath to query for elements.
    * @param xPathContext XPath context for queries.
    * @return final rank of elements.
-   * @throws XPathExpressionException
    * @since GemFire 8.1
    */
   private static int buildElementMapXPath(final LinkedHashMap<String, CacheElement> elementMap,
@@ -228,7 +218,7 @@ public class CacheElement {
 
   /**
    * Tests if element allows multiple.
-   * 
+   *
    * @param element to test for multiple.
    * @return true if multiple allowed, otherwise false.
    * @since GemFire 8.1

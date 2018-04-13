@@ -18,9 +18,10 @@ import java.io.File;
 import java.util.Arrays;
 
 import org.apache.geode.GemFireIOException;
-import org.apache.geode.cache.DiskStoreFactory;
 import org.apache.geode.cache.DiskStore;
+import org.apache.geode.cache.DiskStoreFactory;
 import org.apache.geode.distributed.internal.ResourceEvent;
+import org.apache.geode.internal.cache.backup.BackupService;
 import org.apache.geode.internal.cache.xmlcache.CacheCreation;
 import org.apache.geode.internal.cache.xmlcache.CacheXml;
 import org.apache.geode.internal.cache.xmlcache.DiskStoreAttributesCreation;
@@ -29,7 +30,7 @@ import org.apache.geode.pdx.internal.TypeRegistry;
 
 /**
  * Implementation of DiskStoreFactory
- * 
+ *
  * @since GemFire prPersistSprint2
  */
 public class DiskStoreFactoryImpl implements DiskStoreFactory {
@@ -159,7 +160,7 @@ public class DiskStoreFactoryImpl implements DiskStoreFactory {
     // member depends on state that goes into this disk store
     // that isn't backed up.
     if (this.cache instanceof GemFireCacheImpl) {
-      BackupManager backup = this.cache.getBackupManager();
+      BackupService backup = this.cache.getBackupService();
       if (backup != null) {
         backup.waitForBackup();
       }

@@ -34,6 +34,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.FunctionInvocationTargetException;
 import org.apache.geode.cache.execute.ResultCollector;
@@ -49,7 +50,7 @@ import org.apache.geode.test.junit.categories.UnitTest;
  * The ListIndexCommandJUnitTest class is a test suite of test cases testing the contract and
  * functionality of the ListIndexCommand class.
  * </p>
- * 
+ *
  * @see org.apache.geode.management.internal.cli.commands.ClearDefinedIndexesCommand
  * @see org.apache.geode.management.internal.cli.commands.CreateDefinedIndexesCommand
  * @see org.apache.geode.management.internal.cli.commands.CreateIndexCommand
@@ -204,12 +205,12 @@ public class ListIndexCommandJUnitTest {
     }
 
     @Override
-    public InternalCache getCache() {
+    public Cache getCache() {
       return this.cache;
     }
 
     @Override
-    public Set<DistributedMember> getMembers(final InternalCache cache) {
+    public Set<DistributedMember> getAllMembers() {
       assertSame(getCache(), cache);
       return Collections.emptySet();
     }

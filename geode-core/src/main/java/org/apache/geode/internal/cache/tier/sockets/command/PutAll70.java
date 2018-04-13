@@ -52,7 +52,7 @@ import org.apache.geode.security.ResourcePermission.Resource;
 
 public class PutAll70 extends BaseCommand {
 
-  private final static PutAll70 singleton = new PutAll70();
+  private static final PutAll70 singleton = new PutAll70();
 
   public static Command getCommand() {
     return singleton;
@@ -167,7 +167,8 @@ public class PutAll70 extends BaseCommand {
           if (skipCallbacks && Token.INVALID.isSerializedValue(valuePart.getSerializedForm())) {
             value = Token.INVALID;
           } else {
-            value = CachedDeserializableFactory.create(valuePart.getSerializedForm());
+            value = CachedDeserializableFactory.create(valuePart.getSerializedForm(),
+                region.getCache());
           }
         } else {
           value = valuePart.getSerializedForm();

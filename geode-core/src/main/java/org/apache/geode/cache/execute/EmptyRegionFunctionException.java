@@ -14,13 +14,12 @@
  */
 package org.apache.geode.cache.execute;
 
-import org.apache.geode.distributed.DistributedMember;
 
 /**
  * Exception to indicate that Region is empty for data aware functions.
- * 
+ *
  * @since GemFire 6.5
- * 
+ *
  */
 public class EmptyRegionFunctionException extends FunctionException {
 
@@ -28,7 +27,7 @@ public class EmptyRegionFunctionException extends FunctionException {
 
   /**
    * Construct an instance of EmtpyRegionFunctionException
-   * 
+   *
    * @param cause a Throwable cause of this exception
    */
   public EmptyRegionFunctionException(Throwable cause) {
@@ -37,7 +36,7 @@ public class EmptyRegionFunctionException extends FunctionException {
 
   /**
    * Construct an instance of EmtpyRegionFunctionException
-   * 
+   *
    * @param msg Exception message
    */
   public EmptyRegionFunctionException(String msg) {
@@ -46,7 +45,7 @@ public class EmptyRegionFunctionException extends FunctionException {
 
   /**
    * Construct an instance of EmtpyRegionFunctionException
-   * 
+   *
    * @param msg the error message
    * @param cause a Throwable cause of this exception
    */

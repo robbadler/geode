@@ -16,7 +16,6 @@
 package org.apache.geode.cache;
 
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.internal.cache.EnumListenerEvent;
 
 /**
  * A region- or entry-related event affecting the cache.
@@ -38,56 +37,56 @@ public interface CacheEvent<K, V> {
   /**
    * Returns the region to which this cached object belongs or the region that raised this event for
    * <code>RegionEvent</code>s.
-   * 
+   *
    * @return the region associated with this object or the region that raised this event.
    */
-  public Region<K, V> getRegion();
+  Region<K, V> getRegion();
 
   /**
    * Return a description of the operation that triggered this event.
-   * 
+   *
    * @return the operation that triggered this event.
    * @since GemFire 5.0
    */
-  public Operation getOperation();
+  Operation getOperation();
 
   /**
    * Returns the callbackArgument passed to the method that generated this event. Provided primarily
    * in case this object or region has already been destroyed. See the {@link Region} interface
    * methods that take a callbackArgument parameter.
-   * 
+   *
    * @return the callbackArgument associated with this event. <code>null</code> is returned if the
    *         callback argument is not propagated to the event. This happens for events given to
    *         {@link TransactionListener} and to {@link CacheListener} on the remote side of a
    *         transaction commit.
    */
-  public Object getCallbackArgument();
+  Object getCallbackArgument();
 
   /**
    * Returns <code>true</code> if the callback argument is "available". Not available means that the
    * callback argument may have existed but it could not be obtained. Note that
    * {@link #getCallbackArgument} will return <code>null</code> when this method returns
    * <code>false</code>.
-   * 
+   *
    * @since GemFire 6.0
    */
-  public boolean isCallbackArgumentAvailable();
+  boolean isCallbackArgumentAvailable();
 
   /**
    * Answer true if this event originated in a cache other than this one. Answer false if this event
    * originated in this cache.
-   * 
+   *
    * @return true if this event originated remotely
    *
    */
-  public boolean isOriginRemote();
+  boolean isOriginRemote();
 
   /**
    * Returns the {@link DistributedMember} that this event originated in.
-   * 
+   *
    * @return the member that performed the operation that originated this event.
    * @since GemFire 5.0
    */
-  public DistributedMember getDistributedMember();
+  DistributedMember getDistributedMember();
 
 }

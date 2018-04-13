@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.cache.query.internal.index;
 
 import static org.junit.Assert.assertEquals;
@@ -42,11 +39,9 @@ import org.apache.geode.cache.query.internal.QueryObserver;
 import org.apache.geode.cache.query.internal.QueryObserverAdapter;
 import org.apache.geode.cache.query.internal.QueryObserverHolder;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
-/**
- *
- */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLIndexTest.class})
 public class IndexStatisticsJUnitTest {
 
   static QueryService qs;
@@ -86,8 +81,7 @@ public class IndexStatisticsJUnitTest {
    */
   /**
    * Test RenageIndex IndexStatistics for keys, values, updates and uses.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testStatsForRangeIndex() throws Exception {
@@ -209,8 +203,7 @@ public class IndexStatisticsJUnitTest {
 
   /**
    * Test CompactRenageIndex IndexStatistics for keys, values, updates and uses.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testStatsForCompactRangeIndex() throws Exception {
@@ -332,8 +325,7 @@ public class IndexStatisticsJUnitTest {
 
   /**
    * Test CompactMapRenageIndex IndexStatistics for keys, values, updates and uses.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testStatsForCompactMapRangeIndex() throws Exception {
@@ -408,8 +400,7 @@ public class IndexStatisticsJUnitTest {
 
   /**
    * Test MapRenageIndex IndexStatistics for keys, values, updates and uses.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testStatsForMapRangeIndex() throws Exception {
@@ -486,8 +477,7 @@ public class IndexStatisticsJUnitTest {
 
   /**
    * Test RenageIndex IndexStatistics for keys, values, updates and uses.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testStatsForRangeIndexBeforeRegionCreation() throws Exception {
@@ -563,8 +553,7 @@ public class IndexStatisticsJUnitTest {
 
   /**
    * Test CompactRenageIndex IndexStatistics for keys, values, updates and uses.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testStatsForCompactRangeIndexBeforeRegionCreation() throws Exception {
@@ -639,8 +628,7 @@ public class IndexStatisticsJUnitTest {
 
   /**
    * Test MapRenageIndex IndexStatistics for keys, values, updates and uses.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testStatsForMapRangeIndexBeforeRegionCreation() throws Exception {
@@ -868,4 +856,3 @@ public class IndexStatisticsJUnitTest {
     }
   }
 }
-
