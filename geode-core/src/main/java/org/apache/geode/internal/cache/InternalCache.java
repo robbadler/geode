@@ -53,13 +53,14 @@ import org.apache.geode.distributed.internal.membership.InternalDistributedMembe
 import org.apache.geode.internal.SystemTimer;
 import org.apache.geode.internal.cache.control.InternalResourceManager;
 import org.apache.geode.internal.cache.control.ResourceAdvisor;
+import org.apache.geode.internal.cache.event.EventTrackerExpiryTask;
 import org.apache.geode.internal.cache.extension.Extensible;
-import org.apache.geode.internal.cache.persistence.BackupManager;
 import org.apache.geode.internal.cache.persistence.PersistentMemberManager;
 import org.apache.geode.internal.cache.tier.sockets.CacheClientNotifier;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
 import org.apache.geode.internal.logging.InternalLogWriter;
 import org.apache.geode.internal.offheap.MemoryAllocator;
+import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.management.internal.JmxManagerAdvisor;
 import org.apache.geode.management.internal.RestAgent;
 import org.apache.geode.pdx.PdxInstanceFactory;
@@ -236,7 +237,7 @@ public interface InternalCache extends Cache, Extensible<Cache>, CacheTime {
 
   TXEntryStateFactory getTXEntryStateFactory();
 
-  EventTracker.ExpiryTask getEventTrackerTask();
+  EventTrackerExpiryTask getEventTrackerTask();
 
   void removeDiskStore(DiskStoreImpl diskStore);
 
@@ -309,4 +310,10 @@ public interface InternalCache extends Cache, Extensible<Cache>, CacheTime {
   PdxInstanceFactory createPdxInstanceFactory(String className, boolean expectDomainClass);
 
   void waitForRegisterInterestsInProgress();
+
+  SecurityService getSecurityService();
+
+  boolean hasPersistentRegion();
+
+  void shutDownAll();
 }

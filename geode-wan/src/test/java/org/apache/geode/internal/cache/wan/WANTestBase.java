@@ -2143,7 +2143,7 @@ public class WANTestBase extends JUnit4DistributedTestCase {
     Pool p;
     try {
       p = PoolManager.createFactory().addLocator(host, port0).setPingInterval(250)
-          .setSubscriptionEnabled(true).setSubscriptionRedundancy(-1).setReadTimeout(2000)
+          .setSubscriptionEnabled(true).setSubscriptionRedundancy(-1).setReadTimeout(20000)
           .setSocketBufferSize(1000).setMinConnections(6).setMaxConnections(10).setRetryAttempts(3)
           .create("pool");
     } finally {
@@ -2822,7 +2822,8 @@ public class WANTestBase extends JUnit4DistributedTestCase {
                 true, (regionSize <= r.keySet().size())));
     for (int i = 0; i < regionSize; i++) {
       LogWriterUtils.getLogWriter().info("For Key : Key_" + i + " : Values : " + r.get("Key_" + i));
-      assertEquals(new SimpleClass(i, (byte) i), r.get("Key_" + i));
+      assertEquals("keySet = " + r.keySet() + " values() = " + r.values(),
+          new SimpleClass(i, (byte) i), r.get("Key_" + i));
     }
   }
 

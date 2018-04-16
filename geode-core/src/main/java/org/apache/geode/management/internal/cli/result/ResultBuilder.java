@@ -14,19 +14,21 @@
  */
 package org.apache.geode.management.internal.cli.result;
 
+import java.nio.file.Paths;
+import java.util.Collection;
+import java.util.List;
+
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.internal.cli.json.GfJsonException;
 import org.apache.geode.management.internal.cli.json.GfJsonObject;
-
-import java.util.Collection;
-import java.util.List;
 
 /**
  * Provides methods for creating {@link Result} objects to return from Gfsh command functions
  */
 public class ResultBuilder {
   public static final int CODE_SHELLCLIENT_ABORT_OP = 110;
-  // public static final int OKCODE = 200;
 
   // error on gfsh
   public static final int ERRORCODE_DEFAULT = 400;
@@ -116,7 +118,7 @@ public class ResultBuilder {
    * @param message Message to be shown to the user
    * @return Result for unreadable command response.
    */
-  public static Result createBadResponseErrorResult(String message) {
+  public static CommandResult createBadResponseErrorResult(String message) {
     return createErrorResult(ERRORCODE_BADRESPONSE_ERROR,
         "Could not read command response. " + message);
   }
@@ -132,7 +134,7 @@ public class ResultBuilder {
    * @return Result object with the given error code & message. If there's an exception while
    *         building result object, returns {@link #ERROR_RESULT_DEFAULT}
    */
-  private static Result createErrorResult(int errorCode, String message) {
+  private static CommandResult createErrorResult(int errorCode, String message) {
     ErrorResultData errorResultData = new ErrorResultData();
     errorResultData.setErrorCode(errorCode);
     errorResultData.addLine(message);
@@ -169,10 +171,6 @@ public class ResultBuilder {
     return new ObjectResultData<>();
   }
 
-  // public static CatalogedResultData createCatalogedResultData() {
-  // return new CatalogedResultData();
-  // }
-
   /**
    * Creates a {@link InfoResultData} object to start building result that is required to be shown
    * as an information without any specific format.
@@ -198,7 +196,7 @@ public class ResultBuilder {
    * @param resultData data to use to build Result
    * @return Result object built from the given ResultData
    */
-  public static Result buildResult(ResultData resultData) {
+  public static CommandResult buildResult(ResultData resultData) {
     return new CommandResult(resultData);
   }
 
@@ -210,7 +208,7 @@ public class ResultBuilder {
    * @param gfJsonObject GemFire JSON Object to use to prepare Result
    * @return Result from the given GemFire JSON Object
    */
-  public static Result fromJson(GfJsonObject gfJsonObject) {
+  public static CommandResult fromJson(GfJsonObject gfJsonObject) {
     return fromJson(gfJsonObject.toString());
   }
 
@@ -223,8 +221,8 @@ public class ResultBuilder {
    * @return Result object prepare from the JSON string. If it fails, creates an error Result for
    *         Bad Response.
    */
-  public static Result fromJson(String json) {
-    Result result;
+  public static CommandResult fromJson(String json) {
+    CommandResult result;
     try {
       GfJsonObject jsonObject = new GfJsonObject(json);
       String contentType = jsonObject.getString("contentType");
@@ -233,10 +231,7 @@ public class ResultBuilder {
       AbstractResultData resultData;
       if (ResultData.TYPE_TABULAR.equals(contentType)) {
         resultData = new TabularResultData(data);
-      } /*
-         * else if (ResultData.TYPE_CATALOGED.equals(contentType)) { resultData = new
-         * CatalogedResultData(new GfJsonObject(String.valueOf(content))); }
-         */ else if (ResultData.TYPE_INFO.equals(contentType)) {
+      } else if (ResultData.TYPE_INFO.equals(contentType)) {
         resultData = new InfoResultData(data);
       } else if (ResultData.TYPE_ERROR.equals(contentType)) {
         resultData = new ErrorResultData(data);
@@ -252,6 +247,11 @@ public class ResultBuilder {
 
       result = buildResult(resultData);
 
+      String fileToDownloadPath = jsonObject.getString("fileToDownload");
+      if (StringUtils.isNotBlank(fileToDownloadPath) && !fileToDownloadPath.equals("null")) {
+        result.setFileToDownload(Paths.get(fileToDownloadPath));
+      }
+
     } catch (GfJsonException e) {
       result = createBadResponseErrorResult(json);
     }
@@ -266,7 +266,6 @@ public class ResultBuilder {
       while (result.hasNextLine()) {
         builder.append(result.nextLine());
       }
-      // TODO - what to do with incoming files??
     }
 
     return builder.toString();

@@ -188,7 +188,7 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
       Integer.getInteger("GatewaySender.QUEUE_SIZE_THRESHOLD", 5000).intValue();
 
   public static int TOKEN_TIMEOUT =
-      Integer.getInteger("GatewaySender.TOKEN_TIMEOUT", 15000).intValue();
+      Integer.getInteger("GatewaySender.TOKEN_TIMEOUT", 120000).intValue();
 
   /**
    * The name of the DistributedLockService used when accessing the GatewaySender's meta data
@@ -602,6 +602,18 @@ public abstract class AbstractGatewaySender implements GatewaySender, Distributi
       }
     }
     return enqueue;
+  }
+
+  protected void stopProcessing() {
+    // Stop the dispatcher
+    AbstractGatewaySenderEventProcessor ev = this.eventProcessor;
+    if (ev != null && !ev.isStopped()) {
+      ev.stopProcessing();
+    }
+
+    if (ev != null && ev.getDispatcher() != null) {
+      ev.getDispatcher().shutDownAckReaderConnection();
+    }
   }
 
   protected void stompProxyDead() {
