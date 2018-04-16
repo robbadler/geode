@@ -41,34 +41,6 @@ import static org.apache.geode.test.dunit.Assert.fail;
 import static org.apache.geode.test.dunit.LogWriterUtils.getLogWriter;
 import static org.apache.geode.test.dunit.Wait.waitForCriterion;
 
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.server.CacheServer;
-import org.apache.geode.distributed.Locator;
-import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
-import org.apache.geode.distributed.internal.InternalLocator;
-import org.apache.geode.distributed.internal.ClusterConfigurationService;
-import org.apache.geode.internal.AvailablePortHelper;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
-import org.apache.geode.internal.cache.xmlcache.CacheXmlGenerator;
-import org.apache.geode.internal.logging.LogWriterImpl;
-import org.apache.geode.management.cli.Result;
-import org.apache.geode.management.cli.Result.Status;
-import org.apache.geode.management.internal.cli.i18n.CliStrings;
-import org.apache.geode.management.internal.cli.remote.CommandProcessor;
-import org.apache.geode.management.internal.cli.result.CommandResult;
-import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
-import org.apache.geode.test.dunit.Host;
-import org.apache.geode.test.dunit.IgnoredException;
-import org.apache.geode.test.dunit.SerializableCallable;
-import org.apache.geode.test.dunit.SerializableRunnable;
-import org.apache.geode.test.dunit.VM;
-import org.apache.geode.test.dunit.WaitCriterion;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.FlakyTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
@@ -82,12 +54,41 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.server.CacheServer;
+import org.apache.geode.distributed.Locator;
+import org.apache.geode.distributed.internal.ClusterConfigurationService;
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.distributed.internal.InternalLocator;
+import org.apache.geode.internal.AvailablePortHelper;
+import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.internal.cache.xmlcache.CacheXmlGenerator;
+import org.apache.geode.internal.logging.LogWriterImpl;
+import org.apache.geode.management.cli.Result;
+import org.apache.geode.management.cli.Result.Status;
+import org.apache.geode.management.internal.cli.i18n.CliStrings;
+import org.apache.geode.management.internal.cli.remote.OnlineCommandProcessor;
+import org.apache.geode.management.internal.cli.result.CommandResult;
+import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
+import org.apache.geode.test.dunit.Host;
+import org.apache.geode.test.dunit.IgnoredException;
+import org.apache.geode.test.dunit.SerializableCallable;
+import org.apache.geode.test.dunit.SerializableRunnable;
+import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.dunit.WaitCriterion;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.FlakyTest;
+
 /**
  * Dunit class for testing GemFire config commands : export config
  *
  * @since GemFire 7.0
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, FlakyTest.class}) // GEODE-1449 GEODE-3530
 @SuppressWarnings("serial")
 public class ConfigCommandsDUnitTest extends CliCommandTestBase {
 
@@ -156,8 +157,8 @@ public class ConfigCommandsDUnitTest extends CliCommandTestBase {
       config.setArchiveFileSizeLimit(1000);
 
       String command = CliStrings.DESCRIBE_CONFIG + " --member=" + controllerName;
-      CommandProcessor cmdProcessor = new CommandProcessor();
-      cmdProcessor.createCommandStatement(command, Collections.EMPTY_MAP).process();
+      OnlineCommandProcessor cmdProcessor = new OnlineCommandProcessor();
+      cmdProcessor.executeCommand(command);
 
       CommandResult cmdResult = executeCommand(command);
 
@@ -186,8 +187,7 @@ public class ConfigCommandsDUnitTest extends CliCommandTestBase {
     }
   }
 
-  @Category(FlakyTest.class) // GEODE-1449
-  @Test
+  @Test // FlakyTest: GEODE-1449
   public void testExportConfig() throws Exception {
     Properties localProps = new Properties();
     localProps.setProperty(NAME, "Manager");
@@ -302,7 +302,7 @@ public class ConfigCommandsDUnitTest extends CliCommandTestBase {
     final DistributionConfig config = cache.getSystem().getConfig();
 
     CommandStringBuilder csb = new CommandStringBuilder(CliStrings.ALTER_RUNTIME_CONFIG);
-    csb.addOption(CliStrings.ALTER_RUNTIME_CONFIG__MEMBER, controller);
+    csb.addOption(CliStrings.MEMBER, controller);
     csb.addOption(CliStrings.ALTER_RUNTIME_CONFIG__LOG__LEVEL, "info");
     csb.addOption(CliStrings.ALTER_RUNTIME_CONFIG__LOG__FILE__SIZE__LIMIT, "50");
     csb.addOption(CliStrings.ALTER_RUNTIME_CONFIG__ARCHIVE__DISK__SPACE__LIMIT, "32");
@@ -327,9 +327,8 @@ public class ConfigCommandsDUnitTest extends CliCommandTestBase {
     assertEquals(true, config.getStatisticSamplingEnabled());
     assertEquals(10, config.getLogDiskSpaceLimit());
 
-    CommandProcessor commandProcessor = new CommandProcessor();
-    Result result =
-        commandProcessor.createCommandStatement("alter runtime", Collections.EMPTY_MAP).process();
+    OnlineCommandProcessor onlineCommandProcessor = new OnlineCommandProcessor();
+    Result result = onlineCommandProcessor.executeCommand("alter runtime", Collections.EMPTY_MAP);
   }
 
   @Test
@@ -527,7 +526,7 @@ public class ConfigCommandsDUnitTest extends CliCommandTestBase {
     // Test altering the runtime config
     CommandStringBuilder commandStringBuilder =
         new CommandStringBuilder(CliStrings.ALTER_RUNTIME_CONFIG);
-    commandStringBuilder.addOption(CliStrings.ALTER_RUNTIME_CONFIG__GROUP, groupName);
+    commandStringBuilder.addOption(CliStrings.GROUP, groupName);
     commandStringBuilder.addOption(CliStrings.ALTER_RUNTIME_CONFIG__LOG__LEVEL, "fine");
     CommandResult cmdResult = executeCommand(commandStringBuilder.toString());
 
