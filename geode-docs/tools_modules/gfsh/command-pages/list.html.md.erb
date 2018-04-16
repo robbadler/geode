@@ -21,7 +21,7 @@ limitations under the License.
 
 
 
-List existing Geode resources such as deployed applications, disk-stores, functions, members, servers, and regions.
+List existing <%=vars.product_name%> resources such as deployed applications, disk-stores, functions, members, servers, and regions.
 
 -   **[list async-event-queues](#topic_j22_kzk_2l)**
 
@@ -37,7 +37,7 @@ List existing Geode resources such as deployed applications, disk-stores, functi
 
 -   **[list disk-stores](#topic_BC14AD57EA304FB3845766898D01BD04)**
 
-    List all available disk stores across the Geode cluster
+    List all available disk stores across the <%=vars.product_name%> cluster
 
 -   **[list durable-cqs](#topic_66016A698C334F4EBA19B99F51B0204B)**
 
@@ -55,6 +55,10 @@ List existing Geode resources such as deployed applications, disk-stores, functi
 
     Display the list of indexes created for all members.
 
+-   **[list jndi-binding](#list_jndi-binding)**
+
+    List all JNDI bindings, active and configured.
+
 -   **[list lucene indexes](#list_lucene_indexes)**
 
     List Lucene indexes created for all members.
@@ -65,7 +69,7 @@ List existing Geode resources such as deployed applications, disk-stores, functi
 
 -   **[list regions](#topic_F0ECEFF26086474498598035DD83C588)**
 
-    Display regions of a member or members. If no parameter is specified, all regions in the Geode distributed system are listed.
+    Display regions of a member or members. If no parameter is specified, all regions in the <%=vars.product_name%> distributed system are listed.
 
 ## <a id="topic_j22_kzk_2l" class="no-quick-link"></a>list async-event-queues
 
@@ -127,27 +131,27 @@ Display a list of JARs that were deployed to members using the deploy command.
 **Syntax:**
 
 ``` pre
-list deployed [--group=value(,value)*]
+list deployed [--groups=value(,value)*]
 ```
 
 **Parameters, list deployed:**
 
 | Name                                          | Description                                                                                                          |
 |-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| <span class="keyword parmname">&#8209;&#8209;group</span> | Group(s) of members for which deployed JARs will be displayed. If not specified, JARs for all members are displayed. |
+| <span class="keyword parmname">&#8209;&#8209;groups</span> | Group(s) of members for which deployed JARs will be displayed. If not specified, JARs for all members are displayed. |
 
 
 **Example Commands:**
 
 ``` pre
 list deployed
-list deployed --group=Group2
+list deployed --groups=Group2
 ```
 
 **Sample Output:**
 
 ``` pre
-gfsh> list deployed  --group=Group2
+gfsh> list deployed  --groups=Group2
 
  Member   |     Deployed JAR     |                JAR Location
 --------- | -------------------- | ---------------------------------------------------
@@ -163,7 +167,7 @@ No JAR Files Found
 
 ## <a id="topic_BC14AD57EA304FB3845766898D01BD04" class="no-quick-link"></a>list disk-stores
 
-List all available disk stores across the Geode cluster
+List all available disk stores across the <%=vars.product_name%> cluster
 
 The command also lists the configured disk directories and any Regions, Cache Servers, Gateways, PDX Serialization and Async Event Queues using Disk Stores to either overflow and/or persist information to disk. Use the `describe                         disk-store` command to see the details for a particular Disk Store.
 
@@ -210,7 +214,8 @@ List durable client CQs associated with the specified durable client id.
 **Syntax:**
 
 ``` pre
-list durable-cqs --durable-client-id=value [--member=value] [--group=value]
+list durable-cqs --durable-client-id=value
+ [--members=value(,value)*] [--groups=value(,value)*]
 ```
 
 **Parameters, list durable-cqs:**
@@ -218,8 +223,8 @@ list durable-cqs --durable-client-id=value [--member=value] [--group=value]
 | Name                                                       | Description                                                                                            |
 |------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | <span class="keyword parmname">\\-\\-durable-client-id </span> | *Required.* The ID used to identify the durable client.                                                |
-| <span class="keyword parmname">\\-\\-member</span>             | Name or Id of the member for which the durable client is registered and durable CQs will be displayed. |
-| <span class="keyword parmname">\\-\\-group</span>              | Group of members for which the durable client is registered and durable CQs will be displayed.         |
+| <span class="keyword parmname">\\-\\-members</span>             | Name or Id of the member(s) for which the durable client is registered and durable CQs will be displayed. |
+| <span class="keyword parmname">\\-\\-groups</span>              | Group(s) of members for which the durable client is registered and durable CQs will be displayed.         |
 
 
 **Example Commands**:
@@ -264,8 +269,8 @@ Display a list of registered functions. The default is to display functions for 
 **Syntax:**
 
 ``` pre
-list functions [--matches=value] [--group=value(,value)*]
-[--member=value(,value)*]
+list functions [--matches=value] [--groups=value(,value)*]
+[--members=value(,value)*]
 ```
 
 **Parameters, list functions:**
@@ -273,8 +278,8 @@ list functions [--matches=value] [--group=value(,value)*]
 | Name                                             | Description                                                                                                                                                                                     |
 |--------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | <span class="keyword parmname">\\-\\-matches </span> | Pattern that the function ID must match in order to be included. Uses Java pattern matching rules, not UNIX. For example, to match any character any number of times use ".\*" instead of "\*". |
-| <span class="keyword parmname">\\-\\-group</span>    | Group(s) of members for which functions will be displayed. Use a comma separated list for multiple groups.                                                                                      |
-| <span class="keyword parmname">&#8209;&#8209;member </span>  | Name or ID of the member(s) for which functions will be displayed. Use a comma separated list for multiple members.                                                                             |
+| <span class="keyword parmname">\\-\\-groups</span>    | Group(s) of members for which functions will be displayed. Use a comma separated list for multiple groups.                                                                                      |
+| <span class="keyword parmname">&#8209;&#8209;members </span>  | Name or ID of the member(s) for which functions will be displayed. Use a comma separated list for multiple members.                                                                             |
 
 
 **Example Commands:**
@@ -307,7 +312,7 @@ gfsh> list functions --matches=reconcile.*
   excalibur | reconcileDailyExpenses
 
 
-Example of 'list functions' when no functions are found in Geode :
+Example of 'list functions' when no functions are found in <%=vars.product_name%> :
 
 gfsh> list functions
 No Functions Found.
@@ -322,15 +327,15 @@ Displays the gateway senders and receivers for a member or members.
 **Syntax:**
 
 ``` pre
-list gateways [--group=value(,value)*]
+list gateways [--members=value(,value)*] [--groups=value(,value)*]
 ```
 
 **Parameters, list gateways:**
 
 | Name                                           | Description                                                                                                                    |
 |------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| <span class="keyword parmname">&#8209;&#8209;member</span> | Member(s) whose gateways senders and receiver display.                                                                         |
-| <span class="keyword parmname">\\-\\-group</span>  | Group(s) of members for which Gateway Senders and Receivers will be displayed. Use a comma separated list for multiple groups. |
+| <span class="keyword parmname">&#8209;&#8209;members</span> | Member(s) whose gateways senders and receiver display.                                                                         |
+| <span class="keyword parmname">\\-\\-groups</span>  | Group(s) of members for which Gateway Senders and Receivers will be displayed. Use a comma separated list for multiple groups. |
 
 
 **Example Commands:**
@@ -389,11 +394,46 @@ ps...        | 192...    | /producers  | pidIdx   | RANGE | id                 |
 
 **Error Messages:**
 
-Example of output when no indexes are found in Geode:
+Example of output when no indexes are found in <%=vars.product_name%>:
 
 ``` pre
 gfsh> list indexes
 No Indexes Found
+```
+
+## <a id="list_jndi-binding" class="no-quick-link"></a>list jndi-binding
+
+List all JNDI bindings, active and configured.
+An active binding is one that is bound to the server's JNDI context
+and is also listed in the cluster configuration.
+A configured binding is one that is listed in the cluster configuration,
+but may not be active on the servers.
+
+**Availability:** Online. You must be connected in `gfsh` to a JMX Manager member to use this command.
+
+**Syntax:**
+
+``` pre
+list jndi-binding
+```
+
+**Sample Output:**
+
+``` pre
+gfsh>list jndi-binding
+
+Configured JNDI bindings: 
+
+Group Name | JNDI Name | JDBC Driver Class
+---------- | --------- | ------------------------------------
+cluster    | jndi1     | org.apache.derby.jdbc.EmbeddedDriver
+
+Active JNDI bindings found on each member: 
+
+    Member      |        JNDI Name        | JDBC Driver Class
+--------------- | ----------------------- | ----------------------------------------------------
+land-gifted-gun | java:UserTransaction    | org.apache.geode.internal.jta.UserTransactionImpl
+land-gifted-gun | java:TransactionManager | org.apache.geode.internal.jta.TransactionManagerImpl
 ```
 
 ## <a id="list_lucene_indexes" class="no-quick-link"></a>list lucene indexes
@@ -444,6 +484,12 @@ personIndex   | /Person     | [name, email, address, revenue]                   
 
 Display all or a subset of members.
 
+Within the output, the membership coordinator is listed.
+`<vN>` identifies which view the member currently has;
+`N` will be zero or a positive integer.
+`<ec>` indicates which members are eligible to be a membership
+coordinator.
+
 **Availability:** Online. You must be connected in `gfsh` to a JMX Manager member to use this command.
 
 **Syntax:**
@@ -470,37 +516,38 @@ list members --group=Group1
 
 ``` pre
 gfsh>list members
-  Name   | Id
--------- | -------------------------------------
-server1  | GemFireStymon(server1:888)<v7>:10839
-server2  | GemFireStymon(server2:3260)<v8>:16721
-locator1 | localhost(locator1:216:locator):33368
+  Name       | Id
+------------ | -------------------------------------
+Coordinator: | 192.0.2.0(locator1:216:locator)<ec><v6>:33368
+locator1     | 192.0.2.0(locator1:216:locator)<ec><v6>:33368
+server1      | 192.0.2.0(server1:888)<v7>:10839
+server2      | 192.0.2.0(server2:3260)<v8>:16721
 ```
 
 ## <a id="topic_F0ECEFF26086474498598035DD83C588" class="no-quick-link"></a>list regions
 
-Display regions of a member or members. If no parameter is specified, all regions in the Geode distributed system are listed.
+Display regions of a member or members. If no parameter is specified, all regions in the <%=vars.product_name%> distributed system are listed.
 
 **Syntax:**
 
 ``` pre
-list regions [--group=value] [--member=value]
+list regions [--groups=value(,value)*] [--members=value(,value)*]
 ```
 
 **Parameters, list regions:**
 
 | Name                                            | Description                                                                 |
 |-------------------------------------------------|-----------------------------------------------------------------------------|
-| <span class="keyword parmname">\\-\\-group</span>   | Group of members for which regions will be displayed.                       |
-| <span class="keyword parmname">\\-\\-member </span> | Name or ID of the member of the member for which regions will be displayed. |
+| <span class="keyword parmname">\\-\\-groups</span>   | Group(s) of members for which regions will be displayed.                       |
+| <span class="keyword parmname">\\-\\-members </span> | Name or ID of the member(s) for which regions will be displayed. |
 
 
 **Example Commands:**
 
 ``` pre
 list regions
-list regions --group=G1
-list regions --member=member1
+list regions --groups=G1
+list regions --members=member1
 ```
 
 **Sample Output:**

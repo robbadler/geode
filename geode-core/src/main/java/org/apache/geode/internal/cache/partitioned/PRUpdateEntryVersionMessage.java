@@ -29,8 +29,8 @@ import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.Operation;
 import org.apache.geode.cache.query.QueryException;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DirectReplyProcessor;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.distributed.internal.ReplyMessage;
@@ -52,8 +52,8 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 /**
  * This message is generated based on event received on GatewayReceiver for updating the time-stamp
  * in a version tag for a RegionEntry.
- * 
- * 
+ *
+ *
  */
 public class PRUpdateEntryVersionMessage extends PartitionMessageWithDirectReply {
 
@@ -73,22 +73,11 @@ public class PRUpdateEntryVersionMessage extends PartitionMessageWithDirectReply
   /** for deserialization */
   public PRUpdateEntryVersionMessage() {}
 
-  /**
-   * @param recipients
-   * @param regionId
-   * @param processor
-   */
   public PRUpdateEntryVersionMessage(Collection<InternalDistributedMember> recipients, int regionId,
       DirectReplyProcessor processor) {
     super(recipients, regionId, processor);
   }
 
-  /**
-   * @param recipients
-   * @param regionId
-   * @param processor
-   * @param event
-   */
   public PRUpdateEntryVersionMessage(Set recipients, int regionId, DirectReplyProcessor processor,
       EntryEventImpl event) {
     super(recipients, regionId, processor, event);
@@ -100,7 +89,7 @@ public class PRUpdateEntryVersionMessage extends PartitionMessageWithDirectReply
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.DataSerializableFixedID#getDSFID()
    */
   @Override
@@ -110,13 +99,13 @@ public class PRUpdateEntryVersionMessage extends PartitionMessageWithDirectReply
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.partitioned.PartitionMessage# operateOnPartitionedRegion
    * (org.apache.geode.distributed.internal.DistributionManager,
    * org.apache.geode.internal.cache.PartitionedRegion, long)
    */
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion pr,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion pr,
       long startTime) throws CacheException, QueryException, DataLocationException,
       InterruptedException, IOException {
     // release not needed because disallowOffHeapValues called
@@ -148,8 +137,8 @@ public class PRUpdateEntryVersionMessage extends PartitionMessageWithDirectReply
 
         pr.getDataView().updateEntryVersion(event);
 
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.debug("{}: updateEntryVersionLocally in bucket: {}, key: {}", getClass().getName(),
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace("{}: updateEntryVersionLocally in bucket: {}, key: {}", getClass().getName(),
               bucket, key);
         }
       } catch (EntryNotFoundException eee) {
@@ -198,9 +187,8 @@ public class PRUpdateEntryVersionMessage extends PartitionMessageWithDirectReply
 
   /**
    * Assists the toString method in reporting the contents of this message
-   * 
+   *
    * @see PartitionMessage#toString()
-   * @param buff
    */
 
   @Override
@@ -219,7 +207,7 @@ public class PRUpdateEntryVersionMessage extends PartitionMessageWithDirectReply
 
   /**
    * Response for PartitionMessage {@link PRUpdateEntryVersionMessage}.
-   * 
+   *
    */
   public static class UpdateEntryVersionResponse extends PartitionResponse {
 
@@ -268,6 +256,7 @@ public class PRUpdateEntryVersionMessage extends PartitionMessageWithDirectReply
         new UpdateEntryVersionResponse(r.getSystem(), recipient, event.getKey());
     PRUpdateEntryVersionMessage m =
         new PRUpdateEntryVersionMessage(recipients, r.getPRId(), p, event);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
 
     Set failures = r.getDistributionManager().putOutgoing(m);
     if (failures != null && failures.size() > 0) {

@@ -19,14 +19,13 @@ public class MyFunctionExecutionException extends RuntimeException {
 
   /**
    * Creates new exception with given error message.
-   * 
+   *
    */
   public MyFunctionExecutionException() {}
 
   /**
    * Creates new exception with given error message.
-   * 
-   * @param msg
+   *
    */
   public MyFunctionExecutionException(String msg) {
     super(msg);
@@ -34,9 +33,7 @@ public class MyFunctionExecutionException extends RuntimeException {
 
   /**
    * Creates new exception with given error message and optional nested exception.
-   * 
-   * @param msg
-   * @param cause
+   *
    */
   public MyFunctionExecutionException(String msg, Throwable cause) {
     super(msg, cause);
@@ -44,8 +41,7 @@ public class MyFunctionExecutionException extends RuntimeException {
 
   /**
    * Creates new exception given Throwable as a cause and source of error message.
-   * 
-   * @param cause
+   *
    */
   public MyFunctionExecutionException(Throwable cause) {
     super(cause);

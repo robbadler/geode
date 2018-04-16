@@ -14,9 +14,16 @@
  */
 package org.apache.geode.internal.cache.tier.sockets;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.Cache;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.MessageWithReply;
@@ -25,31 +32,24 @@ import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.distributed.internal.ReplyMessage;
 import org.apache.geode.distributed.internal.ReplyProcessor21;
 import org.apache.geode.internal.cache.CacheServerImpl;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
 
 /**
  * A processor for sending client black list message to all nodes from primary. This adds client to
  * the blacklist and destroy it's queue if available on node.
- * 
+ *
  * @since GemFire 6.0
  *
  */
 public class ClientBlacklistProcessor extends ReplyProcessor21 {
 
-  public static void sendBlacklistedClient(ClientProxyMembershipID proxyId, DM dm, Set members) {
+  public static void sendBlacklistedClient(ClientProxyMembershipID proxyId, DistributionManager dm,
+      Set members) {
     ClientBlacklistProcessor processor = new ClientBlacklistProcessor(dm, members);
     ClientBlacklistMessage.send(proxyId, dm, processor, members);
     try {
       processor.waitForRepliesUninterruptibly();
     } catch (ReplyException e) {
-      e.handleAsUnexpected();
+      e.handleCause();
     }
     return;
   }
@@ -64,7 +64,7 @@ public class ClientBlacklistProcessor extends ReplyProcessor21 {
   /**
    * Creates a new instance of ClientBlacklistProcessor
    */
-  private ClientBlacklistProcessor(DM dm, Set members) {
+  private ClientBlacklistProcessor(DistributionManager dm, Set members) {
     super(dm, members);
   }
 
@@ -76,7 +76,7 @@ public class ClientBlacklistProcessor extends ReplyProcessor21 {
 
     private ClientProxyMembershipID proxyId;
 
-    protected static void send(ClientProxyMembershipID proxyId, DM dm,
+    protected static void send(ClientProxyMembershipID proxyId, DistributionManager dm,
         ClientBlacklistProcessor proc, Set members) {
       ClientBlacklistMessage msg = new ClientBlacklistMessage();
       msg.processorId = proc.getProcessorId();
@@ -95,9 +95,9 @@ public class ClientBlacklistProcessor extends ReplyProcessor21 {
     }
 
     @Override
-    protected void process(final DistributionManager dm) {
+    protected void process(final ClusterDistributionManager dm) {
       try {
-        Cache c = GemFireCacheImpl.getInstance();
+        Cache c = dm.getCache();
         if (c != null) {
           List l = c.getCacheServers();
           if (l != null) {
@@ -165,4 +165,3 @@ public class ClientBlacklistProcessor extends ReplyProcessor21 {
   }
 
 }
-

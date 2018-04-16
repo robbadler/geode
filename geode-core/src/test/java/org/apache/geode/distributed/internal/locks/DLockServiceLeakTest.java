@@ -19,6 +19,21 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.Lock;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.ExpirationAction;
@@ -27,27 +42,17 @@ import org.apache.geode.cache.RegionShortcut;
 import org.apache.geode.cache.Scope;
 import org.apache.geode.internal.cache.DistributedRegion;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.Properties;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.locks.Lock;
+import org.apache.geode.test.junit.rules.ExecutorServiceRule;
 
 @Category(IntegrationTest.class)
 public class DLockServiceLeakTest {
+
   private Cache cache;
-  private ExecutorService executorService;
   private DistributedRegion testRegion;
+
+  @Rule
+  public ExecutorServiceRule executorServiceRule =
+      ExecutorServiceRule.builder().threadCount(5).build();
 
   @Before
   public void setUp() {
@@ -60,14 +65,11 @@ public class DLockServiceLeakTest {
         .setEntryTimeToLive(new ExpirationAttributes(1, ExpirationAction.DESTROY))
         .create("testRegion");
     testRegion.becomeLockGrantor();
-
-    executorService = Executors.newFixedThreadPool(5);
   }
 
   @After
   public void tearDown() {
     cache.close();
-    executorService.shutdownNow();
   }
 
   @Test
@@ -75,25 +77,25 @@ public class DLockServiceLeakTest {
     Lock lock = testRegion.getDistributedLock("testLockName");
     lock.lockInterruptibly();
 
-    Future<Boolean> future = executorService.submit(() -> lock.tryLock());
+    Future<Boolean> future = executorServiceRule.submit(() -> lock.tryLock());
     assertFalse("should not be able to get lock from another thread",
         future.get(5, TimeUnit.SECONDS));
 
     assertTrue("Lock is reentrant", lock.tryLock());
     // now locked twice.
 
-    future = executorService.submit(() -> lock.tryLock());
+    future = executorServiceRule.submit(() -> lock.tryLock());
     assertFalse("should not be able to get lock from another thread",
         future.get(5, TimeUnit.SECONDS));
 
     lock.unlock();
 
-    future = executorService.submit(() -> lock.tryLock());
+    future = executorServiceRule.submit(() -> lock.tryLock());
     assertFalse("should not be able to get lock from another thread", future.get());
 
     lock.unlock();
 
-    future = executorService.submit(() -> {
+    future = executorServiceRule.submit(() -> {
       boolean locked = lock.tryLock();
       if (!locked) {
         return false;
@@ -129,7 +131,7 @@ public class DLockServiceLeakTest {
   public void multipleThreadsWithCache() {
     LinkedList<Future> futures = new LinkedList<>();
     for (int i = 0; i < 5; i++) {
-      futures.add(executorService.submit(this::putTestKey));
+      futures.add(executorServiceRule.submit(this::putTestKey));
     }
 
     futures.forEach(future -> {

@@ -16,6 +16,7 @@
 package org.apache.geode.distributed.internal;
 
 import java.util.*;
+
 import org.apache.geode.distributed.internal.membership.*;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 
@@ -35,11 +36,11 @@ public class ReliableReplyProcessor21 extends ReplyProcessor21 {
     super(system, member);
   }
 
-  public ReliableReplyProcessor21(DM dm, InternalDistributedMember member) {
+  public ReliableReplyProcessor21(DistributionManager dm, InternalDistributedMember member) {
     super(dm, member);
   }
 
-  public ReliableReplyProcessor21(DM dm, Collection initMembers) {
+  public ReliableReplyProcessor21(DistributionManager dm, Collection initMembers) {
     super(dm, initMembers);
   }
 
@@ -57,7 +58,8 @@ public class ReliableReplyProcessor21 extends ReplyProcessor21 {
    * Note: race condition exists between membershipListener and processing of replies.
    */
   @Override
-  public void memberDeparted(final InternalDistributedMember id, final boolean crashed) {
+  public void memberDeparted(DistributionManager distributionManager,
+      final InternalDistributedMember id, final boolean crashed) {
     if (removeMember(id, true)) {
       synchronized (this) {
         if (this.departedMembers == null) {
@@ -85,9 +87,8 @@ public class ReliableReplyProcessor21 extends ReplyProcessor21 {
   /**
    * Use this method instead of {@link #waitForReplies()} if you want the wait to throw an exception
    * when a member departs.
-   * 
+   *
    * @throws ReplyException the exception passed back in reply
-   * @throws InterruptedException
    * @throws ReliableReplyException when a member departs
    */
   public void waitForReliableDelivery()
@@ -98,9 +99,6 @@ public class ReliableReplyProcessor21 extends ReplyProcessor21 {
   /**
    * @see #waitForReliableDelivery()
    * @param msecs the number of milliseconds to wait for replies
-   * @throws ReplyException
-   * @throws InterruptedException
-   * @throws ReliableReplyException
    */
   public void waitForReliableDelivery(long msecs)
       throws ReplyException, InterruptedException, ReliableReplyException {
@@ -114,4 +112,3 @@ public class ReliableReplyProcessor21 extends ReplyProcessor21 {
     }
   }
 }
-

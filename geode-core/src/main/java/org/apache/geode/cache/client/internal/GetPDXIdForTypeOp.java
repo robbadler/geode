@@ -23,14 +23,14 @@ import org.apache.geode.pdx.internal.PdxType;
 
 /**
  * Retrieve the PDXType, given an integer PDX id, from a server.
- * 
+ *
  * @since GemFire 6.6
  */
 public class GetPDXIdForTypeOp {
   /**
    * Register a bunch of instantiators on a server using connections from the given pool to
    * communicate with the server.
-   * 
+   *
    * @param pool the pool to use to communicate with the server.
    */
   public static int execute(ExecutablePool pool, PdxType type) {
@@ -63,7 +63,6 @@ public class GetPDXIdForTypeOp {
           throw new ServerOperationException(s, (Throwable) part.getObject());
           // Get the exception toString part.
           // This was added for c++ thin client and not used in java
-          // Part exceptionToStringPart = msg.getPart(1);
         } else if (isErrorResponse(msgType)) {
           throw new ServerOperationException(part.getString());
         } else {

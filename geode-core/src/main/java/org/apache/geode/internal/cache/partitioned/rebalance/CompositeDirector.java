@@ -14,13 +14,15 @@
  */
 package org.apache.geode.internal.cache.partitioned.rebalance;
 
+import org.apache.geode.internal.cache.partitioned.rebalance.model.PartitionedRegionLoadModel;
+
 /**
  * The composite director performs a complete rebalance, which can remove over redundant buckets,
  * satisfy redundancy, move buckets, and move primaries.
- * 
+ *
  * This is the most commonly used director.
- * 
- * 
+ *
+ *
  */
 public class CompositeDirector extends RebalanceDirectorAdapter {
 

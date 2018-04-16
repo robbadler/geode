@@ -16,18 +16,15 @@ package org.apache.geode.test.dunit.standalone;
 
 import java.rmi.Naming;
 
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.internal.ExitCode;
 import org.apache.geode.internal.OSProcess;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.dunit.standalone.DUnitLauncher.MasterRemote;
 
-import org.apache.logging.log4j.Logger;
-
-/**
- *
- */
 public class ChildVM {
 
   private static boolean stopMainLoop = false;
@@ -39,7 +36,7 @@ public class ChildVM {
     stopMainLoop = true;
   }
 
-  private final static Logger logger = LogService.getLogger();
+  private static final Logger logger = LogService.getLogger();
 
   public static void main(String[] args) throws Throwable {
     try {
@@ -49,8 +46,8 @@ public class ChildVM {
       int pid = OSProcess.getId();
       logger.info("VM" + vmNum + " is launching" + (pid > 0 ? " with PID " + pid : ""));
       if (!VersionManager.isCurrentVersion(geodeVersion)) {
-        logger.info("This VM is using Geode version {}. Version.CURRENT is {}", geodeVersion,
-            Version.CURRENT);
+        logger.info("This VM is using Geode version {}. Version.CURRENT is {} (ordinal={})",
+            geodeVersion, Version.CURRENT, Version.CURRENT_ORDINAL);
       }
       MasterRemote holder = (MasterRemote) Naming
           .lookup("//localhost:" + namingPort + "/" + DUnitLauncher.MASTER_PARAM);
@@ -67,8 +64,10 @@ public class ChildVM {
         Thread.sleep(1000);
       }
     } catch (Throwable t) {
-      t.printStackTrace();
-      System.exit(1);
+      logger.info("VM is exiting with error", t);
+      ExitCode.FATAL.doSystemExit();
+    } finally {
+      logger.info("VM is exiting");
     }
   }
 }

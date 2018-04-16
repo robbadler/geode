@@ -15,17 +15,33 @@
 
 package org.apache.geode.internal.cache.partitioned;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireError;
-import org.apache.geode.cache.EntryNotFoundException;
-import org.apache.geode.cache.TransactionDataNotColocatedException;
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
-import org.apache.geode.distributed.internal.*;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
+import org.apache.geode.distributed.internal.DirectReplyProcessor;
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.DistributionMessage;
+import org.apache.geode.distributed.internal.DistributionStats;
+import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.distributed.internal.ReplyException;
+import org.apache.geode.distributed.internal.ReplyMessage;
+import org.apache.geode.distributed.internal.ReplyProcessor21;
+import org.apache.geode.distributed.internal.ReplySender;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.Version;
-import org.apache.geode.internal.cache.*;
+import org.apache.geode.internal.cache.BucketRegion;
 import org.apache.geode.internal.cache.BucketRegion.RawValue;
 import org.apache.geode.internal.cache.CachedDeserializableFactory;
 import org.apache.geode.internal.cache.DataLocationException;
@@ -46,22 +62,15 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 import org.apache.geode.internal.offheap.OffHeapHelper;
 import org.apache.geode.internal.util.BlobHelper;
-import org.apache.logging.log4j.Logger;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Set;
 
 /**
  * This message is used as the request for a
  * {@link org.apache.geode.cache.Region#get(Object)}operation. The reply is sent in a
  * {@link org.apache.geode.internal.cache.partitioned.GetMessage}.
- * 
+ *
  * Since the {@link org.apache.geode.cache.Region#get(Object)}operation is used <bold>very </bold>
  * frequently the performance of this class is critical.
- * 
+ *
  * @since GemFire 5.0
  */
 public class GetMessage extends PartitionMessageWithDirectReply {
@@ -116,7 +125,7 @@ public class GetMessage extends PartitionMessageWithDirectReply {
         // processed in the p2p msg reader.
         if (pr.getAttributes().getDataPolicy().withPersistence()
             || !pr.getAttributes().getEvictionAttributes().getAlgorithm().isNone()) {
-          return DistributionManager.PARTITIONED_REGION_EXECUTOR;
+          return ClusterDistributionManager.PARTITIONED_REGION_EXECUTOR;
         }
       } catch (PRLocallyDestroyedException ignore) {
       } catch (RuntimeException ignore) {
@@ -128,13 +137,13 @@ public class GetMessage extends PartitionMessageWithDirectReply {
       }
     }
     if (forceUseOfPRExecutor) {
-      return DistributionManager.PARTITIONED_REGION_EXECUTOR;
+      return ClusterDistributionManager.PARTITIONED_REGION_EXECUTOR;
     } else if (ORDER_PR_GETS) {
-      return DistributionManager.PARTITIONED_REGION_EXECUTOR;
+      return ClusterDistributionManager.PARTITIONED_REGION_EXECUTOR;
     } else {
       // Make this guy serial so that it will be processed in the p2p msg reader
       // which gives it better performance.
-      return DistributionManager.SERIAL_EXECUTOR;
+      return ClusterDistributionManager.SERIAL_EXECUTOR;
     }
   }
 
@@ -145,10 +154,10 @@ public class GetMessage extends PartitionMessageWithDirectReply {
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(final DistributionManager dm, PartitionedRegion r,
-      long startTime) throws ForceReattemptException {
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.trace(LogMarker.DM, "GetMessage operateOnRegion: {}", r.getFullPath());
+  protected boolean operateOnPartitionedRegion(final ClusterDistributionManager dm,
+      PartitionedRegion r, long startTime) throws ForceReattemptException {
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace(LogMarker.DM_VERBOSE, "GetMessage operateOnRegion: {}", r.getFullPath());
     }
 
     PartitionedRegionDataStore ds = r.getDataStore();
@@ -187,16 +196,13 @@ public class GetMessage extends PartitionMessageWithDirectReply {
                   sde)),
               r, startTime);
           return false;
-        } catch (PrimaryBucketException pbe) {
+        } catch (PrimaryBucketException | DataLocationException pbe) {
           sendReply(getSender(), getProcessorId(), dm, new ReplyException(pbe), r, startTime);
-          return false;
-        } catch (DataLocationException e) {
-          sendReply(getSender(), getProcessorId(), dm, new ReplyException(e), r, startTime);
           return false;
         }
 
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.debug(
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.debug(LogMarker.DM_VERBOSE,
               "GetMessage sending serialized value {} back via GetReplyMessage using processorId: {}",
               valueBytes, getProcessorId());
         }
@@ -264,7 +270,7 @@ public class GetMessage extends PartitionMessageWithDirectReply {
 
   /**
    * Sends a PartitionedRegion {@link org.apache.geode.cache.Region#get(Object)} message
-   * 
+   *
    * @param recipient the member that the get message is sent to
    * @param r the PartitionedRegion for which get was performed upon
    * @param key the object to which the value should be feteched
@@ -279,6 +285,7 @@ public class GetMessage extends PartitionMessageWithDirectReply {
     GetResponse p = new GetResponse(r.getSystem(), Collections.singleton(recipient), key);
     GetMessage m = new GetMessage(recipient, r.getPRId(), p, key, aCallbackArgument,
         requestingClient, returnTombstones);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
     Set failures = r.getDistributionManager().putOutgoing(m);
     if (failures != null && failures.size() > 0) {
       throw new ForceReattemptException(
@@ -292,10 +299,10 @@ public class GetMessage extends PartitionMessageWithDirectReply {
    * This message is used for the reply to a
    * {@link org.apache.geode.cache.Region#get(Object)}operation This is the reply to a
    * {@link GetMessage}.
-   * 
+   *
    * Since the {@link org.apache.geode.cache.Region#get(Object)}operation is used <bold>very </bold>
    * frequently the performance of this class is critical.
-   * 
+   *
    * @since GemFire 5.0
    */
   public static class GetReplyMessage extends ReplyMessage {
@@ -363,13 +370,12 @@ public class GetMessage extends PartitionMessageWithDirectReply {
      * Return the value from the get operation, serialize it bytes as late as possible to avoid
      * making un-neccesary byte[] copies. De-serialize those same bytes as late as possible to avoid
      * using precious threads (aka P2P readers).
-     * 
+     *
      * @param recipient the origin VM that performed the get
      * @param processorId the processor on which the origin thread is waiting
      * @param val the raw value that will eventually be serialized
      * @param replySender distribution manager used to send the reply
      * @param versionTag the version of the object
-     * @throws ForceReattemptException
      */
     public static void send(InternalDistributedMember recipient, int processorId, RawValue val,
         ReplySender replySender, VersionTag versionTag) throws ForceReattemptException {
@@ -381,15 +387,15 @@ public class GetMessage extends PartitionMessageWithDirectReply {
 
     /**
      * Processes this message. This method is invoked by the receiver of the message.
-     * 
+     *
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    public void process(final DM dm, ReplyProcessor21 processor) {
-      final boolean isDebugEnabled = logger.isTraceEnabled(LogMarker.DM);
+    public void process(final DistributionManager dm, ReplyProcessor21 processor) {
+      final boolean isDebugEnabled = logger.isTraceEnabled(LogMarker.DM_VERBOSE);
       final long startTime = getTimestamp();
       if (isDebugEnabled) {
-        logger.trace(LogMarker.DM,
+        logger.trace(LogMarker.DM_VERBOSE,
             "GetReplyMessage process invoking reply processor with processorId: {}",
             this.processorId);
       }
@@ -481,7 +487,7 @@ public class GetMessage extends PartitionMessageWithDirectReply {
   /**
    * A processor to capture the value returned by
    * {@link org.apache.geode.internal.cache.partitioned.GetMessage.GetReplyMessage}
-   * 
+   *
    * @since GemFire 5.0
    */
   public static class GetResponse extends PartitionResponse {
@@ -518,8 +524,7 @@ public class GetMessage extends PartitionMessageWithDirectReply {
     /**
      * De-seralize the value, if the value isn't already a byte array, this method should be called
      * in the context of the requesting thread for the best scalability
-     * 
-     * @param preferCD
+     *
      * @see EntryEventImpl#deserialize(byte[])
      * @return the value object
      */
@@ -537,7 +542,8 @@ public class GetMessage extends PartitionMessageWithDirectReply {
             default:
               if (reply.valueInBytes != null) {
                 if (preferCD) {
-                  return CachedDeserializableFactory.create(reply.valueInBytes);
+                  return CachedDeserializableFactory.create(reply.valueInBytes,
+                      getDistributionManager().getCache());
                 } else {
                   return BlobHelper.deserializeBlob(reply.valueInBytes, reply.remoteVersion, null);
                 }
@@ -568,32 +574,19 @@ public class GetMessage extends PartitionMessageWithDirectReply {
 
 
     /**
-     * @param preferCD
      * @return Object associated with the key that was sent in the get message
      * @throws ForceReattemptException if the peer is no longer available
      */
     public Object waitForResponse(boolean preferCD) throws ForceReattemptException {
       try {
-        // waitForRepliesUninterruptibly();
         waitForCacheException();
         if (DistributionStats.enableClockStats) {
           getDistributionManager().getStats().incReplyHandOffTime(this.start);
         }
-      }
-      // Neeraj: Adding separate catch block for ENFE because there should not be a reattempt due
-      // to this exception from the sender node. ENFE is a type of CacheException(caught below)
-      // which wraps all CacheException in ForcedReattemptException(which is not correct). Filing
-      // a separate bug for this.(#41717)
-      catch (EntryNotFoundException enfe) {
-        // rethrow this
-        throw enfe;
       } catch (ForceReattemptException e) {
         e.checkKey(key);
         final String msg = "GetResponse got ForceReattemptException; rethrowing";
         logger.debug(msg, e);
-        throw e;
-      } catch (TransactionDataNotColocatedException e) {
-        // Throw this up to user!
         throw e;
       }
       if (!this.returnValueReceived) {

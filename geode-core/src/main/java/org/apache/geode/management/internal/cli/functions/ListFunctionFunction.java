@@ -25,15 +25,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.internal.InternalEntity;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.logging.LogService;
 
-public class ListFunctionFunction implements Function, InternalEntity {
+public class ListFunctionFunction implements InternalFunction {
   private static final Logger logger = LogService.getLogger();
 
   public static final String ID = ListFunctionFunction.class.getName();
@@ -49,7 +48,7 @@ public class ListFunctionFunction implements Function, InternalEntity {
       final Object[] args = (Object[]) context.getArguments();
       final String stringPattern = (String) args[0];
 
-      Cache cache = CacheFactory.getAnyInstance();
+      Cache cache = context.getCache();
       DistributedMember member = cache.getDistributedSystem().getDistributedMember();
 
       memberId = member.getId();

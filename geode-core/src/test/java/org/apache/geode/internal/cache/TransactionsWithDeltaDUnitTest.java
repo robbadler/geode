@@ -12,19 +12,20 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache;
 
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
+import static org.apache.geode.distributed.ConfigurationProperties.*;
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.Iterator;
 
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.DataSerializable;
 import org.apache.geode.Delta;
 import org.apache.geode.InvalidDeltaException;
 import org.apache.geode.cache.*;
@@ -42,18 +43,9 @@ import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.LogWriterUtils;
 import org.apache.geode.test.dunit.SerializableCallable;
 import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.io.Serializable;
-import java.util.Iterator;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-
-/**
- *
- */
 @Category(DistributedTest.class)
 public class TransactionsWithDeltaDUnitTest extends JUnit4CacheTestCase {
 
@@ -61,9 +53,6 @@ public class TransactionsWithDeltaDUnitTest extends JUnit4CacheTestCase {
   private static final String CUSTOMER = "Customer";
   private static final String ORDER = "Order";
 
-  /**
-   * @param name
-   */
   public TransactionsWithDeltaDUnitTest() {
     super();
   }
@@ -130,13 +119,15 @@ public class TransactionsWithDeltaDUnitTest extends JUnit4CacheTestCase {
     });
   }
 
-  static class Customer implements Delta, Serializable {
+  static class Customer implements Delta, DataSerializable {
     private int id;
     private String name;
     private boolean idChanged;
     private boolean nameChanged;
     private boolean fromDeltaCalled;
     private boolean toDeltaCalled;
+
+    public Customer() {}
 
     public Customer(int id, String name) {
       this.id = id;
@@ -218,6 +209,26 @@ public class TransactionsWithDeltaDUnitTest extends JUnit4CacheTestCase {
       boolean retVal = this.toDeltaCalled;
       this.toDeltaCalled = false;
       return retVal;
+    }
+
+    @Override
+    public void toData(DataOutput out) throws IOException {
+      out.writeInt(id);
+      out.writeUTF(name);
+      out.writeBoolean(idChanged);
+      out.writeBoolean(nameChanged);
+      out.writeBoolean(fromDeltaCalled);
+      out.writeBoolean(toDeltaCalled);
+    }
+
+    @Override
+    public void fromData(DataInput in) throws IOException, ClassNotFoundException {
+      id = in.readInt();
+      name = in.readUTF();
+      idChanged = in.readBoolean();
+      nameChanged = in.readBoolean();
+      fromDeltaCalled = in.readBoolean();
+      toDeltaCalled = in.readBoolean();
     }
   }
 
@@ -365,9 +376,9 @@ public class TransactionsWithDeltaDUnitTest extends JUnit4CacheTestCase {
         LogWriterUtils.getLogWriter().info("SWAP:getfromtx:" + pr.get(cust1));
         LogWriterUtils.getLogWriter().info("SWAP:doingCommit");
         assertEquals("updatedName", pr.get(cust1).getName());
-        TXStateProxy tx = mgr.internalSuspend();
+        TXStateProxy tx = mgr.pauseTransaction();
         assertEquals("name1", pr.get(cust1).getName());
-        mgr.internalResume(tx);
+        mgr.unpauseTransaction(tx);
         mgr.commit();
         assertTrue(c.isToDeltaCalled());
         assertEquals(c, pr.get(cust1));

@@ -17,6 +17,13 @@ package org.apache.geode.cache.query;
 import static org.apache.geode.test.dunit.IgnoredException.addIgnoredException;
 import static org.junit.Assert.assertEquals;
 
+import java.io.IOException;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.CacheTransactionManager;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.client.ClientCache;
@@ -25,14 +32,9 @@ import org.apache.geode.cache.client.ClientRegionFactory;
 import org.apache.geode.cache.client.ClientRegionShortcut;
 import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-import java.io.IOException;
-
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class LocalQueryServiceJUnitTest {
 
   private IgnoredException ignoredException;

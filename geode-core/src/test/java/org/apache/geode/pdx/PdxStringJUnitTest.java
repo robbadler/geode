@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import org.apache.geode.test.junit.categories.SerializationTest;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -34,6 +33,7 @@ import org.apache.geode.pdx.internal.PdxInstanceFactoryImpl;
 import org.apache.geode.pdx.internal.PdxInstanceImpl;
 import org.apache.geode.pdx.internal.PdxString;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.SerializationTest;
 
 @Category({IntegrationTest.class, SerializationTest.class})
 public class PdxStringJUnitTest {
@@ -54,7 +54,7 @@ public class PdxStringJUnitTest {
 
   @Test
   public void testEquals() throws Exception {
-    PdxInstanceFactory pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false);
+    PdxInstanceFactory pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false, c);
     pf.writeString("secId", "abc");
     PdxInstanceImpl pi = (PdxInstanceImpl) pf.create();
     PdxString pdx1 = (PdxString) pi.getRawField("secId");
@@ -71,7 +71,7 @@ public class PdxStringJUnitTest {
 
   @Test
   public void testHashCodeEquals() throws Exception {
-    PdxInstanceFactory pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false);
+    PdxInstanceFactory pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false, c);
     pf.writeString("secId", "abc");
     PdxInstanceImpl pi = (PdxInstanceImpl) pf.create();
     PdxString pdx1 = (PdxString) pi.getRawField("secId");
@@ -89,7 +89,7 @@ public class PdxStringJUnitTest {
 
   @Test
   public void testCompareTo() throws Exception {
-    PdxInstanceFactory pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false);
+    PdxInstanceFactory pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false, c);
     pf.writeString("secId", "abc");
     PdxInstanceImpl pi = (PdxInstanceImpl) pf.create();
     PdxString pdx1 = (PdxString) pi.getRawField("secId");
@@ -102,7 +102,7 @@ public class PdxStringJUnitTest {
 
     String str1 = new String("A" + "\u00e9" + "\u00f1");
     String str2 = new String("A" + "\u00ea" + "\u00f1");
-    pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false);
+    pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false, c);
     pf.writeString("secId", str1);
     pi = (PdxInstanceImpl) pf.create();
     pdx1 = (PdxString) pi.getRawField("secId");
@@ -116,7 +116,7 @@ public class PdxStringJUnitTest {
     }
     str1 = sb.toString();
     str2 = "aaa";
-    pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false);
+    pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false, c);
     pf.writeString("secId", str1);
     pi = (PdxInstanceImpl) pf.create();
     pdx1 = (PdxString) pi.getRawField("secId");
@@ -132,7 +132,7 @@ public class PdxStringJUnitTest {
     }
     str1 = sb.toString();
     str2 = "abc";
-    pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false);
+    pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false, c);
     pf.writeString("secId", str1);
     pi = (PdxInstanceImpl) pf.create();
     pdx1 = new PdxString(str1);
@@ -149,7 +149,7 @@ public class PdxStringJUnitTest {
     PdxString pdx = new PdxString(s);
     assertEquals(s, pdx.toString());
 
-    PdxInstanceFactory pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false);
+    PdxInstanceFactory pf = PdxInstanceFactoryImpl.newCreator("Portfolio", false, c);
     pf.writeString("secId", "abc");
     PdxInstanceImpl pi = (PdxInstanceImpl) pf.create();
     pdx = (PdxString) pi.getRawField("secId");
@@ -160,8 +160,7 @@ public class PdxStringJUnitTest {
   /**
    * this test verifies that pdxstream with pdxType.Object tyep for string and checks whether we
    * create PdxString or not
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testJSONFieldNameAsPdxString() throws Exception {

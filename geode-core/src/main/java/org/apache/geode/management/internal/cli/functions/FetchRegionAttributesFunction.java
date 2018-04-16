@@ -14,28 +14,27 @@
  */
 package org.apache.geode.management.internal.cli.functions;
 
-import java.io.Serializable;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.CacheListener;
-import org.apache.geode.cache.CacheLoader;
-import org.apache.geode.cache.CacheWriter;
-import org.apache.geode.cache.Region;
-import org.apache.geode.cache.RegionAttributes;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
+import org.apache.geode.internal.cache.AbstractRegion;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.management.internal.cli.domain.ClassName;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 
 /**
- * 
+ *
  * @since GemFire 7.0
  */
-public class FetchRegionAttributesFunction extends FunctionAdapter {
+public class FetchRegionAttributesFunction implements InternalFunction {
   private static final Logger logger = LogService.getLogger();
 
   private static final long serialVersionUID = 4366812590788342070L;
@@ -52,13 +51,14 @@ public class FetchRegionAttributesFunction extends FunctionAdapter {
   @Override
   public void execute(FunctionContext context) {
     try {
+      Cache cache = context.getCache();
       String regionPath = (String) context.getArguments();
       if (regionPath == null) {
         throw new IllegalArgumentException(
             CliStrings.CREATE_REGION__MSG__SPECIFY_VALID_REGION_PATH);
       }
-      FetchRegionAttributesFunctionResult<?, ?> result = getRegionAttributes(regionPath);
-      context.getResultSender().lastResult(result);
+      RegionAttributesWrapper regionAttributesWrapper = getRegionAttributes(cache, regionPath);
+      context.getResultSender().lastResult(regionAttributesWrapper);
     } catch (IllegalArgumentException e) {
       if (logger.isDebugEnabled()) {
         logger.debug(e.getMessage(), e);
@@ -68,79 +68,58 @@ public class FetchRegionAttributesFunction extends FunctionAdapter {
   }
 
   @SuppressWarnings("deprecation")
-  public static <K, V> FetchRegionAttributesFunctionResult<K, V> getRegionAttributes(
-      String regionPath) {
-    Cache cache = CacheFactory.getAnyInstance();
-    Region<K, V> foundRegion = cache.getRegion(regionPath);
+  public static RegionAttributesWrapper getRegionAttributes(Cache cache, String regionPath) {
+    AbstractRegion foundRegion = (AbstractRegion) cache.getRegion(regionPath);
 
     if (foundRegion == null) {
       throw new IllegalArgumentException(CliStrings.format(
           CliStrings.CREATE_REGION__MSG__SPECIFY_VALID_REGION_PATH_FOR_0_REGIONPATH_1_NOT_FOUND,
-          new Object[] {CliStrings.CREATE_REGION__USEATTRIBUTESFROM, regionPath}));
+          CliStrings.CREATE_REGION__USEATTRIBUTESFROM, regionPath));
     }
 
-    // Using AttributesFactory to get the serializable RegionAttributes
-    // Is there a better way?
-    AttributesFactory<K, V> afactory = new AttributesFactory<K, V>(foundRegion.getAttributes());
-    FetchRegionAttributesFunctionResult<K, V> result =
-        new FetchRegionAttributesFunctionResult<K, V>(afactory);
+    AttributesFactory afactory = new AttributesFactory(foundRegion.getAttributes());
+    RegionAttributesWrapper result = new RegionAttributesWrapper();
+
+    CacheListener[] cacheListeners = foundRegion.getCacheListeners();
+    List existingCacheListeners = Arrays.stream(cacheListeners)
+        .map((c) -> new ClassName(c.getClass().getName())).collect(Collectors.toList());
+
+    result.setCacheListenerClasses(existingCacheListeners);
+    afactory.initCacheListeners(null);
+
+    if (foundRegion.getCacheLoader() != null) {
+      result
+          .setCacheLoaderClass(new ClassName<>(foundRegion.getCacheLoader().getClass().getName()));
+      afactory.setCacheLoader(null);
+    }
+
+    if (foundRegion.getCacheWriter() != null) {
+      result
+          .setCacheWriterClass(new ClassName<>(foundRegion.getCacheWriter().getClass().getName()));
+      afactory.setCacheWriter(null);
+    }
+
+    if (foundRegion.getCompressor() != null) {
+      result.setCompressorClass(foundRegion.getCompressor().getClass().getName());
+      afactory.setCompressor(null);
+    }
+
+    if (foundRegion.getKeyConstraint() != null) {
+      result.setKeyConstraintClass(foundRegion.getKeyConstraint().getName());
+      afactory.setKeyConstraint(null);
+    }
+
+    if (foundRegion.getValueConstraint() != null) {
+      result.setValueConstraintClass(foundRegion.getValueConstraint().getName());
+      afactory.setValueConstraint(null);
+    }
+
+    result.setRegionAttributes(afactory.create());
     return result;
   }
 
   @Override
   public String getId() {
     return ID;
-  }
-
-  public static class FetchRegionAttributesFunctionResult<K, V> implements Serializable {
-    private static final long serialVersionUID = -3970828263897978845L;
-
-    private RegionAttributes<K, V> regionAttributes;
-    private String[] cacheListenerClasses;
-    private String cacheLoaderClass;
-    private String cacheWriterClass;
-
-    @SuppressWarnings("deprecation")
-    public FetchRegionAttributesFunctionResult(AttributesFactory<K, V> afactory) {
-      this.regionAttributes = afactory.create();
-
-      CacheListener<K, V>[] cacheListeners = this.regionAttributes.getCacheListeners();
-      if (cacheListeners != null && cacheListeners.length != 0) {
-        cacheListenerClasses = new String[cacheListeners.length];
-        for (int i = 0; i < cacheListeners.length; i++) {
-          cacheListenerClasses[i] = cacheListeners[i].getClass().getName();
-        }
-        afactory.initCacheListeners(null);
-      }
-      CacheLoader<K, V> cacheLoader = this.regionAttributes.getCacheLoader();
-      if (cacheLoader != null) {
-        cacheLoaderClass = cacheLoader.getClass().getName();
-        afactory.setCacheLoader(null);
-      }
-      CacheWriter<K, V> cacheWriter = this.regionAttributes.getCacheWriter();
-      if (cacheWriter != null) {
-        cacheWriterClass = cacheWriter.getClass().getName();
-        afactory.setCacheWriter(null);
-      }
-
-      // recreate attributes
-      this.regionAttributes = afactory.create();
-    }
-
-    public RegionAttributes<K, V> getRegionAttributes() {
-      return regionAttributes;
-    }
-
-    public String[] getCacheListenerClasses() {
-      return cacheListenerClasses;
-    }
-
-    public String getCacheLoaderClass() {
-      return cacheLoaderClass;
-    }
-
-    public String getCacheWriterClass() {
-      return cacheWriterClass;
-    }
   }
 }

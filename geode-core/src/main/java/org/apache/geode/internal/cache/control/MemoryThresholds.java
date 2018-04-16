@@ -14,20 +14,20 @@
  */
 package org.apache.geode.internal.cache.control;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.LowMemoryException;
 import org.apache.geode.cache.control.ResourceManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-
 /**
  * Stores eviction and critical thresholds for memory as well as the logic for determining how
  * memory transitions between states.
- * 
+ *
  * @since Geode 1.0
  */
 public class MemoryThresholds {
@@ -263,10 +263,9 @@ public class MemoryThresholds {
 
   /**
    * Generate a Thresholds object from data available from the DataInput
-   * 
+   *
    * @param in DataInput from which to read the data
    * @return a new instance of Thresholds
-   * @throws IOException
    */
   public static MemoryThresholds fromData(DataInput in) throws IOException {
     long maxMemoryBytes = in.readLong();
@@ -277,9 +276,8 @@ public class MemoryThresholds {
 
   /**
    * Write the state of this to the DataOutput
-   * 
+   *
    * @param out DataOutput on which to write internal state
-   * @throws IOException
    */
   public void toData(DataOutput out) throws IOException {
     out.writeLong(this.maxMemoryBytes);

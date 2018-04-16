@@ -21,7 +21,7 @@ package org.apache.geode.management.cli;
  * <li>parsing errors from unknown parameters
  * <li>errors from invalid values for parameters
  * </ul>
- * 
+ *
  * @since GemFire 7.0
  */
 public class CommandProcessingException extends RuntimeException {
@@ -53,7 +53,6 @@ public class CommandProcessingException extends RuntimeException {
    * Error Type indicating the absence of value for named parameter of a command.
    */
   public static int OPTION_VALUE_REQUIRED = 9;
-  // public static int ARGUMENT_VALUE_REQUIRED = 10;
   /**
    * Error Type indicating IO errors occurred while accessing File/Network resource
    */
@@ -78,7 +77,7 @@ public class CommandProcessingException extends RuntimeException {
 
   /**
    * Constructs a new <code>CommandProcessingException</code>
-   * 
+   *
    * @param message The error detail message.
    * @param errorType One of the error types defined in <code>CommandProcessingException</code>
    * @param errorData Additional information about the error.

@@ -16,6 +16,8 @@ package org.apache.geode.management.internal.cli.domain;
 
 import java.io.Serializable;
 
+import org.apache.geode.cache.query.IndexType;
+
 /***
  * Data class used to pass index related information to functions that create or destroy indexes
  *
@@ -23,14 +25,12 @@ import java.io.Serializable;
 public class IndexInfo implements Serializable {
 
   private static final long serialVersionUID = 1L;
-  public final static int RANGE_INDEX = 1;
-  public final static int KEY_INDEX = 2;
-  public final static int HASH_INDEX = 3;
 
   private String indexName;
   private String indexedExpression = null;
   private String regionPath = null;
-  private int indexType = RANGE_INDEX;
+  private IndexType indexType = IndexType.FUNCTIONAL;
+  private boolean ifExists;
 
   public IndexInfo(String indexName) {
     this.indexName = indexName;
@@ -38,9 +38,7 @@ public class IndexInfo implements Serializable {
 
   /***
    * Used for passing index information for destroying index.
-   * 
-   * @param indexName
-   * @param regionPath
+   *
    */
   public IndexInfo(String indexName, String regionPath) {
     this.indexName = indexName;
@@ -53,7 +51,8 @@ public class IndexInfo implements Serializable {
     this.regionPath = regionPath;
   }
 
-  public IndexInfo(String indexName, String indexedExpression, String regionPath, int indexType) {
+  public IndexInfo(String indexName, String indexedExpression, String regionPath,
+      IndexType indexType) {
     this.indexName = indexName;
     this.indexedExpression = indexedExpression;
     this.regionPath = regionPath;
@@ -84,12 +83,20 @@ public class IndexInfo implements Serializable {
     this.regionPath = regionPath;
   }
 
-  public int getIndexType() {
+  public IndexType getIndexType() {
     return indexType;
   }
 
-  public void setIndexType(int indexType) {
+  public void setIndexType(IndexType indexType) {
     this.indexType = indexType;
+  }
+
+  public boolean isIfExists() {
+    return ifExists;
+  }
+
+  public void setIfExists(boolean ifExists) {
+    this.ifExists = ifExists;
   }
 
   public String toString() {
@@ -101,7 +108,7 @@ public class IndexInfo implements Serializable {
     sb.append("\nRegion Path : ");
     sb.append(this.regionPath);
     sb.append("\nIndex Type : ");
-    sb.append(this.indexType);
+    sb.append(this.indexType.getName());
     return sb.toString();
   }
 

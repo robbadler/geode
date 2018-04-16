@@ -14,34 +14,33 @@
  */
 package org.apache.geode.management.internal.cli.functions;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.execute.Function;
-import org.apache.geode.cache.execute.FunctionContext;
-import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.internal.InternalEntity;
-import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.logging.log4j.LogMarker;
-import org.apache.geode.internal.logging.log4j.LogWriterLogger;
-import org.apache.geode.internal.logging.log4j.LogLevel;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_LEVEL;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.execute.FunctionContext;
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.internal.cache.execute.InternalFunction;
+import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.internal.logging.log4j.LogLevel;
+import org.apache.geode.internal.logging.log4j.LogMarker;
+import org.apache.geode.internal.logging.log4j.LogWriterLogger;
+
 
 /**
- * 
+ *
  * Class for change log level function
- * 
+ *
  * since 8.0
- * 
+ *
  */
 
-public class ChangeLogLevelFunction implements Function, InternalEntity {
+public class ChangeLogLevelFunction implements InternalFunction {
   private static final Logger logger = LogService.getLogger();
 
   public static final String ID = ChangeLogLevelFunction.class.getName();
@@ -49,7 +48,7 @@ public class ChangeLogLevelFunction implements Function, InternalEntity {
 
   @Override
   public void execute(FunctionContext context) {
-    Cache cache = CacheFactory.getAnyInstance();
+    Cache cache = context.getCache();
     Map<String, String> result = new HashMap<String, String>();
     try {
       LogWriterLogger logwriterLogger = (LogWriterLogger) cache.getLogger();
@@ -58,14 +57,13 @@ public class ChangeLogLevelFunction implements Function, InternalEntity {
       Level log4jLevel = LogLevel.getLevel(logLevel);
       logwriterLogger.setLevel(log4jLevel);
       System.setProperty(DistributionConfig.GEMFIRE_PREFIX + LOG_LEVEL, logLevel);
-      // LOG:CONFIG:
-      logger.info(LogMarker.CONFIG, "GFSH Changed log level to {}", log4jLevel);
+      logger.info(LogMarker.CONFIG_MARKER, "GFSH Changed log level to {}", log4jLevel);
       result.put(cache.getDistributedSystem().getDistributedMember().getId(),
           "New log level is " + log4jLevel);
       context.getResultSender().lastResult(result);
     } catch (Exception ex) {
-      // LOG:CONFIG:
-      logger.info(LogMarker.CONFIG, "GFSH Changing log level exception {}", ex.getMessage(), ex);
+      logger.info(LogMarker.CONFIG_MARKER, "GFSH Changing log level exception {}", ex.getMessage(),
+          ex);
       result.put(cache.getDistributedSystem().getDistributedMember().getId(),
           "ChangeLogLevelFunction exception " + ex.getMessage());
       context.getResultSender().lastResult(result);

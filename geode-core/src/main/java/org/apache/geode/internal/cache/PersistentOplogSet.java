@@ -14,22 +14,6 @@
  */
 package org.apache.geode.internal.cache;
 
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import org.apache.geode.cache.DiskAccessException;
-import org.apache.geode.internal.cache.DiskEntry.Helper.ValueWrapper;
-import org.apache.geode.internal.cache.DiskStoreImpl.OplogEntryIdSet;
-import org.apache.geode.internal.cache.persistence.DiskRecoveryStore;
-import org.apache.geode.internal.cache.persistence.DiskRegionView;
-import org.apache.geode.internal.cache.persistence.DiskStoreFilter;
-import org.apache.geode.internal.cache.persistence.OplogType;
-import org.apache.geode.internal.cache.versions.RegionVersionVector;
-import org.apache.geode.internal.i18n.LocalizedStrings;
-import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.logging.log4j.LocalizedMessage;
-import org.apache.geode.internal.logging.log4j.LogMarker;
-import org.apache.geode.internal.sequencelog.EntryLogger;
-import org.apache.logging.log4j.Logger;
-
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.ArrayList;
@@ -45,6 +29,23 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.cache.DiskAccessException;
+import org.apache.geode.internal.cache.DiskStoreImpl.OplogEntryIdSet;
+import org.apache.geode.internal.cache.entries.DiskEntry;
+import org.apache.geode.internal.cache.entries.DiskEntry.Helper.ValueWrapper;
+import org.apache.geode.internal.cache.persistence.DiskRecoveryStore;
+import org.apache.geode.internal.cache.persistence.DiskRegionView;
+import org.apache.geode.internal.cache.persistence.DiskStoreFilter;
+import org.apache.geode.internal.cache.persistence.OplogType;
+import org.apache.geode.internal.cache.versions.RegionVersionVector;
+import org.apache.geode.internal.i18n.LocalizedStrings;
+import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.internal.logging.log4j.LocalizedMessage;
+import org.apache.geode.internal.sequencelog.EntryLogger;
 
 public class PersistentOplogSet implements OplogSet {
   private static final Logger logger = LogService.getLogger();
@@ -178,12 +179,12 @@ public class PersistentOplogSet implements OplogSet {
   }
 
   @Override
-  public void create(LocalRegion region, DiskEntry entry, ValueWrapper value, boolean async) {
+  public void create(InternalRegion region, DiskEntry entry, ValueWrapper value, boolean async) {
     getChild().create(region, entry, value, async);
   }
 
   @Override
-  public void modify(LocalRegion region, DiskEntry entry, ValueWrapper value, boolean async) {
+  public void modify(InternalRegion region, DiskEntry entry, ValueWrapper value, boolean async) {
     getChild().modify(region, entry, value, async);
   }
 
@@ -193,7 +194,7 @@ public class PersistentOplogSet implements OplogSet {
   }
 
   @Override
-  public void remove(LocalRegion region, DiskEntry entry, boolean async, boolean isClear) {
+  public void remove(InternalRegion region, DiskEntry entry, boolean async, boolean isClear) {
     getChild().remove(region, entry, async, isClear);
   }
 
@@ -388,9 +389,6 @@ public class PersistentOplogSet implements OplogSet {
           if (parent.isValidating()) {
             if (drs instanceof ValidatingDiskRegion) {
               ValidatingDiskRegion vdr = ((ValidatingDiskRegion) drs);
-              if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-                vdr.dump(System.out);
-              }
               if (vdr.isBucket()) {
                 String prName = vdr.getPrName();
                 if (prSizes.containsKey(prName)) {
@@ -578,7 +576,7 @@ public class PersistentOplogSet implements OplogSet {
    * Creates and returns a new oplogEntryId for the given key. An oplogEntryId is needed when
    * storing a key/value pair on disk. A new one is only needed if the key is new. Otherwise the
    * oplogEntryId already allocated for a key can be reused for the same key.
-   * 
+   *
    * @return A disk id that can be used to access this key/value pair on disk
    */
   long newOplogEntryId() {
@@ -589,7 +587,7 @@ public class PersistentOplogSet implements OplogSet {
   /**
    * Returns the next available DirectoryHolder which has space. If no dir has space then it will
    * return one anyway if compaction is enabled.
-   * 
+   *
    * @param minAvailableSpace the minimum amount of space we need in this directory.
    */
   DirectoryHolder getNextDir(int minAvailableSpace, boolean checkForWarning) {
@@ -912,7 +910,7 @@ public class PersistentOplogSet implements OplogSet {
 
   /**
    * Removes the oplog from the map given the oplogId
-   * 
+   *
    * @param id id of the oplog to be removed from the list
    * @return oplog Oplog which has been removed
    */
@@ -1034,9 +1032,6 @@ public class PersistentOplogSet implements OplogSet {
 
   /**
    * Add compactable oplogs to the list, up to the maximum size.
-   * 
-   * @param l
-   * @param max
    */
   public void getCompactableOplogs(List<CompactableOplog> l, int max) {
     synchronized (this.oplogIdToOplog) {
@@ -1158,5 +1153,3 @@ public class PersistentOplogSet implements OplogSet {
     return getParent().isCompactionPossible();
   }
 }
-
-

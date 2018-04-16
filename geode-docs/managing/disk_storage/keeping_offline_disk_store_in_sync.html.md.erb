@@ -71,7 +71,7 @@ Perform the following operations with caution. You are permanently removing data
 
 You can remove the region from the disk store in one of two ways:
 
--   Delete the entire set of disk store files. Your member will initialize with an empty set of files the next time you and start it. Exercise caution when removing the files from the file system, as more than one region can be specified to use the same disk store directories.
+-   Delete the entire set of disk store files. Your member will initialize with an empty set of files the next time you start it. Exercise caution when removing the files from the file system, as more than one region can be specified to use the same disk store directories.
 -   Selectively remove the discontinued region from the disk store with a command such as:
 
     ``` pre
@@ -79,4 +79,4 @@ You can remove the region from the disk store in one of two ways:
     --disk-dirs=/firstDiskStoreDir,/secondDiskStoreDir,/thirdDiskStoreDir --remove
     ```
 
-To guard against unintended data loss, Geode maintains the region in the disk store until you manually remove it. Regions in the disk stores that are not associated with any region in your application are still loaded into temporary regions in memory and kept there for the life of the member. The system has no way of detecting whether the cache region will be created by your API at some point, so it keeps the temporary region loaded and available.
+To guard against unintended data loss, <%=vars.product_name%> maintains the region in the disk store until you manually remove it. Regions in the disk stores that are not associated with any region in your application are still loaded into temporary regions in memory and kept there for the life of the member. The system has no way of detecting whether the cache region will be created by your API at some point, so it keeps the temporary region loaded and available.

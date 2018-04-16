@@ -14,22 +14,26 @@
  */
 package com.main;
 
-import org.apache.geode.distributed.Locator;
-import org.apache.geode.distributed.internal.DistributionConfig;
+import static org.apache.geode.distributed.ConfigurationProperties.DISTRIBUTED_SYSTEM_ID;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_LEVEL;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.apache.geode.distributed.ConfigurationProperties.REMOTE_LOCATORS;
 
 import java.io.IOException;
 import java.util.Properties;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
+import org.apache.geode.distributed.Locator;
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.internal.ExitCode;
 
 /**
  * This is a stand alone locator with a distributed-system-id = -2
- * 
+ *
  * This locator is started so that the locator information regarding the site 2 is removed from site
  * 1's locator and at the same time MyDistributedSystemListener's removeDistributedSystem is invoked
  * on site 1's locator which will stop the GatewaySender
- * 
- * 
+ *
+ *
  */
 
 public class WANBootStrapping_Site2_Remove {
@@ -62,7 +66,7 @@ public class WANBootStrapping_Site2_Remove {
     locator.stop();
     System.out.println("Locator stopped ");
 
-    System.exit(0);
+    ExitCode.NORMAL.doSystemExit();
   }
 
 

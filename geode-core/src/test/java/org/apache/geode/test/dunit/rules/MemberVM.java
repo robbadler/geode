@@ -15,18 +15,22 @@
 
 package org.apache.geode.test.dunit.rules;
 
-import org.apache.geode.test.dunit.AsyncInvocation;
-import org.apache.geode.test.dunit.SerializableRunnableIF;
-import org.apache.geode.test.dunit.VM;
-
 import java.io.File;
-import java.nio.file.Paths;
+import java.util.Arrays;
 
-public class MemberVM<T extends Member> implements Member {
-  private T member;
-  private VM vm;
+import org.apache.commons.io.FileUtils;
 
-  public MemberVM(T member, VM vm) {
+import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.junit.rules.Locator;
+import org.apache.geode.test.junit.rules.Member;
+import org.apache.geode.test.junit.rules.Server;
+import org.apache.geode.test.junit.rules.VMProvider;
+
+public class MemberVM extends VMProvider implements Member {
+  protected Member member;
+  protected VM vm;
+
+  public MemberVM(Member member, VM vm) {
     this.member = member;
     this.vm = vm;
   }
@@ -39,21 +43,13 @@ public class MemberVM<T extends Member> implements Member {
     return vm;
   }
 
-  public void invoke(final SerializableRunnableIF runnable) {
-    vm.invoke(runnable);
-  }
-
-  public AsyncInvocation invokeAsync(final SerializableRunnableIF runnable) {
-    return vm.invokeAsync(runnable);
-  }
-
-  public T getMember() {
-    return (T) member;
+  public Member getMember() {
+    return member;
   }
 
   @Override
   public File getWorkingDir() {
-    return member.getWorkingDir();
+    return vm.getWorkingDirectory();
   }
 
   @Override
@@ -76,18 +72,46 @@ public class MemberVM<T extends Member> implements Member {
     return member.getName();
   }
 
-  public void stopMember() {
-
-    this.invoke(LocatorServerStartupRule::stopMemberInThisVM);
-    /**
-     * The LocatorServerStarterRule may dynamically change the "user.dir" system property to point
-     * to a temporary folder. The Path API caches the first value of "user.dir" that it sees, and
-     * this can result in a stale cached value of "user.dir" which points to a directory that no
-     * longer exists.
-     */
-    boolean vmIsClean = this.getVM().invoke(() -> Paths.get("").toAbsolutePath().toFile().exists());
-    if (!vmIsClean) {
-      this.getVM().bounce();
+  public int getEmbeddedLocatorPort() {
+    if (!(member instanceof Server)) {
+      throw new RuntimeException("member needs to be a server");
     }
+    return ((Server) member).getEmbeddedLocatorPort();
+  }
+
+  @Override
+  public void stopVM(boolean cleanWorkingDir) {
+    super.stopVM(cleanWorkingDir);
+
+    if (!cleanWorkingDir) {
+      return;
+    }
+
+    // if using the dunit/vm dir as the preset working dir, need to cleanup dir
+    // so that regions/indexes won't get persisted across tests
+    Arrays.stream(getWorkingDir().listFiles()).forEach(FileUtils::deleteQuietly);
+  }
+
+  /**
+   * this should called on a locatorVM or a serverVM with jmxManager enabled
+   */
+  public void waitTillRegionsAreReadyOnServers(String regionPath, int serverCount) {
+    vm.invoke(() -> ClusterStartupRule.memberStarter.waitTillRegionIsReadyOnServers(regionPath,
+        serverCount));
+  }
+
+  public void waitTillDiskstoreIsReady(String diskstoreName, int serverCount) {
+    vm.invoke(() -> ClusterStartupRule.memberStarter.waitTillDiskStoreIsReady(diskstoreName,
+        serverCount));
+  }
+
+  public void waitTillAsyncEventQueuesAreReadyOnServers(String queueId, int serverCount) {
+    vm.invoke(() -> ClusterStartupRule.memberStarter
+        .waitTillAsyncEventQueuesAreReadyOnServers(queueId, serverCount));
+  }
+
+  public void waitTilGatewaySendersAreReady(int expectedGatewayObjectCount) throws Exception {
+    vm.invoke(() -> ClusterStartupRule.memberStarter
+        .waitTilGatewaySendersAreReady(expectedGatewayObjectCount));
   }
 }

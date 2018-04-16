@@ -15,28 +15,18 @@
 package org.apache.geode.internal.cache.wan.offheap;
 
 import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
-import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
 
 import org.apache.geode.internal.cache.wan.parallel.ParallelGatewaySenderOperationsDUnitTest;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
+@Category({DistributedTest.class, WanTest.class})
 @SuppressWarnings("serial")
-@Category(DistributedTest.class)
 public class ParallelGatewaySenderOperationsOffHeapDUnitTest
     extends ParallelGatewaySenderOperationsDUnitTest {
-
-  public ParallelGatewaySenderOperationsOffHeapDUnitTest() {
-    super();
-  }
 
   @Override
   public boolean isOffHeap() {
     return true;
   }
-
 }

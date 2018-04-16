@@ -14,8 +14,9 @@
  */
 package org.apache.geode.internal.logging.log4j;
 
-import static org.hamcrest.CoreMatchers.*;
-import static org.junit.Assert.*;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -41,9 +42,9 @@ import org.apache.geode.test.junit.categories.IntegrationTest;
 
 /**
  * Tests FastLogger isDebugEnabled and isTraceEnabled with various configurations.
- * 
+ *
  * For filters see https://logging.apache.org/log4j/2.0/manual/filters.html
- * 
+ *
  */
 @Category(IntegrationTest.class)
 public class FastLoggerIntegrationJUnitTest {
@@ -289,7 +290,7 @@ public class FastLoggerIntegrationJUnitTest {
 
   /**
    * Verifies FastLogger isDelegating if Level is DEBUG or TRACE.
-   * 
+   *
    * @param level the log Level
    * @param expectIsDelegating true if expecting FastLogger.isDelegating to be true
    */
@@ -328,7 +329,7 @@ public class FastLoggerIntegrationJUnitTest {
 
   /**
    * Verifies FastLogger isDelegating if there is a Logger Filter.
-   * 
+   *
    * @param level the log Level
    * @param expectIsDelegating true if expecting FastLogger.isDelegating to be true
    */
@@ -379,7 +380,7 @@ public class FastLoggerIntegrationJUnitTest {
 
   /**
    * Verifies FastLogger isDelegating if there is a Context-wide Filter.
-   * 
+   *
    * @param level the log Level
    * @param expectIsDelegating true if expecting FastLogger.isDelegating to be true
    */
@@ -420,7 +421,7 @@ public class FastLoggerIntegrationJUnitTest {
 
   /**
    * Verifies FastLogger isDelegating if there is a Appender Filter.
-   * 
+   *
    * @param level the log Level
    * @param expectIsDelegating true if expecting FastLogger.isDelegating to be true
    */
@@ -471,7 +472,7 @@ public class FastLoggerIntegrationJUnitTest {
 
   /**
    * Verifies FastLogger isDelegating if there is a AppenderRef Filter.
-   * 
+   *
    * @param level the log Level
    * @param expectIsDelegating true if expecting FastLogger.isDelegating to be true
    */

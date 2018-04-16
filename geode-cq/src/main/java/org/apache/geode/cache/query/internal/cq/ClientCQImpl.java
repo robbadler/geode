@@ -20,7 +20,6 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.SystemFailure;
-import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.client.internal.Connection;
 import org.apache.geode.cache.client.internal.ProxyCache;
 import org.apache.geode.cache.client.internal.ServerCQProxyImpl;
@@ -143,7 +142,7 @@ public class ClientCQImpl extends CqQueryImpl implements ClientCQ {
         try {
           if (this.proxyCache != null) {
             if (this.proxyCache.isClosed()) {
-              throw new CacheClosedException("Cache is closed for this user.");
+              throw proxyCache.getCacheClosedException("Cache is closed for this user.");
             }
             UserAttributes.userAttributes.set(this.proxyCache.getUserAttributes());
           }
@@ -366,7 +365,7 @@ public class ClientCQImpl extends CqQueryImpl implements ClientCQ {
    * This executes the CQ first on the redundant server and then on the primary server. This is
    * required to keep the redundancy behavior in accordance with the HAQueue expectation (wherein
    * the events are delivered only from the primary).
-   * 
+   *
    * @param executeWithInitialResults boolean
    * @return Object SelectResults in case of executeWithInitialResults
    */
@@ -405,7 +404,7 @@ public class ClientCQImpl extends CqQueryImpl implements ClientCQ {
         try {
           if (this.proxyCache != null) {
             if (this.proxyCache.isClosed()) {
-              throw new CacheClosedException("Cache is closed for this user.");
+              throw proxyCache.getCacheClosedException("Cache is closed for this user.");
             }
             UserAttributes.userAttributes.set(this.proxyCache.getUserAttributes());
           }
@@ -479,7 +478,7 @@ public class ClientCQImpl extends CqQueryImpl implements ClientCQ {
 
   /**
    * Check to see if shutdown in progress.
-   * 
+   *
    * @return true if shutdown in progress else false.
    */
   private boolean shutdownInProgress() {
@@ -517,7 +516,7 @@ public class ClientCQImpl extends CqQueryImpl implements ClientCQ {
       try {
         if (this.proxyCache != null) {
           if (this.proxyCache.isClosed()) {
-            throw new CacheClosedException("Cache is closed for this user.");
+            throw proxyCache.getCacheClosedException("Cache is closed for this user.");
           }
           UserAttributes.userAttributes.set(this.proxyCache.getUserAttributes());
         }

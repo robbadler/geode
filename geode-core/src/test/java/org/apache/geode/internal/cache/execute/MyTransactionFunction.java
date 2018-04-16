@@ -25,17 +25,15 @@ import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.TransactionDataNotColocatedException;
 import org.apache.geode.cache.TransactionDataRebalancedException;
-import org.apache.geode.cache.execute.Execution;
+import org.apache.geode.cache.TransactionId;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
-import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.RegionFunctionContext;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.cache.BucketRegion;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
-import org.apache.geode.internal.cache.PartitionedRegionException;
 import org.apache.geode.internal.cache.PartitionedRegionHelper;
 import org.apache.geode.internal.cache.TXEntryState;
 import org.apache.geode.internal.cache.TXManagerImpl;
@@ -46,7 +44,6 @@ import org.apache.geode.internal.cache.execute.data.CustId;
 import org.apache.geode.internal.cache.execute.data.Customer;
 import org.apache.geode.internal.cache.execute.data.Order;
 import org.apache.geode.internal.cache.execute.data.OrderId;
-import org.apache.geode.internal.i18n.LocalizedStrings;
 
 public class MyTransactionFunction implements Function {
 
@@ -85,6 +82,9 @@ public class MyTransactionFunction implements Function {
         break;
       case PRTransactionDUnitTest.VERIFY_REP_READ:
         verifyRepeatableRead(ctx);
+        break;
+      case PRTransactionDUnitTest.UPDATE_NON_COLOCATION:
+        updateNonColocation(ctx);
         break;
     }
     context.getResultSender().lastResult(null);
@@ -412,7 +412,7 @@ public class MyTransactionFunction implements Function {
     TXManagerImpl mImp = (TXManagerImpl) mgr;
     mImp.begin();
     orderPR.put(vOrderId, vOrder);
-    TXStateProxy txState = mImp.internalSuspend();
+    TXStateProxy txState = mImp.pauseTransaction();
     Iterator it = txState.getRegions().iterator();
     Assert.assertTrue(txState.getRegions().size() == 1,
         "Expected 1 region; " + "found:" + txState.getRegions().size());
@@ -420,9 +420,10 @@ public class MyTransactionFunction implements Function {
     Assert.assertTrue(lr instanceof BucketRegion);
     TXRegionState txRegion = txState.readRegion(lr);
     TXEntryState txEntry = txRegion.readEntry(txRegion.getEntryKeys().iterator().next());
-    mImp.internalResume(txState);
+    mImp.unpauseTransaction(txState);
     orderPR.put(vOrderId, new Order("foo"));
-    txState = mImp.internalSuspend();
+    TransactionId txId = null;
+    txId = mImp.suspend();
     // since both puts were on same key, verify that
     // TxRegionState and TXEntryState are same
     LocalRegion lr1 = (LocalRegion) txState.getRegions().iterator().next();
@@ -436,7 +437,7 @@ public class MyTransactionFunction implements Function {
     orderPR.put(vOrderId, new Order("foobar"));
     mImp.commit();
     // now begin the first
-    mImp.internalResume(txState);
+    mImp.resume(txId);
     boolean caughtException = false;
     try {
       mImp.commit();
@@ -460,20 +461,33 @@ public class MyTransactionFunction implements Function {
     mImp.begin();
     custPR.put(custId, cust);
     Assert.assertTrue(cust.equals(custPR.get(custId)));
-    TXStateProxy txState = mImp.internalSuspend();
+    TXStateProxy txState = mImp.pauseTransaction();
     Assert.assertTrue(custPR.get(custId) == null);
-    mImp.internalResume(txState);
+    mImp.unpauseTransaction(txState);
     mImp.commit();
     // change value
     mImp.begin();
     Customer oldCust = (Customer) custPR.get(custId);
     Assert.assertTrue(oldCust.equals(cust));
-    txState = mImp.internalSuspend();
+    txState = mImp.pauseTransaction();
     Customer newCust = new Customer("fooNew", "barNew");
     custPR.put(custId, newCust);
-    mImp.internalResume(txState);
+    mImp.unpauseTransaction(txState);
     Assert.assertTrue(oldCust.equals(custPR.get(custId)));
     mImp.commit();
+  }
+
+  private void updateNonColocation(RegionFunctionContext ctx) {
+    Region custPR = ctx.getDataSet();
+
+    ArrayList args = (ArrayList) ctx.getArguments();
+    CustId custId = (CustId) args.get(1);
+    Customer newCus = (Customer) args.get(2);
+
+    custPR.put(custId, newCus);
+    Assert.assertTrue(custPR.containsKey(custId));
+    Assert.assertTrue(custPR.containsValueForKey(custId));
+
   }
 
   public boolean hasResult() {

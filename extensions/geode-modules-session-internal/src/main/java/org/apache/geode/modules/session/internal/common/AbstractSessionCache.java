@@ -15,13 +15,15 @@
 
 package org.apache.geode.modules.session.internal.common;
 
+import java.util.Map;
+
+import javax.servlet.http.HttpSession;
+
 import org.apache.geode.cache.Region;
 import org.apache.geode.modules.session.catalina.internal.DeltaSessionStatistics;
 import org.apache.geode.modules.session.internal.filter.util.TypeAwareMap;
 import org.apache.geode.modules.util.RegionConfiguration;
-
-import java.util.Map;
-import javax.servlet.http.HttpSession;
+import org.apache.geode.modules.util.SessionCustomExpiry;
 
 public abstract class AbstractSessionCache implements SessionCache {
 
@@ -91,6 +93,9 @@ public abstract class AbstractSessionCache implements SessionCache {
         (Boolean) properties.get(CacheProperty.ENABLE_GATEWAY_REPLICATION));
     configuration
         .setEnableDebugListener((Boolean) properties.get(CacheProperty.ENABLE_DEBUG_LISTENER));
+    // Need to set max inactive interval to tell the server to use our custom expiry
+    configuration.setMaxInactiveInterval(0);
+    configuration.setCustomExpiry(new SessionCustomExpiry());
 
     return configuration;
   }

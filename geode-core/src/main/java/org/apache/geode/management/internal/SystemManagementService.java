@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 import javax.management.Notification;
 import javax.management.ObjectName;
@@ -56,7 +57,7 @@ import org.apache.geode.management.membership.MembershipListener;
 /**
  * This is the concrete implementation of ManagementService which is the gateway to various JMX
  * operations over a GemFire System
- * 
+ *
  * @since GemFire 7.0
  */
 public class SystemManagementService extends BaseManagementService {
@@ -77,11 +78,6 @@ public class SystemManagementService extends BaseManagementService {
    * peer cache./cache server
    */
   private NotificationHub notificationHub;
-
-  /**
-   * Local Filter chain for local MBean filters
-   */
-  private LocalFilterChain localFilterChain;
 
   /**
    * whether the service is closed or not if cache is closed automatically this service will be
@@ -137,25 +133,24 @@ public class SystemManagementService extends BaseManagementService {
           LocalizedStrings.InternalDistributedSystem_THIS_CONNECTION_TO_A_DISTRIBUTED_SYSTEM_HAS_BEEN_DISCONNECTED
               .toLocalizedString());
     }
-    this.localFilterChain = new LocalFilterChain();
     this.jmxAdapter = new MBeanJMXAdapter();
     this.repo = new ManagementResourceRepo();
 
 
     this.notificationHub = new NotificationHub(repo);
     if (system.getConfig().getJmxManager()) {
-      this.agent = new ManagementAgent(system.getConfig());
+      this.agent = new ManagementAgent(system.getConfig(), cache.getSecurityService());
     } else {
       this.agent = null;
     }
     ManagementFunction function = new ManagementFunction(notificationHub);
     FunctionService.registerFunction(function);
-    this.proxyListeners = new CopyOnWriteArrayList<ProxyListener>();
+    this.proxyListeners = new CopyOnWriteArrayList<>();
   }
 
   /**
    * This method will initialize all the internal components for Management and Monitoring
-   * 
+   *
    * It will a)start an JMX connectorServer b) create a notification hub c)register the
    * ManagementFunction
    */
@@ -201,16 +196,7 @@ public class SystemManagementService extends BaseManagementService {
   }
 
   public boolean isStartedAndOpen() {
-    if (!isStarted) {
-      return false;
-    }
-    if (closed) {
-      return false;
-    }
-    if (!system.isConnected()) {
-      return false;
-    }
-    return true;
+    return isStarted && !closed && system.isConnected();
   }
 
   private void verifyManagementService() {
@@ -300,8 +286,7 @@ public class SystemManagementService extends BaseManagementService {
 
   @Override
   public CacheServerMXBean getLocalCacheServerMXBean(int serverPort) {
-    CacheServerMXBean bean = jmxAdapter.getClientServiceMXBean(serverPort);
-    return bean;
+    return jmxAdapter.getClientServiceMXBean(serverPort);
   }
 
   @Override
@@ -323,24 +308,20 @@ public class SystemManagementService extends BaseManagementService {
 
   @Override
   public DiskStoreMXBean getLocalDiskStoreMBean(String diskStoreName) {
-    DiskStoreMXBean bean = jmxAdapter.getLocalDiskStoreMXBean(diskStoreName);
-    return bean;
+    return jmxAdapter.getLocalDiskStoreMXBean(diskStoreName);
   }
 
   @Override
-  public LockServiceMXBean getLocalLockServiceMBean(String lockSreviceName) {
-    LockServiceMXBean bean = jmxAdapter.getLocalLockServiceMXBean(lockSreviceName);
-    return bean;
+  public LockServiceMXBean getLocalLockServiceMBean(String lockServiceName) {
+    return jmxAdapter.getLocalLockServiceMXBean(lockServiceName);
   }
 
   @Override
   public RegionMXBean getLocalRegionMBean(String regionPath) {
-    RegionMXBean bean = jmxAdapter.getLocalRegionMXBean(regionPath);
-    return bean;
+    return jmxAdapter.getLocalRegionMXBean(regionPath);
   }
 
-  public <T> T getMBeanProxy(ObjectName objectName, Class<T> interfaceClass) { // TODO: this is too
-                                                                               // generic
+  public <T> T getMBeanProxy(ObjectName objectName, Class<T> interfaceClass) {
     if (!isStartedAndOpen()) {
       return null;
     }
@@ -378,19 +359,20 @@ public class SystemManagementService extends BaseManagementService {
   }
 
   @Override
+  public Set<ObjectName> getAsyncEventQueueMBeanNames(DistributedMember member) {
+    Set<ObjectName> mBeanNames = this.queryMBeanNames(member);
+    return mBeanNames.stream().filter(x -> "AsyncEventQueue".equals(x.getKeyProperty("service")))
+        .collect(Collectors.toSet());
+  }
+
+  @Override
   public ObjectName registerMBean(Object object, ObjectName objectName) {
     verifyManagementService();
-    if (localFilterChain.isFiltered(objectName)) {
-      return null;
-    }
     return jmxAdapter.registerMBean(object, objectName, false);
   }
 
   public ObjectName registerInternalMBean(Object object, ObjectName objectName) {
     verifyManagementService();
-    if (localFilterChain.isFiltered(objectName)) {
-      return null;
-    }
     return jmxAdapter.registerMBean(object, objectName, true);
   }
 
@@ -420,10 +402,7 @@ public class SystemManagementService extends BaseManagementService {
   }
 
   public boolean isManagerCreated() {
-    if (!isStartedAndOpen()) {
-      return false;
-    }
-    return federatingManager != null;
+    return isStartedAndOpen() && federatingManager != null;
   }
 
   @Override
@@ -457,10 +436,7 @@ public class SystemManagementService extends BaseManagementService {
           }
           getInternalCache().getJmxManagerAdvisor().broadcastChange();
           started = true;
-        } catch (RuntimeException e) {
-          logger.error("Jmx manager could not be started because {}", e.getMessage(), e);
-          throw e;
-        } catch (Error e) {
+        } catch (RuntimeException | Error e) {
           logger.error("Jmx manager could not be started because {}", e.getMessage(), e);
           throw e;
         } finally {
@@ -581,13 +557,13 @@ public class SystemManagementService extends BaseManagementService {
   }
 
   @Override
-  public ObjectName getGatewaySenderMBeanName(DistributedMember member, String gatwaySenderId) {
-    return MBeanJMXAdapter.getGatewaySenderMBeanName(member, gatwaySenderId);
+  public ObjectName getGatewaySenderMBeanName(DistributedMember member, String gatewaySenderId) {
+    return MBeanJMXAdapter.getGatewaySenderMBeanName(member, gatewaySenderId);
   }
 
   @Override
   public ObjectName getAsyncEventQueueMBeanName(DistributedMember member, String queueId) {
-    return MBeanJMXAdapter.getAsycnEventQueueMBeanName(member, queueId);
+    return MBeanJMXAdapter.getAsyncEventQueueMBeanName(member, queueId);
   }
 
   @Override
@@ -690,34 +666,33 @@ public class SystemManagementService extends BaseManagementService {
 
   public void memberJoined(InternalDistributedMember id) {
     for (ProxyListener listener : proxyListeners) {
-      listener.memberJoined(id);
+      listener.memberJoined(system.getDistributionManager(), id);
     }
   }
 
   public void memberDeparted(InternalDistributedMember id, boolean crashed) {
     for (ProxyListener listener : proxyListeners) {
-      listener.memberDeparted(id, crashed);
+      listener.memberDeparted(system.getDistributionManager(), id, crashed);
     }
   }
 
   public void memberSuspect(InternalDistributedMember id, InternalDistributedMember whoSuspected,
       String reason) {
     for (ProxyListener listener : proxyListeners) {
-      listener.memberSuspect(id, whoSuspected, reason);
+      listener.memberSuspect(system.getDistributionManager(), id, whoSuspected, reason);
     }
   }
 
   public void quorumLost(Set<InternalDistributedMember> failures,
       List<InternalDistributedMember> remaining) {
     for (ProxyListener listener : proxyListeners) {
-      listener.quorumLost(failures, remaining);
+      listener.quorumLost(system.getDistributionManager(), failures, remaining);
     }
   }
 
   public static class UniversalListenerContainer {
 
-    private List<MembershipListener> membershipListeners =
-        new CopyOnWriteArrayList<MembershipListener>();
+    private List<MembershipListener> membershipListeners = new CopyOnWriteArrayList<>();
 
     public void memberJoined(InternalDistributedMember id) {
       MembershipEvent event = createEvent(id);
@@ -757,7 +732,8 @@ public class SystemManagementService extends BaseManagementService {
     private MembershipEvent createEvent(InternalDistributedMember id) {
       final String memberId = id.getId();
       final DistributedMember member = id;
-      MembershipEvent event = new MembershipEvent() {
+
+      return new MembershipEvent() {
 
         @Override
         public String getMemberId() {
@@ -769,8 +745,6 @@ public class SystemManagementService extends BaseManagementService {
           return member;
         }
       };
-
-      return event;
     }
 
     /**

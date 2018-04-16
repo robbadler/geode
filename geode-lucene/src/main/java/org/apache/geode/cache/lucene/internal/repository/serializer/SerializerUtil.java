@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -76,7 +76,7 @@ public class SerializerUtil {
   private SerializerUtil() {}
 
   /**
-   * Add a gemfire key to a document
+   * Add a Apache Geode key to a document
    */
   public static void addKey(Object key, Document doc) {
     if (key instanceof String) {
@@ -88,7 +88,7 @@ public class SerializerUtil {
 
   /**
    * Add a field to the document.
-   * 
+   *
    * @return true if the field was successfully added
    */
   public static boolean addField(Document doc, String field, Object fieldValue) {
@@ -122,7 +122,7 @@ public class SerializerUtil {
   }
 
   /**
-   * Extract the gemfire key from a lucene document
+   * Extract the Apache Geode key from a lucene document
    */
   public static Object getKey(Document doc) {
     IndexableField field = doc.getField(KEY_FIELD);
@@ -134,7 +134,7 @@ public class SerializerUtil {
   }
 
   /**
-   * Extract the gemfire key term from a lucene document
+   * Extract the Apache Geode key term from a lucene document
    */
   public static Term getKeyTerm(Document doc) {
     IndexableField field = doc.getField(KEY_FIELD);
@@ -146,8 +146,8 @@ public class SerializerUtil {
   }
 
   /**
-   * Convert a gemfire key into a key search term that can be used to update or delete the document
-   * associated with this key.
+   * Convert a Apache Geode key into a key search term that can be used to update or delete the
+   * document associated with this key.
    */
   public static Term toKeyTerm(Object key) {
     if (key instanceof String) {

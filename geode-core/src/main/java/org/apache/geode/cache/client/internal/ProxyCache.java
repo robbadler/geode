@@ -14,10 +14,8 @@
  */
 package org.apache.geode.cache.client.internal;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
@@ -40,9 +38,9 @@ import org.apache.geode.pdx.internal.PdxInstanceFactoryImpl;
  * attribute is set to true. Application must use its {@link #getRegion(String)} API instead that of
  * actual Cache instance for getting a reference to Region instances, to perform operations on
  * server.
- * 
+ *
  * TODO Avoid creating multiple instances of ProxyCache for a single user.
- * 
+ *
  * @see ClientCache#createAuthenticatedView(Properties)
  * @see ProxyQueryService
  * @see ProxyRegion
@@ -190,11 +188,11 @@ public class ProxyCache implements RegionService {
       }
       if (e == null) {
         // Caller did not specify any root cause, so just use our own.
-        return new CacheClosedException(reason);
+        return cache.getCacheClosedException(reason);
       }
 
       try {
-        return new CacheClosedException(reason, e);
+        return cache.getCacheClosedException(reason, e);
       } catch (IllegalStateException ignore) {
         // Bug 39496 (Jrockit related) Give up. The following
         // error is not entirely sane but gives the correct general picture.
@@ -222,15 +220,20 @@ public class ProxyCache implements RegionService {
 
   @Override
   public PdxInstanceFactory createPdxInstanceFactory(String className) {
-    return PdxInstanceFactoryImpl.newCreator(className, true);
+    return PdxInstanceFactoryImpl.newCreator(className, true, cache);
   }
 
   public PdxInstanceFactory createPdxInstanceFactory(String className, boolean expectDomainClass) {
-    return PdxInstanceFactoryImpl.newCreator(className, expectDomainClass);
+    return PdxInstanceFactoryImpl.newCreator(className, expectDomainClass, cache);
   }
 
   @Override
   public PdxInstance createPdxEnum(String className, String enumName, int enumOrdinal) {
     return PdxInstanceFactoryImpl.createPdxEnum(className, enumName, enumOrdinal, this.cache);
+  }
+
+  /** return a CacheClosedException with the given reason */
+  public CacheClosedException getCacheClosedException(String reason) {
+    return cache.getCacheClosedException(reason);
   }
 }

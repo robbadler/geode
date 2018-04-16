@@ -15,10 +15,11 @@
 
 package org.apache.geode.modules.session.internal.filter.attributes;
 
-import org.apache.geode.DataSerializable;
-import org.apache.geode.Instantiator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.geode.DataSerializable;
+import org.apache.geode.Instantiator;
 
 /**
  * This class implements synchronous attribute delta propagation. Updates to attributes are
@@ -32,6 +33,10 @@ public class DeltaSessionAttributes extends AbstractDeltaSessionAttributes {
    * Register ourselves for de-serialization
    */
   static {
+    registerInstantiator();
+  }
+
+  public static void registerInstantiator() {
     Instantiator.register(new Instantiator(DeltaSessionAttributes.class, 347) {
       @Override
       public DataSerializable newInstance() {

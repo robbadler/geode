@@ -31,17 +31,15 @@ import javax.transaction.xa.XAResource;
 
 import org.apache.logging.log4j.Logger;
 
-import org.apache.geode.i18n.LogWriterI18n;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.jndi.JNDIInvoker;
-import org.apache.geode.internal.jta.TransactionUtils;
 import org.apache.geode.internal.logging.LogService;
 
 /**
  * GemFireTransactionDataSource extends AbstractDataSource. This is a datasource class which
  * provides connections from the pool. These connection can participate in the transaction. The
  * objects of these class are ConnectionEventListener for connection close and error events.
- * 
+ *
  * Modified the exception handling & changed the name of some functions.
  */
 public class GemFireTransactionDataSource extends AbstractDataSource
@@ -59,8 +57,6 @@ public class GemFireTransactionDataSource extends AbstractDataSource
    * jdk 1.6
    *
    * @param iface - a Class defining an interface.
-   * @throws SQLException
-   * @return boolean
    */
   public boolean isWrapperFor(Class iface) throws SQLException {
     return true;
@@ -69,9 +65,8 @@ public class GemFireTransactionDataSource extends AbstractDataSource
   /**
    * Place holder for abstract method java.lang Object unwrap(java.lang.Class) in java.sql.Wrapper
    * required by jdk 1.6
-   * 
+   *
    * @param iface - a Class defining an interface.
-   * @throws SQLException
    * @return java.lang.Object
    */
 
@@ -81,10 +76,9 @@ public class GemFireTransactionDataSource extends AbstractDataSource
 
   /**
    * Creates a new instance of GemFireTransactionDataSource
-   * 
+   *
    * @param xaDS The XADataSource object for the database driver.
    * @param configs - The ConfiguredDataSourceProperties containing the datasource properties.
-   * @throws SQLException
    */
   public GemFireTransactionDataSource(XADataSource xaDS, ConfiguredDataSourceProperties configs)
       throws SQLException {
@@ -109,8 +103,7 @@ public class GemFireTransactionDataSource extends AbstractDataSource
   /**
    * Implementation of datasource function. This method is used to get the connection from the pool.
    * Default user name and password will be used.
-   * 
-   * @throws SQLException
+   *
    * @return ???
    */
   @Override
@@ -136,10 +129,9 @@ public class GemFireTransactionDataSource extends AbstractDataSource
   /**
    * Implementation of datasource function. This method is used to get the connection. The specified
    * user name and passowrd will be used.
-   * 
+   *
    * @param clUsername The username for the database connection.
    * @param clPassword The password for the database connection.
-   * @throws SQLException
    * @return ???
    */
   @Override
@@ -151,7 +143,7 @@ public class GemFireTransactionDataSource extends AbstractDataSource
   /**
    * Implementation of call back function from ConnectionEventListener interface. This callback will
    * be invoked on connection close event.
-   * 
+   *
    * @param event Connection event object
    */
   public void connectionClosed(ConnectionEvent event) {
@@ -177,7 +169,7 @@ public class GemFireTransactionDataSource extends AbstractDataSource
   /**
    * Implementation of call back function from ConnectionEventListener interface. This callback will
    * be invoked on connection error event.
-   * 
+   *
    * @param event Connection event object
    */
   public void connectionErrorOccurred(ConnectionEvent event) {
@@ -196,9 +188,6 @@ public class GemFireTransactionDataSource extends AbstractDataSource
     }
   }
 
-  /**
-   *  
-   */
   void registerTranxConnection(XAConnection xaConn) throws Exception {
     try {
       synchronized (this) {
@@ -224,8 +213,7 @@ public class GemFireTransactionDataSource extends AbstractDataSource
 
   /**
    * gets the connection from the pool
-   * 
-   * @param poolC
+   *
    * @return ???
    */
   protected Connection getSQLConnection(PooledConnection poolC) throws SQLException {
@@ -243,7 +231,7 @@ public class GemFireTransactionDataSource extends AbstractDataSource
 
   /**
    * Returns the connection provider for the datasource.
-   * 
+   *
    * @return ConnectionProvider object for the datasource
    */
   public ConnectionProvider getConnectionProvider() {

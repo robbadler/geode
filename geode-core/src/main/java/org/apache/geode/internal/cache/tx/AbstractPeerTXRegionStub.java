@@ -21,26 +21,26 @@ import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.TransactionDataNodeHasDepartedException;
 import org.apache.geode.cache.TransactionDataNotColocatedException;
 import org.apache.geode.cache.TransactionException;
+import org.apache.geode.internal.cache.InternalRegion;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.TXStateStub;
-import org.apache.geode.internal.cache.partitioned.RemoteFetchKeysMessage;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 
 public abstract class AbstractPeerTXRegionStub implements TXRegionStub {
 
   protected final TXStateStub state;
-  protected final LocalRegion region;
 
-  public AbstractPeerTXRegionStub(TXStateStub txstate, LocalRegion r) {
+  public AbstractPeerTXRegionStub(TXStateStub txstate) {
     this.state = txstate;
-    this.region = r;
   }
 
+  protected abstract InternalRegion getRegion();
+
   @Override
-  public Set getRegionKeysForIteration(LocalRegion currRegion) {
+  public Set getRegionKeysForIteration() {
     try {
       RemoteFetchKeysMessage.FetchKeysResponse response =
-          RemoteFetchKeysMessage.send(currRegion, state.getTarget());
+          RemoteFetchKeysMessage.send((LocalRegion) getRegion(), state.getTarget());
       return response.waitForKeys();
     } catch (RegionDestroyedException e) {
       throw new TransactionDataNotColocatedException(
@@ -49,6 +49,22 @@ public abstract class AbstractPeerTXRegionStub implements TXRegionStub {
           e);
     } catch (CacheClosedException e) {
       throw new TransactionDataNodeHasDepartedException("Cache was closed while fetching keys");
+    } catch (Exception e) {
+      throw new TransactionException(e);
+    }
+  }
+
+  @Override
+  public int entryCount() {
+    try {
+      RemoteSizeMessage.SizeResponse response =
+          RemoteSizeMessage.send(this.state.getTarget(), getRegion());
+      return response.waitForSize();
+    } catch (RegionDestroyedException rde) {
+      throw new TransactionDataNotColocatedException(
+          LocalizedStrings.RemoteMessage_REGION_0_NOT_COLOCATED_WITH_TRANSACTION
+              .toLocalizedString(rde.getRegionFullPath()),
+          rde);
     } catch (Exception e) {
       throw new TransactionException(e);
     }

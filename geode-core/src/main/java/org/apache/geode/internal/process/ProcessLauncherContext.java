@@ -12,20 +12,18 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-
 package org.apache.geode.internal.process;
 
-import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.internal.io.TeeOutputStream;
-import org.apache.geode.internal.io.TeePrintStream;
+import static org.apache.commons.lang.Validate.notNull;
 
-import java.io.*;
 import java.util.Properties;
+
+import org.apache.geode.distributed.internal.DistributionConfig;
 
 /**
  * Thread based context for launching a process. GemFire internals can acquire optional
  * configuration details from a process launcher via this context.
- * 
+ *
  * @since GemFire 7.0
  */
 public class ProcessLauncherContext {
@@ -43,8 +41,11 @@ public class ProcessLauncherContext {
    */
   private static final Properties OVERRIDDEN_DEFAULTS_DEFAULT = new Properties();
 
-  private static final ThreadLocal<ProcessLauncherContext> DATA =
-      new ThreadLocal<ProcessLauncherContext>();
+  private static final ThreadLocal<ProcessLauncherContext> DATA = new ThreadLocal<>();
+
+  private final boolean redirectOutput;
+  private final Properties overriddenDefaults;
+  private final StartupStatusListener startupListener;
 
   private static ProcessLauncherContext get() {
     return DATA.get();
@@ -52,11 +53,11 @@ public class ProcessLauncherContext {
 
   /**
    * Returns true if this process should redirect output to the system log.
-   * 
+   *
    * @return true if this process should redirect output to the system log
    */
   public static boolean isRedirectingOutput() {
-    final ProcessLauncherContext context = get();
+    ProcessLauncherContext context = get();
     if (context == null) {
       return REDIRECT_OUTPUT_DEFAULT;
     }
@@ -67,20 +68,19 @@ public class ProcessLauncherContext {
    * Returns the gemfire properties to be used if none of the specified properties are defined by
    * any other mechanism. This will only override default values. If a property is defined by System
    * property, API, or within gemfire.properties then the contingent value will be ignored.
-   * 
+   *
    * @return the contingent gemfire properties values to be used as an alternative default value
    */
   public static Properties getOverriddenDefaults() {
-    final ProcessLauncherContext context = get();
+    ProcessLauncherContext context = get();
     if (context == null) {
       return OVERRIDDEN_DEFAULTS_DEFAULT;
     }
     return context.overriddenDefaults();
   }
 
-
   public static StartupStatusListener getStartupListener() {
-    final ProcessLauncherContext context = get();
+    ProcessLauncherContext context = get();
     if (context == null) {
       return null;
     }
@@ -91,9 +91,12 @@ public class ProcessLauncherContext {
   /**
    * Sets the ProcessLauncherContext data for the calling thread.
    */
-  public static void set(final boolean redirectOutput, final Properties contingentProperties,
+  public static void set(final boolean redirectOutput, final Properties overriddenDefaults,
       final StartupStatusListener startupListener) {
-    DATA.set(new ProcessLauncherContext(redirectOutput, contingentProperties, startupListener));
+    notNull(overriddenDefaults,
+        "Invalid overriddenDefaults '" + overriddenDefaults + "' specified");
+
+    DATA.set(new ProcessLauncherContext(redirectOutput, overriddenDefaults, startupListener));
     installLogListener(startupListener);
   }
 
@@ -101,12 +104,11 @@ public class ProcessLauncherContext {
    * Clears the current ProcessLauncherContext for the calling thread.
    */
   public static void remove() {
-    // DATA.get().restoreErrorStream();
     DATA.remove();
     clearLogListener();
   }
 
-  private static void installLogListener(StartupStatusListener startupListener) {
+  private static void installLogListener(final StartupStatusListener startupListener) {
     if (startupListener != null) {
       StartupStatus.setListener(startupListener);
     }
@@ -116,11 +118,6 @@ public class ProcessLauncherContext {
     StartupStatus.clearListener();
   }
 
-  private final boolean redirectOutput;
-  private final Properties overriddenDefaults;
-  private final StartupStatusListener startupListener;
-  private PrintStream err;
-
   private ProcessLauncherContext(final boolean redirectOutput, final Properties overriddenDefaults,
       final StartupStatusListener startupListener) {
     this.redirectOutput = redirectOutput;
@@ -129,39 +126,14 @@ public class ProcessLauncherContext {
   }
 
   private boolean redirectOutput() {
-    return this.redirectOutput;
+    return redirectOutput;
   }
 
   private Properties overriddenDefaults() {
-    return this.overriddenDefaults;
+    return overriddenDefaults;
   }
 
   private StartupStatusListener startupListener() {
-    return this.startupListener;
-  }
-
-  @SuppressWarnings("unused")
-  private void teeErrorStream() {
-    final FileOutputStream fdErr = new FileOutputStream(FileDescriptor.err);
-    this.err = new PrintStream(new BufferedOutputStream(fdErr, 128), true);
-    System.setErr(new TeePrintStream(new TeeOutputStream(new BufferedOutputStream(fdErr, 128))));
-  }
-
-  @SuppressWarnings("unused")
-  private void restoreErrorStream() {
-    if (System.err instanceof TeePrintStream) {
-      final TeePrintStream tee = ((TeePrintStream) System.err);
-      final OutputStream branch = tee.getTeeOutputStream().getBranchOutputStream();
-
-      PrintStream newStdErr = null;
-      if (branch == null) {
-        newStdErr = this.err;
-      } else if (branch instanceof PrintStream) {
-        newStdErr = (PrintStream) branch;
-      } else {
-        newStdErr = new PrintStream(new BufferedOutputStream(branch, 128), true);
-      }
-      System.setErr(newStdErr);
-    }
+    return startupListener;
   }
 }

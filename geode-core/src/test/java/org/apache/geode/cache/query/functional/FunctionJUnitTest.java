@@ -26,7 +26,6 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.Iterator;
 
-import org.apache.geode.cache.query.internal.parse.OQLLexerTokenTypes;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,9 +41,11 @@ import org.apache.geode.cache.query.internal.CompiledFunction;
 import org.apache.geode.cache.query.internal.CompiledLiteral;
 import org.apache.geode.cache.query.internal.CompiledValue;
 import org.apache.geode.cache.query.internal.ExecutionContext;
+import org.apache.geode.cache.query.internal.parse.OQLLexerTokenTypes;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class FunctionJUnitTest {
 
   @Before

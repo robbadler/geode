@@ -14,20 +14,21 @@
  */
 package org.apache.geode.security.generator;
 
-import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.internal.cache.tier.sockets.HandShake;
-import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.security.templates.LdapUserAuthenticator;
-import org.apache.geode.security.templates.UserPasswordAuthInit;
-import org.apache.geode.test.dunit.Assert;
-import org.apache.geode.util.test.TestUtil;
-import org.apache.logging.log4j.Logger;
+import static org.apache.geode.distributed.ConfigurationProperties.*;
 
 import java.security.Principal;
 import java.util.Properties;
 import java.util.Random;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.internal.cache.tier.sockets.Handshake;
+import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.security.templates.LdapUserAuthenticator;
+import org.apache.geode.security.templates.UserPasswordAuthInit;
+import org.apache.geode.test.dunit.Assert;
+import org.apache.geode.util.test.TestUtil;
 
 public class LdapUserCredentialGenerator extends CredentialGenerator {
 
@@ -67,9 +68,9 @@ public class LdapUserCredentialGenerator extends CredentialGenerator {
     if (serverAuthEnabled) {
       String keyStoreFile = TestUtil.getResourcePath(LdapUserCredentialGenerator.class,
           PKCSCredentialGenerator.keyStoreDir + "/gemfire1.keystore");
-      extraProps.setProperty(HandShake.PRIVATE_KEY_FILE_PROP, keyStoreFile);
-      extraProps.setProperty(HandShake.PRIVATE_KEY_ALIAS_PROP, DistributionConfig.GEMFIRE_PREFIX);
-      extraProps.setProperty(HandShake.PRIVATE_KEY_PASSWD_PROP, "gemfire");
+      extraProps.setProperty(Handshake.PRIVATE_KEY_FILE_PROP, keyStoreFile);
+      extraProps.setProperty(Handshake.PRIVATE_KEY_ALIAS_PROP, DistributionConfig.GEMFIRE_PREFIX);
+      extraProps.setProperty(Handshake.PRIVATE_KEY_PASSWD_PROP, "gemfire");
     }
 
     Assert.assertNotNull(extraProps.getProperty(LdapUserAuthenticator.LDAP_BASEDN_NAME));
@@ -104,8 +105,8 @@ public class LdapUserCredentialGenerator extends CredentialGenerator {
     if (serverAuthEnabled) {
       final String keyStoreFile = TestUtil.getResourcePath(PKCSCredentialGenerator.class,
           PKCSCredentialGenerator.keyStoreDir + "/publickeyfile");
-      props.setProperty(HandShake.PUBLIC_KEY_FILE_PROP, keyStoreFile);
-      props.setProperty(HandShake.PUBLIC_KEY_PASSWD_PROP, "gemfire");
+      props.setProperty(Handshake.PUBLIC_KEY_FILE_PROP, keyStoreFile);
+      props.setProperty(Handshake.PUBLIC_KEY_PASSWD_PROP, "gemfire");
     }
 
     return props;
@@ -142,8 +143,8 @@ public class LdapUserCredentialGenerator extends CredentialGenerator {
     if (serverAuthEnabled) {
       final String keyStoreFile = TestUtil.getResourcePath(PKCSCredentialGenerator.class,
           PKCSCredentialGenerator.keyStoreDir + "/publickeyfile");
-      props.setProperty(HandShake.PUBLIC_KEY_FILE_PROP, keyStoreFile);
-      props.setProperty(HandShake.PUBLIC_KEY_PASSWD_PROP, "gemfire");
+      props.setProperty(Handshake.PUBLIC_KEY_FILE_PROP, keyStoreFile);
+      props.setProperty(Handshake.PUBLIC_KEY_PASSWD_PROP, "gemfire");
     }
 
     return props;
@@ -159,8 +160,8 @@ public class LdapUserCredentialGenerator extends CredentialGenerator {
     if (serverAuthEnabled) {
       final String keyStoreFile = TestUtil.getResourcePath(PKCSCredentialGenerator.class,
           PKCSCredentialGenerator.keyStoreDir + "/publickeyfile");
-      props.setProperty(HandShake.PUBLIC_KEY_FILE_PROP, keyStoreFile);
-      props.setProperty(HandShake.PUBLIC_KEY_PASSWD_PROP, "gemfire");
+      props.setProperty(Handshake.PUBLIC_KEY_FILE_PROP, keyStoreFile);
+      props.setProperty(Handshake.PUBLIC_KEY_PASSWD_PROP, "gemfire");
     }
 
     return props;

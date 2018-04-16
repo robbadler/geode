@@ -19,7 +19,7 @@ package org.apache.geode.internal.lang;
  * The Initable interface defines a contract for implementing classes who's Object instances can be
  * initialized after construction.
  * <p/>
- * 
+ *
  * @since GemFire 6.8
  */
 public interface Initable {
@@ -30,6 +30,6 @@ public interface Initable {
    * construction by subclasses needing to instantiate other collaborators or starting of additional
    * services, like Threads, and so on.
    */
-  public void init();
+  void init();
 
 }

@@ -14,30 +14,6 @@
  */
 package org.apache.geode.management.internal.cli.commands;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.geode.cache.Region;
-import org.apache.geode.cache.execute.ResultCollector;
-import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.internal.cache.InternalCache;
-import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.management.ManagementException;
-import org.apache.geode.management.cli.CliMetaData;
-import org.apache.geode.management.cli.ConverterHint;
-import org.apache.geode.management.cli.Result;
-import org.apache.geode.management.internal.cli.CliUtil;
-import org.apache.geode.management.internal.cli.functions.ExportLogsFunction;
-import org.apache.geode.management.internal.cli.functions.SizeExportLogsFunction;
-import org.apache.geode.management.internal.cli.i18n.CliStrings;
-import org.apache.geode.management.internal.cli.result.ResultBuilder;
-import org.apache.geode.management.internal.cli.util.ExportLogsCacheWriter;
-import org.apache.geode.management.internal.configuration.utils.ZipUtils;
-import org.apache.geode.management.internal.security.ResourceOperation;
-import org.apache.geode.security.ResourcePermission;
-import org.apache.logging.log4j.Logger;
-import org.springframework.shell.core.annotation.CliCommand;
-import org.springframework.shell.core.annotation.CliOption;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -48,32 +24,55 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class ExportLogsCommand implements GfshCommand {
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.Logger;
+import org.springframework.shell.core.annotation.CliCommand;
+import org.springframework.shell.core.annotation.CliOption;
+
+import org.apache.geode.cache.Region;
+import org.apache.geode.cache.execute.ResultCollector;
+import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.management.ManagementException;
+import org.apache.geode.management.cli.CliMetaData;
+import org.apache.geode.management.cli.ConverterHint;
+import org.apache.geode.management.cli.Result;
+import org.apache.geode.management.internal.cli.functions.ExportLogsFunction;
+import org.apache.geode.management.internal.cli.functions.SizeExportLogsFunction;
+import org.apache.geode.management.internal.cli.i18n.CliStrings;
+import org.apache.geode.management.internal.cli.result.CommandResult;
+import org.apache.geode.management.internal.cli.result.ResultBuilder;
+import org.apache.geode.management.internal.cli.util.ExportLogsCacheWriter;
+import org.apache.geode.management.internal.configuration.utils.ZipUtils;
+import org.apache.geode.management.internal.security.ResourceOperation;
+import org.apache.geode.security.ResourcePermission;
+
+public class ExportLogsCommand extends InternalGfshCommand {
 
   private static final Logger logger = LogService.getLogger();
 
   public static final String FORMAT = "yyyy/MM/dd/HH/mm/ss/SSS/z";
   public static final String ONLY_DATE_FORMAT = "yyyy/MM/dd";
 
-  public final static String DEFAULT_EXPORT_LOG_LEVEL = "ALL";
+  public static final String DEFAULT_EXPORT_LOG_LEVEL = "ALL";
 
   private static final Pattern DISK_SPACE_LIMIT_PATTERN = Pattern.compile("(\\d+)([kmgtKMGT]?)");
 
   @CliCommand(value = CliStrings.EXPORT_LOGS, help = CliStrings.EXPORT_LOGS__HELP)
-  @CliMetaData(shellOnly = false, isFileDownloadOverHttp = true,
+  @CliMetaData(isFileDownloadOverHttp = true,
       interceptor = "org.apache.geode.management.internal.cli.commands.ExportLogsInterceptor",
       relatedTopic = {CliStrings.TOPIC_GEODE_SERVER, CliStrings.TOPIC_GEODE_DEBUG_UTIL})
   @ResourceOperation(resource = ResourcePermission.Resource.CLUSTER,
       operation = ResourcePermission.Operation.READ)
   public Result exportLogs(
-      @CliOption(key = CliStrings.EXPORT_LOGS__DIR, help = CliStrings.EXPORT_LOGS__DIR__HELP,
-          mandatory = false) String dirName,
-      @CliOption(key = CliStrings.EXPORT_LOGS__GROUP,
-          unspecifiedDefaultValue = CliMetaData.ANNOTATION_NULL_VALUE,
+      @CliOption(key = CliStrings.EXPORT_LOGS__DIR,
+          help = CliStrings.EXPORT_LOGS__DIR__HELP) String dirName,
+      @CliOption(key = {CliStrings.GROUP, CliStrings.GROUPS},
           optionContext = ConverterHint.MEMBERGROUP,
           help = CliStrings.EXPORT_LOGS__GROUP__HELP) String[] groups,
-      @CliOption(key = CliStrings.EXPORT_LOGS__MEMBER,
-          unspecifiedDefaultValue = CliMetaData.ANNOTATION_NULL_VALUE,
+      @CliOption(key = {CliStrings.MEMBER, CliStrings.MEMBERS},
           optionContext = ConverterHint.ALL_MEMBER_IDNAME,
           help = CliStrings.EXPORT_LOGS__MEMBER__HELP) String[] memberIds,
       @CliOption(key = CliStrings.EXPORT_LOGS__LOGLEVEL,
@@ -85,10 +84,8 @@ public class ExportLogsCommand implements GfshCommand {
       @CliOption(key = CliStrings.EXPORT_LOGS__MERGELOG, unspecifiedDefaultValue = "false",
           help = CliStrings.EXPORT_LOGS__MERGELOG__HELP) boolean mergeLog,
       @CliOption(key = CliStrings.EXPORT_LOGS__STARTTIME,
-          unspecifiedDefaultValue = CliMetaData.ANNOTATION_NULL_VALUE,
           help = CliStrings.EXPORT_LOGS__STARTTIME__HELP) String start,
       @CliOption(key = CliStrings.EXPORT_LOGS__ENDTIME,
-          unspecifiedDefaultValue = CliMetaData.ANNOTATION_NULL_VALUE,
           help = CliStrings.EXPORT_LOGS__ENDTIME__HELP) String end,
       @CliOption(key = CliStrings.EXPORT_LOGS__LOGSONLY, unspecifiedDefaultValue = "false",
           specifiedDefaultValue = "true",
@@ -99,17 +96,14 @@ public class ExportLogsCommand implements GfshCommand {
       @CliOption(key = CliStrings.EXPORT_LOGS__FILESIZELIMIT,
           unspecifiedDefaultValue = CliStrings.EXPORT_LOGS__FILESIZELIMIT__UNSPECIFIED_DEFAULT,
           specifiedDefaultValue = CliStrings.EXPORT_LOGS__FILESIZELIMIT__SPECIFIED_DEFAULT,
-          help = CliStrings.EXPORT_LOGS__FILESIZELIMIT__HELP) String fileSizeLimit) {
+          help = CliStrings.EXPORT_LOGS__FILESIZELIMIT__HELP) String fileSizeLimit)
+      throws Exception {
 
     long totalEstimatedExportSize = 0;
     Result result;
-    InternalCache cache = getCache();
+    InternalCache cache = (InternalCache) getCache();
     try {
-      Set<DistributedMember> targetMembers = getMembers(groups, memberIds);
-
-      if (targetMembers.isEmpty()) {
-        return ResultBuilder.createUserErrorResult(CliStrings.NO_MEMBERS_FOUND_MESSAGE);
-      }
+      Set<DistributedMember> targetMembers = getMembersIncludingLocators(groups, memberIds);
 
       long userSpecifiedLimit = parseFileSizeLimit(fileSizeLimit);
       if (userSpecifiedLimit > 0) {
@@ -159,7 +153,7 @@ public class ExportLogsCommand implements GfshCommand {
 
         cacheWriter.startFile(server.getName());
 
-        CliUtil.executeFunction(new ExportLogsFunction(),
+        executeFunction(new ExportLogsFunction(),
             new ExportLogsFunction.Args(start, end, logLevel, onlyLogLevel, logsOnly, statsOnly),
             server).getResult();
         Path zipFile = cacheWriter.endFile();
@@ -202,10 +196,7 @@ public class ExportLogsCommand implements GfshCommand {
       ZipUtils.zipDirectory(exportedLogsDir, exportedLogsZipFile);
       FileUtils.deleteDirectory(tempDir.toFile());
 
-      result = ResultBuilder.createInfoResult(exportedLogsZipFile.toString());
-    } catch (Exception ex) {
-      logger.error(ex.getMessage(), ex);
-      result = ResultBuilder.createGemFireErrorResult(ex.getMessage());
+      result = new CommandResult(exportedLogsZipFile);
     } finally {
       ExportLogsFunction.destroyExportLogsRegion(cache);
     }
@@ -218,15 +209,8 @@ public class ExportLogsCommand implements GfshCommand {
   /**
    * Wrapper to enable stubbing of static method call for unit testing
    */
-  Set<DistributedMember> getMembers(String[] groups, String[] memberIds) {
-    return CliUtil.findMembersIncludingLocators(groups, memberIds);
-  }
-
-  /**
-   * Wrapper to enable stubbing of static method call for unit testing
-   */
   ResultCollector estimateLogSize(SizeExportLogsFunction.Args args, DistributedMember member) {
-    return CliUtil.executeFunction(new SizeExportLogsFunction(), args, member);
+    return executeFunction(new SizeExportLogsFunction(), args, member);
   }
 
   /**

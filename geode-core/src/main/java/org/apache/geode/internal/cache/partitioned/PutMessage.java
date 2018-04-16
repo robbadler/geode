@@ -14,6 +14,9 @@
  */
 package org.apache.geode.internal.cache.partitioned;
 
+import static org.apache.geode.internal.offheap.annotations.OffHeapIdentifier.ENTRY_EVENT_NEW_VALUE;
+import static org.apache.geode.internal.offheap.annotations.OffHeapIdentifier.ENTRY_EVENT_OLD_VALUE;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -30,7 +33,7 @@ import org.apache.geode.cache.CacheWriterException;
 import org.apache.geode.cache.EntryExistsException;
 import org.apache.geode.cache.Operation;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DirectReplyProcessor;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
@@ -56,8 +59,8 @@ import org.apache.geode.internal.cache.ForceReattemptException;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.PartitionedRegionDataStore;
 import org.apache.geode.internal.cache.PrimaryBucketException;
-import org.apache.geode.internal.cache.RemotePutMessage;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
+import org.apache.geode.internal.cache.tx.RemotePutMessage;
 import org.apache.geode.internal.cache.versions.VersionTag;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
@@ -65,9 +68,6 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 import org.apache.geode.internal.offheap.annotations.Released;
 import org.apache.geode.internal.offheap.annotations.Retained;
 import org.apache.geode.internal.offheap.annotations.Unretained;
-
-import static org.apache.geode.internal.offheap.annotations.OffHeapIdentifier.ENTRY_EVENT_OLD_VALUE;
-import static org.apache.geode.internal.offheap.annotations.OffHeapIdentifier.ENTRY_EVENT_NEW_VALUE;
 
 /**
  * A Partitioned Region update message. Meant to be sent only to a bucket's primary owner. In
@@ -140,7 +140,7 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
 
   /**
    * For put to happen, the old value must be equal to this expectedOldValue.
-   * 
+   *
    * @see PartitionedRegion#replace(Object, Object, Object)
    */
   private Object expectedOldValue;
@@ -293,8 +293,6 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
    * @param filterInfo all client routing information
    * @param r the region affected by the event
    * @param event the event that prompted this action
-   * @param ifNew
-   * @param ifOld
    * @param processor the processor to reply to
    * @return members that could not be notified
    */
@@ -303,6 +301,7 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
       boolean ifOld, DirectReplyProcessor processor, boolean sendDeltaWithFullValue) {
     PutMessage msg = new PutMessage(Collections.EMPTY_SET, true, r.getPRId(), processor, event, 0,
         ifNew, ifOld, null, false);
+    msg.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
     msg.setInternalDs(r.getSystem());
     msg.versionTag = event.getVersionTag();
     msg.setSendDeltaWithFullValue(sendDeltaWithFullValue);
@@ -356,7 +355,7 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
   /**
    * Sends a PartitionedRegion {@link org.apache.geode.cache.Region#put(Object, Object)} message to
    * the recipient
-   * 
+   *
    * @param recipient the member to which the put message is sent
    * @param r the PartitionedRegion for which the put was performed
    * @param event the event prompting this message
@@ -396,7 +395,7 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
   // return this.directAck;
   // }
 
-  // final public int getProcessorType() {
+  // public final int getProcessorType() {
   // return DistributionManager.PARTITIONED_REGION_EXECUTOR;
   // }
 
@@ -459,7 +458,7 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
 
   /**
    * (ashetkar) Strictly for Delta Propagation purpose.
-   * 
+   *
    * @param o Object of type Delta
    */
   public void setDeltaValObj(Object o) {
@@ -675,7 +674,7 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
    * indefinitely for the acknowledgement
    */
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion r,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion r,
       long startTime) throws EntryExistsException, DataLocationException, IOException {
     this.setInternalDs(r.getSystem());// set the internal DS. Required to
                                       // checked DS level delta-enabled property
@@ -736,9 +735,6 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
               "This process should have storage" + " for this operation: " + this.toString());
         }
         try {
-          // the event must show it's true origin for cachewriter invocation
-          // event.setOriginRemote(true);
-          // this.op = r.doCacheWriteBeforePut(event, ifNew); // TODO fix this for bug 37072
           ev.setOriginRemote(false);
           result =
               r.getDataView().putEntryOnRemote(ev, this.ifNew, this.ifOld, this.expectedOldValue,
@@ -746,30 +742,17 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
 
           if (!this.result) { // make sure the region hasn't gone away
             r.checkReadiness();
-            // sbawaska: I cannot see how ifOld and ifNew can both be false, hence removing
-            // if (!this.ifNew && !this.ifOld) {
-            // // no reason to be throwing an exception, so let's retry
-            // ForceReattemptException fre = new ForceReattemptException(
-            // LocalizedStrings.PutMessage_UNABLE_TO_PERFORM_PUT_BUT_OPERATION_SHOULD_NOT_FAIL_0.toLocalizedString());
-            // fre.setHash(key.hashCode());
-            // sendReply(getSender(), getProcessorId(), dm,
-            // new ReplyException(fre), r, startTime);
-            // sendReply = false;
-            // }
           }
-        } catch (CacheWriterException cwe) {
+        } catch (CacheWriterException | PrimaryBucketException cwe) {
           sendReply(getSender(), getProcessorId(), dm, new ReplyException(cwe), r, startTime);
-          return false;
-        } catch (PrimaryBucketException pbe) {
-          sendReply(getSender(), getProcessorId(), dm, new ReplyException(pbe), r, startTime);
           return false;
         } catch (InvalidDeltaException ide) {
           sendReply(getSender(), getProcessorId(), dm, new ReplyException(ide), r, startTime);
           r.getCachePerfStats().incDeltaFullValuesRequested();
           return false;
         }
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "PutMessage {} with key: {} val: {}",
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "PutMessage {} with key: {} val: {}",
               (result ? "updated bucket" : "did not update bucket"), getKey(),
               (getValBytes() == null ? "null" : "(" + getValBytes().length + " bytes)"));
         }
@@ -811,8 +794,8 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
   }
 
 
-  protected void sendReply(InternalDistributedMember member, int procId, DM dm, ReplyException ex,
-      PartitionedRegion pr, long startTime, EntryEventImpl ev) {
+  protected void sendReply(InternalDistributedMember member, int procId, DistributionManager dm,
+      ReplyException ex, PartitionedRegion pr, long startTime, EntryEventImpl ev) {
     if (pr != null && startTime > 0) {
       pr.getPrStats().endPartitionMessagesProcessing(startTime);
       pr.getCancelCriterion().checkCancelInProgress(null); // bug 39014 - don't send a positive
@@ -873,7 +856,7 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
   }
 
   @Override
-  protected boolean mayAddToMultipleSerialGateways(DistributionManager dm) {
+  protected boolean mayAddToMultipleSerialGateways(ClusterDistributionManager dm) {
     return _mayAddToMultipleSerialGateways(dm);
   }
 
@@ -937,20 +920,20 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
 
     /**
      * Processes this message. This method is invoked by the receiver of the message.
-     * 
+     *
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    public void process(final DM dm, final ReplyProcessor21 rp) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 rp) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "PutReplyMessage process invoking reply processor with processorId: {}",
             this.processorId);
       }
       if (rp == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "PutReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "PutReplyMessage processor not found");
         }
         return;
       }
@@ -960,22 +943,15 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
       }
       rp.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} processed {}", rp, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} processed {}", rp, this);
       }
       dm.getStats().incReplyMessageTime(NanoTimer.getTime() - startTime);
     }
 
     /** Return oldValue in serialized form */
     public Object getOldValue() {
-      // to fix bug 42951 why not just return this.oldValue?
       return this.oldValue;
-      // // oldValue field is in serialized form, either a CachedDeserializable,
-      // // a byte[], or null if not set
-      // if (this.oldValue instanceof CachedDeserializable) {
-      // return ((CachedDeserializable)this.oldValue).getDeserializedValue(null, null);
-      // }
-      // return this.oldValue;
     }
 
     @Override
@@ -1045,7 +1021,7 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
 
   /**
    * A processor to capture the value returned by {@link PutMessage}
-   * 
+   *
    * @since GemFire 5.1
    */
   public static class PutResponse extends PartitionResponse {
@@ -1117,7 +1093,7 @@ public class PutMessage extends PartitionMessageWithDirectReply implements NewVa
             // Why is this code not happening for bug 41916?
             && (ex != null && ex.getCause() instanceof InvalidDeltaException)) {
           final PutMessage putMsg = new PutMessage(this.putMessage);
-          final DM dm = getDistributionManager();
+          final DistributionManager dm = getDistributionManager();
           Runnable sendFullObject = new Runnable() {
             public void run() {
               putMsg.resetRecipients();

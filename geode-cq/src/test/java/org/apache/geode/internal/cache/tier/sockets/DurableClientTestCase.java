@@ -25,7 +25,6 @@ import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -1081,14 +1080,12 @@ public class DurableClientTestCase extends JUnit4DistributedTestCase {
     });
   }
 
-  @Ignore("TODO: This test is failing inconsistently, see bug 51258")
   @Test
   public void testDurableNonHAFailover() throws InterruptedException {
     durableFailover(0);
     durableFailoverAfterReconnect(0);
   }
 
-  @Ignore("TODO: This test is failing inconsistently, see bug 51258")
   @Test
   public void testDurableHAFailover() throws InterruptedException {
     // Clients see this when the servers disconnect
@@ -1269,21 +1266,14 @@ public class DurableClientTestCase extends JUnit4DistributedTestCase {
 
 
   public void durableFailoverAfterReconnect(int redundancyLevel) {
-
-
     // Start server 1
-    Integer[] ports = ((Integer[]) this.server1VM.invoke(
-        () -> CacheServerTestUtil.createCacheServerReturnPorts(regionName, new Boolean(true))));
+    Integer[] ports = ((Integer[]) this.server1VM
+        .invoke(() -> CacheServerTestUtil.createCacheServerReturnPorts(regionName, true)));
     final int server1Port = ports[0].intValue();
-    final int mcastPort = ports[1].intValue();
 
-    // Start server 2 using the same mcast port as server 1
-    fail("Trying to get a result from a void method");
-    final int server2Port = 0;
-    // final int server2Port = ((Integer) this.server2VM.invoke(() ->
-    // CacheServerTestUtil.createCacheServer(regionName, new Boolean(true), new
-    // Integer(mcastPort))))
-    // .intValue();
+    ports = this.server2VM
+        .invoke(() -> CacheServerTestUtil.createCacheServerReturnPorts(regionName, true));
+    int server2Port = ports[0];
 
     // Start a durable client
     final String durableClientId = getName() + "_client";
@@ -1617,10 +1607,10 @@ public class DurableClientTestCase extends JUnit4DistributedTestCase {
          * String result = ""; if(ClientHealthMonitor._instance != null &&
          * ClientHealthMonitor._instance.getCleanupProxyIdTable() != null) result =
          * ClientHealthMonitor._instance.getCleanupProxyIdTable().toString();
-         * 
-         * 
+         *
+         *
          * CacheClientProxy ccp = getClientProxy();
-         * 
+         *
          * if(ccp != null) result += " ccp: " + ccp.toString();
          */
         return getAllClientProxyState() + " CHM state: "
@@ -1667,7 +1657,7 @@ public class DurableClientTestCase extends JUnit4DistributedTestCase {
   /**
    * Returns the durable client proxy's HARegionQueue region name. This method is accessed via
    * reflection on a server VM.
-   * 
+   *
    * @return the durable client proxy's HARegionQueue region name
    */
   protected static String getHARegionQueueName() {
@@ -1697,7 +1687,7 @@ public class DurableClientTestCase extends JUnit4DistributedTestCase {
    * messages map is <b> static<b> map, which has region queue names for keys and MapWrappers (an
    * protected class) as values. All this is testing is to see that this queue has an entry in the
    * dispatchedMessages map, which means it got at least one periodic ack.
-   * 
+   *
    * @return true if there was an ack
    */
   protected static boolean checkForAck(CacheClientProxy proxy) {
@@ -1921,17 +1911,13 @@ public class DurableClientTestCase extends JUnit4DistributedTestCase {
   }
 
   /*
-   * @param vm
-   * 
-   * @param cqName
-   * 
-   * @param numEvents
-   * 
+   *
+   *
+   *
    * @param numEventsToWaitFor most times will be the same as numEvents, but there are times where
    * we want to wait for an event we know is not coming just to be sure an event actually isnt
    * received
-   * 
-   * @param secondsToWait
+   *
    */
   protected void checkCqListenerEvents(VM vm, final String cqName, final int numEvents,
       final int numEventsToWaitFor, final int secondsToWait) {

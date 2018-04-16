@@ -15,6 +15,14 @@
 
 package org.apache.geode.internal.cache.locks;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CommitConflictException;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.ReplyException;
@@ -25,12 +33,6 @@ import org.apache.geode.distributed.internal.membership.InternalDistributedMembe
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.util.concurrent.StoppableReentrantReadWriteLock;
-import org.apache.logging.log4j.Logger;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
 
 /** Provides clean separation of implementation from public facade */
 public class TXLockServiceImpl extends TXLockService {
@@ -69,9 +71,7 @@ public class TXLockServiceImpl extends TXLockService {
   /** The distributed system for cancellation checks. */
   private final InternalDistributedSystem system;
 
-  /** Constructs new instance of transaction lock service */
-  TXLockServiceImpl(String name) {
-    InternalDistributedSystem sys = InternalDistributedSystem.getAnyInstance();
+  TXLockServiceImpl(String name, InternalDistributedSystem sys) {
     if (sys == null) {
       throw new IllegalStateException(
           LocalizedStrings.TXLockServiceImpl_TXLOCKSERVICE_CANNOT_BE_CREATED_UNTIL_CONNECTED_TO_DISTRIBUTED_SYSTEM
@@ -167,9 +167,15 @@ public class TXLockServiceImpl extends TXLockService {
   public void updateParticipants(TXLockId txLockId, final Set updatedParticipants) {
     synchronized (this.txLockIdList) {
       if (!this.txLockIdList.contains(txLockId)) {
-        throw new IllegalArgumentException(
+        IllegalArgumentException e = new IllegalArgumentException(
             LocalizedStrings.TXLockServiceImpl_INVALID_TXLOCKID_NOT_FOUND_0
                 .toLocalizedString(txLockId));
+        system.getDistributionManager().getCancelCriterion().checkCancelInProgress(e);
+        Cache cache = system.getCache();
+        if (cache != null) {
+          cache.getCancelCriterion().checkCancelInProgress(e);
+        }
+        throw e;
       }
     }
     if (updatedParticipants == null) {
@@ -206,7 +212,7 @@ public class TXLockServiceImpl extends TXLockService {
         try {
           processor.waitForRepliesUninterruptibly();
         } catch (ReplyException e) {
-          e.handleAsUnexpected();
+          e.handleCause();
         }
       } // not lock grantor
     } // not recovering
@@ -279,4 +285,3 @@ public class TXLockServiceImpl extends TXLockService {
   }
 
 }
-

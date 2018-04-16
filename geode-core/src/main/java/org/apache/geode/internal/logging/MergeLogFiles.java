@@ -14,10 +14,6 @@
  */
 package org.apache.geode.internal.logging;
 
-import org.apache.geode.SystemFailure;
-import org.apache.geode.internal.Assert;
-import org.apache.geode.internal.i18n.LocalizedStrings;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -40,6 +36,11 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
+
+import org.apache.geode.SystemFailure;
+import org.apache.geode.internal.Assert;
+import org.apache.geode.internal.ExitCode;
+import org.apache.geode.internal.i18n.LocalizedStrings;
 
 /**
  * This program merges entries from multiple GemFire log files (those written using a
@@ -70,12 +71,12 @@ import java.util.zip.GZIPInputStream;
  * emitted the log entry, and <i>x</i> is the position of this log file in the ordered set of log
  * files created by that process.
  * <p>
- * 
+ *
  * Normally, one log file reader is created per log file, and they are iterated over repeatedly to
  * find and write the next earliest timestamped line to the output stream. Text without a timestamp
  * is associated with the prior timestamped line in the file.
  * <p>
- * 
+ *
  * The <i>-threads</i> option will cause the program to also create threads for each reader that are
  * backed by bounded {@link BlockingQueue queues}, as outlined in the diagram below. This can
  * consume more memory, so it is wise to increase the Xmx of the java virtual machine if you are
@@ -103,7 +104,7 @@ public class MergeLogFiles {
    * @param logFiles The log files to be merged
    * @param logFileNames The names of the log files to be printed in the merged log
    * @param mergedFile Where the merged logs are printed to
-   * 
+   *
    * @return Whether or not problems occurred while merging the log files.
    *
    * @throws IllegalArgumentException If the length of <code>logFiles</code> is not the same as the
@@ -178,12 +179,12 @@ public class MergeLogFiles {
         LocalizedStrings.MergeLogFiles_IF_A_DIRECTORY_IS_SPECIFIED_ALL_LOG_FILES_IN_THAT_DIRECTORY_ARE_MERGED
             .toLocalizedString());
     err.println("");
-    System.exit(1);
+    ExitCode.FATAL.doSystemExit();
   }
 
   /**
    * Find all of the .log files in the given directory
-   * 
+   *
    * @param dirName directory to search
    * @return all of the .log files found (Files)
    */
@@ -340,7 +341,7 @@ public class MergeLogFiles {
     mergeLogFiles(logFiles, logFileNames, mergedFile, tabOut, suppressBlanks, multithreaded,
         patterns);
 
-    System.exit(0);
+    ExitCode.NORMAL.doSystemExit();
   }
 
   ////////////////////// Inner Classes //////////////////////
@@ -466,16 +467,16 @@ public class MergeLogFiles {
   }
 
   /** interface for threaded and non-threaded reader classes */
-  static interface Reader {
-    public LogFileParser.LogEntry peek();
+  interface Reader {
+    LogFileParser.LogEntry peek();
 
-    public LogFileParser.LogEntry poll();
+    LogFileParser.LogEntry poll();
 
-    public String getFileName();
+    String getFileName();
 
-    public void setUniqueId(int id);
+    void setUniqueId(int id);
 
-    public int getUniqueId();
+    int getUniqueId();
   }
 
 
@@ -513,7 +514,7 @@ public class MergeLogFiles {
     /**
      * Creates a new <code>Reader</code> that reads from the given log file with the given name.
      * Invoking this constructor will start this reader thread.
-     * 
+     *
      * @param patterns java regular expressions that an entry must match one or more of
      */
     public NonThreadedReader(InputStream logFile, String logFileName, ThreadGroup group,
@@ -650,7 +651,7 @@ public class MergeLogFiles {
     /**
      * Creates a new <code>Reader</code> that reads from the given log file with the given name.
      * Invoking this constructor will start this reader thread.
-     * 
+     *
      * @param patterns TODO
      *
      * @see #run
@@ -974,5 +975,3 @@ public class MergeLogFiles {
   }
 
 }
-
-

@@ -15,29 +15,12 @@
 package org.apache.geode.management.internal.cli.commands;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.fail;
-
-import org.apache.commons.io.FileUtils;
-import org.apache.geode.cache.execute.Execution;
-import org.apache.geode.cache.execute.FunctionService;
-import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.internal.ClassBuilder;
-import org.apache.geode.internal.ClassPathLoader;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
-import org.apache.geode.test.dunit.rules.MemberVM;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.awaitility.Awaitility;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
 import java.io.File;
 import java.io.Serializable;
 import java.net.URL;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -45,8 +28,27 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.commons.io.FileUtils;
+import org.awaitility.Awaitility;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.cache.execute.Execution;
+import org.apache.geode.cache.execute.FunctionService;
+import org.apache.geode.distributed.DistributedSystem;
+import org.apache.geode.internal.ClassPathLoader;
+import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.test.compiler.ClassBuilder;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
+import org.apache.geode.test.dunit.rules.MemberVM;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
+import org.apache.geode.test.junit.rules.serializable.SerializableTemporaryFolder;
+
 @Category(DistributedTest.class)
-public class DeployCommandRedeployDUnitTest implements Serializable {
+public class DeployCommandRedeployDUnitTest {
   private static final String VERSION1 = "Version1";
   private static final String VERSION2 = "Version2";
 
@@ -66,10 +68,13 @@ public class DeployCommandRedeployDUnitTest implements Serializable {
   private MemberVM server;
 
   @Rule
-  public LocatorServerStartupRule lsRule = new LocatorServerStartupRule();
+  public SerializableTemporaryFolder temporaryFolder = new SerializableTemporaryFolder();
 
   @Rule
-  public transient GfshShellConnectionRule gfshConnector = new GfshShellConnectionRule();
+  public ClusterStartupRule lsRule = new ClusterStartupRule();
+
+  @Rule
+  public transient GfshCommandRule gfshConnector = new GfshCommandRule();
 
   @Before
   public void setup() throws Exception {
@@ -87,23 +92,27 @@ public class DeployCommandRedeployDUnitTest implements Serializable {
 
   @Test
   public void redeployJarsWithNewVersionsOfFunctions() throws Exception {
-    gfshConnector.executeAndVerifyCommand("deploy --jar=" + jarAVersion1.getCanonicalPath());
+    gfshConnector.executeAndAssertThat("deploy --jar=" + jarAVersion1.getCanonicalPath())
+        .statusIsSuccess();
     server.invoke(() -> assertThatCanLoad(JAR_NAME_A, FUNCTION_A));
     server.invoke(() -> assertThatFunctionHasVersion(FUNCTION_A, VERSION1));
 
-    gfshConnector.executeAndVerifyCommand("deploy --jar=" + jarBVersion1.getCanonicalPath());
+    gfshConnector.executeAndAssertThat("deploy --jar=" + jarBVersion1.getCanonicalPath())
+        .statusIsSuccess();
     server.invoke(() -> assertThatCanLoad(JAR_NAME_A, FUNCTION_A));
     server.invoke(() -> assertThatCanLoad(JAR_NAME_B, FULLY_QUALIFIED_FUNCTION_B));
     server.invoke(() -> assertThatFunctionHasVersion(FUNCTION_A, VERSION1));
     server.invoke(() -> assertThatFunctionHasVersion(FUNCTION_B, VERSION1));
 
-    gfshConnector.executeAndVerifyCommand("deploy --jar=" + jarBVersion2.getCanonicalPath());
+    gfshConnector.executeAndAssertThat("deploy --jar=" + jarBVersion2.getCanonicalPath())
+        .statusIsSuccess();
     server.invoke(() -> assertThatCanLoad(JAR_NAME_A, FUNCTION_A));
     server.invoke(() -> assertThatCanLoad(JAR_NAME_B, FULLY_QUALIFIED_FUNCTION_B));
     server.invoke(() -> assertThatFunctionHasVersion(FUNCTION_A, VERSION1));
     server.invoke(() -> assertThatFunctionHasVersion(FUNCTION_B, VERSION2));
 
-    gfshConnector.executeAndVerifyCommand("deploy --jar=" + jarAVersion2.getCanonicalPath());
+    gfshConnector.executeAndAssertThat("deploy --jar=" + jarAVersion2.getCanonicalPath())
+        .statusIsSuccess();
     server.invoke(() -> assertThatCanLoad(JAR_NAME_A, FUNCTION_A));
     server.invoke(() -> assertThatCanLoad(JAR_NAME_B, FULLY_QUALIFIED_FUNCTION_B));
     server.invoke(() -> assertThatFunctionHasVersion(FUNCTION_A, VERSION2));
@@ -111,15 +120,42 @@ public class DeployCommandRedeployDUnitTest implements Serializable {
   }
 
   @Test
+  public void redeployJarsWithNewVersionsOfFunctionsAndMultipleLocators() throws Exception {
+    Properties props = new Properties();
+    props.setProperty("locators", "localhost[" + locator.getPort() + "]");
+    MemberVM locator2 = lsRule.startLocatorVM(2, props);
+
+    gfshConnector.executeAndAssertThat("deploy --jar=" + jarAVersion1.getCanonicalPath())
+        .statusIsSuccess();
+    server.invoke(() -> assertThatCanLoad(JAR_NAME_A, FUNCTION_A));
+    server.invoke(() -> assertThatFunctionHasVersion(FUNCTION_A, VERSION1));
+
+
+    gfshConnector.executeAndAssertThat("deploy --jar=" + jarAVersion2.getCanonicalPath())
+        .statusIsSuccess();
+    server.invoke(() -> assertThatCanLoad(JAR_NAME_A, FUNCTION_A));
+    server.invoke(() -> assertThatFunctionHasVersion(FUNCTION_A, VERSION2));
+
+    server.stopVM(false);
+
+    lsRule.startServerVM(1, locator.getPort());
+
+    server.invoke(() -> assertThatCanLoad(JAR_NAME_A, FUNCTION_A));
+    server.invoke(() -> assertThatFunctionHasVersion(FUNCTION_A, VERSION2));
+  }
+
+  @Test
   public void hotDeployShouldNotResultInAnyFailedFunctionExecutions() throws Exception {
-    gfshConnector.executeAndVerifyCommand("deploy --jar=" + jarAVersion1.getCanonicalPath());
+    gfshConnector.executeAndAssertThat("deploy --jar=" + jarAVersion1.getCanonicalPath())
+        .statusIsSuccess();
     server.invoke(() -> assertThatCanLoad(JAR_NAME_A, FUNCTION_A));
     server.invoke(() -> assertThatFunctionHasVersion(FUNCTION_A, VERSION1));
 
     server.invoke(() -> LoopingFunctionExecutor.startExecuting(FUNCTION_A));
     server.invoke(() -> LoopingFunctionExecutor.waitForExecutions(100));
 
-    gfshConnector.executeAndVerifyCommand("deploy --jar=" + jarAVersion2.getCanonicalPath());
+    gfshConnector.executeAndAssertThat("deploy --jar=" + jarAVersion2.getCanonicalPath())
+        .statusIsSuccess();
     server.invoke(() -> assertThatCanLoad(JAR_NAME_A, FUNCTION_A));
     server.invoke(() -> assertThatFunctionHasVersion(FUNCTION_A, VERSION2));
 
@@ -139,7 +175,7 @@ public class DeployCommandRedeployDUnitTest implements Serializable {
     classContents = classContents.replaceAll("FUNCTION_A", FUNCTION_A);
     classContents = classContents.replaceAll("VERSION", version);
 
-    File jar = new File(lsRule.getTempFolder().newFolder(JAR_NAME_A + version), this.JAR_NAME_A);
+    File jar = new File(temporaryFolder.newFolder(JAR_NAME_A + version), this.JAR_NAME_A);
     ClassBuilder functionClassBuilder = new ClassBuilder();
     functionClassBuilder.writeJarFromContent(FUNCTION_A, classContents, jar);
 
@@ -156,14 +192,14 @@ public class DeployCommandRedeployDUnitTest implements Serializable {
     classContents = classContents.replaceAll("FUNCTION_B", FUNCTION_B);
     classContents = classContents.replaceAll("VERSION", version);
 
-    File jar = new File(lsRule.getTempFolder().newFolder(JAR_NAME_B + version), this.JAR_NAME_B);
+    File jar = new File(temporaryFolder.newFolder(JAR_NAME_B + version), this.JAR_NAME_B);
     ClassBuilder functionClassBuilder = new ClassBuilder();
     functionClassBuilder.writeJarFromContent("jddunit/function/" + FUNCTION_B, classContents, jar);
 
     return jar;
   }
 
-  private void assertThatFunctionHasVersion(String functionId, String version) {
+  private static void assertThatFunctionHasVersion(String functionId, String version) {
     GemFireCacheImpl gemFireCache = GemFireCacheImpl.getInstance();
     DistributedSystem distributedSystem = gemFireCache.getDistributedSystem();
     Execution execution = FunctionService.onMember(distributedSystem.getDistributedMember());
@@ -171,8 +207,9 @@ public class DeployCommandRedeployDUnitTest implements Serializable {
     assertThat(result.get(0)).isEqualTo(version);
   }
 
-  private void assertThatCanLoad(String jarName, String className) throws ClassNotFoundException {
-    assertThat(ClassPathLoader.getLatest().getJarDeployer().findDeployedJar(jarName)).isNotNull();
+  private static void assertThatCanLoad(String jarName, String className)
+      throws ClassNotFoundException {
+    assertThat(ClassPathLoader.getLatest().getJarDeployer().getDeployedJar(jarName)).isNotNull();
     assertThat(ClassPathLoader.getLatest().forName(className)).isNotNull();
   }
 

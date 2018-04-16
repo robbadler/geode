@@ -14,38 +14,28 @@
  */
 package org.apache.geode.internal.cache.execute;
 
-import org.apache.geode.test.junit.categories.ClientServerTest;
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.ResultCollector;
-import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.internal.cache.functions.TestFunction;
 import org.apache.geode.test.dunit.LogWriterUtils;
+import org.apache.geode.test.junit.categories.ClientServerTest;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.FunctionServiceTest;
 
-@Category({DistributedTest.class, ClientServerTest.class})
+@Category({DistributedTest.class, ClientServerTest.class, FunctionServiceTest.class})
 public class PRClientServerFunctionExecutionNoAckDUnitTest extends PRClientServerTestBase {
-  /**
-   * 
-   */
   private static final String TEST_FUNCTION1 = TestFunction.TEST_FUNCTION1;
 
   Boolean isByName = null;
@@ -243,8 +233,7 @@ public class PRClientServerFunctionExecutionNoAckDUnitTest extends PRClientServe
             .info("The function name to execute : (without Register) " + function.getId());
         Execution me = member.setArguments(args);
         LogWriterUtils.getLogWriter().info("The args passed  : " + args);
-        return me.execute(function.getId(), function.hasResult(), function.isHA(),
-            function.optimizeForWrite());
+        return me.execute(function.getId());
       }
     } else { // By Instance
       return member.setArguments(args).execute(function);

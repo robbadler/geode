@@ -17,7 +17,6 @@ package org.apache.geode.management.internal.beans.stats;
 import java.lang.management.ManagementFactory;
 
 import org.apache.geode.StatisticDescriptor;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.statistics.StatisticId;
 import org.apache.geode.internal.statistics.StatisticNotFoundException;
 import org.apache.geode.internal.statistics.StatisticsNotification;
@@ -25,14 +24,14 @@ import org.apache.geode.management.internal.MBeanJMXAdapter;
 
 /**
  * This class acts as a monitor and listen for VM stats update on behalf of MemberMBean.
- * 
- * 
+ *
+ *
  */
 public class VMStatsMonitor extends MBeanStatsMonitor {
 
+  private static final int VALUE_NOT_AVAILABLE = -1;
+
   private volatile float cpuUsage = 0;
-
-
 
   private static String processCPUTimeAttr = "ProcessCpuTime";
 
@@ -47,7 +46,7 @@ public class VMStatsMonitor extends MBeanStatsMonitor {
     processCPUTimeAvailable = MBeanJMXAdapter.isAttributeAvailable(processCPUTimeAttr,
         ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAME);
     if (!processCPUTimeAvailable) {
-      cpuUsage = MBeanJMXAdapter.VALUE_NOT_AVAILABLE;
+      cpuUsage = VALUE_NOT_AVAILABLE;
     }
 
   }
@@ -75,11 +74,11 @@ public class VMStatsMonitor extends MBeanStatsMonitor {
   /**
    * Right now it only refreshes CPU usage in terms of percentage. This method can be used for any
    * other computation based on Stats in future.
-   * 
+   *
    * Returns the time (as a percentage) that this member's process time with respect to Statistics
    * sample time interval. If process time between two sample time t1 & t2 is p1 and p2 cpuUsage =
    * ((p2-p1) * 100) / ((t2-t1)
-   * 
+   *
    */
   private void refreshStats() {
 
@@ -89,7 +88,7 @@ public class VMStatsMonitor extends MBeanStatsMonitor {
       // Some JVM like IBM is not handled by Stats layer properly. Ignoring the attribute for such
       // cases
       if (processCpuTime == null) {
-        cpuUsage = MBeanJMXAdapter.VALUE_NOT_AVAILABLE;
+        cpuUsage = VALUE_NOT_AVAILABLE;
         return;
       }
 
@@ -106,9 +105,8 @@ public class VMStatsMonitor extends MBeanStatsMonitor {
       }
       long systemTime = System.currentTimeMillis();
 
-      long denom = (systemTime - lastSystemTime) * 10000; // 10000 = (Nano
-      // conversion factor /
-      // 100 for percentage)
+      // 10000 = (Nano conversion factor / 100 for percentage)
+      long denom = (systemTime - lastSystemTime) * 10000;
 
       float processCpuUsage = (float) (cpuTime - lastProcessCpuTime) / denom;
 

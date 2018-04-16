@@ -28,7 +28,7 @@ import org.apache.geode.internal.cache.xmlcache.XmlParser;
 
 /**
  * Mock Extension {@link XmlParser}.
- * 
+ *
  *
  * @since GemFire 8.1
  */
@@ -44,7 +44,7 @@ public class MockExtensionXmlParser extends AbstractXmlParser {
   public static final String PREFIX = "mock";
 
   @Override
-  public String getNamspaceUri() {
+  public String getNamespaceUri() {
     return NAMESPACE;
   }
 

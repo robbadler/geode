@@ -15,65 +15,64 @@
 package org.apache.geode.internal.admin.statalerts;
 
 import org.apache.geode.DataSerializable;
-
 import org.apache.geode.StatisticDescriptor;
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsType;
 
 /**
  * Provides informations of the statistic
- * 
- * 
+ *
+ *
  */
 public interface StatisticInfo extends DataSerializable {
 
   /**
    * @return name of statistics
    */
-  public String getStatisticName();
+  String getStatisticName();
 
   /**
-   * 
+   *
    * @param statisticName Name of statistic
    */
-  public void setStatisticName(String statisticName);
+  void setStatisticName(String statisticName);
 
   /**
-   * 
+   *
    * @return instance of statistic descriptor
    */
-  public StatisticDescriptor getStatisticDescriptor();
+  StatisticDescriptor getStatisticDescriptor();
 
   /**
    * @return text id of the associated {@link Statistics}
    */
-  public String getStatisticsTextId();
+  String getStatisticsTextId();
 
   /**
    * @param statisticsTextId Text id of the associated {@link Statistics}
    */
-  public void setStatisticsTextId(String statisticsTextId);
+  void setStatisticsTextId(String statisticsTextId);
 
   /**
    * @return instance of associated {@link Statistics}
    */
-  public Statistics getStatistics();
+  Statistics getStatistics();
 
   /**
-   * 
+   *
    * @return associated {@link StatisticsType}
    */
-  public String getStatisticsTypeName();
+  String getStatisticsTypeName();
 
   /**
-   * 
+   *
    * @param statisticsType Associated {@link StatisticsType}
    */
-  public void setStatisticsTypeName(String statisticsType);
+  void setStatisticsTypeName(String statisticsType);
 
   /**
-   * 
+   *
    * @return value of statistic
    */
-  public Number getValue();
+  Number getValue();
 }

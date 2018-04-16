@@ -15,11 +15,24 @@
 
 package org.apache.geode.internal;
 
-import org.apache.geode.*;
-import org.apache.geode.internal.i18n.LocalizedStrings;
-
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.DataOutput;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InvalidClassException;
 import java.net.InetAddress;
+
+import org.apache.geode.DataSerializable;
+import org.apache.geode.DataSerializer;
+import org.apache.geode.GemFireIOException;
+import org.apache.geode.SystemIsRunningException;
+import org.apache.geode.UncreatedSystemException;
+import org.apache.geode.UnstartedSystemException;
+import org.apache.geode.internal.i18n.LocalizedStrings;
 
 /**
  * Represents the information about the manager that is stored in its SystemAdmin manager VM's main
@@ -93,7 +106,7 @@ public class ManagerInfo implements DataSerializable {
 
   /**
    * Saves the manager information to the info file in the given <code>directory</code>.
-   * 
+   *
    * @param pid the process id of the manager VM.
    * @param status the status of the manager
    * @param directory the manager's directory.
@@ -160,7 +173,7 @@ public class ManagerInfo implements DataSerializable {
 
   /**
    * Gets the status code for the given <code>statusName</code>.
-   * 
+   *
    * @throws IllegalArgumentException if an unknown status name is given.
    */
   public static int statusNameToCode(String statusName) {
@@ -262,9 +275,6 @@ public class ManagerInfo implements DataSerializable {
         return getManagerStatusCode(directory, locator);
       } catch (UnstartedSystemException ignore) {
         return STOPPED_STATUS_CODE;
-      } catch (GemFireIOException ex2) {
-        // give up. The info file is probably corrupt
-        throw ex2;
       }
     } finally {
       if (interrupted) {
@@ -372,7 +382,7 @@ public class ManagerInfo implements DataSerializable {
 
   /**
    * Constructs a manager info instance given the process id of the manager VM.
-   * 
+   *
    * @param port TODO
    * @param bindAddress TODO
    */
@@ -420,4 +430,3 @@ public class ManagerInfo implements DataSerializable {
     }
   }
 }
-

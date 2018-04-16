@@ -33,7 +33,7 @@ public class ReplyException extends GemFireException {
 
   /**
    * Creates a new instance of <code>ReplyException</code> without detail message.
-   * 
+   *
    * Used by serialization
    */
   public ReplyException() {}
@@ -41,7 +41,7 @@ public class ReplyException extends GemFireException {
 
   /**
    * Constructs an instance of <code>ReplyException</code> with the specified detail message.
-   * 
+   *
    * @param msg the detail message.
    */
   public ReplyException(String msg) {
@@ -51,7 +51,7 @@ public class ReplyException extends GemFireException {
   /**
    * Constructs an instance of <code>ReplyException</code> with the specified detail message and
    * cause.
-   * 
+   *
    * @param msg the detail message.
    * @param cause the causal Throwable
    */
@@ -61,7 +61,7 @@ public class ReplyException extends GemFireException {
 
   /**
    * Constructs an instance of <code>ReplyException</code> with the specified cause.
-   * 
+   *
    * @param cause the causal Throwable
    */
   public ReplyException(Throwable cause) {
@@ -69,11 +69,13 @@ public class ReplyException extends GemFireException {
   }
 
   /**
-   * After expected reply exceptions have already been handled, call this method to handle this
-   * exception as unexpected, i.e. converts to an appropriate runtime exception and throws it. If
-   * there is a a causal exception, then this method will throw that instead of the ReplyException.
+   * Before calling this method any expected "checked" causes should be handled by the caller. If
+   * cause is null or a checked exception (that is not ClassNotFound) then throw an
+   * InternalGemFireException because those should have already been handled. Otherwise
+   * ClassNotFoundException will be handled by throwing SerializationException. RuntimeException and
+   * Error will have their stack fixed up and then are thrown.
    */
-  public void handleAsUnexpected() {
+  public void handleCause() {
     Throwable c = getCause();
     if (c == null) {
       throw new InternalGemFireException(
@@ -102,7 +104,7 @@ public class ReplyException extends GemFireException {
   /**
    * Fixes a remote exception that this ReplyException has wrapped. Adds the local stack frames. The
    * remote stack elements have the sender id info.
-   * 
+   *
    * @param t Remote exception to fix up
    * @since GemFire 5.1
    */
@@ -145,7 +147,7 @@ public class ReplyException extends GemFireException {
   /**
    * Adds the sender information to the stack trace elements of the given exception. Also traverses
    * recursively over the 'cause' for adding this sender information.
-   * 
+   *
    * @param toModify Throwable instance to modify the stack trace elements
    * @param senderId id of the sender member
    */
@@ -172,7 +174,7 @@ public class ReplyException extends GemFireException {
 
   /**
    * Sets the member that threw the received exception
-   * 
+   *
    * @param sendr the member that threw the exception
    * @since GemFire 6.0
    */
@@ -184,7 +186,7 @@ public class ReplyException extends GemFireException {
 
   /**
    * Gets the member which threw the exception
-   * 
+   *
    * @return the throwing member
    * @since GemFire 6.0
    */

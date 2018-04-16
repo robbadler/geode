@@ -16,11 +16,11 @@
 package org.apache.geode.cache.query;
 
 import org.apache.geode.cache.Region;
-import org.apache.geode.cache.persistence.PartitionOfflineException;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.RegionFunctionContext;
+import org.apache.geode.cache.persistence.PartitionOfflineException;
 
 /**
  * Interface for query objects. Supports execution of queries with optional parameters.
@@ -31,10 +31,10 @@ import org.apache.geode.cache.execute.RegionFunctionContext;
 public interface Query {
   /**
    * Return the original query string that was specified in the constructor.
-   * 
+   *
    * @return the original query string
    */
-  public String getQueryString();
+  String getQueryString();
 
 
   /**
@@ -42,7 +42,7 @@ public interface Query {
    * primitive type, an instance of the corresponding wrapper type ({@link java.lang.Integer}, etc.)
    * is returned. If the query resolves to more than one object, a {@link SelectResults} is
    * returned.
-   * 
+   *
    * Query execution can potentially take a long time depending on data size and query complexity.
    * The system property "gemfire.Cache.MAX_QUERY_EXECUTION_TIME" can be set to define the maximum
    * time allowed for a query to complete its execution. If query execution time exceeds
@@ -52,7 +52,7 @@ public interface Query {
    * the client with its cause set to QueryExecutionTimeoutException. This timeout does not account
    * for the time taken to construct the results after execution completes and the results returned
    * to the caller.
-   * 
+   *
    * @return The object that represents the result of the query. Note that if a query is just a
    *         select statement then it will return a result that is an instance of
    *         {@link SelectResults}. However, since a query is not necessarily just a select
@@ -78,8 +78,8 @@ public interface Query {
    * @throws PartitionOfflineException If persistent data recovery is not complete for a partitioned
    *         region referred to in the query.
    */
-  public Object execute() throws FunctionDomainException, TypeMismatchException,
-      NameResolutionException, QueryInvocationTargetException;
+  Object execute() throws FunctionDomainException, TypeMismatchException, NameResolutionException,
+      QueryInvocationTargetException;
 
   /**
    * Executes this query with the given parameters and returns an object that represent its result.
@@ -96,7 +96,7 @@ public interface Query {
    * the client with its cause set to QueryExecutionTimeoutException. This timeout does not account
    * for the time taken to construct the results after execution completes and the results returned
    * to the caller.
-   * 
+   *
    * @param params Values that are bound to parameters (such as <code>$1</code>) in this query.
    *
    * @return The object that represents the result of the query. Note that if a query is just a
@@ -123,9 +123,9 @@ public interface Query {
    *         conditions and the resource manager critical heap percentage has been set
    * @throws PartitionOfflineException If persistent data recovery is not complete for a partitioned
    *         region referred to in the query.
-   * 
+   *
    */
-  public Object execute(Object[] params) throws FunctionDomainException, TypeMismatchException,
+  Object execute(Object... params) throws FunctionDomainException, TypeMismatchException,
       NameResolutionException, QueryInvocationTargetException;
 
   /**
@@ -146,15 +146,15 @@ public interface Query {
    *
    * Using this method a join query query can be executed between two co-located PartitionRegion
    * data-set referenced through {@link RegionFunctionContext}.
-   * 
+   *
    * This method should NOT be used for multiple partitioned regions based join queries. We support
    * equi-join queries only on co-located PartitionedRegions if the the co-located columns ACTUALLY
    * EXIST IN WHERE CLAUSE and in case of multi-column partitioning , should have "AND" clause.
    *
    * E.g.: // Equi-join query:
-   * 
+   *
    * Select * from /partitionRegion1 p1, /PartitionRegion2 p2 where p1.field = p2.field [AND .....]
-   * 
+   *
    * @since GemFire 6.2.2
    * @param context RegionFunctionContext which will target the query on subset of data if executed
    *        on PartitionedRegion.
@@ -184,7 +184,7 @@ public interface Query {
    * @throws PartitionOfflineException If persistent data recovery is not complete for a partitioned
    *         region referred to in the query.
    */
-  public Object execute(RegionFunctionContext context) throws FunctionDomainException,
+  Object execute(RegionFunctionContext context) throws FunctionDomainException,
       TypeMismatchException, NameResolutionException, QueryInvocationTargetException;
 
   /**
@@ -196,7 +196,7 @@ public interface Query {
    * The RegionFunctionContext defines the execution context of a data dependent {@link Function}.
    * And is obtained when the function is executed using {@link FunctionService#onRegion(Region)},
    * the {@link Function#execute(FunctionContext) FunctionContext}
-   * 
+   *
    * E.g.: // Function service execute() method:
    *
    * public void execute(FunctionContext context) { RegionFunctionContext regionContext =
@@ -205,15 +205,15 @@ public interface Query {
    *
    * Using this method a join query query can be executed between two co-located PartitionRegion
    * data-set referenced through {@link RegionFunctionContext}.
-   * 
+   *
    * This method should NOT be used for multiple partitioned regions based join queries. We support
    * equi-join queries only on co-located PartitionedRegions if the the co-located columns ACTUALLY
    * EXIST IN WHERE CLAUSE and in case of multi-column partitioning , should have "AND" clause.
    *
    * E.g.: // Equi-join query:
-   * 
+   *
    * Select * from /partitionRegion1 p1, /PartitionRegion2 p2 where p1.field = p2.field [AND .....]
-   * 
+   *
    * @since GemFire 6.2.2
    * @param context RegionFunctionContext which will target the query on subset of data if executed
    *        on PartitionedRegion.
@@ -244,9 +244,8 @@ public interface Query {
    * @throws PartitionOfflineException If persistent data recovery is not complete for a partitioned
    *         region referred to in the query.
    */
-  public Object execute(RegionFunctionContext context, Object[] params)
-      throws FunctionDomainException, TypeMismatchException, NameResolutionException,
-      QueryInvocationTargetException;
+  Object execute(RegionFunctionContext context, Object[] params) throws FunctionDomainException,
+      TypeMismatchException, NameResolutionException, QueryInvocationTargetException;
 
   /**
    * Compiles this <code>Query</code> to achieve higher performance execution.
@@ -257,20 +256,20 @@ public interface Query {
    * @deprecated as of 6.5
    */
   @Deprecated
-  public void compile() throws TypeMismatchException, NameResolutionException;
+  void compile() throws TypeMismatchException, NameResolutionException;
 
   /**
    * Return whether this query has been compiled into VM bytecodes.
-   * 
+   *
    * @return <code>true</code> if this query has been compiled into bytecodes
    * @deprecated as of 6.5
    */
   @Deprecated
-  public boolean isCompiled();
+  boolean isCompiled();
 
 
   /**
    * Get statistics information for this query.
    */
-  public QueryStatistics getStatistics();
+  QueryStatistics getStatistics();
 }

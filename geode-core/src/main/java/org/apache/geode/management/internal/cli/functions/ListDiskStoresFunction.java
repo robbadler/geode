@@ -20,13 +20,11 @@ import java.util.Properties;
 import java.util.Set;
 
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.DiskStore;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.internal.InternalEntity;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.management.internal.cli.domain.DiskStoreDetails;
 
 /**
@@ -34,7 +32,7 @@ import org.apache.geode.management.internal.cli.domain.DiskStoreDetails;
  * determine all the disk stores that exist for the entire cache, distributed across the GemFire
  * distributed system.
  * </p>
- * 
+ *
  * @see org.apache.geode.cache.DiskStore
  * @see org.apache.geode.cache.execute.Function
  * @see org.apache.geode.cache.execute.FunctionAdapter
@@ -43,7 +41,7 @@ import org.apache.geode.management.internal.cli.domain.DiskStoreDetails;
  * @see org.apache.geode.management.internal.cli.domain.DiskStoreDetails
  * @since GemFire 7.0
  */
-public class ListDiskStoresFunction extends FunctionAdapter implements InternalEntity {
+public class ListDiskStoresFunction implements InternalFunction {
 
   @SuppressWarnings("unused")
   public void init(final Properties props) {}
@@ -52,15 +50,11 @@ public class ListDiskStoresFunction extends FunctionAdapter implements InternalE
     return getClass().getName();
   }
 
-  protected Cache getCache() {
-    return CacheFactory.getAnyInstance();
-  }
-
   public void execute(final FunctionContext context) {
     final Set<DiskStoreDetails> memberDiskStores = new HashSet<DiskStoreDetails>();
 
     try {
-      final Cache cache = getCache();
+      final Cache cache = context.getCache();
 
       if (cache instanceof InternalCache) {
         final InternalCache gemfireCache = (InternalCache) cache;
@@ -78,5 +72,4 @@ public class ListDiskStoresFunction extends FunctionAdapter implements InternalE
       context.getResultSender().sendException(e);
     }
   }
-
 }

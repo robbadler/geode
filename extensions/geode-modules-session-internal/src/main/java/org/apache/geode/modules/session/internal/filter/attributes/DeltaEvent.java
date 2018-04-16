@@ -15,16 +15,17 @@
 
 package org.apache.geode.modules.session.internal.filter.attributes;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.geode.DataSerializable;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.internal.util.BlobHelper;
 import org.apache.geode.modules.session.internal.filter.GemfireHttpSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
 
 /**
  * Capture the update to a particular name
@@ -69,6 +70,10 @@ public class DeltaEvent implements DataSerializable {
   }
 
   private void blobifyValue() {
+    if (value instanceof byte[]) {
+      // already blobified
+      return;
+    }
     try {
       value = BlobHelper.serializeToBlob(value);
     } catch (IOException iox) {
@@ -92,7 +97,7 @@ public class DeltaEvent implements DataSerializable {
   @Override
   public void toData(DataOutput out) throws IOException {
     if (session != null) {
-      value = session.getNativeSession().getAttribute(name);
+      value = session.getAttribute(name);
       blobifyValue();
     }
     out.writeBoolean(update);

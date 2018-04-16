@@ -23,8 +23,8 @@ import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.cache.server.ClientSubscriptionConfig;
 import org.apache.geode.cache.server.ServerLoadProbe;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.admin.ClientMembershipMessage;
 import org.apache.geode.internal.cache.xmlcache.CacheCreation;
@@ -38,7 +38,7 @@ import org.apache.geode.management.membership.ClientMembershipListener;
  *
  * @since GemFire 5.7
  */
-public abstract class AbstractCacheServer implements CacheServer {
+public abstract class AbstractCacheServer implements InternalCacheServer {
 
   public static final String TEST_OVERRIDE_DEFAULT_PORT_PROPERTY =
       DistributionConfig.GEMFIRE_PREFIX + "test.CacheServer.OVERRIDE_DEFAULT_PORT";
@@ -84,7 +84,7 @@ public abstract class AbstractCacheServer implements CacheServer {
   protected int messageTimeToLive;
   /**
    * The groups this server belongs to. Use <code>getGroups</code> to read.
-   * 
+   *
    * @since GemFire 5.7
    */
   protected String[] groups;
@@ -93,13 +93,13 @@ public abstract class AbstractCacheServer implements CacheServer {
 
   /**
    * The ip address or host name that this server is to listen on.
-   * 
+   *
    * @since GemFire 5.7
    */
   protected String bindAddress;
   /**
    * The ip address or host name that will be given to clients so they can connect to this server
-   * 
+   *
    * @since GemFire 5.7
    */
   protected String hostnameForClients;
@@ -175,7 +175,7 @@ public abstract class AbstractCacheServer implements CacheServer {
       /**
        * Method to create & send the ClientMembershipMessage to admin members. The message is sent
        * only if there are any admin members in the distribution system.
-       * 
+       *
        * @param event describes a change in client membership
        * @param type type of event - one of ClientMembershipMessage.JOINED,
        *        ClientMembershipMessage.LEFT, ClientMembershipMessage.CRASHED
@@ -191,7 +191,7 @@ public abstract class AbstractCacheServer implements CacheServer {
 
         // ds could be null
         if (ds != null && ds.isConnected()) {
-          DM dm = ds.getDistributionManager();
+          DistributionManager dm = ds.getDistributionManager();
           Set adminMemberSet = dm.getAdminMemberSet();
 
           /* check if there are any admin members at all */

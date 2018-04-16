@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
 import java.io.IOException;
@@ -36,18 +33,21 @@ import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.security.AuthorizeRequest;
+import org.apache.geode.internal.security.SecurityService;
+import org.apache.geode.security.ResourcePermission.Operation;
+import org.apache.geode.security.ResourcePermission.Resource;
 
 public class RegisterInterest extends BaseCommand {
 
-  private final static RegisterInterest singleton = new RegisterInterest();
+  private static final RegisterInterest singleton = new RegisterInterest();
 
   public static Command getCommand() {
     return singleton;
   }
 
   @Override
-  public void cmdExecute(Message clientMessage, ServerConnection serverConnection, long start)
-      throws IOException, InterruptedException {
+  public void cmdExecute(final Message clientMessage, final ServerConnection serverConnection,
+      final SecurityService securityService, long start) throws IOException, InterruptedException {
     Part regionNamePart = null, keyPart = null;
     String regionName = null;
     Object key = null;
@@ -147,9 +147,9 @@ public class RegisterInterest extends BaseCommand {
     // Register interest
     try {
       if (interestType == InterestType.REGULAR_EXPRESSION) {
-        this.securityService.authorizeRegionRead(regionName);
+        securityService.authorize(Resource.DATA, Operation.READ, regionName);
       } else {
-        this.securityService.authorizeRegionRead(regionName, key.toString());
+        securityService.authorize(Resource.DATA, Operation.READ, regionName, key.toString());
       }
 
       AuthorizeRequest authzRequest = serverConnection.getAuthzRequest();

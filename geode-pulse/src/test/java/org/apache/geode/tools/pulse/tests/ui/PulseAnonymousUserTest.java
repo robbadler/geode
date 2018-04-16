@@ -18,10 +18,6 @@ package org.apache.geode.tools.pulse.tests.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.apache.geode.test.junit.categories.UITest;
-import org.apache.geode.tools.pulse.tests.rules.ScreenshotOnFailureRule;
-import org.apache.geode.tools.pulse.tests.rules.ServerRule;
-import org.apache.geode.tools.pulse.tests.rules.WebDriverRule;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.FixMethodOrder;
@@ -31,6 +27,11 @@ import org.junit.experimental.categories.Category;
 import org.junit.runners.MethodSorters;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
+
+import org.apache.geode.test.junit.categories.UITest;
+import org.apache.geode.tools.pulse.tests.rules.ScreenshotOnFailureRule;
+import org.apache.geode.tools.pulse.tests.rules.ServerRule;
+import org.apache.geode.tools.pulse.tests.rules.WebDriverRule;
 
 @Category(UITest.class)
 @FixMethodOrder(MethodSorters.JVM)
@@ -63,9 +64,10 @@ public class PulseAnonymousUserTest {
   }
 
   @Test
-  public void userCannotGetToPulseDetails() {
+  public void userCanGetToPulseDetails() {
     webDriverRule.getDriver().get(serverRule.getPulseURL() + "pulseVersion");
 
-    assertThat(webDriverRule.getDriver().getPageSource()).doesNotContain("sourceRevision");
+    // pulseVersion is visible to public
+    assertThat(webDriverRule.getDriver().getPageSource()).contains("sourceRevision");
   }
 }

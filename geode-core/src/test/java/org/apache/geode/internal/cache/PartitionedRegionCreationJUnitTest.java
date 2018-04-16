@@ -57,8 +57,8 @@ import org.apache.geode.test.junit.categories.IntegrationTest;
  * <p>
  * 4) testpartionedRegionBucketToNodeCreate - Tests the PR's BUCKET_2_NODE region creation
  * </p>
- * 
- * 
+ *
+ *
  */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @Category(IntegrationTest.class)
@@ -311,8 +311,7 @@ public class PartitionedRegionCreationJUnitTest {
    * <p>
    * (4) Test if PARTITIONED_REGION_CONFIG_NAME exist and isDistributedAck and the mirror type is
    * MirrorType.KEYS_VALUES.
-   * 
-   * @throws RegionExistsException
+   *
    */
   @Test
   public void test002PartionedRegionInitialization() throws RegionExistsException {
@@ -360,7 +359,7 @@ public class PartitionedRegionCreationJUnitTest {
    * Test for partitioned Region registration. All partitioned regions created must have a entry in
    * PARTITIONED_REGION_CONFIG_NAME. Every PR has PR name / PartitionRegionConfig entry in region
    * PARTITIONED_REGION_CONFIG_NAME
-   * 
+   *
    */
   @Test
   public void test003partionedRegionRegistration() {
@@ -389,7 +388,7 @@ public class PartitionedRegionCreationJUnitTest {
 
   /**
    * creates multiple partitioned region from different threads.
-   * 
+   *
    */
   private void createMultiplePartitionedRegions() {
     if (PRCreateDone)
@@ -415,7 +414,7 @@ public class PartitionedRegionCreationJUnitTest {
 
   /**
    * Verifies creation of partitioned region.
-   * 
+   *
    */
   private void verifyCreateResults() {
     if (TOTAL_RETURNS != TOTAL_THREADS)
@@ -430,7 +429,7 @@ public class PartitionedRegionCreationJUnitTest {
 
   /**
    * Thread to create the partitioned region.
-   * 
+   *
    */
   public class PartionedRegionCreateThread extends Thread {
     public void run() {
@@ -458,7 +457,7 @@ public class PartitionedRegionCreationJUnitTest {
 
   /**
    * Increments and returns the PR nmber used for PR creation. Thread safe function.
-   * 
+   *
    * @return the PR number
    */
   protected int getPRNumber() {
@@ -489,7 +488,7 @@ public class PartitionedRegionCreationJUnitTest {
 
   /**
    * Increments total creation thread returns.
-   * 
+   *
    */
   protected void updateTotalReturns() {
     synchronized (PR_TOTAL_RETURNS) {

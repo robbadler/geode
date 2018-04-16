@@ -28,7 +28,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import org.apache.geode.internal.ByteBufferWriter;
-import org.apache.geode.internal.HeapDataOutputStream;
 import org.apache.geode.internal.offheap.AddressableMemoryManager;
 import org.apache.geode.internal.offheap.StoredObject;
 
@@ -37,11 +36,11 @@ import org.apache.geode.internal.offheap.StoredObject;
  * ByteBufferInputStream is an input stream for ByteBuffer objects. It's incredible that the jdk
  * doesn't have one of these already.
  * </p>
- * 
+ *
  * The methods in this class throw BufferUnderflowException, not EOFException, if the end of the
  * buffer is reached before we read the full amount. That breaks the contract for InputStream and
  * DataInput, but it works for our code.
- * 
+ *
  * @since GemFire 3.0
  */
 
@@ -50,10 +49,10 @@ public class ByteBufferInputStream extends InputStream
   /**
    * This interface is used to wrap either a ByteBuffer or an offheap Chunk as the source of bytes
    * for a ByteBufferInputStream.
-   * 
+   *
    *
    */
-  public static interface ByteSource {
+  public interface ByteSource {
     int position();
 
     int limit();
@@ -884,7 +883,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readByte()
    */
   public byte readByte() {
@@ -897,7 +896,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readChar()
    */
   public char readChar() {
@@ -910,7 +909,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readDouble()
    */
   public double readDouble() {
@@ -923,7 +922,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readFloat()
    */
   public float readFloat() {
@@ -936,7 +935,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readFully(byte[])
    */
   public void readFully(byte[] b) {
@@ -946,7 +945,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readFully(byte[], int, int)
    */
   public void readFully(byte[] b, int off, int len) {
@@ -956,7 +955,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readInt()
    */
   public int readInt() {
@@ -969,7 +968,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readLine()
    */
   public String readLine() {
@@ -978,7 +977,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readLong()
    */
   public long readLong() {
@@ -991,7 +990,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readShort()
    */
   public short readShort() {
@@ -1004,7 +1003,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readUTF()
    */
   public String readUTF() throws IOException {
@@ -1013,7 +1012,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readUnsignedByte()
    */
   public int readUnsignedByte() {
@@ -1026,7 +1025,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#readUnsignedShort()
    */
   public int readUnsignedShort() {
@@ -1039,7 +1038,7 @@ public class ByteBufferInputStream extends InputStream
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.io.DataInput#skipBytes(int)
    */
   public int skipBytes(int n) {

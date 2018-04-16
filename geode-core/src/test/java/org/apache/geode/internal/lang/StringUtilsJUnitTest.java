@@ -14,26 +14,28 @@
  */
 package org.apache.geode.internal.lang;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
-
-import org.apache.geode.DataSerializer;
-import org.apache.geode.internal.cache.CachedDeserializable;
-import org.apache.geode.internal.cache.CachedDeserializableFactory;
-import org.apache.geode.test.junit.categories.UnitTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.DataSerializer;
+import org.apache.geode.internal.cache.CachedDeserializable;
+import org.apache.geode.internal.cache.CachedDeserializableFactory;
+import org.apache.geode.test.junit.categories.UnitTest;
+
 /**
  * The StringUtilsJUnitTest is a test suite containing test cases for testing the contract and
  * functionality of the StringUtils class.
  * <p/>
- * 
+ *
  * @see org.apache.geode.internal.lang.StringUtils
  * @see org.junit.Assert
  * @see org.junit.Test
@@ -44,6 +46,16 @@ import java.io.IOException;
 public class StringUtilsJUnitTest {
 
 
+  @Test
+  public void arrayToString() {
+    assertThat(StringUtils.arrayToString(null)).isEqualTo("null");
+    String[] array1 = {"one", "two", "three"};
+    assertThat(StringUtils.arrayToString(array1)).isEqualTo("one, two, three");
+    String[] array2 = {"one", null, "three"};
+    assertThat(StringUtils.arrayToString(array2)).isEqualTo("one, null, three");
+    String[] array3 = {null};
+    assertThat(StringUtils.arrayToString(array3)).isEqualTo("null");
+  }
 
   @Test
   public void testGetDigitsOnly() {
@@ -116,7 +128,7 @@ public class StringUtilsJUnitTest {
     DataSerializer.writeObject(v, dos);
     dos.flush();
     byte[] valueBytes = baos.toByteArray();
-    CachedDeserializable cd = CachedDeserializableFactory.create(valueBytes);
+    CachedDeserializable cd = CachedDeserializableFactory.create(valueBytes, null);
     assertSame(valueBytes, cd.getValue());
     assertEquals("value", StringUtils.forceToString(cd));
     assertSame(valueBytes, cd.getValue());

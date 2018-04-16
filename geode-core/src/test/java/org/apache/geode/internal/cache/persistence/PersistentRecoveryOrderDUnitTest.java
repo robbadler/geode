@@ -56,8 +56,8 @@ import org.apache.geode.cache.persistence.RevokedPersistentDataException;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
 import org.apache.geode.distributed.LockServiceDestroyedException;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionMessageObserver;
 import org.apache.geode.internal.HeapDataOutputStream;
@@ -155,8 +155,7 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
 
   /**
    * Tests to make sure that we stop waiting for a member that we revoke.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testRevokeAMember() throws Exception {
@@ -291,8 +290,7 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
   /**
    * Tests to make sure that we can revoke a member before initialization, and that member will stay
    * revoked
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testRevokeAHostBeforeInitialization() throws Exception {
@@ -387,8 +385,7 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
 
   /**
    * Test which members show up in the list of members we're waiting on.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testWaitingMemberList() throws Exception {
@@ -526,8 +523,7 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
 
   /**
    * Use Case AB are alive A crashes. B crashes. B starts up. It should not wait for A.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testDontWaitForOldMember() throws Exception {
@@ -558,8 +554,7 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
   /**
    * Tests that if two members crash simultaneously, they negotiate which member should initialize
    * with what is on disk and which member should copy data from that member.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testSimultaneousCrash() throws Exception {
@@ -701,7 +696,8 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
 
           @Override
-          public void beforeSendMessage(DistributionManager dm, DistributionMessage message) {
+          public void beforeSendMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof PrepareNewPersistentMemberMessage) {
               DistributionMessageObserver.setInstance(null);
               getSystem().disconnect();
@@ -709,7 +705,8 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
           }
 
           @Override
-          public void afterProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void afterProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
 
           }
         });
@@ -849,7 +846,8 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
 
           @Override
-          public void beforeSendMessage(DistributionManager dm, DistributionMessage message) {
+          public void beforeSendMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof AbstractUpdateMessage) {
               try {
                 Thread.sleep(2000);
@@ -861,7 +859,8 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
           }
 
           @Override
-          public void afterProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void afterProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof AbstractUpdateMessage) {
               getCache().getLogger().info("testPersistConflictOperations, beforeSendMessage");
               DistributionMessageObserver.setInstance(null);
@@ -1113,7 +1112,8 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
 
           @Override
-          public void beforeProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void beforeProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof RequestImageMessage) {
               DistributionMessageObserver.setInstance(null);
               disconnectFromDS();
@@ -1125,7 +1125,8 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
           }
 
           @Override
-          public void afterProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void afterProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
 
           }
         });
@@ -1193,7 +1194,8 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
 
           @Override
-          public void beforeProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void beforeProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof DestroyRegionMessage) {
               createPersistentRegionAsync(vm2);
               try {
@@ -1208,12 +1210,14 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
           }
 
           @Override
-          public void afterProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void afterProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
 
           }
 
           @Override
-          public void beforeSendMessage(DistributionManager dm, DistributionMessage msg) {}
+          public void beforeSendMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {}
         });
       }
     });
@@ -1285,7 +1289,8 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
 
           @Override
-          public void beforeProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void beforeProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof PrepareNewPersistentMemberMessage) {
               DistributionMessageObserver.setInstance(null);
               disconnectFromDS();
@@ -1293,7 +1298,8 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
           }
 
           @Override
-          public void afterProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void afterProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
 
           }
         });
@@ -1381,7 +1387,8 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
 
           @Override
-          public void beforeProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void beforeProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof RequestImageMessage) {
               Cache cache = getCache();
               Region region = cache.getRegion(REGION_NAME);
@@ -1404,7 +1411,8 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
           }
 
           @Override
-          public void afterProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void afterProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
 
           }
         });
@@ -1428,8 +1436,7 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
 
   /**
    * Tests to make sure that we stop waiting for a member that we revoke.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testCompactFromAdmin() throws Exception {
@@ -1673,7 +1680,7 @@ public class PersistentRecoveryOrderDUnitTest extends PersistentReplicatedTestBa
   /**
    * Tests to make sure that after we get a conflicting persistent data exception, we can still
    * recover.
-   * 
+   *
    * This is bug XX.
    */
   @Test

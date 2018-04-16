@@ -26,14 +26,14 @@ public interface StructType extends ObjectType {
 
   /**
    * The the types of the fields for this struct
-   * 
+   *
    * @return the array of Class for the fields
    */
   ObjectType[] getFieldTypes();
 
   /**
    * Get the names of the fields for this struct
-   * 
+   *
    * @return the array of field names
    */
   String[] getFieldNames();
@@ -44,6 +44,6 @@ public interface StructType extends ObjectType {
    * @throws IllegalArgumentException If this <code>StructType</code> does not contain a field named
    *         <code>fieldName</code>.
    */
-  public int getFieldIndex(String fieldName);
+  int getFieldIndex(String fieldName);
 
 }

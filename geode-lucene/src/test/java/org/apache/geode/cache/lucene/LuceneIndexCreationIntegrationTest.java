@@ -15,20 +15,38 @@
 
 package org.apache.geode.cache.lucene;
 
-import static org.apache.geode.cache.lucene.test.LuceneTestUtilities.*;
+import static org.apache.geode.cache.lucene.test.LuceneTestUtilities.INDEX_NAME;
+import static org.apache.geode.cache.lucene.test.LuceneTestUtilities.REGION_NAME;
+import static org.apache.geode.cache.lucene.test.LuceneTestUtilities.verifyIndexFinishFlushing;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.junit.rules.ExpectedException;
+import org.junit.runner.RunWith;
 
 import org.apache.geode.cache.EvictionAction;
 import org.apache.geode.cache.EvictionAttributes;
@@ -39,29 +57,18 @@ import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionFactory;
 import org.apache.geode.cache.RegionShortcut;
 import org.apache.geode.cache.lucene.internal.LuceneIndexCreationProfile;
+import org.apache.geode.cache.lucene.internal.LuceneIndexFactoryImpl;
 import org.apache.geode.cache.lucene.internal.LuceneIndexImplFactory;
 import org.apache.geode.cache.lucene.internal.LuceneRawIndex;
 import org.apache.geode.cache.lucene.internal.LuceneRawIndexFactory;
 import org.apache.geode.cache.lucene.internal.LuceneServiceImpl;
-import org.apache.geode.cache.lucene.internal.xml.LuceneIndexCreation;
 import org.apache.geode.cache.lucene.test.LuceneTestUtilities;
 import org.apache.geode.cache.lucene.test.TestObject;
 import org.apache.geode.internal.cache.BucketNotFoundException;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.core.KeywordTokenizer;
-import org.apache.lucene.queryparser.classic.ParseException;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
+import org.apache.geode.test.junit.categories.LuceneTest;
 
 /**
  * Tests of creating lucene indexes on regions. All tests of index creation use cases should be in
@@ -71,7 +78,7 @@ import junitparams.Parameters;
  * <li>Tests that use offheap are in {@link LuceneIndexCreationOffHeapIntegrationTest}</li>
  * </ul>
  */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, LuceneTest.class})
 @RunWith(JUnitParamsRunner.class)
 public class LuceneIndexCreationIntegrationTest extends LuceneIntegrationTest {
 
@@ -94,8 +101,8 @@ public class LuceneIndexCreationIntegrationTest extends LuceneIntegrationTest {
     region.put("key1", new TestObject());
     verifyIndexFinishFlushing(cache, INDEX_NAME, REGION_NAME);
     assertEquals(analyzers, index.getFieldAnalyzers());
-    assertEquals(Arrays.asList("field1"), field1Analyzer.analyzedfields);
-    assertEquals(Arrays.asList("field2"), field2Analyzer.analyzedfields);
+    assertEquals(new HashSet(Arrays.asList("field1")), field1Analyzer.analyzedfields);
+    assertEquals(new HashSet(Arrays.asList("field2")), field2Analyzer.analyzedfields);
   }
 
   @Test
@@ -171,8 +178,8 @@ public class LuceneIndexCreationIntegrationTest extends LuceneIntegrationTest {
       region.put("key1", new TestObject());
       verifyIndexFinishFlushing(cache, INDEX_NAME, REGION_NAME);
       assertEquals(analyzers, index.getFieldAnalyzers());
-      assertEquals(Arrays.asList("field1"), field1Analyzer.analyzedfields);
-      assertEquals(Arrays.asList("field2"), field2Analyzer.analyzedfields);
+      assertEquals(new HashSet(Arrays.asList("field1")), field1Analyzer.analyzedfields);
+      assertEquals(new HashSet(Arrays.asList("field2")), field2Analyzer.analyzedfields);
     } finally {
       LuceneServiceImpl.luceneIndexFactory = new LuceneIndexImplFactory();
     }
@@ -183,6 +190,43 @@ public class LuceneIndexCreationIntegrationTest extends LuceneIntegrationTest {
       throws IOException, ParseException {
     createRegion();
     createIndex("field1", "field2", "field3");
+  }
+
+  @Test()
+  public void canCreateLuceneIndexAfterRegionCreatedIfAllowFlagIsSet()
+      throws IOException, ParseException, InterruptedException, LuceneQueryException {
+    Region region = createRegion();
+    LuceneService luceneService = LuceneServiceProvider.get(cache);
+    final LuceneIndexFactoryImpl indexFactory =
+        (LuceneIndexFactoryImpl) luceneService.createIndexFactory();
+    indexFactory.setFields("field1", "field2").create(INDEX_NAME, REGION_NAME, true);
+
+    LuceneIndex index = luceneService.getIndex(INDEX_NAME, REGION_NAME);
+    assertNotNull(index);
+
+    region.put("key1", new TestObject("hello", "world"));
+    luceneService.waitUntilFlushed(INDEX_NAME, REGION_NAME, 1, TimeUnit.MINUTES);
+    LuceneQuery<Object, Object> query = luceneService.createLuceneQueryFactory().create(INDEX_NAME,
+        REGION_NAME, "field1:hello", "field1");
+
+    assertEquals(Collections.singletonList("key1"), query.findKeys());
+  }
+
+
+  @Test()
+  public void creatingDuplicateLuceneIndexFails()
+      throws IOException, ParseException, InterruptedException, LuceneQueryException {
+    Region region = createRegion();
+    LuceneService luceneService = LuceneServiceProvider.get(cache);
+    final LuceneIndexFactoryImpl indexFactory =
+        (LuceneIndexFactoryImpl) luceneService.createIndexFactory();
+    indexFactory.setFields("field1", "field2").create(INDEX_NAME, REGION_NAME, true);
+
+    LuceneIndex index = luceneService.getIndex(INDEX_NAME, REGION_NAME);
+    assertNotNull(index);
+
+    expectedException.expect(LuceneIndexExistsException.class);
+    indexFactory.setFields("field1", "field2").create(INDEX_NAME, REGION_NAME, true);
   }
 
   @Test
@@ -279,7 +323,7 @@ public class LuceneIndexCreationIntegrationTest extends LuceneIntegrationTest {
 
   private static class RecordingAnalyzer extends Analyzer {
 
-    private List<String> analyzedfields = new ArrayList<String>();
+    private Set<String> analyzedfields = new HashSet<String>();
 
     @Override
     protected TokenStreamComponents createComponents(final String fieldName) {

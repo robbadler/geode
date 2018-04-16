@@ -40,7 +40,6 @@ import org.apache.geode.admin.SystemMemberCacheEvent;
 import org.apache.geode.admin.SystemMemberRegionEvent;
 import org.apache.geode.admin.internal.ConfigurationParameterImpl;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
-import org.apache.geode.i18n.LogWriterI18n;
 import org.apache.geode.internal.admin.ApplicationVM;
 import org.apache.geode.internal.admin.ClientMembershipMessage;
 import org.apache.geode.internal.admin.GemFireVM;
@@ -98,12 +97,12 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
   /**
    * Constructs the instance of SystemMember using the corresponding InternalDistributedMember
    * instance of a DS member for the given AdminDistributedSystem.
-   * 
+   *
    * @param system Current AdminDistributedSystem instance
    * @param member InternalDistributedMember instance for which a SystemMember instance is to be
    *        constructed.
    * @throws AdminException if construction of SystemMember fails
-   * 
+   *
    * @since GemFire 6.5
    */
   protected SystemMemberJmxImpl(AdminDistributedSystemJmxImpl system,
@@ -114,9 +113,6 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
 
   /** Create and register the MBean to manage this resource */
   private void initializeMBean() throws org.apache.geode.admin.AdminException {
-    // initialize Managed Resources for stats & cache first.
-    // initializeManagedResources();
-
     this.mbeanName = new StringBuffer("GemFire.Member:id=")
         .append(MBeanUtil.makeCompliantMBeanNameProperty(getId())).append(",type=")
         .append(MBeanUtil.makeCompliantMBeanNameProperty(getType().getName())).toString();
@@ -148,7 +144,7 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
    * Attempt to set refreshInterval on SystemMemberJmx MBean would result in an
    * OperationNotSupportedException Auto-refresh is enabled on demand when a call to refreshConfig
    * is made
-   * 
+   *
    * @param refreshInterval the new refresh interval in seconds
    * @deprecated since 6.0 use DistributedSystemConfig.refreshInterval instead
    */
@@ -162,7 +158,7 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
   /**
    * Sets interval in seconds between member config refreshes; zero or less turns off auto
    * refreshing. Manual refreshing has no effect on when the next scheduled refresh will occur.
-   * 
+   *
    * @param refreshInterval the new refresh interval in seconds
    */
   public void _setRefreshInterval(int refreshInterval) {
@@ -188,38 +184,6 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
 
     super.refreshConfig();
   }
-
-  /**
-   * Initializes Cache & Statistics managed resources.
-   * 
-   * @throws AdminException if initialization of managed resources fails
-   */
-  // private void initializeManagedResources() throws AdminException {
-  // try {
-  // manageCache();
-  // } catch (MalformedObjectNameException e) {
-  // throw new
-  // AdminException(LocalizedStrings.SystemMemberJmxImpl_EXCEPTION_OCCURRED_WHILE_INITIALIZING_0_MBEANS_FOR_1.toLocalizedString(
-  // new Object[] {"Cache", getId()}),
-  // e);
-  // } catch (AdminException ae) {
-  // if
-  // (LocalizedStrings.SystemMemberJmx_THIS_SYSTEM_MEMBER_DOES_NOT_HAVE_A_CACHE.toLocalizedString().equals(ae.getMessage()))
-  // {
-  // //ignore this exception for a cache-less peer
-  // } else {
-  // throw ae;
-  // }
-  // }
-  // try {
-  // manageStats();
-  // } catch (MalformedObjectNameException e) {
-  // throw new
-  // AdminException(LocalizedStrings.SystemMemberJmxImpl_EXCEPTION_OCCURRED_WHILE_INITIALIZING_0_MBEANS_FOR_1.toLocalizedString(
-  // new Object[] {"Statistics", getId()}),
-  // e);
-  // }
-  // }
 
   /**
    * Gets this member's cache.
@@ -262,7 +226,7 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
    * Handles notification to refresh. Reacts by refreshing the values of this SystemMember's
    * ConfigurationParamaters. Any other notification is ignored. Given notification is handled only
    * if there is any JMX client connected to the system.
-   * 
+   *
    * @param notification the JMX notification being received
    * @param hb handback object is unused
    */
@@ -291,7 +255,7 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
   /**
    * Override createStatisticResource by instantiating StatisticResourceJmxImpl if it was not
    * created earlier otherwise returns the same instance.
-   * 
+   *
    * @param stat StatResource reference for which this JMX resource is to be created
    * @return StatisticResourceJmxImpl - JMX Implementation of StatisticResource
    * @throws AdminException if constructing StatisticResourceJmxImpl instance fails
@@ -320,7 +284,7 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
   /**
    * Override createSystemMemberCache by instantiating SystemMemberCacheJmxImpl if it was not
    * created earlier.
-   * 
+   *
    * @param vm GemFireVM reference for which this JMX resource is to be created
    * @return SystemMemberCacheJmxImpl - JMX Implementation of SystemMemberCache
    * @throws AdminException if constructing SystemMemberCacheJmxImpl instance fails
@@ -411,7 +375,7 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
   /**
    * Cleans up Managed Resources created for the client that was connected to the server represented
    * by this class.
-   * 
+   *
    * @param clientId id of the client to be removed
    * @return List of ManagedResources associated with the client of given client id
    */
@@ -442,7 +406,7 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
 
   /**
    * Implementation handles client membership changes.
-   * 
+   *
    * @param clientId id of the client for whom membership change happened
    * @param eventType membership change type; one of {@link ClientMembershipMessage#JOINED},
    *        {@link ClientMembershipMessage#LEFT}, {@link ClientMembershipMessage#CRASHED}
@@ -475,7 +439,7 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
    * Implementation handles creation of cache by extracting the details from the given event object
    * and sending the {@link SystemMemberJmx#NOTIF_CACHE_CREATED} notification to the connected JMX
    * Clients.
-   * 
+   *
    * @param event event object corresponding to the creation of the cache
    */
   public void handleCacheCreate(SystemMemberCacheEvent event) {
@@ -487,7 +451,7 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
    * Implementation handles closure of cache by extracting the details from the given event object
    * and sending the {@link SystemMemberJmx#NOTIF_CACHE_CLOSED} notification to the connected JMX
    * Clients.
-   * 
+   *
    * @param event event object corresponding to the closure of the cache
    */
   public void handleCacheClose(SystemMemberCacheEvent event) {
@@ -499,7 +463,7 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
    * Implementation handles creation of region by extracting the details from the given event object
    * and sending the {@link SystemMemberJmx#NOTIF_REGION_CREATED} notification to the connected JMX
    * Clients. Region Path is set as User Data in Notification.
-   * 
+   *
    * @param event event object corresponding to the creation of a region
    */
   public void handleRegionCreate(SystemMemberRegionEvent event) {
@@ -516,7 +480,7 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
    * object and sending the {@link SystemMemberJmx#NOTIF_REGION_LOST} notification to the connected
    * JMX Clients. Region Path is set as User Data in Notification. Additionally, it also clears the
    * ManagedResources created for the region that is lost.
-   * 
+   *
    * @param event event object corresponding to the loss of a region
    */
   public void handleRegionLoss(SystemMemberRegionEvent event) {
@@ -538,4 +502,3 @@ public class SystemMemberJmxImpl extends org.apache.geode.admin.internal.SystemM
     Helper.sendNotification(this, notification);
   }
 }
-

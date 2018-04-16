@@ -52,8 +52,9 @@ import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, OQLQueryTest.class})
 public class HelperTestCase extends JUnit4CacheTestCase {
 
   protected void createPartitionRegion(VM vm, final String regionName,
@@ -270,4 +271,3 @@ public class HelperTestCase extends JUnit4CacheTestCase {
     return p;
   }
 }
-

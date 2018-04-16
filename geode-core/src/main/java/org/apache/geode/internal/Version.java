@@ -20,6 +20,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import org.apache.geode.cache.UnsupportedVersionException;
 import org.apache.geode.internal.cache.tier.sockets.CommandInitializer;
@@ -27,11 +29,11 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 
 /**
  * Enumerated type for client / server and p2p version.
- * 
+ *
  * There are dependencies in versioning code that require newer versions to have ordinals higher
  * than older versions in order to protect against deserialization problems. Client/server code also
  * uses greater-than comparison of ordinals in backward-compatibility checks.
- * 
+ *
  * @since GemFire 5.7
  */
 public class Version implements Comparable<Version> {
@@ -51,15 +53,10 @@ public class Version implements Comparable<Version> {
   private final byte release;
   private final byte patch;
 
-  /**
-   * Set to non-null if the underlying GemFire version is different from product version
-   */
-  private Version gemfireVersion;
-
   /** byte used as ordinal to represent this <code>Version</code> */
   private final short ordinal;
 
-  public static final int HIGHEST_VERSION = 65;
+  public static final int HIGHEST_VERSION = 85;
 
   private static final Version[] VALUES = new Version[HIGHEST_VERSION + 1];
 
@@ -180,11 +177,14 @@ public class Version implements Comparable<Version> {
   public static final Version GFE_90 =
       new Version("GFE", "9.0", (byte) 9, (byte) 0, (byte) 0, (byte) 0, GFE_90_ORDINAL);
 
+  // prior to v1.2.0 GEODE_110 was named GFE_91. This was used for both the rel/v1.1.0
+  // and rel/v1.1.1 releases
   private static final byte GEODE_110_ORDINAL = 50;
 
   public static final Version GEODE_110 =
       new Version("GEODE", "1.1.0", (byte) 1, (byte) 1, (byte) 0, (byte) 0, GEODE_110_ORDINAL);
 
+  // This ordinal was never used
   private static final byte GEODE_111_ORDINAL = 55;
 
   public static final Version GEODE_111 =
@@ -195,18 +195,38 @@ public class Version implements Comparable<Version> {
   public static final Version GEODE_120 =
       new Version("GEODE", "1.2.0", (byte) 1, (byte) 2, (byte) 0, (byte) 0, GEODE_120_ORDINAL);
 
+  private static final byte GEODE_130_ORDINAL = 70;
+
+  public static final Version GEODE_130 =
+      new Version("GEODE", "1.3.0", (byte) 1, (byte) 3, (byte) 0, (byte) 0, GEODE_130_ORDINAL);
+
+  private static final byte GEODE_140_ORDINAL = 75;
+
+  public static final Version GEODE_140 =
+      new Version("GEODE", "1.4.0", (byte) 1, (byte) 4, (byte) 0, (byte) 0, GEODE_140_ORDINAL);
+
+  private static final byte GEODE_150_ORDINAL = 80;
+
+  public static final Version GEODE_150 =
+      new Version("GEODE", "1.5.0", (byte) 1, (byte) 5, (byte) 0, (byte) 0, GEODE_150_ORDINAL);
+
+  private static final byte GEODE_160_ORDINAL = 85;
+
+  public static final Version GEODE_160 =
+      new Version("GEODE", "1.6.0", (byte) 1, (byte) 6, (byte) 0, (byte) 0, GEODE_160_ORDINAL);
+
+  /* NOTE: when adding a new version bump the ordinal by 5. Ordinals can be short ints */
+
   /**
    * This constant must be set to the most current version of the product. !!! NOTE: update
    * HIGHEST_VERSION when changing CURRENT !!!
    */
-  public static final Version CURRENT = GEODE_120;
+  public static final Version CURRENT = GEODE_160;
 
   /**
    * A lot of versioning code needs access to the current version's ordinal
    */
   public static final short CURRENT_ORDINAL = CURRENT.ordinal();
-
-  public static final short NOT_SUPPORTED_ORDINAL = 59;
 
   /**
    * version ordinal for test Backward compatibility.
@@ -228,32 +248,14 @@ public class Version implements Comparable<Version> {
     this.ordinal = ordinal;
     this.methodSuffix = this.productName + "_" + this.majorVersion + "_" + this.minorVersion + "_"
         + this.release + "_" + this.patch;
-    this.gemfireVersion = null;
     if (ordinal != TOKEN_ORDINAL) {
       VALUES[this.ordinal] = this;
     }
   }
 
-  /**
-   * Creates a new instance of <code>Version</code> with a different underlying GemFire version
-   */
-  private Version(String product, String name, byte major, byte minor, byte release, byte patch,
-      byte ordinal, Version gemfireVersion) {
-    this(product, name, major, minor, release, patch, ordinal);
-    this.gemfireVersion = gemfireVersion;
-  }
-
   /** Return the <code>Version</code> represented by specified ordinal */
   public static Version fromOrdinal(short ordinal, boolean forGFEClients)
       throws UnsupportedVersionException {
-    // Un-version client(client's prior to release 5.7) doesn't send version
-    // byte in the handshake. So the next byte in the handshake has value 59 and
-    // is interpreted as version byte. We are not supporting version 59 to
-    // distinguish version client from unversion. Please use version ordinal 60
-    // after 58 if required.
-    if (ordinal == NOT_SUPPORTED_ORDINAL) {
-      throw new UnsupportedVersionException("Un-versioned clients are not supported. ");
-    }
     if (ordinal == TOKEN_ORDINAL) {
       return TOKEN;
     }
@@ -269,8 +271,7 @@ public class Version implements Comparable<Version> {
 
   /**
    * return the version corresponding to the given ordinal, or CURRENT if the ordinal isn't valid
-   * 
-   * @param ordinal
+   *
    * @return the corresponding ordinal
    */
   public static Version fromOrdinalOrCurrent(short ordinal) {
@@ -288,7 +289,7 @@ public class Version implements Comparable<Version> {
    * Write the given ordinal (result of {@link #ordinal()}) to given {@link DataOutput}. This keeps
    * the serialization of ordinal compatible with previous versions writing a single byte to
    * DataOutput when possible, and a token with 2 bytes if it is large.
-   * 
+   *
    * @param out the {@link DataOutput} to write the ordinal write to
    * @param ordinal the version to be written
    * @param compressed if true, then use single byte for ordinal < 128, and three bytes for beyond
@@ -313,7 +314,7 @@ public class Version implements Comparable<Version> {
    * Write this {@link Version}'s ordinal (result of {@link #ordinal()}) to given
    * {@link DataOutput}. This keeps the serialization of ordinal compatible with previous versions
    * writing a single byte to DataOutput when possible, and a token with 2 bytes if it is large.
-   * 
+   *
    * @param out the {@link DataOutput} to write the ordinal write to
    * @param compressed if true, then use single byte for ordinal < 128, and three bytes for beyond
    *        that, else always use three bytes where the first byte is {@link #TOKEN_ORDINAL}; former
@@ -328,37 +329,16 @@ public class Version implements Comparable<Version> {
   }
 
   /**
-   * Fixed number of bytes required for serializing this version when "compressed" flag is false in
-   * {@link #writeOrdinal(DataOutput, boolean)}.
-   */
-  public static int uncompressedSize() {
-    return 3;
-  }
-
-  /**
-   * Fixed number of bytes required for serializing this version when "compressed" flag is true in
-   * {@link #writeOrdinal(DataOutput, boolean)}.
-   */
-  public int compressedSize() {
-    if (ordinal <= Byte.MAX_VALUE) {
-      return 1;
-    } else {
-      return 3;
-    }
-  }
-
-  /**
    * Write the given ordinal (result of {@link #ordinal()}) to given {@link ByteBuffer}. This keeps
    * the serialization of ordinal compatible with previous versions writing a single byte to
    * DataOutput when possible, and a token with 2 bytes if it is large.
-   * 
+   *
    * @param buffer the {@link ByteBuffer} to write the ordinal write to
    * @param ordinal the version to be written
    * @param compressed if true, then use single byte for ordinal < 128, and three bytes for beyond
    *        that, else always use three bytes where the first byte is {@link #TOKEN_ORDINAL}
    */
-  public static void writeOrdinal(ByteBuffer buffer, short ordinal, boolean compressed)
-      throws IOException {
+  public static void writeOrdinal(ByteBuffer buffer, short ordinal, boolean compressed) {
     if (compressed && ordinal <= Byte.MAX_VALUE) {
       buffer.put((byte) ordinal);
     } else {
@@ -382,16 +362,16 @@ public class Version implements Comparable<Version> {
   /**
    * Return the <code>Version</code> reading from given {@link DataInput} as serialized by
    * {@link #writeOrdinal(DataOutput, boolean)}.
-   * 
+   *
    * If the incoming ordinal is greater than or equal to current ordinal then this will return null
    * or {@link #CURRENT} indicating that version is same as that of {@link #CURRENT} assuming that
    * peer will support this JVM.
-   * 
+   *
    * This method is not meant to be used for client-server protocol since servers cannot support
    * higher version clients, rather is only meant for P2P/JGroups messaging where a mixed version of
    * servers can be running at the same time. Similarly cannot be used when recovering from disk
    * since higher version data cannot be read.
-   * 
+   *
    * @param in the {@link DataInput} to read the version from
    * @param returnNullForCurrent if true then return null if incoming version >= {@link #CURRENT}
    *        else return {@link #CURRENT}
@@ -439,16 +419,8 @@ public class Version implements Comparable<Version> {
     }
   }
 
-  public Version getGemFireVersion() {
-    return this.gemfireVersion != null ? this.gemfireVersion : this;
-  }
-
   public String getMethodSuffix() {
     return this.methodSuffix;
-  }
-
-  public String getProductName() {
-    return this.productName;
   }
 
   public String getName() {
@@ -475,9 +447,10 @@ public class Version implements Comparable<Version> {
     return this.ordinal;
   }
 
+
   /**
    * Returns whether this <code>Version</code> is compatible with the input <code>Version</code>
-   * 
+   *
    * @param version The <code>Version</code> to compare
    * @return whether this <code>Version</code> is compatible with the input <code>Version</code>
    */
@@ -488,7 +461,7 @@ public class Version implements Comparable<Version> {
   /**
    * Finds the Version instance corresponding to the given ordinal and returns the result of
    * compareTo(Version)
-   * 
+   *
    * @param other the ordinal of the other Version object
    * @return negative if this version is older, positive if this version is newer, 0 if this is the
    *         same version
@@ -520,16 +493,12 @@ public class Version implements Comparable<Version> {
 
   /**
    * Returns a string representation for this <code>Version</code>.
-   * 
+   *
    * @return the name of this operation.
    */
   @Override
   public String toString() {
-    if (this.gemfireVersion == null) {
-      return this.productName + " " + this.name;
-    } else {
-      return this.productName + " " + this.name + '[' + this.gemfireVersion.toString() + ']';
-    }
+    return this.productName + " " + this.name;
   }
 
   public static String toString(short ordinal) {
@@ -575,5 +544,10 @@ public class Version implements Comparable<Version> {
 
   public boolean isPre65() {
     return compareTo(Version.GFE_65) < 0;
+  }
+
+  public static Iterable<? extends Version> getAllVersions() {
+    return Arrays.asList(VALUES).stream().filter(x -> x != null && x != TEST_VERSION)
+        .collect(Collectors.toList());
   }
 }

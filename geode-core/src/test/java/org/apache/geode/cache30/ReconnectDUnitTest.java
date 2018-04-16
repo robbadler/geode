@@ -14,16 +14,23 @@
  */
 package org.apache.geode.cache30;
 
-import org.awaitility.Awaitility;
-import org.junit.Ignore;
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
+import static org.apache.geode.distributed.ConfigurationProperties.*;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.Iterator;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+import org.awaitility.Awaitility;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.SystemFailure;
@@ -42,19 +49,11 @@ import org.apache.geode.distributed.internal.membership.gms.mgr.GMSMembershipMan
 import org.apache.geode.internal.AvailablePort;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.xmlcache.CacheXmlGenerator;
 import org.apache.geode.test.dunit.*;
-
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.Iterator;
-import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
 
 @SuppressWarnings("serial")
 @Category(DistributedTest.class)
@@ -80,15 +79,13 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
     Host.getHost(0).getVM(locatorVMNumber).invoke(new SerializableRunnable("start locator") {
       public void run() {
         try {
-          InternalDistributedSystem ds = InternalDistributedSystem.getConnectedInstance();
-          if (ds != null) {
-            ds.disconnect();
-          }
+          disconnectFromDS();
           dsProperties = null;
           locatorPort = locPort;
           Properties props = getDistributedSystemProperties();
           locator = Locator.startLocatorAndDS(locatorPort, new File(""), props);
-          ReconnectDUnitTest.savedSystem = InternalDistributedSystem.getConnectedInstance();
+          cache = ((InternalLocator) locator).getCache();
+          ReconnectDUnitTest.savedSystem = locator.getDistributedSystem();
           IgnoredException.addIgnoredException(
               "org.apache.geode.ForcedDisconnectException||Possible loss of quorum");
           // MembershipManagerHelper.getMembershipManager(InternalDistributedSystem.getConnectedInstance()).setDebugJGroups(true);
@@ -148,14 +145,11 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
         dsProperties = null;
         locator = null;
         locatorPort = 0;
-        InternalDistributedSystem ds = InternalDistributedSystem.getAnyInstance();
-        if (ds != null) {
-          ds.disconnect();
-        }
       }
     };
     Invoke.invokeInEveryVM(disconnect);
     disconnect.run();
+    disconnectAllFromDS();
   }
 
   /**
@@ -165,12 +159,8 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
     AttributesFactory factory = new AttributesFactory();
 
     {
-      // TestCacheListener listener = new TestCacheListener(){}; // this needs to be serializable
-      // callbacks.add(listener);
-      // factory.setDataPolicy(DataPolicy.REPLICATE);
       factory.setDataPolicy(DataPolicy.REPLICATE);
       factory.setScope(Scope.DISTRIBUTED_ACK);
-      // factory.setCacheListener(listener);
     }
 
     return factory.create();
@@ -191,10 +181,10 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
     final String xmlFileLoc = (new File(".")).getAbsolutePath();
 
     // disable disconnects in the locator so we have some stability
-    host.getVM(locatorVMNumber).invoke(new SerializableRunnable("disable force-disconnect") {
+    locatorVm.invoke(new SerializableRunnable("disable force-disconnect") {
       public void run() {
         GMSMembershipManager mgr = (GMSMembershipManager) MembershipManagerHelper
-            .getMembershipManager(InternalDistributedSystem.getConnectedInstance());
+            .getMembershipManager(Locator.getLocator().getDistributedSystem());
         mgr.disableDisconnectOnQuorumLossForTesting();
       }
     });
@@ -202,20 +192,17 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
     SerializableCallable create =
         new SerializableCallable("Create Cache and Regions from cache.xml") {
           public Object call() throws CacheException {
-            // DebuggerSupport.waitForJavaDebugger(getLogWriter(), " about to create region");
             locatorPort = locPort;
             Properties props = getDistributedSystemProperties();
             props.put(CACHE_XML_FILE, xmlFileLoc + fileSeparator + "MyDisconnect-cache.xml");
             props.put(MAX_NUM_RECONNECT_TRIES, "2");
             // props.put("log-file", "autoReconnectVM"+VM.getCurrentVMNum()+"_"+getPID()+".log");
-            Cache cache = new CacheFactory(props).create();
+            cache = (InternalCache) new CacheFactory(props).create();
             IgnoredException.addIgnoredException(
                 "org.apache.geode.ForcedDisconnectException||Possible loss of quorum");
             Region myRegion = cache.getRegion("root/myRegion");
             ReconnectDUnitTest.savedSystem = cache.getDistributedSystem();
             myRegion.put("MyKey1", "MyValue1");
-            // MembershipManagerHelper.getMembershipManager(cache.getDistributedSystem()).setDebugJGroups(true);
-            // myRegion.put("Mykey2", "MyValue2");
             return savedSystem.getDistributedMember();
           }
         };
@@ -256,8 +243,6 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
   public void doTestReconnectOnForcedDisconnect(final boolean createInAppToo) throws Exception {
 
     IgnoredException.addIgnoredException("killing member's ds");
-    // getSystem().disconnect();
-    // getLogWriter().fine("Cache Closed ");
 
     Host host = Host.getHost(0);
     VM vm0 = host.getVM(0);
@@ -274,18 +259,14 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
     SerializableCallable create1 =
         new SerializableCallable("Create Cache and Regions from cache.xml") {
           public Object call() throws CacheException {
-            // DebuggerSupport.waitForJavaDebugger(getLogWriter(), " about to create region");
             locatorPort = locPort;
             Properties props = getDistributedSystemProperties();
             props.put(CACHE_XML_FILE, xmlFileLoc + fileSeparator + "MyDisconnect-cache.xml");
             props.put(MAX_WAIT_TIME_RECONNECT, "1000");
-            props.put(MAX_NUM_RECONNECT_TRIES, "2");
-            // props.put("log-file", "autoReconnectVM"+VM.getCurrentVMNum()+"_"+getPID()+".log");
-            Cache cache = new CacheFactory(props).create();
+            cache = (InternalCache) new CacheFactory(props).create();
             Region myRegion = cache.getRegion("root/myRegion");
             ReconnectDUnitTest.savedSystem = cache.getDistributedSystem();
             myRegion.put("MyKey1", "MyValue1");
-            // myRegion.put("Mykey2", "MyValue2");
             return savedSystem.getDistributedMember();
           }
         };
@@ -293,24 +274,18 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
     SerializableCallable create2 =
         new SerializableCallable("Create Cache and Regions from cache.xml") {
           public Object call() throws CacheException {
-            // DebuggerSupport.waitForJavaDebugger(getLogWriter(), " about to create region");
             locatorPort = locPort;
             final Properties props = getDistributedSystemProperties();
             props.put(CACHE_XML_FILE, xmlFileLoc + fileSeparator + "MyDisconnect-cache.xml");
             props.put(MAX_WAIT_TIME_RECONNECT, "5000");
-            props.put(MAX_NUM_RECONNECT_TRIES, "2");
             props.put(START_LOCATOR, "localhost[" + secondLocPort + "]");
             props.put(LOCATORS, props.get(LOCATORS) + ",localhost[" + secondLocPort + "]");
-            // props.put("log-file", "autoReconnectVM"+VM.getCurrentVMNum()+"_"+getPID()+".log");
             getSystem(props);
-            // MembershipManagerHelper.getMembershipManager(system).setDebugJGroups(true);
-            final Cache cache = getCache();
+            cache = getCache();
             ReconnectDUnitTest.savedSystem = cache.getDistributedSystem();
             Region myRegion = cache.getRegion("root/myRegion");
-            // myRegion.put("MyKey1", "MyValue1");
             myRegion.put("Mykey2", "MyValue2");
             assertNotNull(myRegion.get("MyKey1"));
-            // getLogWriter().fine("MyKey1 value is : "+myRegion.get("MyKey1"));
             if (createInAppToo) {
               Thread recreateCacheThread = new Thread("ReconnectDUnitTest.createInAppThread") {
                 public void run() {
@@ -318,7 +293,7 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
                     Wait.pause(100);
                   }
                   try {
-                    new CacheFactory(props).create();
+                    cache = (InternalCache) new CacheFactory(props).create();
                     LogWriterUtils.getLogWriter().error(
                         "testReconnectCollidesWithApplication failed - application thread was able to create a cache");
                   } catch (IllegalStateException cacheExists) {
@@ -359,12 +334,15 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
             try {
               ds.waitUntilReconnected(60, TimeUnit.SECONDS);
               ReconnectDUnitTest.savedSystem = ds.getReconnectedSystem();
-              InternalLocator locator = (InternalLocator) Locator.getLocator();
+              locator = (InternalLocator) Locator.getLocator();
               assertTrue("Expected system to be restarted", ds.getReconnectedSystem() != null);
               assertTrue("Expected system to be running", ds.getReconnectedSystem().isConnected());
               assertTrue("Expected there to be a locator", locator != null);
-              assertTrue("Expected locator to be restarted", !locator.isStopped());
+              assertTrue("Expected locator to be restarted",
+                  !((InternalLocator) locator).isStopped());
               failure = false;
+              cache = ((InternalLocator) locator).getCache();
+              system = cache.getInternalDistributedSystem();
               return ds.getReconnectedSystem().getDistributedMember();
             } catch (InterruptedException e) {
               LogWriterUtils.getLogWriter().warning("interrupted while waiting for reconnect");
@@ -395,7 +373,7 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
         }, 10000, 1000, true);
         ds.stopReconnecting();
         assertFalse(ds.isReconnecting());
-        DistributedSystem newDs = InternalDistributedSystem.getAnyInstance();
+        DistributedSystem newDs = ds.getReconnectedSystem();
         if (newDs != null) {
           LogWriterUtils.getLogWriter()
               .warning("expected distributed system to be disconnected: " + newDs);
@@ -419,7 +397,7 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
   private DistributedMember getDMID(VM vm) {
     return (DistributedMember) vm.invoke(new SerializableCallable("get ID") {
       public Object call() {
-        ReconnectDUnitTest.savedSystem = InternalDistributedSystem.getAnyInstance();
+        ReconnectDUnitTest.savedSystem = cache.getDistributedSystem();
         return ReconnectDUnitTest.savedSystem.getDistributedMember();
       }
     });
@@ -502,11 +480,12 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
       locatorPort = locPort;
       Properties props = getDistributedSystemProperties();
       props.put(MAX_WAIT_TIME_RECONNECT, "1000");
-      props.put(MAX_NUM_RECONNECT_TRIES, "2");
       props.put(LOCATORS, props.get(LOCATORS) + ",localhost[" + locPort + "]");
       props.put(ENABLE_CLUSTER_CONFIGURATION, "false");
       try {
-        Locator.startLocatorAndDS(secondLocPort, null, props);
+        InternalLocator locator =
+            (InternalLocator) Locator.startLocatorAndDS(secondLocPort, null, props);
+        cache = locator.getCache();
       } catch (IOException e) {
         Assert.fail("exception starting locator", e);
       }
@@ -523,9 +502,8 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
       Properties props = getDistributedSystemProperties();
       props.put(CACHE_XML_FILE, xmlFileLoc + fileSeparator + "MyDisconnect-cache.xml");
       props.put(MAX_WAIT_TIME_RECONNECT, "1000");
-      props.put(MAX_NUM_RECONNECT_TRIES, "2");
       ReconnectDUnitTest.savedSystem = getSystem(props);
-      Cache cache = getCache();
+      cache = getCache();
       Region myRegion = cache.getRegion("root/myRegion");
       myRegion.put("MyKey1", "MyValue1");
       return savedSystem.getDistributedMember();
@@ -933,7 +911,6 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
               Object value = null;
               Region.Entry keyValue = null;
               try {
-                Cache cache = CacheFactory.getAnyInstance();
                 if (cache == null) {
                   excuse = "no cache";
                   return false;
@@ -989,7 +966,6 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
 
           Wait.waitForCriterion(ev, 60 * 1000, 200, true); // was 5 * 60 * 1000
 
-          Cache cache = CacheFactory.getAnyInstance();
           if (cache != null) {
             cache.getDistributedSystem().disconnect();
           }
@@ -1028,8 +1004,6 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
     VM vm1 = host.getVM(1);
 
     final int locPort = locatorPort;
-
-    final String xmlFileLoc = (new File(".")).getAbsolutePath();
 
     SerializableRunnable createCache = new SerializableRunnable("Create Cache and Regions") {
       public void run() {
@@ -1076,7 +1050,8 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
   }
 
   /**
-   * GEODE-2155 Auto-reconnect fails with NPE due to a cache listener not implementing Declarable
+   * GEODE-2155 Auto-reconnect fails with NPE due to a cache listener Declarable.init method
+   * throwing an exception.
    */
   @Test
   public void testReconnectFailsDueToBadCacheXML() throws Exception {
@@ -1086,8 +1061,6 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
     VM vm1 = host.getVM(1);
 
     final int locPort = locatorPort;
-
-    final String xmlFileLoc = (new File(".")).getAbsolutePath();
 
     SerializableRunnable createCache = new SerializableRunnable("Create Cache and Regions") {
       public void run() {
@@ -1099,7 +1072,7 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
         ReconnectDUnitTest.savedCache = (GemFireCacheImpl) getCache();
         Region myRegion = createRegion("myRegion", createAtts());
         myRegion.put("MyKey", "MyValue");
-        myRegion.getAttributesMutator().addCacheListener(new NonDeclarableListener());
+        myRegion.getAttributesMutator().addCacheListener(new ListenerWhoseInitMethodAlwaysThrows());
       }
     };
 
@@ -1241,8 +1214,8 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
         // a new system the old reference to DTC.system can cause
         // trouble, so we first null it out.
         nullSystem();
-        final DistributedSystem msys = InternalDistributedSystem.getAnyInstance();
         final Locator oldLocator = Locator.getLocator();
+        final DistributedSystem msys = cache.getDistributedSystem();
         MembershipManagerHelper.crashDistributedSystem(msys);
         if (oldLocator != null) {
           WaitCriterion wc = new WaitCriterion() {
@@ -1266,25 +1239,15 @@ public class ReconnectDUnitTest extends JUnit4CacheTestCase {
     }
   }
 
-  private static int getPID() {
-    String name = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
-    int idx = name.indexOf('@');
-    try {
-      return Integer.parseInt(name.substring(0, idx));
-    } catch (NumberFormatException nfe) {
-      // something changed in the RuntimeMXBean name
-    }
-    return 0;
-  }
-
   /**
-   * A non-Declarable listener will be rejected by the XML parser when rebuilding the cache, causing
-   * auto-reconnect to fail.
+   * A listener whose init always throws an exception.
+   * Since init is always called during cache.xml parsing
+   * this listener is not able to be used from cache.xml.
    */
-  public static class NonDeclarableListener extends CacheListenerAdapter {
+  public static class ListenerWhoseInitMethodAlwaysThrows extends CacheListenerAdapter {
     @Override
     public void init(Properties props) {
-      throw new RuntimeException("Simulate non-declarable listener");
+      throw new RuntimeException("Cause parsing to fail");
     };
   }
 

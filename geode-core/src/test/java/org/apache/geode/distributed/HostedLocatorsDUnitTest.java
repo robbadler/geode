@@ -14,11 +14,26 @@
  */
 package org.apache.geode.distributed;
 
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.apache.geode.internal.AvailablePortHelper.getRandomAvailableTCPPorts;
+import static org.apache.geode.test.dunit.Assert.*;
+import static org.apache.geode.test.dunit.Host.getHost;
+
+import java.io.File;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.distributed.AbstractLauncher.Status;
 import org.apache.geode.distributed.LocatorLauncher.Builder;
 import org.apache.geode.distributed.LocatorLauncher.LocatorState;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.InternalLocator;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
@@ -30,24 +45,10 @@ import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.junit.categories.ClientServerTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import java.io.File;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.Callable;
-
-import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
-import static org.apache.geode.internal.AvailablePortHelper.getRandomAvailableTCPPorts;
-import static org.apache.geode.test.dunit.Assert.*;
-import static org.apache.geode.test.dunit.Host.getHost;
 
 /**
  * Extracted from LocatorLauncherLocalIntegrationTest.
- * 
+ *
  * @since GemFire 8.0
  */
 @Category({DistributedTest.class, ClientServerTest.class})
@@ -117,7 +118,8 @@ public class HostedLocatorsDUnitTest extends JUnit4DistributedTestCase {
     }
 
     // validation within non-locator
-    final DistributionManager dm = (DistributionManager) system.getDistributionManager();
+    final ClusterDistributionManager dm =
+        (ClusterDistributionManager) system.getDistributionManager();
 
     final Set<InternalDistributedMember> locatorIds = dm.getLocatorDistributionManagerIds();
     assertEquals(5, locatorIds.size());
@@ -138,8 +140,9 @@ public class HostedLocatorsDUnitTest extends JUnit4DistributedTestCase {
       getHost(0).getVM(whichvm).invoke(new SerializableRunnable() {
         @Override
         public void run() {
-          final DistributionManager dm = (DistributionManager) InternalDistributedSystem
-              .getAnyInstance().getDistributionManager();
+          final ClusterDistributionManager dm =
+              (ClusterDistributionManager) InternalDistributedSystem.getAnyInstance()
+                  .getDistributionManager();
           final InternalDistributedMember self = dm.getDistributionManagerId();
 
           final Set<InternalDistributedMember> locatorIds = dm.getLocatorDistributionManagerIds();
@@ -160,8 +163,9 @@ public class HostedLocatorsDUnitTest extends JUnit4DistributedTestCase {
       getHost(0).getVM(whichvm).invoke(new SerializableRunnable() {
         @Override
         public void run() {
-          final DistributionManager dm = (DistributionManager) InternalDistributedSystem
-              .getAnyInstance().getDistributionManager();
+          final ClusterDistributionManager dm =
+              (ClusterDistributionManager) InternalDistributedSystem.getAnyInstance()
+                  .getDistributionManager();
 
           final Set<InternalDistributedMember> locatorIds = dm.getLocatorDistributionManagerIds();
           assertEquals(5, locatorIds.size());
@@ -233,7 +237,8 @@ public class HostedLocatorsDUnitTest extends JUnit4DistributedTestCase {
     }
 
     // validation within non-locator
-    final DistributionManager dm = (DistributionManager) system.getDistributionManager();
+    final ClusterDistributionManager dm =
+        (ClusterDistributionManager) system.getDistributionManager();
 
     final Set<InternalDistributedMember> locatorIds = dm.getLocatorDistributionManagerIds();
     assertEquals(5, locatorIds.size());
@@ -254,8 +259,9 @@ public class HostedLocatorsDUnitTest extends JUnit4DistributedTestCase {
       Host.getHost(0).getVM(whichvm).invoke(new SerializableRunnable() {
         @Override
         public void run() {
-          final DistributionManager dm = (DistributionManager) InternalDistributedSystem
-              .getAnyInstance().getDistributionManager();
+          final ClusterDistributionManager dm =
+              (ClusterDistributionManager) InternalDistributedSystem.getAnyInstance()
+                  .getDistributionManager();
           final InternalDistributedMember self = dm.getDistributionManagerId();
 
           final Set<InternalDistributedMember> locatorIds = dm.getLocatorDistributionManagerIds();
@@ -276,8 +282,9 @@ public class HostedLocatorsDUnitTest extends JUnit4DistributedTestCase {
       Host.getHost(0).getVM(whichvm).invoke(new SerializableRunnable() {
         @Override
         public void run() {
-          final DistributionManager dm = (DistributionManager) InternalDistributedSystem
-              .getAnyInstance().getDistributionManager();
+          final ClusterDistributionManager dm =
+              (ClusterDistributionManager) InternalDistributedSystem.getAnyInstance()
+                  .getDistributionManager();
 
           final Set<InternalDistributedMember> locatorIds = dm.getLocatorDistributionManagerIds();
           assertEquals(5, locatorIds.size());

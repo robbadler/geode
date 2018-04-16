@@ -14,18 +14,12 @@
  */
 package org.apache.geode.internal.cache.wan.parallel;
 
-import org.junit.Ignore;
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
 
 import java.util.Set;
 
+import org.junit.Ignore;
+import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.EntryExistsException;
@@ -42,9 +36,11 @@ import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.LogWriterUtils;
 import org.apache.geode.test.dunit.SerializableRunnableIF;
 import org.apache.geode.test.dunit.Wait;
+import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class ParallelWANPropagationDUnitTest extends WANTestBase {
   private static final long serialVersionUID = 1L;
 
@@ -136,8 +132,7 @@ public class ParallelWANPropagationDUnitTest extends WANTestBase {
 
   /**
    * Normal happy scenario test case.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testParallelPropagation() throws Exception {
@@ -237,8 +232,7 @@ public class ParallelWANPropagationDUnitTest extends WANTestBase {
 
   /**
    * Normal happy scenario test case2.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testParallelPropagationPutBeforeSenderStart() throws Exception {
@@ -282,10 +276,9 @@ public class ParallelWANPropagationDUnitTest extends WANTestBase {
    * Local and remote sites are up and running. Local site cache is closed and the site is built
    * again. Puts are done to local site. Expected: Remote site should receive all the events put
    * after the local site was built back.
-   * 
-   * @throws Exception
+   *
    */
-  @Category(FlakyTest.class)
+  @Category({FlakyTest.class, WanTest.class})
   @Test
   public void testParallelPropagationWithLocalCacheClosedAndRebuilt() throws Exception {
     Integer lnPort = (Integer) vm0.invoke(() -> WANTestBase.createFirstLocatorWithDSId(1));
@@ -409,10 +402,9 @@ public class ParallelWANPropagationDUnitTest extends WANTestBase {
 
   /**
    * Create colocated partitioned regions. Parent region has PGS attached and child region doesn't.
-   * 
+   *
    * Validate that events for parent region reaches remote site.
-   * 
-   * @throws Exception
+   *
    */
 
   @Test
@@ -460,7 +452,7 @@ public class ParallelWANPropagationDUnitTest extends WANTestBase {
     vm2.invoke(() -> WANTestBase.validateRegionSize(getTestMethodName() + "_child2", 0));
   }
 
-  @Category(FlakyTest.class) // GEODE-1312
+  @Category({FlakyTest.class, WanTest.class}) // GEODE-1312
   @Test
   public void testParallelPropagationWithOverflow() throws Exception {
     Integer lnPort = (Integer) vm0.invoke(() -> WANTestBase.createFirstLocatorWithDSId(1));
@@ -803,8 +795,7 @@ public class ParallelWANPropagationDUnitTest extends WANTestBase {
   /**
    * There was a bug that all destroy events were being put into different buckets of sender queue
    * against the key 0. Bug# 44304
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testParallelPropagationWithDestroy() throws Exception {
@@ -874,8 +865,7 @@ public class ParallelWANPropagationDUnitTest extends WANTestBase {
 
   /**
    * Normal happy scenario test case. But with Tx operations
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testParallelPropagationTxOperations() throws Exception {

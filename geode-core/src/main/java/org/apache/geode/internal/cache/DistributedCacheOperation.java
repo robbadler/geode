@@ -35,7 +35,6 @@ import org.apache.geode.InvalidDeltaException;
 import org.apache.geode.InvalidVersionException;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.CacheEvent;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.DiskAccessException;
 import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.EntryOperation;
@@ -43,7 +42,7 @@ import org.apache.geode.cache.Operation;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.query.internal.cq.CqService;
 import org.apache.geode.cache.query.internal.cq.ServerCQ;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DirectReplyProcessor;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
@@ -66,6 +65,7 @@ import org.apache.geode.internal.cache.partitioned.Bucket;
 import org.apache.geode.internal.cache.partitioned.PartitionMessage;
 import org.apache.geode.internal.cache.persistence.PersistentMemberID;
 import org.apache.geode.internal.cache.tier.MessageType;
+import org.apache.geode.internal.cache.tx.RemoteOperationMessage;
 import org.apache.geode.internal.cache.versions.DiskVersionTag;
 import org.apache.geode.internal.cache.versions.RegionVersionVector;
 import org.apache.geode.internal.cache.versions.VersionSource;
@@ -97,14 +97,14 @@ public abstract class DistributedCacheOperation {
   /**
    * Deserialization policy: do not deserialize (for byte array, null or cases where the value
    * should stay serialized)
-   * 
+   *
    * @since GemFire 5.7
    */
   public static final byte DESERIALIZATION_POLICY_NONE = (byte) 0;
 
   /**
    * Deserialization policy: deserialize lazily (for all other objects)
-   * 
+   *
    * @since GemFire 5.7
    */
   public static final byte DESERIALIZATION_POLICY_LAZY = (byte) 2;
@@ -184,7 +184,7 @@ public abstract class DistributedCacheOperation {
    * Return true if this operation needs to check for reliable delivery. Return false if not.
    * Currently the only case it doesn't need to be is a DestroyRegionOperation doing a "local"
    * destroy.
-   * 
+   *
    * @since GemFire 5.0
    */
   boolean isOperationReliable() {
@@ -256,15 +256,16 @@ public abstract class DistributedCacheOperation {
     if (this.containsRegionContentChange()) {
       viewVersion = region.getDistributionAdvisor().startOperation();
     }
-    if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP)) {
-      logger.trace(LogMarker.STATE_FLUSH_OP, "dispatching operation in view version {}",
+    if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP_VERBOSE)) {
+      logger.trace(LogMarker.STATE_FLUSH_OP_VERBOSE, "dispatching operation in view version {}",
           viewVersion);
     }
     try {
       _distribute();
     } catch (InvalidVersionException e) {
-      if (logger.isTraceEnabled()) {
-        logger.trace(LogMarker.DM, "PutAll failed since versions were missing; retrying again", e);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
+            "PutAll failed since versions were missing; retrying again", e);
       }
 
       if (test_InvalidVersionAction != null) {
@@ -284,8 +285,8 @@ public abstract class DistributedCacheOperation {
     if (viewVersion != -1) {
       region.getDistributionAdvisor().endOperation(viewVersion);
       if (logger.isTraceEnabled()) {
-        logger.trace(LogMarker.STATE_FLUSH_OP, "done dispatching operation in view version {}",
-            viewVersion);
+        logger.trace(LogMarker.STATE_FLUSH_OP_VERBOSE,
+            "done dispatching operation in view version {}", viewVersion);
       }
     }
   }
@@ -311,7 +312,7 @@ public abstract class DistributedCacheOperation {
    */
   private void _distribute() {
     DistributedRegion region = getRegion();
-    DM mgr = region.getDistributionManager();
+    DistributionManager mgr = region.getDistributionManager();
     boolean reliableOp = isOperationReliable() && region.requiresReliabilityCheck();
 
     if (SLOW_DISTRIBUTION_MS > 0) { // test hook
@@ -731,7 +732,7 @@ public abstract class DistributedCacheOperation {
 
   /**
    * Get the adjunct receivers for a partitioned region operation
-   * 
+   *
    * @param br the PR bucket
    * @param cacheOpReceivers the receivers of the CacheOperationMessage for this op
    * @param twoMessages PR members that are creating the bucket and need both cache op and adjunct
@@ -766,7 +767,7 @@ public abstract class DistributedCacheOperation {
           logger.fatal(LocalizedMessage
               .create(LocalizedStrings.DistributedCacheOperation_WAITFORACKIFNEEDED_EXCEPTION), e);
         }
-        e.handleAsUnexpected();
+        e.handleCause();
       }
     } finally {
       this.processor = null;
@@ -884,21 +885,21 @@ public abstract class DistributedCacheOperation {
     internalBeforePutOutgoing = beforePutOutgoing;
   }
 
-  public static abstract class CacheOperationMessage extends SerialDistributionMessage
+  public abstract static class CacheOperationMessage extends SerialDistributionMessage
       implements MessageWithReply, DirectReplyMessage, OldValueImporter {
 
-    protected final static short POSSIBLE_DUPLICATE_MASK = POS_DUP;
-    protected final static short OLD_VALUE_MASK = DistributionMessage.UNRESERVED_FLAGS_START;
-    protected final static short DIRECT_ACK_MASK = (OLD_VALUE_MASK << 1);
-    protected final static short FILTER_INFO_MASK = (DIRECT_ACK_MASK << 1);
-    protected final static short CALLBACK_ARG_MASK = (FILTER_INFO_MASK << 1);
-    protected final static short DELTA_MASK = (CALLBACK_ARG_MASK << 1);
-    protected final static short NEEDS_ROUTING_MASK = (DELTA_MASK << 1);
-    protected final static short VERSION_TAG_MASK = (NEEDS_ROUTING_MASK << 1);
-    protected final static short PERSISTENT_TAG_MASK = (VERSION_TAG_MASK << 1);
-    protected final static short UNRESERVED_FLAGS_START = (PERSISTENT_TAG_MASK << 1);
+    protected static final short POSSIBLE_DUPLICATE_MASK = POS_DUP;
+    protected static final short OLD_VALUE_MASK = DistributionMessage.UNRESERVED_FLAGS_START;
+    protected static final short DIRECT_ACK_MASK = (OLD_VALUE_MASK << 1);
+    protected static final short FILTER_INFO_MASK = (DIRECT_ACK_MASK << 1);
+    protected static final short CALLBACK_ARG_MASK = (FILTER_INFO_MASK << 1);
+    protected static final short DELTA_MASK = (CALLBACK_ARG_MASK << 1);
+    protected static final short NEEDS_ROUTING_MASK = (DELTA_MASK << 1);
+    protected static final short VERSION_TAG_MASK = (NEEDS_ROUTING_MASK << 1);
+    protected static final short PERSISTENT_TAG_MASK = (VERSION_TAG_MASK << 1);
+    protected static final short UNRESERVED_FLAGS_START = (PERSISTENT_TAG_MASK << 1);
 
-    private final static int INHIBIT_NOTIFICATIONS_MASK = 0x400;
+    private static final int INHIBIT_NOTIFICATIONS_MASK = 0x400;
 
     public boolean needsRouting;
 
@@ -981,7 +982,7 @@ public abstract class DistributedCacheOperation {
 
     /**
      * process a reply
-     * 
+     *
      * @return true if the reply-processor should continue to process this response
      */
     boolean processReply(ReplyMessage reply, CacheOperationReplyProcessor processor) {
@@ -993,7 +994,7 @@ public abstract class DistributedCacheOperation {
     /**
      * Add the cache event's old value to this message. We must propagate the old value when the
      * receiver is doing GII and has listeners (CQs) that require the old value.
-     * 
+     *
      * @since GemFire 5.5
      * @param event the entry event that contains the old value
      */
@@ -1010,7 +1011,7 @@ public abstract class DistributedCacheOperation {
     /**
      * Insert this message's oldValue into the given event. This fixes bug 38382 by propagating old
      * values with Entry level CacheOperationMessages during initial image transfer
-     * 
+     *
      * @since GemFire 5.5
      */
     public void setOldValueInEvent(EntryEventImpl event) {
@@ -1029,7 +1030,7 @@ public abstract class DistributedCacheOperation {
 
     /**
      * Sets a flag in the message indicating that this message contains delta bytes.
-     * 
+     *
      * @since GemFire 6.1
      */
     protected void setHasDelta(boolean flag) {
@@ -1061,14 +1062,14 @@ public abstract class DistributedCacheOperation {
       return true;
     }
 
-    protected LocalRegion getLocalRegionForProcessing(DistributionManager dm) {
+    protected LocalRegion getLocalRegionForProcessing(ClusterDistributionManager dm) {
       Assert.assertTrue(this.regionPath != null, "regionPath was null");
-      InternalCache gfc = (InternalCache) CacheFactory.getInstance(dm.getSystem());
-      return gfc.getRegionByPathForProcessing(this.regionPath);
+      InternalCache gfc = dm.getExistingCache();
+      return (LocalRegion) gfc.getRegionByPathForProcessing(this.regionPath);
     }
 
     @Override
-    protected void process(final DistributionManager dm) {
+    protected void process(final ClusterDistributionManager dm) {
       Throwable thr = null;
       boolean sendReply = true;
 
@@ -1078,10 +1079,9 @@ public abstract class DistributedCacheOperation {
 
       EntryLogger.setSource(this.getSender(), "p2p");
       boolean resetOldLevel = true;
-      // do this before CacheFactory.getInstance for bug 33471
       int oldLevel = LocalRegion.setThreadInitLevelRequirement(LocalRegion.BEFORE_INITIAL_IMAGE);
       try {
-        if (dm.getDMType() == DistributionManager.ADMIN_ONLY_DM_TYPE) {
+        if (dm.getDMType() == ClusterDistributionManager.ADMIN_ONLY_DM_TYPE) {
           // this was probably a multicast message
           return;
         }
@@ -1127,7 +1127,7 @@ public abstract class DistributedCacheOperation {
     }
 
     /** Return true if a reply should be sent */
-    protected void basicProcess(DistributionManager dm, LocalRegion lclRgn) {
+    protected void basicProcess(ClusterDistributionManager dm, LocalRegion lclRgn) {
       Throwable thr = null;
       boolean sendReply = true;
 
@@ -1181,7 +1181,8 @@ public abstract class DistributedCacheOperation {
             if (!rgn.isEventTrackerInitialized()
                 && (rgn.getDataPolicy().withReplication() || rgn.getDataPolicy().withPreloaded())) {
               if (logger.isTraceEnabled()) {
-                logger.trace(LogMarker.DM_BRIDGE_SERVER, "Ignoring possible duplicate event");
+                logger.trace(LogMarker.DM_BRIDGE_SERVER_VERBOSE,
+                    "Ignoring possible duplicate event");
               }
               return;
             }
@@ -1249,7 +1250,7 @@ public abstract class DistributedCacheOperation {
 
     public void sendReply(InternalDistributedMember recipient, int pId, ReplyException rex,
         ReplySender dm) {
-      if (pId == 0 && (dm instanceof DM) && !this.directAck) {// Fix for #41871
+      if (pId == 0 && (dm instanceof DistributionManager) && !this.directAck) {// Fix for #41871
         // distributed-no-ack message. Don't respond
       } else {
         ReplyMessage.send(recipient, pId, rex, dm, !this.appliedOperation, this.closed, false,
@@ -1261,7 +1262,7 @@ public abstract class DistributedCacheOperation {
      * Ensure that a version tag has been recorded in the region's version vector. This makes note
      * that the event has been received and processed but probably didn't affect the cache's state
      * or it would have been recorded earlier.
-     * 
+     *
      * @param tag the version information
      * @param r the affected region
      */
@@ -1301,7 +1302,7 @@ public abstract class DistributedCacheOperation {
     protected abstract InternalCacheEvent createEvent(DistributedRegion rgn)
         throws EntryNotFoundException;
 
-    protected abstract boolean operateOnRegion(CacheEvent event, DistributionManager dm)
+    protected abstract boolean operateOnRegion(CacheEvent event, ClusterDistributionManager dm)
         throws EntryNotFoundException;
 
     @Override
@@ -1518,7 +1519,7 @@ public abstract class DistributedCacheOperation {
       this.hasOldValue = true;
     }
 
-    protected boolean _mayAddToMultipleSerialGateways(DistributionManager dm) {
+    protected boolean _mayAddToMultipleSerialGateways(ClusterDistributionManager dm) {
       int oldLevel = LocalRegion.setThreadInitLevelRequirement(LocalRegion.ANY_INIT);
       try {
         LocalRegion lr = getLocalRegionForProcessing(dm);
@@ -1535,11 +1536,11 @@ public abstract class DistributedCacheOperation {
   }
 
   /** Custom subclass that keeps all ReplyExceptions */
-  static private class ReliableCacheReplyProcessor extends CacheOperationReplyProcessor {
+  private static class ReliableCacheReplyProcessor extends CacheOperationReplyProcessor {
 
     private final Set failedMembers;
 
-    private final DM dm;
+    private final DistributionManager dm;
 
     public ReliableCacheReplyProcessor(InternalDistributedSystem system, Collection initMembers,
         Set departedMembers) {

@@ -26,8 +26,8 @@ public interface ConnectionProxy {
 
   /**
    * The GFE version of the client.
-   * 
+   *
    * @since GemFire 5.7
    */
-  public static final Version VERSION = Version.CURRENT.getGemFireVersion();
+  Version VERSION = Version.CURRENT;
 }

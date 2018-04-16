@@ -41,7 +41,6 @@ import org.apache.geode.StatisticDescriptor;
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsType;
 import org.apache.geode.StatisticsTypeFactory;
-import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.InterestResultPolicy;
 import org.apache.geode.cache.Operation;
@@ -55,8 +54,8 @@ import org.apache.geode.cache.client.internal.PoolImpl;
 import org.apache.geode.cache.client.internal.QueueManager;
 import org.apache.geode.cache.query.internal.cq.CqService;
 import org.apache.geode.distributed.DistributedSystem;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionStats;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.InternalDistributedSystem.DisconnectListener;
@@ -75,6 +74,7 @@ import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.tier.CachedRegionHelper;
+import org.apache.geode.internal.cache.tier.ClientSideHandshake;
 import org.apache.geode.internal.cache.tier.MessageType;
 import org.apache.geode.internal.cache.versions.ConcurrentCacheModificationException;
 import org.apache.geode.internal.cache.versions.VersionSource;
@@ -97,7 +97,7 @@ import org.apache.geode.security.GemFireSecurityException;
  * {@code CacheClientUpdater} is a thread that processes update messages from a cache server and
  * {@linkplain org.apache.geode.cache.Region#localInvalidate(Object) invalidates} the local cache
  * based on the contents of those messages.
- * 
+ *
  * @since GemFire 3.5
  */
 public class CacheClientUpdater extends Thread implements ClientUpdater, DisconnectListener {
@@ -131,6 +131,15 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
    * The input stream of the socket
    */
   private final InputStream in;
+
+  public ServerQueueStatus getServerQueueStatus() {
+    return serverQueueStatus;
+  }
+
+  /**
+   * server-side queue status at the time we connected to it
+   */
+  private ServerQueueStatus serverQueueStatus;
 
   /**
    * Failed updater from the endpoint previously known as the primary
@@ -203,7 +212,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
 
   /**
    * Return true if cache appears
-   * 
+   *
    * @return true if cache appears
    */
   private boolean waitForCache() {
@@ -255,7 +264,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
    * @param location the endpoint we represent
    * @param primary true if our endpoint is primary
    * @param ids the system we are distributing messages through
-   * 
+   *
    * @throws AuthenticationRequiredException when client is not configured to send credentials using
    *         security-* system properties but server expects credentials
    * @throws AuthenticationFailedException when authentication of the client fails
@@ -264,15 +273,15 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
    *         exception while reading handshake/verifying credentials
    */
   public CacheClientUpdater(String name, ServerLocation location, boolean primary,
-      DistributedSystem ids, HandShake handshake, QueueManager qManager, EndpointManager eManager,
-      Endpoint endpoint, int handshakeTimeout, SocketCreator socketCreator)
-      throws AuthenticationRequiredException, AuthenticationFailedException,
-      ServerRefusedConnectionException {
+      DistributedSystem ids, ClientSideHandshake handshake, QueueManager qManager,
+      EndpointManager eManager, Endpoint endpoint, int handshakeTimeout,
+      SocketCreator socketCreator) throws AuthenticationRequiredException,
+      AuthenticationFailedException, ServerRefusedConnectionException {
 
     super(LoggingThreadGroup.createThreadGroup("Client update thread"), name);
     this.setDaemon(true);
     this.system = (InternalDistributedSystem) ids;
-    this.isDurableClient = handshake.getMembership().isDurable();
+    this.isDurableClient = handshake.getMembershipId().isDurable();
     this.isPrimary = primary;
     this.location = location;
     this.qManager = qManager;
@@ -324,11 +333,11 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
             mySock.getInetAddress().getHostAddress(), mySock.getLocalPort(), mySock.getPort());
       }
 
-      ServerQueueStatus sqs = handshake.handshakeWithSubscriptionFeed(mySock, this.isPrimary);
-      if (sqs.isPrimary() || sqs.isNonRedundant()) {
+      this.serverQueueStatus = handshake.handshakeWithSubscriptionFeed(mySock, this.isPrimary);
+      if (serverQueueStatus.isPrimary() || serverQueueStatus.isNonRedundant()) {
         PoolImpl pool = (PoolImpl) this.qManager.getPool();
         if (!pool.getReadyForEventsCalled()) {
-          pool.setPendingEventCount(sqs.getServerQueueSize());
+          pool.setPendingEventCount(serverQueueStatus.getServerQueueSize());
         }
       }
 
@@ -346,8 +355,8 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
       // Would be nice for it to send us its member id
       // TODO: change the serverId to use the endpoint's getMemberId() which returns a
       // DistributedMember (once gfecq branch is merged to trunk).
-      MemberAttributes ma =
-          new MemberAttributes(0, -1, DistributionManager.NORMAL_DM_TYPE, -1, null, null, null);
+      MemberAttributes ma = new MemberAttributes(0, -1, ClusterDistributionManager.NORMAL_DM_TYPE,
+          -1, null, null, null);
       sid =
           new InternalDistributedMember(mySock.getInetAddress(), mySock.getPort(), false, true, ma);
 
@@ -385,6 +394,13 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
         logger.warn(LocalizedMessage.create(LocalizedStrings.CacheClientUpdater_CLASS_NOT_FOUND,
             e.getMessage()));
       }
+    } catch (ServerRefusedConnectionException e) {
+      if (!quitting()) {
+        logger.warn(LocalizedMessage.create(
+            LocalizedStrings.CacheClientUpdater_0_CAUGHT_FOLLOWING_EXECPTION_WHILE_ATTEMPTING_TO_CREATE_A_SERVER_TO_CLIENT_COMMUNICATION_SOCKET_AND_WILL_EXIT_1,
+            new Object[] {this, e}), logger.isDebugEnabled() ? e : null);
+      }
+      throw e;
     } finally {
       this.connected = success;
       if (mySock != null) {
@@ -401,14 +417,6 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
         this.in = tmpIn;
         this.serverId = sid;
         this.commBuffer = cb;
-
-        // Don't want the timeout after handshake
-        if (mySock != null) {
-          try {
-            mySock.setSoTimeout(0);
-          } catch (SocketException ignore) {
-          }
-        }
 
       } else {
         this.socket = null;
@@ -573,7 +581,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
 
   /**
    * Handle a marker message
-   * 
+   *
    * @param clientMessage message containing the data
    */
   private void handleMarker(Message clientMessage) {
@@ -599,7 +607,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
 
   /**
    * Create or update an entry
-   * 
+   *
    * @param clientMessage message containing the data
    */
   private void handleUpdate(Message clientMessage) {
@@ -785,7 +793,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
 
   /**
    * Invalidate an entry
-   * 
+   *
    * @param clientMessage message describing the entry
    */
   private void handleInvalidate(Message clientMessage) {
@@ -890,7 +898,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
 
   /**
    * locally destroy an entry
-   * 
+   *
    * @param clientMessage message describing the entry
    */
   private void handleDestroy(Message clientMessage) {
@@ -987,7 +995,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
 
   /**
    * Locally destroy a region
-   * 
+   *
    * @param clientMessage message describing the region
    */
   private void handleDestroyRegion(Message clientMessage) {
@@ -1056,7 +1064,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
 
   /**
    * Locally clear a region
-   * 
+   *
    * @param clientMessage message describing the region to clear
    */
   private void handleClearRegion(Message clientMessage) {
@@ -1123,7 +1131,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
   /**
    * Locally invalidate a region NOTE: Added as part of bug#38048. The code only takes care of CQ
    * processing. Support needs to be added for local region invalidate.
-   * 
+   *
    * @param clientMessage message describing the region to clear
    */
   private void handleInvalidateRegion(Message clientMessage) {
@@ -1542,11 +1550,11 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
 
   /**
    * Processes messages received from the server.
-   * 
+   *
    * Only certain types of messages are handled.
    *
    * TODO: Method 'processMessages' is too complex to analyze by data flow algorithm
-   * 
+   *
    * @see MessageType#CLIENT_MARKER
    * @see MessageType#LOCAL_CREATE
    * @see MessageType#LOCAL_UPDATE
@@ -1558,6 +1566,10 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
    */
   private void processMessages() {
     final boolean isDebugEnabled = logger.isDebugEnabled();
+
+    final int headerReadTimeout = (int) Math.round(serverQueueStatus.getPingInterval()
+        * qManager.getPool().getSubscriptionTimeoutMultiplier() * 1.25);
+
     try {
       Message clientMessage = initializeMessage();
 
@@ -1592,7 +1604,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
 
         try {
           // Read the message
-          clientMessage.recv();
+          clientMessage.receiveWithHeaderReadTimeout(headerReadTimeout);
 
           // Wait for the previously failed cache client updater
           // to finish. This will avoid out of order messages.
@@ -1638,8 +1650,8 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
             }
           }
 
-          if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER)) {
-            logger.trace(LogMarker.BRIDGE_SERVER, "Processing event with id {}",
+          if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER_VERBOSE)) {
+            logger.trace(LogMarker.BRIDGE_SERVER_VERBOSE, "Processing event with id {}",
                 eventId.expensiveToString());
           }
 
@@ -1771,7 +1783,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
    * <p>
    * Signals run thread to stop. Messages are not printed if the thread or the distributed system
    * has already been instructed to terminate.
-   * 
+   *
    * @param message contextual string for the failure
    * @param exception underlying exception
    */
@@ -1789,7 +1801,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
 
   /**
    * Return an object from serialization. Only used in debug logging.
-   * 
+   *
    * @param serializedBytes the serialized form
    * @return the deserialized object
    */
@@ -1827,7 +1839,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
   /**
    * Stats for a CacheClientUpdater. Currently the only thing measured are incoming bytes on the
    * wire
-   * 
+   *
    * @since GemFire 5.7
    */
   public static class CCUStats implements MessageStats {
@@ -1894,7 +1906,7 @@ public class CacheClientUpdater extends Thread implements ClientUpdater, Disconn
 
     /**
      * Returns the current time (ns).
-     * 
+     *
      * @return the current time (ns)
      */
     public long startTime() {

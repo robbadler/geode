@@ -24,19 +24,19 @@ import java.util.List;
 import java.util.Properties;
 import java.util.StringTokenizer;
 
-import org.apache.geode.test.junit.categories.MembershipTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.DataSerializer;
-import org.apache.geode.internal.net.SocketCreator;
 import org.apache.geode.internal.ByteArrayData;
 import org.apache.geode.internal.admin.remote.DistributionLocatorId;
+import org.apache.geode.internal.net.SocketCreator;
+import org.apache.geode.test.junit.categories.MembershipTest;
 import org.apache.geode.test.junit.categories.UnitTest;
 
 /**
  * Tests {@link StartupMessageData}.
- * 
+ *
  * @since GemFire 7.0
  */
 @Category({UnitTest.class, MembershipTest.class})
@@ -252,9 +252,9 @@ public class StartupMessageDataJUnitTest {
 
   private String createOneLocatorString() throws Exception {
     DistributionLocatorId locatorId =
-        new DistributionLocatorId(SocketCreator.getLocalHost(), 445566, "111.222.333.444", null);
+        new DistributionLocatorId(SocketCreator.getLocalHost(), 44556, "111.222.333.444", null);
     String locatorString = locatorId.marshal();
-    assertEquals("" + locatorId.getHost().getHostAddress() + ":111.222.333.444[445566]",
+    assertEquals("" + locatorId.getHost().getAddress().getHostAddress() + ":111.222.333.444[44556]",
         locatorString);
     return locatorString;
   }

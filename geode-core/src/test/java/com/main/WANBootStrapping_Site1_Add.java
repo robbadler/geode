@@ -14,38 +14,43 @@
  */
 package com.main;
 
+import static org.apache.geode.distributed.ConfigurationProperties.DISTRIBUTED_SYSTEM_ID;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_LEVEL;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.apache.geode.distributed.ConfigurationProperties.START_LOCATOR;
+
+import java.util.Set;
+
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.wan.GatewaySender;
 import org.apache.geode.distributed.internal.DistributionConfig;
-
-import java.util.Set;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
+import org.apache.geode.internal.ExitCode;
 
 /**
  * This is a member representing site 1 who wants to send data to site 2
- * 
+ *
  * On this member a locator with distributed-system-id = 1 is created. On this member a cache is
  * created.
- * 
+ *
  * A Region and a GatewaySender is created on this member through
  * MyDistributedSustemListener#addedDistributedSystemConnection (When a remote locator with
  * distributed-system-id = 2 connects to this site, MyDistributedSustemListener's
  * addedDistributedSystemConnection will be invoked who will create a region and a GatewaySender.)
- * 
+ *
  * This member does put for 100 keys on the region. (We have to check that this data for 100 entries
  * are sent to remote site)
- * 
+ *
  * This member also check for the sender's running status.
- * 
+ *
  * A GatewaySender will be stopped through MyDistributedSustemListener#removedDistributedSystem
  * (When a remote locator with distributed-system-id = -2 connects to this site,
  * MyDistributedSustemListener's removedDistributedSystem will be invoked who will stop a
  * GatewaySender.)
- * 
- * 
+ *
+ *
  */
 
 public class WANBootStrapping_Site1_Add {
@@ -108,6 +113,6 @@ public class WANBootStrapping_Site1_Add {
 
     System.out.println("Sender " + sender.getId() + " is stopped");
 
-    System.exit(0);
+    ExitCode.NORMAL.doSystemExit();
   }
 }

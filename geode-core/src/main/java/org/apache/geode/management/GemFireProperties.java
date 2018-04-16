@@ -19,7 +19,7 @@ import org.apache.geode.internal.security.SecurableCommunicationChannel;
 
 /**
  * Composite Data type to be used by member to depict gemfire properties in key value manner
- * 
+ *
  * @since GemFire 7.0
  *
  */
@@ -77,11 +77,11 @@ public class GemFireProperties {
    * of the form "hostName[portNum]" and may be of the form "host:bindAddress[port]" if a specific
    * bind address is to be used on the locator machine. The square brackets around the portNum are
    * literal character and must be specified.
-   * 
+   *
    * Since IPv6 bind addresses may contain colons, you may use an at symbol instead of a colon to
    * separate the host name and bind address. For example, "server1@fdf0:76cf:a0ed:9449::5[12233]"
    * specifies a locator running on "server1" and bound to fdf0:76cf:a0ed:9449::5 on port 12233.
-   * 
+   *
    * If "mcast-port" is zero and "locators" is "" then this distributed system will be isolated from
    * all other GemFire processes.
    **/
@@ -92,9 +92,9 @@ public class GemFireProperties {
    * DistributedSystem connects, and is stopped when the DistributedSystem disconnects. To start a
    * locator that is not tied to the DistributedSystem's lifecycle, see the Locator class in this
    * same package.
-   * 
+   *
    * The peer and server parameters are optional. They specify whether the locator can be used for
-   * peers to discover eachother, or for clients to discover peers. By default both are true.
+   * peers to discover each other, or for clients to discover peers. By default both are true.
    * Default: "" (doesn't start a locator)
    **/
   private String startLocator;
@@ -135,7 +135,7 @@ public class GemFireProperties {
    * The number of seconds the distributed system will wait after the ack-wait-threshold for a
    * message to be acknowledged before it issues an alert at severe level. The default value is
    * zero, which turns off this feature.
-   * 
+   *
    * when ack-severe-alert-threshold is used, GemFire will also initiate additional checks to see if
    * the process is alive. These checks will begin when the ack-wait-threshold is reached and will
    * continue until GemFire has been able to communicate with the process and ascertain its status.
@@ -163,26 +163,6 @@ public class GemFireProperties {
    * file deletion.
    **/
   private int logDiskSpaceLimit;
-  // /**
-  // * If true, all gemfire socket communication is configured to use SSL through
-  // * JSSE.
-  // **/
-  // private boolean sslEnabled;
-  // /**
-  // * A space seperated list of the SSL cipher suites to enable. Those listed
-  // * must be supported by the available providers.
-  // **/
-  // private String sslCiphers;
-  // /**
-  // * A space seperated list of the SSL protocols to enable. Those listed must be
-  // * supported by the available providers.
-  // **/
-  // private String sslProtocols;
-  // /**
-  // * If false, allow ciphers that do not require the client side of the
-  // * connection to be authenticated.
-  // **/
-  // private boolean sslRequireAuthentication;
   /**
    * The number of milliseconds a thread can keep exclusive access to a socket that it is not
    * actively using. Once a thread loses its lease to a socket it will need to re-acquire a socket
@@ -284,7 +264,7 @@ public class GemFireProperties {
    * Specifies the application roles that this member performs in the distributed system. This is a
    * comma delimited list of user-defined strings. Any number of members can be configured to
    * perform the same role, and a member can be configured to perform any number of roles.
-   * 
+   *
    * @deprecated this feature is scheduled to be removed
    **/
   private String roles;
@@ -292,7 +272,7 @@ public class GemFireProperties {
    * Specifies the maximum number of milliseconds to wait for the distributed system to reconnect in
    * case of required role loss. The system will attempt to reconnect more than once, and this
    * timeout period applies to each reconnection attempt. Default: "10000"
-   * 
+   *
    * @deprecated this feature is scheduled to be removed
    **/
   private int maxWaitTimeForReconnect;
@@ -308,7 +288,7 @@ public class GemFireProperties {
    * cache exceeds this value when attempting to distribute to this process, it will switch to
    * asynchronous messaging until this process catches up, departs, or some specified limit is
    * reached, such as async-queue-timeout or async-max-queue-size. Default: "0"
-   * 
+   *
    * @deprecated this feature is scheduled to be removed
    **/
   private int asyncDistributionTimeout;
@@ -607,6 +587,7 @@ public class GemFireProperties {
   private String sslKeyStoreType;
   private String sslKeyStorePassword;
   private String sslTrustStore;
+  private String sslTrustStoreType;
   private String sslTrustStorePassword;
   private boolean sslWebServiceRequireAuthentication;
   private String sslDefaultAlias;
@@ -992,26 +973,6 @@ public class GemFireProperties {
 
   }
 
-  // public void setSSLEnabled(boolean sslEnabled) {
-  // this.sslEnabled = sslEnabled;
-  //
-  // }
-  //
-  // public void setSSLCiphers(String sslCiphers) {
-  // this.sslCiphers = sslCiphers;
-  //
-  // }
-  //
-  // public void setSSLProtocols(String sslProtocols) {
-  // this.sslProtocols = sslProtocols;
-  //
-  // }
-  //
-  // public void setSSLRequireAuthentication(boolean sslRequireAuthentication) {
-  // this.sslRequireAuthentication = sslRequireAuthentication;
-  //
-  // }
-
   public void setSocketLeaseTime(int socketLeaseTime) {
     this.socketLeaseTime = socketLeaseTime;
 
@@ -1287,7 +1248,6 @@ public class GemFireProperties {
   }
 
   public void setJmxManagerHttpPort(int jmxManagerHttpPort) {
-    // this.jmxManagerHttpPort = jmxManagerHttpPort;
     setHttpServicePort(jmxManagerHttpPort);
   }
 
@@ -1810,6 +1770,14 @@ public class GemFireProperties {
 
   public void setSSLTrustStorePassword(final String sslTrustStorePassword) {
     this.sslTrustStorePassword = sslTrustStorePassword;
+  }
+
+  public String getSSLTrustStoreType() {
+    return sslTrustStoreType;
+  }
+
+  public void setSSLTrustStoreType(final String sslTrustStoreType) {
+    this.sslTrustStoreType = sslTrustStoreType;
   }
 
   public boolean getSSLWebServiceRequireAuthentication() {

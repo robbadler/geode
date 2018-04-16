@@ -16,21 +16,21 @@ package org.apache.geode.management.internal.security;
 
 import static org.apache.geode.distributed.ConfigurationProperties.SECURITY_MANAGER;
 import static org.apache.geode.distributed.ConfigurationProperties.SECURITY_POST_PROCESSOR;
-import static org.assertj.core.api.Assertions.assertThat;
 
-import org.apache.geode.cache.RegionShortcut;
-import org.apache.geode.security.TestPostProcessor;
-import org.apache.geode.security.TestSecurityManager;
-import org.apache.geode.test.dunit.rules.ConnectionConfiguration;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.ServerStarterRule;
-import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.apache.geode.test.junit.categories.SecurityTest;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+
+import org.apache.geode.cache.RegionShortcut;
+import org.apache.geode.security.SimpleTestSecurityManager;
+import org.apache.geode.security.TestPostProcessor;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.SecurityTest;
+import org.apache.geode.test.junit.rules.ConnectionConfiguration;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
+import org.apache.geode.test.junit.rules.ServerStarterRule;
 
 @Category({IntegrationTest.class, SecurityTest.class})
 public class GfshCommandsPostProcessorTest {
@@ -38,14 +38,11 @@ public class GfshCommandsPostProcessorTest {
   @ClassRule
   public static ServerStarterRule serverStarter = new ServerStarterRule().withJMXManager()
       .withProperty(SECURITY_POST_PROCESSOR, TestPostProcessor.class.getName())
-      .withProperty(SECURITY_MANAGER, TestSecurityManager.class.getName())
-      .withProperty("security-json",
-          "org/apache/geode/management/internal/security/cacheServer.json")
-      .withAutoStart();
+      .withProperty(SECURITY_MANAGER, SimpleTestSecurityManager.class.getName()).withAutoStart();
 
   @Rule
-  public GfshShellConnectionRule gfshConnection = new GfshShellConnectionRule(
-      serverStarter::getJmxPort, GfshShellConnectionRule.PortType.jmxManger);
+  public GfshCommandRule gfshConnection =
+      new GfshCommandRule(serverStarter::getJmxPort, GfshCommandRule.PortType.jmxManager);
 
   @BeforeClass
   public static void beforeClass() throws Exception {
@@ -53,20 +50,20 @@ public class GfshCommandsPostProcessorTest {
   }
 
   @Test
-  @ConnectionConfiguration(user = "data-user", password = "1234567")
+  @ConnectionConfiguration(user = "dataWrite,dataRead", password = "dataWrite,dataRead")
   public void testGetPostProcess() throws Exception {
     gfshConnection.executeCommand("put --region=region1 --key=key1 --value=value1");
     gfshConnection.executeCommand("put --region=region1 --key=key2 --value=value2");
     gfshConnection.executeCommand("put --region=region1 --key=key3 --value=value3");
 
     // for get command, assert the return value is processed
-    String result = gfshConnection.execute("get --region=region1 --key=key1");
-    assertThat(result).contains("data-user/region1/key1/value1");
+    gfshConnection.executeAndAssertThat("get --region=region1 --key=key1")
+        .containsOutput("dataWrite,dataRead/region1/key1/value1");
 
     // for query command, assert the return values are processed
-    result = gfshConnection.execute("query --query=\"select * from /region1\"");
-    assertThat(result).contains("data-user/null/null/value1");
-    assertThat(result).contains("data-user/null/null/value2");
-    assertThat(result).contains("data-user/null/null/value3");
+    gfshConnection.executeAndAssertThat("query --query=\"select * from /region1\"")
+        .containsOutput("dataWrite,dataRead/null/null/value1")
+        .containsOutput("dataWrite,dataRead/null/null/value2")
+        .containsOutput("dataWrite,dataRead/null/null/value3");
   }
 }

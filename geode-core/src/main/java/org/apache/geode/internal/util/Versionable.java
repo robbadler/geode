@@ -15,18 +15,18 @@
 package org.apache.geode.internal.util;
 
 /**
- * 
+ *
  * A simple interface that describes the contract of an object that has a version
- * 
+ *
  * @since GemFire 5.0
  */
 public interface Versionable {
 
-  public abstract Comparable getVersion();
+  Comparable getVersion();
 
-  public abstract boolean isNewerThan(Versionable other);
+  boolean isNewerThan(Versionable other);
 
-  public abstract boolean isSame(Versionable other);
+  boolean isSame(Versionable other);
 
-  public abstract boolean isOlderThan(Versionable other);
+  boolean isOlderThan(Versionable other);
 }

@@ -14,24 +14,16 @@
  */
 package org.apache.geode.distributed.internal.membership.gms.locator;
 
-import org.apache.geode.DataSerializer;
-import org.apache.geode.InternalGemFireException;
-import org.apache.geode.distributed.Locator;
-import org.apache.geode.distributed.internal.*;
-import org.apache.geode.distributed.internal.membership.DistributedMembershipListener;
-import org.apache.geode.distributed.internal.membership.MemberFactory;
-import org.apache.geode.distributed.internal.membership.MembershipManager;
-import org.apache.geode.distributed.internal.membership.NetView;
-import org.apache.geode.internal.AvailablePortHelper;
-import org.apache.geode.internal.net.SocketCreator;
-import org.apache.geode.internal.Version;
-import org.apache.geode.internal.admin.remote.RemoteTransportConfig;
-import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.apache.geode.test.junit.categories.MembershipTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import static org.apache.geode.distributed.ConfigurationProperties.BIND_ADDRESS;
+import static org.apache.geode.distributed.ConfigurationProperties.DISABLE_TCP;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_FILE;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_LEVEL;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -39,30 +31,52 @@ import java.io.ObjectOutputStream;
 import java.net.InetAddress;
 import java.util.Properties;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.mock;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.DataSerializer;
+import org.apache.geode.InternalGemFireException;
+import org.apache.geode.distributed.Locator;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
+import org.apache.geode.distributed.internal.DMStats;
+import org.apache.geode.distributed.internal.DistributionConfigImpl;
+import org.apache.geode.distributed.internal.InternalLocator;
+import org.apache.geode.distributed.internal.LocatorStats;
+import org.apache.geode.distributed.internal.membership.DistributedMembershipListener;
+import org.apache.geode.distributed.internal.membership.MemberFactory;
+import org.apache.geode.distributed.internal.membership.MembershipManager;
+import org.apache.geode.distributed.internal.membership.NetView;
+import org.apache.geode.internal.AvailablePortHelper;
+import org.apache.geode.internal.Version;
+import org.apache.geode.internal.admin.remote.RemoteTransportConfig;
+import org.apache.geode.internal.net.SocketCreator;
+import org.apache.geode.internal.security.SecurityServiceFactory;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.MembershipTest;
 
 @Category({IntegrationTest.class, MembershipTest.class})
 public class GMSLocatorRecoveryJUnitTest {
 
-  File tempStateFile = null;
-  GMSLocator locator = null;
+  private File tempStateFile;
+  private GMSLocator locator;
 
   @Before
   public void setUp() throws Exception {
-    tempStateFile = new File("GMSLocatorJUnitTest_locator.dat");
-    if (tempStateFile.exists()) {
-      tempStateFile.delete();
+    this.tempStateFile = new File("GMSLocatorJUnitTest_locator.dat");
+    if (this.tempStateFile.exists()) {
+      this.tempStateFile.delete();
     }
-    locator = new GMSLocator(null, tempStateFile, null, false, false, new LocatorStats(), "");
+    this.locator = new GMSLocator(null, null, false, false, new LocatorStats(), "");
+    locator.setViewFile(tempStateFile);
     // System.out.println("temp state file: " + tempStateFile);
   }
 
   @After
   public void tearDown() throws Exception {
-    if (tempStateFile.exists()) {
-      tempStateFile.delete();
+    if (this.tempStateFile.exists()) {
+      this.tempStateFile.delete();
     }
   }
 
@@ -78,31 +92,34 @@ public class GMSLocatorRecoveryJUnitTest {
 
   @Test
   public void testRecoverFromFileWithNonExistFile() throws Exception {
-    tempStateFile.delete();
-    assertFalse(tempStateFile.exists());
-    assertFalse(locator.recoverFromFile(tempStateFile));
+    this.tempStateFile.delete();
+    assertFalse(this.tempStateFile.exists());
+    assertFalse(this.locator.recoverFromFile(this.tempStateFile));
   }
 
   @Test
   public void testRecoverFromFileWithNormalFile() throws Exception {
     NetView view = new NetView();
-    populateStateFile(tempStateFile, GMSLocator.LOCATOR_FILE_STAMP, Version.CURRENT_ORDINAL, view);
-    assertTrue(locator.recoverFromFile(tempStateFile));
+    populateStateFile(this.tempStateFile, GMSLocator.LOCATOR_FILE_STAMP, Version.CURRENT_ORDINAL,
+        view);
+    assertTrue(this.locator.recoverFromFile(this.tempStateFile));
   }
 
   @Test
   public void testRecoverFromFileWithWrongFileStamp() throws Exception {
     // add 1 to file stamp to make it invalid
-    populateStateFile(tempStateFile, GMSLocator.LOCATOR_FILE_STAMP + 1, Version.CURRENT_ORDINAL, 1);
-    assertFalse(locator.recoverFromFile(tempStateFile));
+    populateStateFile(this.tempStateFile, GMSLocator.LOCATOR_FILE_STAMP + 1,
+        Version.CURRENT_ORDINAL, 1);
+    assertFalse(this.locator.recoverFromFile(this.tempStateFile));
   }
 
   @Test
   public void testRecoverFromFileWithWrongOrdinal() throws Exception {
     // add 1 to ordinal to make it wrong
-    populateStateFile(tempStateFile, GMSLocator.LOCATOR_FILE_STAMP, Version.CURRENT_ORDINAL + 1, 1);
+    populateStateFile(this.tempStateFile, GMSLocator.LOCATOR_FILE_STAMP,
+        Version.CURRENT_ORDINAL + 1, 1);
     try {
-      locator.recoverFromFile(tempStateFile);
+      this.locator.recoverFromFile(this.tempStateFile);
       fail("expected an InternalGemFireException to be thrown");
     } catch (InternalGemFireException e) {
       // success
@@ -111,9 +128,10 @@ public class GMSLocatorRecoveryJUnitTest {
 
   @Test
   public void testRecoverFromFileWithInvalidViewObject() throws Exception {
-    populateStateFile(tempStateFile, GMSLocator.LOCATOR_FILE_STAMP, Version.CURRENT_ORDINAL, 1);
+    populateStateFile(this.tempStateFile, GMSLocator.LOCATOR_FILE_STAMP, Version.CURRENT_ORDINAL,
+        1);
     try {
-      locator.recoverFromFile(tempStateFile);
+      this.locator.recoverFromFile(this.tempStateFile);
       fail("should catch InternalGemFileException");
     } catch (InternalGemFireException e) {
       assertTrue(e.getMessage().startsWith("Unable to recover previous membership view from"));
@@ -135,7 +153,7 @@ public class GMSLocatorRecoveryJUnitTest {
       // this locator will hook itself up with the first MembershipManager
       // to be created
       // l = Locator.startLocator(port, new File(""), localHost);
-      l = InternalLocator.startLocator(port, new File(""), null, null, null, localHost, false,
+      l = InternalLocator.startLocator(port, new File(""), null, null, localHost, false,
           new Properties(), null);
 
       // create configuration objects
@@ -148,30 +166,54 @@ public class GMSLocatorRecoveryJUnitTest {
       nonDefault.put(BIND_ADDRESS, localHost.getHostAddress());
       DistributionConfigImpl config = new DistributionConfigImpl(nonDefault);
       RemoteTransportConfig transport =
-          new RemoteTransportConfig(config, DistributionManager.NORMAL_DM_TYPE);
+          new RemoteTransportConfig(config, ClusterDistributionManager.NORMAL_DM_TYPE);
 
       // start the first membership manager
       DistributedMembershipListener listener1 = mock(DistributedMembershipListener.class);
       DMStats stats1 = mock(DMStats.class);
-      m1 = MemberFactory.newMembershipManager(listener1, config, transport, stats1);
+      m1 = MemberFactory.newMembershipManager(listener1, config, transport, stats1,
+          SecurityServiceFactory.create());
 
       // hook up the locator to the membership manager
       ((InternalLocator) l).getLocatorHandler().setMembershipManager(m1);
 
-      GMSLocator l2 = new GMSLocator(SocketCreator.getLocalHost(), new File("l2.dat"),
+      GMSLocator l2 = new GMSLocator(SocketCreator.getLocalHost(),
           m1.getLocalMember().getHost() + "[" + port + "]", true, true, new LocatorStats(), "");
+      l2.setViewFile(new File("l2.dat"));
       l2.init(null);
 
       assertTrue("expected view to contain " + m1.getLocalMember() + ": " + l2.getMembers(),
           l2.getMembers().contains(m1.getLocalMember()));
     } finally {
       if (m1 != null) {
-        m1.shutdown();
+        m1.disconnect(false);
       }
       if (l != null) {
         l.stop();
       }
     }
   }
-}
 
+  @Test
+  public void testViewFileFoundWhenUserDirModified() throws Exception {
+    NetView view = new NetView();
+    populateStateFile(this.tempStateFile, GMSLocator.LOCATOR_FILE_STAMP, Version.CURRENT_ORDINAL,
+        view);
+
+    String userDir = System.getProperty("user.dir");
+    try {
+      File dir = new File("testViewFileFoundWhenUserDirModified");
+      dir.mkdir();
+      System.setProperty("user.dir", dir.getAbsolutePath());
+      File viewFileInNewDirectory = new File(tempStateFile.getName());
+      // GEODE-4180 - file in parent dir still seen with relative path
+      assertTrue(viewFileInNewDirectory.exists());
+      File locatorViewFile = locator.setViewFile(viewFileInNewDirectory);
+      assertFalse(locator.recoverFromFile(locatorViewFile));
+    } finally {
+      System.setProperty("user.dir", userDir);
+    }
+  }
+
+
+}

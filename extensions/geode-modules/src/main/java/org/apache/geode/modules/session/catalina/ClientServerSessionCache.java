@@ -14,6 +14,12 @@
  */
 package org.apache.geode.modules.session.catalina;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import javax.servlet.http.HttpSession;
+
 import org.apache.geode.cache.GemFireCache;
 import org.apache.geode.cache.InterestResultPolicy;
 import org.apache.geode.cache.Region;
@@ -35,11 +41,6 @@ import org.apache.geode.modules.util.RegionStatus;
 import org.apache.geode.modules.util.SessionCustomExpiry;
 import org.apache.geode.modules.util.TouchPartitionedRegionEntriesFunction;
 import org.apache.geode.modules.util.TouchReplicatedRegionEntriesFunction;
-
-import javax.servlet.http.HttpSession;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 public class ClientServerSessionCache extends AbstractSessionCache {
 
@@ -99,8 +100,7 @@ public class ClientServerSessionCache extends AbstractSessionCache {
       // Execute the partitioned touch function on the primary server(s)
       Execution execution = FunctionService.onRegion(getSessionRegion()).withFilter(sessionIds);
       try {
-        ResultCollector collector =
-            execution.execute(TouchPartitionedRegionEntriesFunction.ID, true, false, true);
+        ResultCollector collector = execution.execute(TouchPartitionedRegionEntriesFunction.ID);
         collector.getResult();
       } catch (Exception e) {
         // If an exception occurs in the function, log it.
@@ -111,8 +111,7 @@ public class ClientServerSessionCache extends AbstractSessionCache {
       Execution execution = FunctionService.onServers(getCache())
           .setArguments(new Object[] {this.sessionRegion.getFullPath(), sessionIds});
       try {
-        ResultCollector collector =
-            execution.execute(TouchReplicatedRegionEntriesFunction.ID, true, false, false);
+        ResultCollector collector = execution.execute(TouchReplicatedRegionEntriesFunction.ID);
         collector.getResult();
       } catch (Exception e) {
         // If an exception occurs in the function, log it.
@@ -144,7 +143,7 @@ public class ClientServerSessionCache extends AbstractSessionCache {
 
     // Execute the function on the session region
     Execution execution = FunctionService.onRegion(getSessionRegion()).withFilter(filters);
-    ResultCollector collector = execution.execute(RegionSizeFunction.ID, true, true, true);
+    ResultCollector collector = execution.execute(RegionSizeFunction.ID);
     List<Integer> result = (List<Integer>) collector.getResult();
 
     // Return the first (and only) element

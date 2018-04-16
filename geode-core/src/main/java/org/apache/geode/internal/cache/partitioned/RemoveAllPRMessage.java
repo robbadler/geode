@@ -34,7 +34,7 @@ import org.apache.geode.cache.Operation;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.client.PoolFactory;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DirectReplyProcessor;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -173,7 +173,7 @@ public class RemoveAllPRMessage extends PartitionMessageWithDirectReply {
 
   /**
    * Sends a PartitionedRegion RemoveAllPRMessage to the recipient
-   * 
+   *
    * @param recipient the member to which the message is sent
    * @param r the PartitionedRegion for which the op was performed
    * @return the processor used to await acknowledgement that the op was sent, or null to indicate
@@ -307,7 +307,7 @@ public class RemoveAllPRMessage extends PartitionMessageWithDirectReply {
    * indefinitely for the acknowledgement
    */
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion r,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion r,
       long startTime) throws EntryExistsException, ForceReattemptException, DataLocationException {
     boolean sendReply = true;
 
@@ -350,7 +350,7 @@ public class RemoveAllPRMessage extends PartitionMessageWithDirectReply {
    * sendMsgByBucket() when processing a msg targeted to local Jvm. PartitionedRegion Note: It is
    * very important that this message does NOT cause any deadlocks as the sender will wait
    * indefinitely for the acknowledgment
-   * 
+   *
    * @param r partitioned region
    * @param eventSender the endpoint server who received request from client
    * @param cacheWrite if true invoke cacheWriter before desrtoy
@@ -469,6 +469,14 @@ public class RemoveAllPRMessage extends PartitionMessageWithDirectReply {
                   }
                 } catch (EntryNotFoundException ignore) {
                   didRemove = true;
+                  if (ev.isPossibleDuplicate() && ev.hasValidVersionTag()) {
+                    op.addEntry(ev);
+                    if (logger.isDebugEnabled()) {
+                      logger.debug(
+                          "RemoveAllPRMessage.doLocalRemoveAll:notify client and gateway for not-found-entry:"
+                              + ev);
+                    }
+                  }
                   if (ev.getVersionTag() == null) {
                     if (logger.isDebugEnabled()) {
                       logger.debug(
@@ -615,8 +623,8 @@ public class RemoveAllPRMessage extends PartitionMessageWithDirectReply {
 
   // override reply message type from PartitionMessage
   @Override
-  protected void sendReply(InternalDistributedMember member, int procId, DM dm, ReplyException ex,
-      PartitionedRegion pr, long startTime) {
+  protected void sendReply(InternalDistributedMember member, int procId, DistributionManager dm,
+      ReplyException ex, PartitionedRegion pr, long startTime) {
     if (pr != null) {
       if (startTime > 0) {
         pr.getPrStats().endPartitionMessagesProcessing(startTime);
@@ -658,7 +666,7 @@ public class RemoveAllPRMessage extends PartitionMessageWithDirectReply {
   }
 
   @Override
-  protected boolean mayAddToMultipleSerialGateways(DistributionManager dm) {
+  protected boolean mayAddToMultipleSerialGateways(ClusterDistributionManager dm) {
     return _mayAddToMultipleSerialGateways(dm);
   }
 
@@ -697,16 +705,16 @@ public class RemoveAllPRMessage extends PartitionMessageWithDirectReply {
 
     /**
      * Processes this message. This method is invoked by the receiver of the message.
-     * 
+     *
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    public void process(final DM dm, final ReplyProcessor21 rp) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 rp) {
       final long startTime = getTimestamp();
 
       if (rp == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "{}: processor not found", this);
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "{}: processor not found", this);
         }
         return;
       }
@@ -716,8 +724,8 @@ public class RemoveAllPRMessage extends PartitionMessageWithDirectReply {
       }
       rp.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} Processed {}", rp, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} Processed {}", rp, this);
       }
       dm.getStats().incReplyMessageTime(NanoTimer.getTime() - startTime);
     }
@@ -754,7 +762,7 @@ public class RemoveAllPRMessage extends PartitionMessageWithDirectReply {
 
   /**
    * A processor to capture the value returned by {@link RemoveAllPRMessage}
-   * 
+   *
    * @since GemFire 8.1
    */
   public static class RemoveAllResponse extends PartitionResponse {
@@ -780,11 +788,7 @@ public class RemoveAllPRMessage extends PartitionMessageWithDirectReply {
      * @throws CacheException if the peer generates an error
      */
     public RemoveAllResult waitForResult() throws CacheException, ForceReattemptException {
-      try {
-        waitForCacheException();
-      } catch (ForceReattemptException e) {
-        throw e;
-      }
+      waitForCacheException();
       return new RemoveAllResult(this.returnValue, this.versions);
     }
   }

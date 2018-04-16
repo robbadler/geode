@@ -17,6 +17,7 @@ package org.apache.geode.pdx.internal;
 import static java.lang.Integer.*;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.logging.log4j.Logger;
@@ -64,6 +65,9 @@ public class TypeRegistry {
   private final TypeRegistration distributedTypeRegistry;
 
   private final InternalCache cache;
+
+  private final ThreadLocal<Boolean> pdxReadSerializedOverride =
+      ThreadLocal.withInitial(() -> Boolean.FALSE);
 
   public TypeRegistry(InternalCache cache, boolean disableTypeRegistry) {
     this.cache = cache;
@@ -250,9 +254,9 @@ public class TypeRegistry {
 
   /**
    * Test hook that returns the most recently allocated type id
-   * 
+   *
    * Note that this method will not work on clients.
-   * 
+   *
    * @return the most recently allocated type id
    */
   public int getLastAllocatedTypeId() {
@@ -467,7 +471,7 @@ public class TypeRegistry {
 
   /**
    * Returns the currently defined types.
-   * 
+   *
    * @return the types
    */
   public Map<Integer, PdxType> typeMap() {
@@ -476,7 +480,7 @@ public class TypeRegistry {
 
   /**
    * Returns the currently defined enums.
-   * 
+   *
    * @return the enums
    */
   public Map<Integer, EnumInfo> enumMap() {
@@ -485,14 +489,21 @@ public class TypeRegistry {
 
   /**
    * searches a field in different versions (PdxTypes) of a class in the distributed type registry
-   * 
+   *
    * @param fieldName the field to look for in the PdxTypes
    * @param className the PdxTypes for this class would be searched
    * @return PdxType having the field or null if not found
-   * 
    */
-  PdxType getPdxTypeForField(String fieldName, String className) {
+  public PdxType getPdxTypeForField(String fieldName, String className) {
     return this.distributedTypeRegistry.getPdxTypeForField(fieldName, className);
+  }
+
+  /**
+   * Returns all the PdxTypes for the given class name.
+   * An empty set will be returned if no types exist.
+   */
+  public Set<PdxType> getPdxTypesForClassName(String className) {
+    return this.distributedTypeRegistry.getPdxTypesForClassName(className);
   }
 
   public void addImportedType(int typeId, PdxType importedType) {
@@ -532,5 +543,13 @@ public class TypeRegistry {
       return this.idToType.size();
     }
     return result;
+  }
+
+  public Boolean getPdxReadSerializedOverride() {
+    return pdxReadSerializedOverride.get();
+  }
+
+  public void setPdxReadSerializedOverride(boolean overridePdxReadSerialized) {
+    pdxReadSerializedOverride.set(overridePdxReadSerialized);
   }
 }

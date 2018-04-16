@@ -64,18 +64,21 @@ public class DerivedInfo {
     return remainingOps;
   }
 
-  public void addDerivedResults(IndexInfo indexInfo, SelectResults sr) {
+  public void addDerivedResults(IndexInfo indexInfo, SelectResults selectResults) {
     IndexProtocol index = indexInfo._index;
     String key = QueryUtils.getCompiledIdFromPath(indexInfo._path).getId() + ":"
         + index.getCanonicalizedIteratorDefinitions()[0];
-    // String key = index.getCanonicalizedIteratorDefinitions()[0];
     if (derivedResults.containsKey(key)) {
-      derivedResults.get(key).addAll(sr);
+      for (Object result : selectResults) {
+        if (!derivedResults.get(key).contains(result)) {
+          derivedResults.get(key).add(result);
+        }
+      }
     } else {
-      derivedResults.put(key, sr);
+      derivedResults.put(key, selectResults);
     }
-    newDerivatives
-        .add(new Object[] {QueryUtils.getCompiledIdFromPath(indexInfo._path).getId(), sr});
+    newDerivatives.add(
+        new Object[] {QueryUtils.getCompiledIdFromPath(indexInfo._path).getId(), selectResults});
     successfulOps.add(currentOp);
   }
 
@@ -273,13 +276,13 @@ public class DerivedInfo {
   /*
    * private void createObjectResultsFromStructResults(IndexInfo indexInfo, SelectResults sr) {
    * Iterator srIterator = sr.iterator(); SelectResults[] newSrs = null;
-   * 
+   *
    * while (srIterator.hasNext()) { Struct struct = (Struct) srIterator.next(); Object[] fieldValues
    * = struct.getFieldValues(); int structLength = struct.getFieldValues().length; if (newSrs ==
    * null) { newSrs = new FakeSelectResults[structLength]; for (int x = 0; x < structLength; x++) {
    * newSrs[x] = new FakeSelectResults(); } } for (int i = 0; i < structLength; i++) {
    * newSrs[i].add(fieldValues[i]); } }
-   * 
+   *
    * if (newSrs != null) { this.addDerivedResults(indexInfo, newSrs); } }
    */
 

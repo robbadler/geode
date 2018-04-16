@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.Set;
 
 import org.apache.geode.distributed.internal.DirectReplyProcessor;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.DirectReplyMessage;
@@ -30,10 +31,10 @@ import org.apache.geode.internal.cache.PartitionedRegion;
 /**
  * Used for partitioned region messages which support direct ack responses. Direct ack should be
  * used for message with a response from a single member, or responses which are small.
- * 
+ *
  * Messages that extend this class *must* reply using the ReplySender returned by
- * {@link DistributionMessage#getReplySender(org.apache.geode.distributed.internal.DM)}
- * 
+ * {@link DistributionMessage#getReplySender(DistributionManager)}
+ *
  * Additionally, if the ReplyProcessor used for this message extends PartitionResponse, it should
  * pass false for the register parameter of the PartitionResponse.
  *
@@ -69,9 +70,6 @@ public abstract class PartitionMessageWithDirectReply extends PartitionMessage
     this.processor = processor;
   }
 
-  /**
-   * @param original
-   */
   public PartitionMessageWithDirectReply(PartitionMessageWithDirectReply original,
       EntryEventImpl event) {
     super(original);

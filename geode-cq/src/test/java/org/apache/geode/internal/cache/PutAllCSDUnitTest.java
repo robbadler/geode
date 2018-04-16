@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -30,9 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.geode.test.junit.categories.ClientServerTest;
-import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
+import org.awaitility.Awaitility;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -77,6 +78,7 @@ import org.apache.geode.cache.util.CacheListenerAdapter;
 import org.apache.geode.cache.util.CacheWriterAdapter;
 import org.apache.geode.cache30.CacheSerializableRunnable;
 import org.apache.geode.cache30.ClientServerTestCase;
+import org.apache.geode.internal.cache.tier.sockets.VersionedObjectList;
 import org.apache.geode.internal.cache.versions.VersionTag;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.test.dunit.Assert;
@@ -92,12 +94,14 @@ import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
+import org.apache.geode.test.junit.categories.ClientServerTest;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
 
 /**
  * Tests putAll for c/s. Also tests removeAll
- * 
+ *
  * @since GemFire 5.0.23
  */
 @Category({DistributedTest.class, ClientServerTest.class, ClientSubscriptionTest.class})
@@ -372,7 +376,7 @@ public class PutAllCSDUnitTest extends ClientServerTestCase {
      * ads = AdminDistributedSystemFactory.getDistributedSystem(config); ads.connect();
      * DistributedMember distributedMember = system.getDistributedMember(); SystemMember member =
      * ads.lookupSystemMember(distributedMember);
-     * 
+     *
      * StatisticResource[] resources = member.getStats(); for (int i=0; i<resources.length; i++) {
      * System.out.println("GGG:"+resources[i].getType()); if
      * (resources[i].getType().equals("CacheServerClientStats")) { Statistic[] stats =
@@ -496,6 +500,82 @@ public class PutAllCSDUnitTest extends ClientServerTestCase {
     });
 
     // Stop server
+    stopBridgeServers(getCache());
+  }
+
+  /**
+   * Create PR without redundancy on 2 servers with lucene index. Feed some key s. From a client, do
+   * removeAll on keys in server1. During the removeAll, restart server1 and trigger the removeAll
+   * to retry. The retried removeAll should return the version tag of tombstones. Do removeAll again
+   * on the same key, it should get the version tag again.
+   */
+  @Test
+  public void shouldReturnVersionTagOfTombstoneVersionWhenRemoveAllRetried()
+      throws CacheException, InterruptedException {
+    final String title = "test51871:";
+
+    final Host host = Host.getHost(0);
+    VM server1 = host.getVM(0);
+    VM server2 = host.getVM(1);
+    VM client1 = host.getVM(2);
+    VM client2 = host.getVM(3);
+    final String regionName = getUniqueName();
+
+    final String serverHost = NetworkUtils.getServerHostName(server1.getHost());
+
+    // set notifyBySubscription=false to test local-invalidates
+    final int serverPort1 = createBridgeServer(server1, regionName, 0, true, 0, "ds1");
+    createBridgeClient(client1, regionName, serverHost, new int[] {serverPort1}, -1, -1, true);
+
+    client1.invoke(new CacheSerializableRunnable(title + "client1 add listener and putAll") {
+      @Override
+      public void run2() throws CacheException {
+        Region region = getRootRegion().getSubregion(regionName);
+        region.getAttributesMutator().addCacheListener(new MyListener(false));
+        doPutAll(regionName, "key-", numberOfEntries);
+        assertEquals(numberOfEntries, region.size());
+      }
+    });
+
+    // verify bridge server 1, its data are from client
+    server1.invoke(new CacheSerializableRunnable(title + "verify Bridge Server 1") {
+      @Override
+      public void run2() throws CacheException {
+        Region region = getRootRegion().getSubregion(regionName);
+        assertEquals(numberOfEntries, region.size());
+      }
+    });
+
+    @SuppressWarnings("unchecked")
+    VersionedObjectList versions =
+        (VersionedObjectList) client1.invoke(new SerializableCallable(title + "client1 removeAll") {
+          @Override
+          public Object call() throws CacheException {
+            Region region = getRootRegion().getSubregion(regionName);
+            VersionedObjectList versions = doRemoveAll(regionName, "key-", numberOfEntries);
+            assertEquals(0, region.size());
+            return versions;
+          }
+        });
+
+    @SuppressWarnings("unchecked")
+    VersionedObjectList versionsAfterRetry = (VersionedObjectList) client1
+        .invoke(new SerializableCallable(title + "client1 removeAll again") {
+          @Override
+          public Object call() throws CacheException {
+            Region region = getRootRegion().getSubregion(regionName);
+            VersionedObjectList versions = doRemoveAll(regionName, "key-", numberOfEntries);
+            assertEquals(0, region.size());
+            return versions;
+          }
+        });
+
+    LogWriterUtils.getLogWriter().info("Version tags are:" + versions.getVersionTags() + ":"
+        + versionsAfterRetry.getVersionTags());
+    assertEquals(versionsAfterRetry.getVersionTags(), versions.getVersionTags());
+
+    // clean up
+    // Stop serverß
     stopBridgeServers(getCache());
   }
 
@@ -2894,8 +2974,10 @@ public class PutAllCSDUnitTest extends ClientServerTestCase {
       }
     });
 
-    LogWriterUtils.getLogWriter().info("event counters : " + myListener.sc);
-    assertEquals(numberOfEntries, myListener.sc.num_create_event);
+    LogWriterUtils.getLogWriter().info("event counters before wait : " + myListener.sc);
+    Awaitility.await().atMost(10, TimeUnit.SECONDS)
+        .until(() -> assertEquals(numberOfEntries, myListener.sc.num_create_event));
+    LogWriterUtils.getLogWriter().info("event counters after wait : " + myListener.sc);
     assertEquals(0, myListener.sc.num_update_event);
 
     server1.invoke(removeExceptionTag1(expectedExceptions));
@@ -4092,14 +4174,21 @@ public class PutAllCSDUnitTest extends ClientServerTestCase {
     return region;
   }
 
-  protected Region doRemoveAll(String regionName, String keyStub, int numEntries) {
+  protected VersionedObjectList doRemoveAll(String regionName, String keyStub, int numEntries) {
     Region region = getRootRegion().getSubregion(regionName);
     ArrayList<String> keys = new ArrayList<String>();
     for (int i = 0; i < numEntries; i++) {
       keys.add(keyStub + i);
     }
-    region.removeAll(keys, "removeAllCallback");
-    return region;
+    // region.removeAll(keys, "removeAllCallback");
+    LocalRegion lr = (LocalRegion) region;
+    final EntryEventImpl event = EntryEventImpl.create(lr, Operation.REMOVEALL_DESTROY, null, null,
+        "removeAllCallback", false, lr.getMyId());
+    event.disallowOffHeapValues();
+    DistributedRemoveAllOperation removeAllOp =
+        new DistributedRemoveAllOperation(event, keys.size(), false);
+    VersionedObjectList versions = lr.basicRemoveAll((Collection) keys, removeAllOp, null);
+    return versions;
   }
 
   public static void waitTillNotify(Object lock_object, int waitTime, boolean ready) {
@@ -4408,7 +4497,7 @@ public class PutAllCSDUnitTest extends ClientServerTestCase {
     public void afterInvalidate(EntryEvent event) {
       sc.num_invalidate_event++;
       LogWriterUtils.getLogWriter().info("local invalidate is triggered for " + event.getKey()
-          + ":num_invalidte_event=" + sc.num_invalidate_event);
+          + ":num_invalidate_event=" + sc.num_invalidate_event);
     }
 
     @Override
@@ -4418,7 +4507,7 @@ public class PutAllCSDUnitTest extends ClientServerTestCase {
         assertEquals("removeAllCallback", event.getCallbackArgument());
       }
       LogWriterUtils.getLogWriter().info("local destroy is triggered for " + event.getKey()
-          + ":num_invalidte_event=" + sc.num_destroy_event);
+          + ":num_destroy_event=" + sc.num_destroy_event);
     }
   }
 

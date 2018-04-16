@@ -14,13 +14,13 @@
  */
 package org.apache.geode.distributed.internal;
 
-import org.apache.geode.DataSerializer;
-import org.apache.geode.internal.Assert;
-import org.apache.geode.internal.Version;
-
 import java.io.*;
 import java.text.*;
 import java.util.*;
+
+import org.apache.geode.DataSerializer;
+import org.apache.geode.internal.Assert;
+import org.apache.geode.internal.Version;
 
 /**
  * This message simply contains a date
@@ -54,7 +54,7 @@ public class DateMessage extends SerialDistributionMessage {
   /**
    * Just prints out the date
    */
-  public void process(DistributionManager dm) {
+  public void process(ClusterDistributionManager dm) {
     // Make sure that message state is what we expect
     Assert.assertTrue(this.date != null);
 

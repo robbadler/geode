@@ -18,20 +18,21 @@ package org.apache.geode.cache.lucene.internal.results;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
+import java.io.IOException;
+import java.util.Arrays;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.internal.ByteArrayDataInput;
 import org.apache.geode.internal.HeapDataOutputStream;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.cache.CachedDeserializable;
 import org.apache.geode.internal.cache.PreferBytesCachedDeserializable;
-import org.apache.geode.internal.util.BlobHelper;
+import org.apache.geode.test.junit.categories.LuceneTest;
 import org.apache.geode.test.junit.categories.UnitTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
-import java.io.IOException;
-import java.util.Arrays;
-
-@Category(UnitTest.class)
+@Category({UnitTest.class, LuceneTest.class})
 public class PageEntryJUnitTest {
 
   @Test

@@ -31,8 +31,8 @@ import org.apache.geode.management.ManagementException;
 /**
  * This class acts as a central point hub for collecting all notifications originated from VM and
  * sending across to Managing Node
- * 
- * 
+ *
+ *
  */
 public class NotificationHub {
 
@@ -59,7 +59,7 @@ public class NotificationHub {
 
   /**
    * public constructor
-   * 
+   *
    * @param repo Resource repo for this member
    */
   public NotificationHub(ManagementResourceRepo repo) {
@@ -74,8 +74,7 @@ public class NotificationHub {
 
   /**
    * Adds a NotificationHubListener
-   * 
-   * @param objectName
+   *
    */
   public void addHubNotificationListener(String memberName, ObjectName objectName) {
 
@@ -99,8 +98,7 @@ public class NotificationHub {
 
   /**
    * Removes a NotificationHubListener
-   * 
-   * @param objectName
+   *
    */
   public void removeHubNotificationListener(String memberName, ObjectName objectName) {
     try {
@@ -157,8 +155,8 @@ public class NotificationHub {
   /**
    * This class is the managed node counterpart to listen to notifications from MBeans for which it
    * is resistered
-   * 
-   * 
+   *
+   *
    */
   public class NotificationHubListener implements NotificationListener {
     /**

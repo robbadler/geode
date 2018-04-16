@@ -23,26 +23,6 @@ import static org.apache.geode.management.internal.cli.commands.ExportLogsComman
 import static org.apache.geode.management.internal.cli.commands.ExportLogsCommand.ONLY_DATE_FORMAT;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.geode.cache.Cache;
-import org.apache.geode.distributed.ConfigurationProperties;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
-import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.management.internal.cli.functions.ExportLogsFunction;
-import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
-import org.apache.geode.management.internal.configuration.utils.ZipUtils;
-import org.apache.geode.test.dunit.IgnoredException;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
-import org.apache.geode.test.dunit.rules.Member;
-import org.apache.geode.test.dunit.rules.MemberVM;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.logging.log4j.Logger;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
@@ -59,15 +39,36 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.logging.log4j.Logger;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.cache.Cache;
+import org.apache.geode.distributed.ConfigurationProperties;
+import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.management.internal.cli.functions.ExportLogsFunction;
+import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
+import org.apache.geode.management.internal.configuration.utils.ZipUtils;
+import org.apache.geode.test.dunit.IgnoredException;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
+import org.apache.geode.test.dunit.rules.MemberVM;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
+import org.apache.geode.test.junit.rules.Member;
+
 @Category(DistributedTest.class)
 public class ExportLogsDUnitTest {
   private static final String ERROR_LOG_PREFIX = "[IGNORE]";
 
   @Rule
-  public LocatorServerStartupRule lsRule = new LocatorServerStartupRule();
+  public ClusterStartupRule lsRule = new ClusterStartupRule().withLogFile();
 
   @Rule
-  public GfshShellConnectionRule gfshConnector = new GfshShellConnectionRule();
+  public GfshCommandRule gfshConnector = new GfshCommandRule();
 
   private MemberVM locator;
   private MemberVM server1;
@@ -118,7 +119,7 @@ public class ExportLogsDUnitTest {
     commandStringBuilder.addOption("end-time", dateTimeFormatter.format(tomorrow));
     commandStringBuilder.addOption("log-level", "debug");
 
-    gfshConnector.executeAndVerifyCommand(commandStringBuilder.toString());
+    gfshConnector.executeAndAssertThat(commandStringBuilder.toString()).statusIsSuccess();
 
     Set<String> acceptedLogLevels = Stream.of("info", "error", "debug").collect(toSet());
     verifyZipFileContents(acceptedLogLevels);
@@ -144,7 +145,7 @@ public class ExportLogsDUnitTest {
     commandStringBuilder.addOption("end-time", cutoffTimeString);
     commandStringBuilder.addOption("log-level", "debug");
 
-    gfshConnector.executeAndVerifyCommand(commandStringBuilder.toString());
+    gfshConnector.executeAndAssertThat(commandStringBuilder.toString()).statusIsSuccess();
 
     expectedMessages.get(server1).add(logLineAfterCutoffTime);
     Set<String> acceptedLogLevels = Stream.of("info", "error", "debug").collect(toSet());
@@ -154,7 +155,8 @@ public class ExportLogsDUnitTest {
   @Test
   public void testExportWithThresholdLogLevelFilter() throws Exception {
 
-    gfshConnector.executeAndVerifyCommand("export logs --log-level=info --only-log-level=false");
+    gfshConnector.executeAndAssertThat("export logs --log-level=info --only-log-level=false")
+        .statusIsSuccess();
 
     Set<String> acceptedLogLevels = Stream.of("info", "error").collect(toSet());
     verifyZipFileContents(acceptedLogLevels);
@@ -163,21 +165,22 @@ public class ExportLogsDUnitTest {
 
   @Test
   public void testExportWithExactLogLevelFilter() throws Exception {
-    gfshConnector.executeAndVerifyCommand("export logs --log-level=info --only-log-level=true");
+    gfshConnector.executeAndAssertThat("export logs --log-level=info --only-log-level=true")
+        .statusIsSuccess();
     Set<String> acceptedLogLevels = Stream.of("info").collect(toSet());
     verifyZipFileContents(acceptedLogLevels);
   }
 
   @Test
   public void testExportWithNoOptionsGiven() throws Exception {
-    gfshConnector.executeAndVerifyCommand("export logs");
+    gfshConnector.executeAndAssertThat("export logs").statusIsSuccess();
     Set<String> acceptedLogLevels = Stream.of("info", "error", "debug").collect(toSet());
     verifyZipFileContents(acceptedLogLevels);
   }
 
   @Test
   public void testExportWithNoFilters() throws Exception {
-    gfshConnector.executeAndVerifyCommand("export logs --log-level=all");
+    gfshConnector.executeAndAssertThat("export logs --log-level=all").statusIsSuccess();
 
     Set<String> acceptedLogLevels = Stream.of("info", "error", "debug").collect(toSet());
     verifyZipFileContents(acceptedLogLevels);
@@ -250,7 +253,6 @@ public class ExportLogsDUnitTest {
 
     File logFileForMember = new File(dirForMember, memberName + ".log");
     assertThat(logFileForMember).exists();
-    assertThat(fileNamesInDir).hasSize(1);
 
     String logFileContents = FileUtils.readLines(logFileForMember, Charset.defaultCharset())
         .stream().collect(joining("\n"));
@@ -280,7 +282,7 @@ public class ExportLogsDUnitTest {
         .describedAs(filesInDir.stream().map(File::getAbsolutePath).collect(joining(",")))
         .hasSize(1);
 
-    File unzippedLogFileDir = lsRule.getTempFolder().newFolder("unzippedLogs");
+    File unzippedLogFileDir = new File(locatorWorkingDir, "unzippedLogs");
     ZipUtils.unzip(zipFilesInDir.get(0).getCanonicalPath(), unzippedLogFileDir.getCanonicalPath());
     return unzippedLogFileDir;
   }

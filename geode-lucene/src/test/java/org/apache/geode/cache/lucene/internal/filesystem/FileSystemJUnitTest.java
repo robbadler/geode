@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -14,8 +14,15 @@
  */
 package org.apache.geode.cache.lucene.internal.filesystem;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -23,10 +30,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,16 +39,17 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import org.apache.geode.cache.CacheClosedException;
+import org.apache.geode.test.junit.categories.LuceneTest;
 import org.apache.geode.test.junit.categories.UnitTest;
-import org.apache.geode.test.junit.rules.DiskDirRule;
 
-@Category(UnitTest.class)
+@Category({UnitTest.class, LuceneTest.class})
 public class FileSystemJUnitTest {
 
   private static final int SMALL_CHUNK = 523;
@@ -53,9 +58,8 @@ public class FileSystemJUnitTest {
   private FileSystem system;
   private Random rand = new Random();
   private ConcurrentHashMap fileAndChunkRegion;
-
   @Rule
-  public DiskDirRule dirRule = new DiskDirRule();
+  public TemporaryFolder tempFolderRule = new TemporaryFolder();
   private FileSystemStats fileSystemStats;
 
   @Before
@@ -417,8 +421,8 @@ public class FileSystemJUnitTest {
     File file2 = system.createFile(name2);
     byte[] file2Data = writeRandomBytes(file2);
 
-    java.io.File parentDir = dirRule.get();
-    system.export(dirRule.get());
+    java.io.File parentDir = tempFolderRule.getRoot();
+    system.export(parentDir);
     String[] foundFiles = parentDir.list();
     Arrays.sort(foundFiles);
     assertArrayEquals(new String[] {"testFile1", "testFile2"}, foundFiles);
@@ -551,7 +555,7 @@ public class FileSystemJUnitTest {
    *
    * This is essentially like Mockito.spy(), except that it allows the implementation of a default
    * answer for all operations.
-   * 
+   *
    * To use, do this Mockito.mock(Interface, new SpyWrapper(Answer, o)
    */
   private static class SpyWrapper implements Answer<Object> {

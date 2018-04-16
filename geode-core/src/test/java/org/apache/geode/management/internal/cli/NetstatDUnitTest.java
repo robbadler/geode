@@ -15,105 +15,85 @@
 
 package org.apache.geode.management.internal.cli;
 
-import org.apache.geode.internal.AvailablePortHelper;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
-import org.apache.geode.test.dunit.rules.MemberVM;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.FlakyTest;
-import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.util.Properties;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
+import org.apache.geode.test.dunit.rules.MemberVM;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 
 @Category(DistributedTest.class)
 public class NetstatDUnitTest {
   @ClassRule
-  public static LocatorServerStartupRule lsRule = new LocatorServerStartupRule();
+  public static ClusterStartupRule lsRule = new ClusterStartupRule();
 
-  @ClassRule
-  public static GfshShellConnectionRule gfshConnector = new GfshShellConnectionRule();
-
-  private static int[] ports = AvailablePortHelper.getRandomAvailableTCPPorts(3);
+  @Rule
+  public GfshCommandRule gfshConnector = new GfshCommandRule();
 
   private static String netStatCommand = null;
   private static String netStatLsofCommand = null;
 
+  private static MemberVM server0, server1;
+
   @BeforeClass
   public static void beforeClass() throws Exception {
-    Properties properties = new Properties();
-    // common properties
-    properties.setProperty("locators", "localhost[" + ports[0] + "]");
-    properties.setProperty("http-service-port", "0");
-
-    // start peer locator
-    properties.setProperty("start-locator", "localhost[" + ports[0] + "],peer=true,server=true");
-    properties.setProperty("jmx-manager-port", ports[1] + "");
-    lsRule.startServerVM(0, properties);
+    server0 = lsRule.startServerVM(0, x -> x.withJMXManager().withEmbeddedLocator());
+    int locatorPort = server0.getEmbeddedLocatorPort();
 
     // start server with jmx Manager as well
-    properties.remove("start-locator");
-    properties.setProperty("jmx-manager-port", ports[2] + "");
-    MemberVM server = lsRule.startServerVM(1, properties);
+    server1 = lsRule.startServerVM(1, x -> x.withJMXManager().withConnectionToLocator(locatorPort));
 
     // start server with no jmx Manager
-    properties.setProperty("jmx-manager", "false");
-    properties.setProperty("jmx-manager-port", "0");
-    properties.setProperty("jmx-manager-start", "false");
-    lsRule.startServerVM(2, properties);
+    lsRule.startServerVM(2, locatorPort);
 
     // start another server
-    lsRule.startServerVM(3, properties);
+    lsRule.startServerVM(3, locatorPort);
 
-    netStatCommand = "netstat --with-lsof=false --member=" + server.getName();
-    netStatLsofCommand = "netstat --with-lsof=true --member=" + server.getName();
+    netStatCommand = "netstat --with-lsof=false --member=" + server1.getName();
+    netStatLsofCommand = "netstat --with-lsof=true --member=" + server1.getName();
   }
 
   @Test
   public void testConnectToLocator() throws Exception {
-    gfshConnector.connect(ports[0], GfshShellConnectionRule.PortType.locator);
-    gfshConnector.executeAndVerifyCommand(netStatCommand);
+    gfshConnector.connect(server0.getEmbeddedLocatorPort(), GfshCommandRule.PortType.locator);
+    gfshConnector.executeAndAssertThat(netStatCommand).statusIsSuccess();
   }
 
   @Test
   public void testConnectToJmxManagerOne() throws Exception {
-    gfshConnector.connect(ports[1], GfshShellConnectionRule.PortType.jmxManger);
-    gfshConnector.executeAndVerifyCommand(netStatCommand);
+    gfshConnector.connect(server0.getJmxPort(), GfshCommandRule.PortType.jmxManager);
+    gfshConnector.executeAndAssertThat(netStatCommand).statusIsSuccess();
   }
 
   @Test
   public void testConnectToJmxManagerTwo() throws Exception {
-    gfshConnector.connect(ports[2], GfshShellConnectionRule.PortType.jmxManger);
-    gfshConnector.executeAndVerifyCommand(netStatCommand);
+    gfshConnector.connect(server1.getJmxPort(), GfshCommandRule.PortType.jmxManager);
+    gfshConnector.executeAndAssertThat(netStatCommand).statusIsSuccess();
   }
 
   @Ignore("GEODE-2488")
   @Test
   public void testConnectToLocatorWithLargeCommandResponse() throws Exception {
-    gfshConnector.connect(ports[0], GfshShellConnectionRule.PortType.locator);
-    gfshConnector.executeAndVerifyCommand(netStatLsofCommand);
+    gfshConnector.connect(server0.getEmbeddedLocatorPort(), GfshCommandRule.PortType.locator);
+    gfshConnector.executeAndAssertThat(netStatLsofCommand).statusIsSuccess();
   }
 
   @Ignore("GEODE-2488")
   @Test
   public void testConnectToJmxManagerOneWithLargeCommandResponse() throws Exception {
-    gfshConnector.connect(ports[1], GfshShellConnectionRule.PortType.jmxManger);
-    gfshConnector.executeAndVerifyCommand(netStatLsofCommand);
+    gfshConnector.connect(server0.getJmxPort(), GfshCommandRule.PortType.jmxManager);
+    gfshConnector.executeAndAssertThat(netStatLsofCommand).statusIsSuccess();
   }
 
   @Ignore("GEODE-2488")
   @Test
   public void testConnectToJmxManagerTwoWithLargeCommandResponse() throws Exception {
-    gfshConnector.connect(ports[2], GfshShellConnectionRule.PortType.jmxManger);
-    gfshConnector.executeAndVerifyCommand(netStatLsofCommand);
-  }
-
-  @After
-  public void after() throws Exception {
-    gfshConnector.disconnect();
+    gfshConnector.connect(server1.getJmxPort(), GfshCommandRule.PortType.jmxManager);
+    gfshConnector.executeAndAssertThat(netStatLsofCommand).statusIsSuccess();
   }
 }

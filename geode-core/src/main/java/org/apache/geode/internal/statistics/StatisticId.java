@@ -23,14 +23,14 @@ import org.apache.geode.Statistics;
  * A StatisticsType contains any number of StatisticDescriptors. A StatisticsType may describe one
  * or more Statistics instances, while a StatisticDescriptor may describe one or more StatisticId
  * instances.
- * 
+ *
  * @since GemFire 7.0
  */
 public interface StatisticId {
 
   /** Returns the descriptor that this stat is an instance of */
-  public StatisticDescriptor getStatisticDescriptor();
+  StatisticDescriptor getStatisticDescriptor();
 
   /** Returns the statistics instance which owns this stat instance */
-  public Statistics getStatistics();
+  Statistics getStatistics();
 }

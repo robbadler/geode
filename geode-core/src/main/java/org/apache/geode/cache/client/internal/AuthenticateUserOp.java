@@ -13,9 +13,15 @@
  * the License.
  */
 /**
- * 
+ *
  */
 package org.apache.geode.cache.client.internal;
+
+import static org.apache.geode.distributed.ConfigurationProperties.SECURITY_CLIENT_AUTH_INIT;
+
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.util.Properties;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireError;
@@ -29,7 +35,7 @@ import org.apache.geode.internal.HeapDataOutputStream;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.cache.tier.MessageType;
 import org.apache.geode.internal.cache.tier.sockets.ChunkedMessage;
-import org.apache.geode.internal.cache.tier.sockets.HandShake;
+import org.apache.geode.internal.cache.tier.sockets.Handshake;
 import org.apache.geode.internal.cache.tier.sockets.Message;
 import org.apache.geode.internal.cache.tier.sockets.Part;
 import org.apache.geode.internal.cache.tier.sockets.command.PutUserCredentials;
@@ -38,22 +44,16 @@ import org.apache.geode.security.AuthenticationFailedException;
 import org.apache.geode.security.AuthenticationRequiredException;
 import org.apache.geode.security.NotAuthorizedException;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.util.Properties;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-
 /**
  * Authenticates this client (or a user) on a server. This op ideally should get executed
  * once-per-server.
- * 
+ *
  * When multiuser-authentication is set to false, this op gets executed immedialtely after a
  * client-to-server connection is established.
- * 
+ *
  * When multiuser-authentication is set to true, this op gets executed before the user attempts to
  * perform an op whose {@link AbstractOp#needsUserId()} returns true.
- * 
+ *
  * @see PutUserCredentials
  * @see ProxyCache
  * @since GemFire 6.5
@@ -62,7 +62,7 @@ public class AuthenticateUserOp {
 
   /**
    * Sends the auth credentials to the server. Used in single user mode of authentication.
-   * 
+   *
    * @param con The connection to use for this operation.
    * @param pool The connection pool to use for this operation.
    * @return Object unique user-id.
@@ -75,7 +75,7 @@ public class AuthenticateUserOp {
   /**
    * Sends the auth credentials to the server for a particular user. Used in multiple user mode of
    * authentication.
-   * 
+   *
    * @param location The ServerLocation instance whose connection instance will be used to perform
    *        the operation.
    * @param pool The connection pool to use for this operation.
@@ -107,7 +107,7 @@ public class AuthenticateUserOp {
       Properties tmpSecurityProperties = sys.getSecurityProperties();
 
       // LOG: following passes the DS API LogWriters into the security API
-      Properties credentials = HandShake.getCredentials(authInitMethod, tmpSecurityProperties,
+      Properties credentials = Handshake.getCredentials(authInitMethod, tmpSecurityProperties,
           server, false, (InternalLogWriter) sys.getLogWriter(),
           (InternalLogWriter) sys.getSecurityLogWriter());
 
@@ -115,7 +115,7 @@ public class AuthenticateUserOp {
       HeapDataOutputStream heapdos = new HeapDataOutputStream(Version.CURRENT);
       try {
         DataSerializer.writeProperties(credentials, heapdos);
-        credentialBytes = ((ConnectionImpl) con).getHandShake().encryptBytes(heapdos.toByteArray());
+        credentialBytes = ((ConnectionImpl) con).encryptBytes(heapdos.toByteArray());
       } catch (Exception e) {
         throw new ServerOperationException(e);
       } finally {
@@ -149,21 +149,20 @@ public class AuthenticateUserOp {
         DistributedSystem sys = InternalDistributedSystem.getConnectedInstance();
         String authInitMethod = sys.getProperties().getProperty(SECURITY_CLIENT_AUTH_INIT);
 
-        Properties credentials = HandShake.getCredentials(authInitMethod, this.securityProperties,
+        Properties credentials = Handshake.getCredentials(authInitMethod, this.securityProperties,
             server, false, (InternalLogWriter) sys.getLogWriter(),
             (InternalLogWriter) sys.getSecurityLogWriter());
         HeapDataOutputStream heapdos = new HeapDataOutputStream(Version.CURRENT);
         try {
           DataSerializer.writeProperties(credentials, heapdos);
-          credentialBytes =
-              ((ConnectionImpl) cnx).getHandShake().encryptBytes(heapdos.toByteArray());
+          credentialBytes = ((ConnectionImpl) cnx).encryptBytes(heapdos.toByteArray());
         } finally {
           heapdos.close();
         }
         getMessage().addBytesPart(credentialBytes);
       }
       try {
-        secureBytes = ((ConnectionImpl) cnx).getHandShake().encryptBytes(hdos.toByteArray());
+        secureBytes = ((ConnectionImpl) cnx).encryptBytes(hdos.toByteArray());
       } finally {
         hdos.close();
       }
@@ -195,7 +194,7 @@ public class AuthenticateUserOp {
           }
         } else {
           try {
-            msg.recv();
+            msg.receive();
           } finally {
             msg.unsetComms();
             processSecureBytes(cnx, msg);
@@ -218,7 +217,7 @@ public class AuthenticateUserOp {
           cnx.getServer().setRequiresCredentials(false);
         } else {
           cnx.getServer().setRequiresCredentials(true);
-          byte[] decrypted = ((ConnectionImpl) cnx).getHandShake().decryptBytes(bytes);
+          byte[] decrypted = ((ConnectionImpl) cnx).decryptBytes(bytes);
           DataInputStream dis = new DataInputStream(new ByteArrayInputStream(decrypted));
           userId = dis.readLong();
         }
@@ -246,7 +245,6 @@ public class AuthenticateUserOp {
         }
         // Get the exception toString part.
         // This was added for c++ thin client and not used in java
-        // Part exceptionToStringPart = msg.getPart(1);
       } else if (isErrorResponse(msgType)) {
         throw new ServerOperationException(part.getString());
       } else {

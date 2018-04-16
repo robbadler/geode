@@ -20,7 +20,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketAddress;
 import java.net.SocketException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.ClosedChannelException;
@@ -35,6 +34,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
 import javax.net.ssl.SSLException;
 
 import org.apache.logging.log4j.Logger;
@@ -44,9 +44,9 @@ import org.apache.geode.CancelException;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
-import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.DMStats;
 import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.LonerDistributionManager;
 import org.apache.geode.distributed.internal.direct.DirectChannel;
@@ -67,7 +67,7 @@ import org.apache.geode.internal.security.SecurableCommunicationChannel;
  * TCPConduit manages a server socket and a collection of connections to other systems. Connections
  * are identified by DistributedMember IDs. These types of messages are currently supported:
  * </p>
- * 
+ *
  * <pre>
  * <p>
  * DistributionMessage - message is delivered to the server's
@@ -80,7 +80,7 @@ import org.apache.geode.internal.security.SecurableCommunicationChannel;
  * <p>
  * If the ServerDelegate is null, DistributionMessages are ignored by the TCPConduit.
  * </p>
- * 
+ *
  * @since GemFire 2.0
  */
 
@@ -102,8 +102,6 @@ public class TCPConduit implements Runnable {
    * use javax.net.ssl.SSLServerSocketFactory?
    */
   static boolean useSSL;
-
-  // public final static boolean USE_SYNC_WRITES = Boolean.getBoolean("p2p.useSyncWrites");
 
   /**
    * Force use of Sockets rather than SocketChannels (NIO). Note from Bruce: due to a bug in the
@@ -189,14 +187,12 @@ public class TCPConduit implements Runnable {
    * the object that receives DistributionMessage messages received by this conduit.
    */
   private final DirectChannel directChannel;
-  /**
-   * Stats from the delegate
-   */
-  DMStats stats;
+
+  private DMStats stats;
 
   /**
    * Config from the delegate
-   * 
+   *
    * @since GemFire 4.2.1
    */
   DistributionConfig config;
@@ -239,7 +235,7 @@ public class TCPConduit implements Runnable {
    * This constructor forces the conduit to ignore the following system properties and look for them
    * only in the <i>props</i> argument:
    * </p>
-   * 
+   *
    * <pre>
    * p2p.tcpBufferSize
    * p2p.idleConnectionTimeout
@@ -260,7 +256,7 @@ public class TCPConduit implements Runnable {
       this.stats = directChannel.getDMStats();
       this.config = directChannel.getDMConfig();
     }
-    if (this.stats == null) {
+    if (this.getStats() == null) {
       this.stats = new LonerDistributionManager.DummyDMStats();
     }
 
@@ -353,9 +349,9 @@ public class TCPConduit implements Runnable {
    */
   private volatile Exception shutdownCause;
 
-  private final static int HANDSHAKE_POOL_SIZE =
+  private static final int HANDSHAKE_POOL_SIZE =
       Integer.getInteger("p2p.HANDSHAKE_POOL_SIZE", 10).intValue();
-  private final static long HANDSHAKE_POOL_KEEP_ALIVE_TIME =
+  private static final long HANDSHAKE_POOL_KEEP_ALIVE_TIME =
       Long.getLong("p2p.HANDSHAKE_POOL_KEEP_ALIVE_TIME", 60).longValue();
 
   /**
@@ -518,7 +514,7 @@ public class TCPConduit implements Runnable {
 
   /**
    * Ensure that the ConnectionTable class gets loaded.
-   * 
+   *
    * @see SystemFailure#loadEmergencyClasses()
    */
   public static void loadEmergencyClasses() {
@@ -527,7 +523,7 @@ public class TCPConduit implements Runnable {
 
   /**
    * Close the ServerSocketChannel, ServerSocket, and the ConnectionTable.
-   * 
+   *
    * @see SystemFailure#emergencyClose()
    */
   public void emergencyClose() {
@@ -538,7 +534,6 @@ public class TCPConduit implements Runnable {
 
     stopped = true;
 
-    // System.err.println("DEBUG: TCPConduit emergencyClose");
     try {
       if (channel != null) {
         channel.close();
@@ -560,8 +555,6 @@ public class TCPConduit implements Runnable {
     socket = null;
     thread = null;
     conTable = null;
-
-    // System.err.println("DEBUG: end of TCPConduit emergencyClose");
   }
 
   /* stops the conduit, closing all tcp/ip connections */
@@ -570,8 +563,8 @@ public class TCPConduit implements Runnable {
       stopped = true;
       shutdownCause = cause;
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "Shutting down conduit");
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "Shutting down conduit");
       }
       try {
         // set timeout endpoint here since interrupt() has been known
@@ -605,9 +598,8 @@ public class TCPConduit implements Runnable {
               LocalizedStrings.TCPConduit_UNABLE_TO_SHUT_DOWN_LISTENER_WITHIN_0_MS_UNABLE_TO_INTERRUPT_SOCKET_ACCEPT_DUE_TO_JDK_BUG_GIVING_UP,
               Integer.valueOf(LISTENER_CLOSE_TIMEOUT)));
         }
-      } catch (IOException e) {
-      } catch (InterruptedException e) {
-        // Ignore, we're trying to stop already.
+      } catch (IOException | InterruptedException e) {
+        // we're already trying to shutdown, ignore
       } finally {
         this.hsPool.shutdownNow();
       }
@@ -623,7 +615,7 @@ public class TCPConduit implements Runnable {
 
   /**
    * Returns whether or not this conduit is stopped
-   * 
+   *
    * @since GemFire 3.0
    */
   public boolean isStopped() {
@@ -642,7 +634,7 @@ public class TCPConduit implements Runnable {
     if (directChannel != null) {
       this.stats = directChannel.getDMStats();
     }
-    if (this.stats == null) {
+    if (this.getStats() == null) {
       this.stats = new LonerDistributionManager.DummyDMStats();
     }
     try {
@@ -660,8 +652,8 @@ public class TCPConduit implements Runnable {
    */
   public void run() {
     ConnectionTable.threadWantsSharedResources();
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.trace(LogMarker.DM, "Starting P2P Listener on  {}", id);
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace(LogMarker.DM_VERBOSE, "Starting P2P Listener on  {}", id);
     }
     for (;;) {
       SystemFailure.checkFailure();
@@ -696,7 +688,7 @@ public class TCPConduit implements Runnable {
                 ex);
             break;
           }
-          socketCreator.configureServerSSLSocket(othersock);
+          socketCreator.startHandshakeIfSocketIsSSL(othersock, idleConnectionTimeout);
         }
         if (stopped) {
           try {
@@ -712,11 +704,19 @@ public class TCPConduit implements Runnable {
 
       } catch (ClosedByInterruptException cbie) {
         // safe to ignore
-      } catch (ClosedChannelException e) {
-        break; // we're dead
-      } catch (CancelException e) {
+      } catch (ClosedChannelException | CancelException e) {
         break;
-      } catch (Exception e) {
+      } catch (IOException e) {
+        this.getStats().incFailedAccept();
+
+        try {
+          if (othersock != null) {
+            othersock.close();
+          }
+        } catch (IOException ignore) {
+
+        }
+
         if (!stopped) {
           if (e instanceof SocketException && "Socket closed".equalsIgnoreCase(e.getMessage())) {
             // safe to ignore; see bug 31156
@@ -744,17 +744,17 @@ public class TCPConduit implements Runnable {
                 }
               }
             }
+          } else if ("Too many open files".equals(e.getMessage())) {
+            getConTable().fileDescriptorsExhausted();
           } else {
-            this.stats.incFailedAccept();
-            if (e instanceof IOException && "Too many open files".equals(e.getMessage())) {
-              getConTable().fileDescriptorsExhausted();
-            } else {
-              logger.warn(e.getMessage(), e);
-            }
+            logger.warn(e.getMessage(), e);
           }
+
         }
-        // connections.cleanupLowWater();
+      } catch (Exception e) {
+        logger.warn(e.getMessage(), e);
       }
+
       if (!stopped && socket.isClosed()) {
         // NOTE: do not check for distributed system closing here. Messaging
         // may need to occur during the closing of the DS or cache
@@ -768,8 +768,8 @@ public class TCPConduit implements Runnable {
       }
     } // for
 
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.debug("Stopped P2P Listener on  {}", id);
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace("Stopped P2P Listener on  {}", id);
     }
   }
 
@@ -800,33 +800,25 @@ public class TCPConduit implements Runnable {
 
   protected void basicAcceptConnection(Socket othersock) {
     try {
-      getConTable().acceptConnection(othersock);
+      getConTable().acceptConnection(othersock, new PeerConnectionFactory());
     } catch (IOException io) {
       // exception is logged by the Connection
       if (!stopped) {
-        this.stats.incFailedAccept();
+        this.getStats().incFailedAccept();
       }
     } catch (ConnectionException ex) {
       // exception is logged by the Connection
       if (!stopped) {
-        this.stats.incFailedAccept();
+        this.getStats().incFailedAccept();
       }
     } catch (CancelException e) {
     } catch (Exception e) {
       if (!stopped) {
-        // if (e instanceof SocketException
-        // && "Socket closed".equals(e.getMessage())) {
-        // // safe to ignore; see bug 31156
-        // }
-        // else
-        {
-          this.stats.incFailedAccept();
-          logger.warn(LocalizedMessage.create(
-              LocalizedStrings.TCPConduit_FAILED_TO_ACCEPT_CONNECTION_FROM_0_BECAUSE_1,
-              new Object[] {othersock.getInetAddress(), e}), e);
-        }
+        this.getStats().incFailedAccept();
+        logger.warn(LocalizedMessage.create(
+            LocalizedStrings.TCPConduit_FAILED_TO_ACCEPT_CONNECTION_FROM_0_BECAUSE_1,
+            new Object[] {othersock.getInetAddress(), e}), e);
       }
-      // connections.cleanupLowWater();
     }
   }
 
@@ -839,7 +831,7 @@ public class TCPConduit implements Runnable {
 
   /**
    * records the current outgoing message count on all thread-owned ordered connections
-   * 
+   *
    * @since GemFire 5.1
    */
   public void getThreadOwnedOrderedConnectionState(DistributedMember member, Map result) {
@@ -849,19 +841,17 @@ public class TCPConduit implements Runnable {
   /**
    * wait for the incoming connections identified by the keys in the argument to receive and
    * dispatch the number of messages associated with the key
-   * 
+   *
    * @since GemFire 5.1
    */
   public void waitForThreadOwnedOrderedConnectionState(DistributedMember member, Map channelState)
       throws InterruptedException {
-    // if (Thread.interrupted()) throw new InterruptedException(); not necessary done in
-    // waitForThreadOwnedOrderedConnectionState
     getConTable().waitForThreadOwnedOrderedConnectionState(member, channelState);
   }
 
   /**
    * connections send messageReceived when a message object has been read.
-   * 
+   *
    * @param bytesRead number of bytes read off of network to get this message
    */
   protected void messageReceived(Connection receiver, DistributionMessage message, int bytesRead) {
@@ -907,7 +897,7 @@ public class TCPConduit implements Runnable {
    * Return a connection to the given member. This method must continue to attempt to create a
    * connection to the given member as long as that member is in the membership view and the system
    * is not shutting down.
-   * 
+   *
    * @param memberAddress the IDS associated with the remoteId
    * @param preserveOrder whether this is an ordered or unordered connection
    * @param retry false if this is the first attempt
@@ -921,8 +911,6 @@ public class TCPConduit implements Runnable {
   public Connection getConnection(InternalDistributedMember memberAddress,
       final boolean preserveOrder, boolean retry, long startTime, long ackTimeout,
       long ackSATimeout) throws java.io.IOException, DistributedSystemDisconnectedException {
-    // final boolean preserveOrder = (processorType == DistributionManager.SERIAL_EXECUTOR )||
-    // (processorType == DistributionManager.PARTITIONED_REGION_EXECUTOR);
     if (stopped) {
       throw new DistributedSystemDisconnectedException(
           LocalizedStrings.TCPConduit_THE_CONDUIT_IS_STOPPED.toLocalizedString());
@@ -977,7 +965,7 @@ public class TCPConduit implements Runnable {
           }
 
           // Close the connection (it will get rebuilt later).
-          this.stats.incReconnectAttempts();
+          this.getStats().incReconnectAttempts();
           if (conn != null) {
             try {
               if (logger.isDebugEnabled()) {
@@ -1128,32 +1116,11 @@ public class TCPConduit implements Runnable {
     return "" + id;
   }
 
-  public boolean threadOwnsResources() {
-    ConnectionTable ct = this.conTable;
-    if (ct == null) {
-      return false;
-    } else {
-      DM d = getDM();
-      if (d != null) {
-        return d.getSystem().threadOwnsResources();
-      } else {
-        return false;
-      }
-    }
-  }
-
   /**
    * Returns the distribution manager of the direct channel
    */
-  public DM getDM() {
+  public DistributionManager getDM() {
     return directChannel.getDM();
-  }
-
-  /**
-   * Closes any connections used to communicate with the given member
-   */
-  public void removeEndpoint(DistributedMember mbr, String reason) {
-    removeEndpoint(mbr, reason, true);
   }
 
   public void removeEndpoint(DistributedMember mbr, String reason, boolean notifyDisconnect) {
@@ -1172,16 +1139,18 @@ public class TCPConduit implements Runnable {
     return (ct != null) && ct.hasReceiversFor(endPoint);
   }
 
+  /**
+   * Stats from the delegate
+   */
+  public DMStats getStats() {
+    return stats;
+  }
+
   protected class Stopper extends CancelCriterion {
 
-    /*
-     * (non-Javadoc)
-     * 
-     * @see org.apache.geode.CancelCriterion#cancelInProgress()
-     */
     @Override
     public String cancelInProgress() {
-      DM dm = getDM();
+      DistributionManager dm = getDM();
       if (dm == null) {
         return "no distribution manager";
       }
@@ -1191,18 +1160,13 @@ public class TCPConduit implements Runnable {
       return null;
     }
 
-    /*
-     * (non-Javadoc)
-     * 
-     * @see org.apache.geode.CancelCriterion#generateCancelledException(java.lang.Throwable)
-     */
     @Override
     public RuntimeException generateCancelledException(Throwable e) {
       String reason = cancelInProgress();
       if (reason == null) {
         return null;
       }
-      DM dm = getDM();
+      DistributionManager dm = getDM();
       if (dm == null) {
         return new DistributedSystemDisconnectedException("no distribution manager");
       }
@@ -1226,7 +1190,7 @@ public class TCPConduit implements Runnable {
 
   /**
    * if the conduit is disconnected due to an abnormal condition, this will describe the reason
-   * 
+   *
    * @return exception that caused disconnect
    */
   public Exception getShutdownCause() {
@@ -1247,21 +1211,4 @@ public class TCPConduit implements Runnable {
   public boolean waitForMembershipCheck(InternalDistributedMember remoteId) {
     return membershipManager.waitForNewMember(remoteId);
   }
-
-  /**
-   * simulate being sick
-   */
-  public void beSick() {
-    // this.inhibitNewConnections = true;
-    // this.conTable.closeReceivers(true);
-  }
-
-  /**
-   * simulate being healthy
-   */
-  public void beHealthy() {
-    // this.inhibitNewConnections = false;
-  }
-
 }
-

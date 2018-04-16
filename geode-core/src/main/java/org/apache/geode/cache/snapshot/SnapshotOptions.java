@@ -16,25 +16,27 @@ package org.apache.geode.cache.snapshot;
 
 import java.io.Serializable;
 
+import org.apache.geode.internal.cache.snapshot.SnapshotFileMapper;
+
 /**
  * Provides a way to configure the behavior of snapshot operations. The default options are:
  * <dl>
  * <dt>filter</dt>
  * <dd>null</dd>
  * </dl>
- * 
+ *
  * @param <K> the cache entry key type
  * @param <V> the cache entry value type
- * 
+ *
  * @since GemFire 7.0
  */
 public interface SnapshotOptions<K, V> extends Serializable {
   /**
    * Defines the available snapshot file formats.
-   * 
+   *
    * @since GemFire 7.0
    */
-  public enum SnapshotFormat {
+  enum SnapshotFormat {
     /** an optimized binary format specific to GemFire */
     GEMFIRE
   }
@@ -42,7 +44,7 @@ public interface SnapshotOptions<K, V> extends Serializable {
   /**
    * Sets a filter to apply to snapshot entries. Entries that are accepted by the filter will be
    * included in import and export operations.
-   * 
+   *
    * @param filter the filter to apply, or null to remove the filter
    * @return the snapshot options
    */
@@ -51,7 +53,7 @@ public interface SnapshotOptions<K, V> extends Serializable {
   /**
    * Returns the filter to be applied to snapshot entries. Entries that are accepted by the filter
    * will be included in import and export operations.
-   * 
+   *
    * @return the filter, or null if the filter is not set
    */
   SnapshotFilter<K, V> getFilter();
@@ -71,4 +73,32 @@ public interface SnapshotOptions<K, V> extends Serializable {
    * @return whether loading a snapshot causes callbacks to be invoked
    */
   boolean shouldInvokeCallbacks();
+
+  /**
+   * Returns true if the snapshot operation will proceed in parallel.
+   *
+   * @return true if the parallel mode has been enabled
+   *
+   * @since Geode 1.3
+   */
+  boolean isParallelMode();
+
+  /**
+   * Enables parallel mode for snapshot export, which will cause each member of a partitioned region
+   * to save its local data set (ignoring redundant copies) to a separate snapshot file.
+   *
+   * <p>
+   * Parallelizing snapshot operations may yield significant performance improvements for large data
+   * sets. This is particularly true when each member is writing to separate physical disks.
+   * <p>
+   * This flag is ignored for replicated regions.
+   *
+   * @param parallel true if the snapshot operations will be performed in parallel
+   * @return the snapshot options
+   *
+   * @see SnapshotFileMapper
+   *
+   * @since Geode 1.3
+   */
+  SnapshotOptions<K, V> setParallelMode(boolean parallel);
 }

@@ -14,11 +14,11 @@
  */
 package org.apache.geode.distributed.internal;
 
-// import org.apache.geode.*;
-import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.internal.Assert;
 import java.util.Date;
 import java.util.Properties;
+
+import org.apache.geode.distributed.DistributedSystem;
+import org.apache.geode.internal.Assert;
 
 /**
  * A little program that periodically produces {@link DateMessage}s.
@@ -28,7 +28,7 @@ public class ProduceDateMessages {
   public static void main(String[] args) throws InterruptedException {
     InternalDistributedSystem system =
         (InternalDistributedSystem) DistributedSystem.connect(new Properties());
-    DM dm = system.getDistributionManager();
+    DistributionManager dm = system.getDistributionManager();
     System.out.println("Got DM: " + dm);
 
     while (true) {

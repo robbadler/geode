@@ -22,9 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
-import org.awaitility.Awaitility;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -43,16 +41,17 @@ import org.apache.geode.cache30.MyGatewayEventFilter1;
 import org.apache.geode.cache30.MyGatewayTransportFilter1;
 import org.apache.geode.cache30.MyGatewayTransportFilter2;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
-import org.apache.geode.internal.cache.ha.ThreadIdentifier;
 import org.apache.geode.internal.cache.RegionQueue;
+import org.apache.geode.internal.cache.ha.ThreadIdentifier;
 import org.apache.geode.internal.cache.wan.AbstractGatewaySender;
 import org.apache.geode.internal.cache.wan.WANTestBase;
 import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class SerialGatewaySenderQueueDUnitTest extends WANTestBase {
 
   @Test
@@ -213,7 +212,7 @@ public class SerialGatewaySenderQueueDUnitTest extends WANTestBase {
     Integer remoteLocPort =
         (Integer) vm1.invoke(() -> WANTestBase.createFirstRemoteLocator(2, localLocPort));
 
-    WANTestBase test = new WANTestBase(getTestMethodName());
+    WANTestBase test = new WANTestBase();
     Properties props = test.getDistributedSystemProperties();
     props.setProperty(MCAST_PORT, "0");
     props.setProperty(LOCATORS, "localhost[" + localLocPort + "]");
@@ -275,7 +274,7 @@ public class SerialGatewaySenderQueueDUnitTest extends WANTestBase {
     Integer remoteLocPort =
         (Integer) vm1.invoke(() -> WANTestBase.createFirstRemoteLocator(2, localLocPort));
 
-    WANTestBase test = new WANTestBase(getTestMethodName());
+    WANTestBase test = new WANTestBase();
     Properties props = test.getDistributedSystemProperties();
     props.setProperty(MCAST_PORT, "0");
     props.setProperty(LOCATORS, "localhost[" + localLocPort + "]");

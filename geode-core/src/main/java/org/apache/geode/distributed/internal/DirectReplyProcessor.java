@@ -30,7 +30,7 @@ public class DirectReplyProcessor extends ReplyProcessor21 {
   /**
    * Creates a new <code>ReplyProcessor</code> that wants replies from a single member of a
    * distributed system.
-   * 
+   *
    * @param system the DistributedSystem connection
    * @param member the member this processor wants a reply from
    */
@@ -41,7 +41,7 @@ public class DirectReplyProcessor extends ReplyProcessor21 {
   /**
    * Creates a new <code>ReplyProcessor</code> that wants replies from a single member of a
    * distributed system.
-   * 
+   *
    * @param system the DistributedSystem connection
    * @param member the member this processor wants a reply from
    * @param cancelCriterion optional CancelCriterion to use; will use the DistributionManager if
@@ -55,31 +55,33 @@ public class DirectReplyProcessor extends ReplyProcessor21 {
   /**
    * Creates a new <code>ReplyProcessor</code> that wants replies from a single member of a
    * distributed system.
-   * 
+   *
    * @param dm the DistributionManager to use for messaging and membership
    * @param member the member this processor wants a reply from
    */
-  public DirectReplyProcessor(DM dm, InternalDistributedMember member) {
+  public DirectReplyProcessor(DistributionManager dm, InternalDistributedMember member) {
     this(dm, Collections.singleton(member));
   }
 
   /**
    * Creates a new <code>ReplyProcessor</code> that wants replies from some number of members of a
-   * distributed system. Call this method with {@link DistributionManager#getDistributionManagerIds}
-   * if you want replies from all DMs including the one hosted in this VM.
-   * 
+   * distributed system. Call this method with
+   * {@link ClusterDistributionManager#getDistributionManagerIds} if you want replies from all DMs
+   * including the one hosted in this VM.
+   *
    * @param dm the DistributionManager to use for messaging and membership
    * @param initMembers the Set of members this processor wants replies from
    */
-  public DirectReplyProcessor(DM dm, Collection initMembers) {
+  public DirectReplyProcessor(DistributionManager dm, Collection initMembers) {
     this(dm, dm.getSystem(), initMembers, null);
   }
 
   /**
    * Creates a new <code>ReplyProcessor</code> that wants replies from some number of members of a
-   * distributed system. Call this method with {@link DistributionManager#getDistributionManagerIds}
-   * if you want replies from all DMs including the one hosted in this VM.
-   * 
+   * distributed system. Call this method with
+   * {@link ClusterDistributionManager#getDistributionManagerIds} if you want replies from all DMs
+   * including the one hosted in this VM.
+   *
    * @param system the DistributedSystem connection
    * @param initMembers the Set of members this processor wants replies from
    */
@@ -89,9 +91,10 @@ public class DirectReplyProcessor extends ReplyProcessor21 {
 
   /**
    * Creates a new <code>ReplyProcessor</code> that wants replies from some number of members of a
-   * distributed system. Call this method with {@link DistributionManager#getDistributionManagerIds}
-   * if you want replies from all DMs including the one hosted in this VM.
-   * 
+   * distributed system. Call this method with
+   * {@link ClusterDistributionManager#getDistributionManagerIds} if you want replies from all DMs
+   * including the one hosted in this VM.
+   *
    * @param system the DistributedSystem connection
    * @param initMembers the Set of members this processor wants replies from
    * @param cancelCriterion optional CancelCriterion to use; will use the DistributedSystem's
@@ -102,14 +105,8 @@ public class DirectReplyProcessor extends ReplyProcessor21 {
     this(system.getDistributionManager(), system, initMembers, cancelCriterion);
   }
 
-  /**
-   * @param dm
-   * @param system
-   * @param initMembers
-   * @param cancelCriterion
-   */
-  public DirectReplyProcessor(DM dm, InternalDistributedSystem system, Collection initMembers,
-      CancelCriterion cancelCriterion) {
+  public DirectReplyProcessor(DistributionManager dm, InternalDistributedSystem system,
+      Collection initMembers, CancelCriterion cancelCriterion) {
     super(dm, system, initMembers, cancelCriterion, false);
   }
 

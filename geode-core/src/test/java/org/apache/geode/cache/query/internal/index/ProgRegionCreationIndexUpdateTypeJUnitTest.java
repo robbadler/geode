@@ -14,28 +14,32 @@
  */
 /*
  * Created on Apr 21, 2005 *
- * 
+ *
  */
 package org.apache.geode.cache.query.internal.index;
 
-import org.apache.geode.cache.*;
-import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.test.junit.categories.IntegrationTest;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_LEVEL;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.fail;
+
+import java.util.Properties;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.util.Properties;
+import org.apache.geode.cache.AttributesFactory;
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.cache.Region;
+import org.apache.geode.cache.RegionAttributes;
+import org.apache.geode.distributed.DistributedSystem;
+import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.junit.Assert.fail;
-
-/**
- *
- * 
- */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLIndexTest.class})
 public class ProgRegionCreationIndexUpdateTypeJUnitTest {
 
   private Cache cache = null;
@@ -64,7 +68,7 @@ public class ProgRegionCreationIndexUpdateTypeJUnitTest {
     attributesFactory.setIndexMaintenanceSynchronous(true);
     RegionAttributes regionAttributes = attributesFactory.create();
     Region region = cache.createRegion("region1", regionAttributes);
-    IndexManager im = IndexUtils.getIndexManager(region, true);
+    IndexManager im = IndexUtils.getIndexManager((InternalCache) cache, region, true);
 
     if (!im.isIndexMaintenanceTypeSynchronous())
       fail(
@@ -75,7 +79,7 @@ public class ProgRegionCreationIndexUpdateTypeJUnitTest {
     attributesFactory.setIndexMaintenanceSynchronous(false);
     regionAttributes = attributesFactory.create();
     region = cache.createRegion("region2", regionAttributes);
-    im = IndexUtils.getIndexManager(region, true);
+    im = IndexUtils.getIndexManager((InternalCache) cache, region, true);
     if (im.isIndexMaintenanceTypeSynchronous())
       fail(
           "IndexMaintenanceTest::testProgrammaticIndexUpdateType: Index Update Type found to be synchronous when it was marked explicitly asynchronous");
@@ -85,7 +89,7 @@ public class ProgRegionCreationIndexUpdateTypeJUnitTest {
     attributesFactory = new AttributesFactory();
     regionAttributes = attributesFactory.create();
     region = cache.createRegion("region3", regionAttributes);
-    im = IndexUtils.getIndexManager(region, true);
+    im = IndexUtils.getIndexManager((InternalCache) cache, region, true);
     if (!im.isIndexMaintenanceTypeSynchronous())
       fail(
           "IndexMaintenanceTest::testProgrammaticIndexUpdateType: Index Update Type found to be asynchronous when it default RegionAttributes should have created synchronous update type");

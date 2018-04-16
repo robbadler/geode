@@ -23,10 +23,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.RAMDirectory;
 
-import org.apache.geode.cache.lucene.internal.directory.RegionDirectory;
+import org.apache.geode.cache.lucene.LuceneSerializer;
 import org.apache.geode.cache.lucene.internal.repository.IndexRepository;
 import org.apache.geode.cache.lucene.internal.repository.IndexRepositoryImpl;
-import org.apache.geode.cache.lucene.internal.repository.serializer.LuceneSerializer;
 import org.apache.geode.internal.cache.BucketRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
 
@@ -35,8 +34,8 @@ public class RawIndexRepositoryFactory extends IndexRepositoryFactory {
 
   @Override
   public IndexRepository computeIndexRepository(final Integer bucketId, LuceneSerializer serializer,
-      LuceneIndexImpl index, PartitionedRegion userRegion, IndexRepository oldRepository)
-      throws IOException {
+      InternalLuceneIndex index, PartitionedRegion userRegion, IndexRepository oldRepository,
+      PartitionedRepositoryManager partitionedRepositoryManager) throws IOException {
     final IndexRepository repo;
     if (oldRepository != null) {
       oldRepository.cleanup();
@@ -59,6 +58,6 @@ public class RawIndexRepositoryFactory extends IndexRepositoryFactory {
     IndexWriter writer = new IndexWriter(dir, config);
 
     return new IndexRepositoryImpl(null, writer, serializer, indexForRaw.getIndexStats(),
-        dataBucket, null, "");
+        dataBucket, null, "", indexForRaw);
   }
 }

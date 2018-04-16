@@ -22,6 +22,8 @@ import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.net.ssl.SSLSocket;
+
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelCriterion;
@@ -34,7 +36,8 @@ import org.apache.geode.cache.wan.GatewaySender;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.ServerLocation;
-import org.apache.geode.internal.cache.tier.sockets.HandShake;
+import org.apache.geode.internal.cache.tier.ClientSideHandshake;
+import org.apache.geode.internal.cache.tier.CommunicationMode;
 import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
 import org.apache.geode.internal.cache.tier.sockets.ServerQueueStatus;
 import org.apache.geode.internal.i18n.LocalizedStrings;
@@ -44,16 +47,19 @@ import org.apache.geode.internal.net.SocketCreator;
 
 /**
  * A single client to server connection.
- * 
+ *
  * The execute method of this class is synchronized to prevent two ops from using the client to
  * server connection at the same time.
- * 
+ *
  * @since GemFire 5.7
  */
 public class ConnectionImpl implements Connection {
 
   // TODO: DEFAULT_CLIENT_FUNCTION_TIMEOUT should be private
   public static final int DEFAULT_CLIENT_FUNCTION_TIMEOUT = 0;
+  private static final String CLIENT_FUNCTION_TIMEOUT_SYSTEM_PROPERTY =
+      DistributionConfig.GEMFIRE_PREFIX + "CLIENT_FUNCTION_TIMEOUT";
+
   private static Logger logger = LogService.getLogger();
 
   /**
@@ -61,9 +67,6 @@ public class ConnectionImpl implements Connection {
    * the connection.
    */
   private static boolean TEST_DURABLE_CLIENT_CRASH = false;
-
-  // TODO: clientFunctionTimeout is not thread-safe and should be non-static
-  private static int clientFunctionTimeout;
 
   private Socket theSocket;
   private ByteBuffer commBuffer;
@@ -84,45 +87,41 @@ public class ConnectionImpl implements Connection {
 
   private long connectionID = Connection.DEFAULT_CONNECTION_ID;
 
-  private HandShake handShake;
+  private ClientSideHandshake handshake;
 
   public ConnectionImpl(InternalDistributedSystem ds, CancelCriterion cancelCriterion) {
     this.ds = ds;
-    int time = Integer.getInteger(DistributionConfig.GEMFIRE_PREFIX + "CLIENT_FUNCTION_TIMEOUT",
-        DEFAULT_CLIENT_FUNCTION_TIMEOUT);
-    clientFunctionTimeout = time >= 0 ? time : DEFAULT_CLIENT_FUNCTION_TIMEOUT;
   }
 
   public static int getClientFunctionTimeout() {
-    return clientFunctionTimeout;
+    int time = Integer.getInteger(CLIENT_FUNCTION_TIMEOUT_SYSTEM_PROPERTY,
+        DEFAULT_CLIENT_FUNCTION_TIMEOUT);
+    return time >= 0 ? time : DEFAULT_CLIENT_FUNCTION_TIMEOUT;
   }
 
   public ServerQueueStatus connect(EndpointManager endpointManager, ServerLocation location,
-      HandShake handShake, int socketBufferSize, int handShakeTimeout, int readTimeout,
-      byte communicationMode, GatewaySender sender, SocketCreator sc) throws IOException {
-    theSocket = sc.connectForClient(location.getHostName(), location.getPort(), handShakeTimeout,
+      ClientSideHandshake handshake, int socketBufferSize, int handshakeTimeout, int readTimeout,
+      CommunicationMode communicationMode, GatewaySender sender, SocketCreator sc)
+      throws IOException {
+    theSocket = sc.connectForClient(location.getHostName(), location.getPort(), handshakeTimeout,
         socketBufferSize);
     theSocket.setTcpNoDelay(true);
-    // System.out.println("ConnectionImpl setting buffer sizes: " +
-    // socketBufferSize);
     theSocket.setSendBufferSize(socketBufferSize);
 
     // Verify buffer sizes
     verifySocketBufferSize(socketBufferSize, theSocket.getReceiveBufferSize(), "receive");
     verifySocketBufferSize(socketBufferSize, theSocket.getSendBufferSize(), "send");
 
-    theSocket.setSoTimeout(handShakeTimeout);
+    theSocket.setSoTimeout(handshakeTimeout);
     out = theSocket.getOutputStream();
     in = theSocket.getInputStream();
-    this.status = handShake.handshakeWithServer(this, location, communicationMode);
+    this.status = handshake.handshakeWithServer(this, location, communicationMode);
     commBuffer = ServerConnection.allocateCommBuffer(socketBufferSize, theSocket);
     if (sender != null) {
       commBufferForAsyncRead = ServerConnection.allocateCommBuffer(socketBufferSize, theSocket);
     }
     theSocket.setSoTimeout(readTimeout);
     endpoint = endpointManager.referenceEndpoint(location, this.status.getMemberId());
-    // logger.warning("ESTABLISHING ENDPOINT:"+location+" MEMBERID:"+endpoint.getMemberId(),new
-    // Exception());
     this.connectFinished = true;
     this.endpoint.getStats().incConnections(1);
     return status;
@@ -183,8 +182,10 @@ public class ConnectionImpl implements Connection {
     }
     try {
       if (theSocket != null) {
-        theSocket.getOutputStream().flush();
-        theSocket.shutdownOutput();
+        if (!(theSocket instanceof SSLSocket)) {
+          theSocket.getOutputStream().flush();
+          theSocket.shutdownOutput();
+        }
         theSocket.close();
       }
     } catch (Exception e) {
@@ -305,12 +306,16 @@ public class ConnectionImpl implements Connection {
     return this.connectionID;
   }
 
-  protected HandShake getHandShake() {
-    return handShake;
+  protected byte[] encryptBytes(byte[] messageBytes) throws Exception {
+    return handshake.getEncryptor().encryptBytes(messageBytes);
   }
 
-  protected void setHandShake(HandShake handShake) {
-    this.handShake = handShake;
+  protected byte[] decryptBytes(byte[] messageBytes) throws Exception {
+    return handshake.getEncryptor().decryptBytes(messageBytes);
+  }
+
+  protected void setHandshake(ClientSideHandshake handshake) {
+    this.handshake = handshake;
   }
 
   /**

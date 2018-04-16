@@ -31,7 +31,7 @@ import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.TimeoutException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionStats;
@@ -51,7 +51,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
  * A message used for debugging purposes. For example if a test fails it can call
  * {@link org.apache.geode.internal.cache.PartitionedRegion#sendDumpB2NRegionForBucket(int)} which
  * sends this message to all VMs that have that PartitionedRegion defined.
- * 
+ *
  * @see org.apache.geode.internal.cache.PartitionedRegion#sendDumpB2NRegionForBucket(int)
  */
 public class DumpB2NRegion extends PartitionMessage {
@@ -74,12 +74,13 @@ public class DumpB2NRegion extends PartitionMessage {
       boolean justPrimaryInfo) {
     DumpB2NResponse p = new DumpB2NResponse(r.getSystem(), recipients);
     DumpB2NRegion m = new DumpB2NRegion(recipients, r.getPRId(), p, bId, justPrimaryInfo);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
     r.getDistributionManager().putOutgoing(m);
     return p;
   }
 
   @Override
-  public void process(final DistributionManager dm) {
+  public void process(final ClusterDistributionManager dm) {
     PartitionedRegion pr = null;
 
     // Get the region, or die trying...
@@ -133,7 +134,7 @@ public class DumpB2NRegion extends PartitionMessage {
 
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion pr,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion pr,
       long startTime) throws CacheException {
     PrimaryInfo pinfo = null;
     if (this.onlyReturnPrimaryInfo) {
@@ -178,8 +179,8 @@ public class DumpB2NRegion extends PartitionMessage {
       this.primaryInfo = pinfo;
     }
 
-    public static void send(InternalDistributedMember recipient, int processorId, DM dm,
-        PrimaryInfo pinfo) {
+    public static void send(InternalDistributedMember recipient, int processorId,
+        DistributionManager dm, PrimaryInfo pinfo) {
       DumpB2NReplyMessage m = new DumpB2NReplyMessage(processorId, pinfo);
       m.setRecipient(recipient);
       dm.putOutgoing(m);
@@ -187,24 +188,24 @@ public class DumpB2NRegion extends PartitionMessage {
 
 
     @Override
-    public void process(final DM dm, final ReplyProcessor21 processor) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 processor) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "DumpB2NReplyMessage process invoking reply processor with processorId: {}",
             this.processorId);
       }
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "DumpB2NReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "DumpB2NReplyMessage processor not found");
         }
         return;
       }
       processor.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} processed {}", processor, this);
       }
       dm.getStats().incReplyMessageTime(DistributionStats.getStatTime() - startTime);
     }
@@ -265,8 +266,8 @@ public class DumpB2NRegion extends PartitionMessage {
             this.primaryInfos.add(newBucketHost);
           }
         }
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "DumpB2NResponse got a primaryInfo {} from {}",
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "DumpB2NResponse got a primaryInfo {} from {}",
               reply.getPrimaryInfo(), reply.getSender());
         }
       }
@@ -310,7 +311,7 @@ public class DumpB2NRegion extends PartitionMessage {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.partitioned.PartitionMessage#appendFields(java.lang.
    * StringBuffer)
    */
@@ -323,7 +324,7 @@ public class DumpB2NRegion extends PartitionMessage {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see java.lang.Object#clone()
    */
   @Override

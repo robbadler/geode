@@ -37,8 +37,8 @@ import org.apache.geode.cache.Region.Entry;
 import org.apache.geode.cache.RegionEvent;
 import org.apache.geode.cache.Scope;
 import org.apache.geode.cache.util.CacheListenerAdapter;
-import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.DMStats;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.tcp.Connection;
 import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.LogWriterUtils;
@@ -643,7 +643,7 @@ public class SlowRecDUnitTest extends JUnit4CacheTestCase {
     final AttributesFactory factory = new AttributesFactory();
     factory.setScope(Scope.DISTRIBUTED_NO_ACK);
     final Region r = createRootRegion("slowrec", factory.create());
-    final DM dm = getSystem().getDistributionManager();
+    final DistributionManager dm = getSystem().getDistributionManager();
     final DMStats stats = dm.getStats();
     // set others before vm0 connects
     final Set others = dm.getOtherDistributionManagerIds();
@@ -719,7 +719,7 @@ public class SlowRecDUnitTest extends JUnit4CacheTestCase {
     final AttributesFactory factory = new AttributesFactory();
     factory.setScope(Scope.DISTRIBUTED_NO_ACK);
     final Region r = createRootRegion("slowrec", factory.create());
-    final DM dm = getSystem().getDistributionManager();
+    final DistributionManager dm = getSystem().getDistributionManager();
     final DMStats stats = dm.getStats();
     // set others before vm0 connects
     final Set others = dm.getOtherDistributionManagerIds();
@@ -781,17 +781,17 @@ public class SlowRecDUnitTest extends JUnit4CacheTestCase {
   private static final String KEY_WAIT = "KEY_WAIT";
   private static final String KEY_DISCONNECT = "KEY_DISCONNECT";
 
-  protected final static int CALLBACK_CREATE = 0;
-  protected final static int CALLBACK_UPDATE = 1;
-  protected final static int CALLBACK_INVALIDATE = 2;
-  protected final static int CALLBACK_DESTROY = 3;
-  protected final static int CALLBACK_REGION_INVALIDATE = 4;
+  protected static final int CALLBACK_CREATE = 0;
+  protected static final int CALLBACK_UPDATE = 1;
+  protected static final int CALLBACK_INVALIDATE = 2;
+  protected static final int CALLBACK_DESTROY = 3;
+  protected static final int CALLBACK_REGION_INVALIDATE = 4;
 
-  protected final static Integer CALLBACK_CREATE_INTEGER = new Integer(CALLBACK_CREATE);
-  protected final static Integer CALLBACK_UPDATE_INTEGER = new Integer(CALLBACK_UPDATE);
-  protected final static Integer CALLBACK_INVALIDATE_INTEGER = new Integer(CALLBACK_INVALIDATE);
-  protected final static Integer CALLBACK_DESTROY_INTEGER = new Integer(CALLBACK_DESTROY);
-  protected final static Integer CALLBACK_REGION_INVALIDATE_INTEGER =
+  protected static final Integer CALLBACK_CREATE_INTEGER = new Integer(CALLBACK_CREATE);
+  protected static final Integer CALLBACK_UPDATE_INTEGER = new Integer(CALLBACK_UPDATE);
+  protected static final Integer CALLBACK_INVALIDATE_INTEGER = new Integer(CALLBACK_INVALIDATE);
+  protected static final Integer CALLBACK_DESTROY_INTEGER = new Integer(CALLBACK_DESTROY);
+  protected static final Integer CALLBACK_REGION_INVALIDATE_INTEGER =
       new Integer(CALLBACK_REGION_INVALIDATE);
 
   private static class CallbackWrapper {
@@ -954,7 +954,7 @@ public class SlowRecDUnitTest extends JUnit4CacheTestCase {
     assertNotNull(getCache());
     assertNotNull(getCache().getRegion("slowrec2"));
 
-    final DM dm = getSystem().getDistributionManager();
+    final DistributionManager dm = getSystem().getDistributionManager();
     final Serializable controllerVM = dm.getDistributionManagerId();
     final DMStats stats = dm.getStats();
     final int millisToWait = 1000 * 60 * 5; // 5 minutes
@@ -972,7 +972,7 @@ public class SlowRecDUnitTest extends JUnit4CacheTestCase {
       public void run2() throws CacheException {
         getSystem(p);
 
-        DM dm = getSystem().getDistributionManager();
+        DistributionManager dm = getSystem().getDistributionManager();
         assertTrue(dm.getDistributionManagerIds().contains(controllerVM));
 
         AttributesFactory af = new AttributesFactory();
@@ -1173,7 +1173,7 @@ public class SlowRecDUnitTest extends JUnit4CacheTestCase {
     final AttributesFactory factory = new AttributesFactory();
     factory.setScope(Scope.DISTRIBUTED_NO_ACK);
     final Region r = createRootRegion("slowrec", factory.create());
-    final DM dm = getSystem().getDistributionManager();
+    final DistributionManager dm = getSystem().getDistributionManager();
     final DMStats stats = dm.getStats();
     // set others before vm0 connects
     final Set others = dm.getOtherDistributionManagerIds();
@@ -1320,7 +1320,7 @@ public class SlowRecDUnitTest extends JUnit4CacheTestCase {
     factory.setScope(Scope.DISTRIBUTED_NO_ACK);
     factory.setEnableAsyncConflation(true);
     final Region r = createRootRegion("slowrec", factory.create());
-    final DM dm = getSystem().getDistributionManager();
+    final DistributionManager dm = getSystem().getDistributionManager();
     final DMStats stats = dm.getStats();
 
     // set others before vm0 connects
@@ -1460,4 +1460,3 @@ public class SlowRecDUnitTest extends JUnit4CacheTestCase {
 
   }
 }
-

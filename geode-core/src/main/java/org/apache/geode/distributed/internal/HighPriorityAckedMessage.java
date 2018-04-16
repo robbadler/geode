@@ -41,7 +41,7 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
  * reply. This guarantees that all high priority messages have been received and applied to the
  * cache. Their reply messages may not necessarily have been sent back or processed (if they have
  * any).
- * 
+ *
  * @since GemFire 5.1
  */
 public class HighPriorityAckedMessage extends HighPriorityDistributionMessage
@@ -57,15 +57,15 @@ public class HighPriorityAckedMessage extends HighPriorityDistributionMessage
     DRAIN_POOL, DUMP_STACK
   };
 
-  transient DistributionManager originDm;
-  transient private ReplyProcessor21 rp;
+  transient ClusterDistributionManager originDm;
+  private transient ReplyProcessor21 rp;
   private boolean useNative;
 
   public HighPriorityAckedMessage() {
     super();
     InternalDistributedSystem ds = InternalDistributedSystem.getAnyInstance();
     if (ds != null) {
-      this.originDm = (DistributionManager) ds.getDistributionManager();
+      this.originDm = (ClusterDistributionManager) ds.getDistributionManager();
     }
     if (this.originDm != null) {
       this.id = this.originDm.getDistributionManagerId();
@@ -106,7 +106,7 @@ public class HighPriorityAckedMessage extends HighPriorityDistributionMessage
 
   /**
    * send the message and wait for replies
-   * 
+   *
    * @param recipients the destination manager ids
    * @param multicast whether to use multicast or unicast
    * @throws InterruptedException if the operation is interrupted (as by shutdown)
@@ -156,7 +156,7 @@ public class HighPriorityAckedMessage extends HighPriorityDistributionMessage
    * This method is invoked on the receiver side
    */
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     switch (this.op) {
       case DRAIN_POOL:
         Assert.assertTrue(this.id != null);

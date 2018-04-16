@@ -17,8 +17,6 @@ package org.apache.geode.internal.cache.tier.sockets;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.geode.DataSerializable;
 import org.apache.geode.DataSerializer;
@@ -29,7 +27,7 @@ import org.apache.geode.internal.cache.GemFireCacheImpl;
 /**
  * Faulty delta implementation, raising ArrayIndexOutOfBound exception as fromDelta reads incorrect
  * sequence then wrote by toDelta
- * 
+ *
  * @since GemFire 6.1
  */
 public class FaultyDelta implements Delta, DataSerializable {

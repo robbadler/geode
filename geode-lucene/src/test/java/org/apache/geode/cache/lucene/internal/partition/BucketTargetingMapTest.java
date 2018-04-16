@@ -16,21 +16,19 @@ package org.apache.geode.cache.lucene.internal.partition;
 
 import static org.junit.Assert.*;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.apache.geode.internal.cache.BucketRegion;
-import org.apache.geode.internal.cache.PartitionedRegion;
-import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.apache.geode.test.junit.categories.UnitTest;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-import org.mockito.Mock;
 
-@Category(UnitTest.class)
+import org.apache.geode.internal.cache.BucketRegion;
+import org.apache.geode.test.junit.categories.LuceneTest;
+import org.apache.geode.test.junit.categories.UnitTest;
+
+@Category({UnitTest.class, LuceneTest.class})
 public class BucketTargetingMapTest {
 
   private BucketRegion region;

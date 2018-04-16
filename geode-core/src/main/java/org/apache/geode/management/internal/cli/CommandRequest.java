@@ -14,130 +14,73 @@
  */
 package org.apache.geode.management.internal.cli;
 
-import org.apache.geode.internal.lang.StringUtils;
-import org.apache.geode.management.cli.CliMetaData;
-
+import java.io.File;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import org.apache.geode.annotations.TestingOnly;
+import org.apache.geode.management.cli.CliMetaData;
 
 /**
  * The CommandRequest class encapsulates information pertaining to the command the user entered in
  * Gfsh.
  * <p/>
- * 
+ *
  * @see org.apache.geode.management.internal.cli.GfshParseResult
  * @since GemFire 8.0
  */
 @SuppressWarnings("unused")
 public class CommandRequest {
-
-  protected static final String OPTION_SPECIFIER = "--";
-
-  private final byte[][] fileData;
-
+  private final List<File> fileList;
   private final GfshParseResult parseResult;
-
-  private final Map<String, String> customParameters = new HashMap<String, String>();
   private final Map<String, String> env;
   private final boolean downloadFile;
 
-  private String customInput;
 
+  @TestingOnly
   public CommandRequest(final Map<String, String> env) {
     this.env = env;
-    this.fileData = null;
+    this.fileList = null;
     this.parseResult = null;
     downloadFile = false;
   }
 
-  public CommandRequest(final Map<String, String> env, final byte[][] fileData) {
+  public CommandRequest(final Map<String, String> env, final List<File> fileList) {
     this.env = env;
-    this.fileData = fileData;
+    this.fileList = fileList;
     this.parseResult = null;
     downloadFile = false;
-  }
-
-  public CommandRequest(final GfshParseResult parseResult, final Map<String, String> env) {
-    this(parseResult, env, null);
   }
 
   public CommandRequest(final GfshParseResult parseResult, final Map<String, String> env,
-      final byte[][] fileData) {
+      final List<File> fileList) {
     assert parseResult != null : "The Gfsh ParseResult cannot be null!";
     assert env != null : "The reference to the Gfsh CLI environment cannot be null!";
     this.env = env;
-    this.fileData = fileData;
+    this.fileList = fileList;
     this.parseResult = parseResult;
 
     CliMetaData metaData = parseResult.getMethod().getDeclaredAnnotation(CliMetaData.class);
     this.downloadFile = (metaData != null && metaData.isFileDownloadOverHttp());
   }
 
-  public String getName() {
-    if (getUserInput() != null) {
-      final String[] userInputTokenized = getUserInput().split("\\s");
-      final StringBuilder buffer = new StringBuilder();
-
-      for (final String token : userInputTokenized) {
-        if (!token.startsWith(OPTION_SPECIFIER)) {
-          buffer.append(token).append(StringUtils.SPACE);
-        }
-      }
-
-      return buffer.toString().trim();
-    } else {
-      return "unknown";
-    }
-  }
-
-  public String getCustomInput() {
-    return customInput;
-  }
 
   public boolean isDownloadFile() {
     return downloadFile;
   }
 
-  public void setCustomInput(final String input) {
-    this.customInput = input;
-  }
-
-  public Map<String, String> getCustomParameters() {
-    return customParameters;
-  }
 
   public Map<String, String> getEnvironment() {
     return Collections.unmodifiableMap(env);
   }
 
-  public byte[][] getFileData() {
-    return fileData;
+  public List<File> getFileList() {
+    return fileList;
   }
 
-  public boolean hasFileData() {
-    return (getFileData() != null);
-  }
-
-  public String getInput() {
-    return StringUtils.defaultIfBlank(getCustomInput(), getUserInput());
-  }
-
-  public Map<String, String> getParameters() {
-    final Map<String, String> parameters = new HashMap<>();
-    for (Map.Entry<String, String> mapEntry : getUserParameters().entrySet()) {
-      String key = mapEntry.getKey();
-      String value = mapEntry.getValue();
-
-      if (hasQuotesAroundNegativeNumber(value)) {
-        String trimmed = value.substring(1, value.length() - 1);
-        parameters.put(key, trimmed);
-      } else {
-        parameters.put(key, value);
-      }
-    }
-    parameters.putAll(getCustomParameters());
-    return Collections.unmodifiableMap(parameters);
+  public boolean hasFileList() {
+    return (getFileList() != null);
   }
 
   protected GfshParseResult getParseResult() {
@@ -147,17 +90,4 @@ public class CommandRequest {
   public String getUserInput() {
     return getParseResult().getUserInput();
   }
-
-  public Map<String, String> getUserParameters() {
-    return getParseResult().getParamValueStrings();
-  }
-
-  private boolean hasQuotesAroundNegativeNumber(String value) {
-    if (value == null) {
-      return false;
-    } else {
-      return value.startsWith("\"") && value.endsWith("\"") && value.matches("\"-[0-9]+\"");
-    }
-  }
-
 }

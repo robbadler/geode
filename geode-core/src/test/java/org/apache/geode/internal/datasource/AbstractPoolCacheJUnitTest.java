@@ -19,8 +19,12 @@
  */
 package org.apache.geode.internal.datasource;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.junit.Assert.*;
+import static org.apache.geode.distributed.ConfigurationProperties.CACHE_XML_FILE;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_LEVEL;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 import java.sql.Connection;
 import java.util.ArrayList;
@@ -28,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+
 import javax.naming.Context;
 import javax.sql.PooledConnection;
 import javax.sql.XAConnection;
@@ -170,7 +175,7 @@ public class AbstractPoolCacheJUnitTest {
     props.add(new ConfigProperty("databaseName", "newDB", "java.lang.String"));
 
     GemFireBasicDataSource gbds =
-        (GemFireBasicDataSource) DataSourceFactory.getSimpleDataSource(map, props);
+        (GemFireBasicDataSource) DataSourceFactory.getSimpleDataSource(map);
     map.put("xa-datasource-class", "org.apache.derby.jdbc.EmbeddedXADataSource");
 
     map.put("connection-url", "jdbc:derby:newDB;create=true");

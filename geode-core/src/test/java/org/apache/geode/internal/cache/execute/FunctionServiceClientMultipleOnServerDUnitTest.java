@@ -14,14 +14,16 @@
  */
 package org.apache.geode.internal.cache.execute;
 
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.test.junit.categories.ClientServerTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.junit.experimental.categories.Category;
+import org.apache.geode.test.junit.categories.FunctionServiceTest;
 
 /**
  * Tests onServers using multiple servers from a single client.
  */
-@Category({DistributedTest.class, ClientServerTest.class})
+@Category({DistributedTest.class, ClientServerTest.class, FunctionServiceTest.class})
 public class FunctionServiceClientMultipleOnServerDUnitTest
     extends FunctionServiceClientOnServerBase {
 

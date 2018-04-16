@@ -12,18 +12,15 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.ha;
 
 import org.apache.geode.distributed.internal.DistributionConfig;
 
 /**
- * 
+ *
  * This class defines the user specified attributes of the HARegion which are configurable.
- * 
- * 
+ *
+ *
  */
 public class HARegionQueueAttributes {
   /**
@@ -45,9 +42,6 @@ public class HARegionQueueAttributes {
 
   private int expiryTime = DEFAULT_EXPIRY_TIME;
 
-  /**
-   * 
-   */
   private int blockingQueueCapacity =
       Integer.getInteger(BLOCKING_QUEUE_CAPACITY, DEFAULT_BLOCKING_QUEUE_CAPACITY).intValue();
 
@@ -67,7 +61,7 @@ public class HARegionQueueAttributes {
 
   /**
    * Gets the expiration time for the region entries
-   * 
+   *
    * @return the expiry time in seconds
    */
   public int getExpiryTime() {
@@ -76,7 +70,7 @@ public class HARegionQueueAttributes {
 
   /**
    * Sets the expiration time for the region entries
-   * 
+   *
    * @param expiryTime expiry time in seconds
    */
   public void setExpiryTime(int expiryTime) {
@@ -85,7 +79,7 @@ public class HARegionQueueAttributes {
 
   /**
    * Gets the blocking queue capacity
-   * 
+   *
    * @return the blocking queue capacity
    */
   public int getBlockingQueueCapacity() {
@@ -94,7 +88,7 @@ public class HARegionQueueAttributes {
 
   /**
    * Sets the capacity of the queue
-   * 
+   *
    * @param cap number of items allowed in the queue
    */
   public void setBlockingQueueCapacity(int cap) {

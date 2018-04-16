@@ -19,15 +19,19 @@ import org.apache.geode.management.internal.cli.json.GfJsonException;
 import org.apache.geode.management.internal.cli.json.GfJsonObject;
 
 /**
- * 
- * 
+ *
+ *
  * @since GemFire 7.0
  */
 public class ErrorResultData extends InfoResultData {
   private static final String ERROR_CODE = "errorCode";
 
-  /* package */ ErrorResultData() {
+  public ErrorResultData() {
     super();
+  }
+
+  public ErrorResultData(String message) {
+    super(message);
   }
 
   // Useful on client/gfsh side to reconstruct the object
@@ -44,8 +48,7 @@ public class ErrorResultData extends InfoResultData {
   }
 
   /**
-   * 
-   * @param errorCode
+   *
    * @return this ErrorResultData
    * @throws ResultDataException If the errorCode value is a non-finite number or invalid.
    */
@@ -60,17 +63,15 @@ public class ErrorResultData extends InfoResultData {
   }
 
   /**
-   * 
-   * @param headerText
+   *
    * @return this ErrorResultData
-   * @throws ResultDataException
    */
   public ErrorResultData setHeader(String headerText) {
     return (ErrorResultData) super.setHeader(headerText);
   }
 
   /**
-   * 
+   *
    * @param line message to add
    * @return this ErrorResultData
    */
@@ -79,10 +80,8 @@ public class ErrorResultData extends InfoResultData {
   }
 
   /**
-   * 
-   * @param footerText
+   *
    * @return this InfoResultData
-   * @throws ResultDataException
    */
   public ErrorResultData setFooter(String footerText) {
     return (ErrorResultData) super.setFooter(footerText);
@@ -94,8 +93,10 @@ public class ErrorResultData extends InfoResultData {
 
   @Override
   public void setStatus(final Status status) {
-    throw new UnsupportedOperationException(
-        "The status of an ErrorResultData result must always be ERROR");
+    if (status != Status.ERROR) {
+      throw new UnsupportedOperationException(
+          "The status of an ErrorResultData result must always be ERROR");
+    }
   }
 
   @Override

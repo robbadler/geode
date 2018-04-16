@@ -14,6 +14,12 @@
  */
 package org.apache.geode.cache.client.internal;
 
+import java.net.SocketTimeoutException;
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.cache.client.ServerOperationException;
 import org.apache.geode.internal.Version;
@@ -24,16 +30,9 @@ import org.apache.geode.internal.cache.tier.sockets.Message;
 import org.apache.geode.internal.cache.tier.sockets.Part;
 import org.apache.geode.internal.cache.wan.BatchException70;
 import org.apache.geode.internal.cache.wan.GatewaySenderEventImpl;
-import org.apache.geode.internal.cache.wan.GatewaySenderEventRemoteDispatcher;
 import org.apache.geode.internal.cache.wan.GatewaySenderEventRemoteDispatcher.GatewayAck;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
-
-import java.net.SocketTimeoutException;
-import java.util.Iterator;
-import java.util.List;
-
-import org.apache.logging.log4j.Logger;
 
 @SuppressWarnings("unchecked")
 public class GatewaySenderBatchOp {
@@ -43,7 +42,7 @@ public class GatewaySenderBatchOp {
   /**
    * Send a list of gateway events to a server to execute using connections from the given pool to
    * communicate with the server.
-   * 
+   *
    * @param con the connection to send the message on.
    * @param pool the pool to use to communicate with the server.
    * @param events list of gateway events
@@ -171,8 +170,6 @@ public class GatewaySenderBatchOp {
         this.failed = false;
         this.timedOut = true;
         throw ste;
-      } catch (Exception e) {
-        throw e;
       }
     }
 
@@ -180,7 +177,7 @@ public class GatewaySenderBatchOp {
     /**
      * Attempts to read a response to this operation by reading it from the given connection, and
      * returning it.
-     * 
+     *
      * @param cnx the connection to read the response from
      * @return the result of the operation or <code>null</code> if the operation has no result.
      * @throws Exception if the execute failed
@@ -202,7 +199,7 @@ public class GatewaySenderBatchOp {
         }
 
         try {
-          msg.recv();
+          msg.receive();
         } finally {
           msg.unsetComms();
           processSecureBytes(cnx, msg);

@@ -16,16 +16,15 @@
 
 package org.apache.geode.internal.admin.remote;
 
+import java.io.*;
+import java.util.*;
+
 import org.apache.geode.*;
 import org.apache.geode.admin.AlertLevel;
 import org.apache.geode.distributed.internal.*;
-// import org.apache.geode.internal.*;
+import org.apache.geode.distributed.internal.membership.*;
 import org.apache.geode.internal.admin.*;
 import org.apache.geode.management.internal.AlertDetails;
-
-import java.io.*;
-import java.util.*;
-import org.apache.geode.distributed.internal.membership.*;
 
 /**
  * A message that is sent to a particular console distribution manager to notify it of an alert.
@@ -67,7 +66,7 @@ public class AlertListenerMessage extends PooledDistributionMessage implements A
   }
 
   @Override
-  public void process(DistributionManager dm) {
+  public void process(ClusterDistributionManager dm) {
     RemoteGfManagerAgent agent = dm.getAgent();
     if (agent != null) {
       RemoteGemFireVM mgr = agent.getMemberById(this.getSender());

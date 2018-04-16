@@ -14,10 +14,12 @@
  */
 package org.apache.geode.internal.cache.control;
 
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.logging.log4j.Logger;
 
+import org.apache.geode.internal.logging.LogService;
 
 public class TestMemoryThresholdListener implements ResourceListener<MemoryEvent> {
+  private static final Logger logger = LogService.getLogger();
   private int normalCalls = 0;
   private int criticalThresholdCalls = 0;
   private int evictionThresholdCalls = 0;
@@ -112,14 +114,13 @@ public class TestMemoryThresholdListener implements ResourceListener<MemoryEvent
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.control.ResourceListener#onEvent(java.lang.Object)
    */
   @Override
   public void onEvent(MemoryEvent event) {
     if (this.logOnEventCalls) {
-      InternalDistributedSystem.getAnyInstance().getLogWriter()
-          .info("TestMemoryThresholdListener onEvent " + event);
+      logger.info("TestMemoryThresholdListener onEvent " + event);
     }
     synchronized (this) {
       if (event.getState().isNormal()) {
@@ -169,7 +170,7 @@ public class TestMemoryThresholdListener implements ResourceListener<MemoryEvent
 
   /**
    * Convert a percentage as a double to an integer e.g. 0.09 => 9 also legal is 0.095 => 9
-   * 
+   *
    * @param percentHeap a percentage value expressed as a double e.g. 9.5% => 0.095
    * @return the calculated percent as an integer >= 0 and <= 100
    */

@@ -35,7 +35,7 @@ package org.apache.geode.admin;
  *
  * <LI>The number of entries in the Cache {@link #getMaxEventQueueSize event delivery queue} is too
  * large.</LI>
- * 
+ *
  * <LI>If one of the regions is configured with {@link org.apache.geode.cache.LossAction#FULL_ACCESS
  * FULL_ACCESS} on role loss.</LI>
  *
@@ -43,17 +43,17 @@ package org.apache.geode.admin;
  *
  * If any of the following criteria is true, then a cache member is considered to be in
  * {@link GemFireHealth#POOR_HEALTH POOR_HEALTH}.
- * 
+ *
  * <UL>
- * 
+ *
  * <LI>If one of the regions is configured with {@link org.apache.geode.cache.LossAction#NO_ACCESS
  * NO_ACCESS} on role loss.</LI>
- * 
+ *
  * <LI>If one of the regions is configured with
  * {@link org.apache.geode.cache.LossAction#LIMITED_ACCESS LIMITED_ACCESS} on role loss.</LI>
- * 
+ *
  * </UL>
- * 
+ *
  * <UL>
  *
  * </UL>
@@ -70,21 +70,21 @@ public interface CacheHealthConfig {
    * The default maximum number of milliseconds a <code>netSearch</code> operation can take before
    * the cache member is considered to be unhealthy.
    */
-  public static final long DEFAULT_MAX_NET_SEARCH_TIME = 60 * 1000;
+  long DEFAULT_MAX_NET_SEARCH_TIME = 60 * 1000;
 
   /**
    * The default maximum mumber of milliseconds a cache <code>load</code> operation can take before
    * the cache member is considered to be unhealthy.
    */
-  public static final long DEFAULT_MAX_LOAD_TIME = 60 * 1000;
+  long DEFAULT_MAX_LOAD_TIME = 60 * 1000;
 
   /** The default minimum hit ratio of a healthy cache member. */
-  public static final double DEFAULT_MIN_HIT_RATIO = 0.0;
+  double DEFAULT_MIN_HIT_RATIO = 0.0;
 
   /**
    * The default maximum number of entries in the event delivery queue of a healthy cache member.
    */
-  public static final long DEFAULT_MAX_EVENT_QUEUE_SIZE = 1000;
+  long DEFAULT_MAX_EVENT_QUEUE_SIZE = 1000;
 
   /////////////////////// Instance Methods ///////////////////////
 
@@ -94,7 +94,7 @@ public interface CacheHealthConfig {
    *
    * @see #DEFAULT_MAX_NET_SEARCH_TIME
    */
-  public long getMaxNetSearchTime();
+  long getMaxNetSearchTime();
 
   /**
    * Sets the maximum number of milliseconds a <code>netSearch</code> operation can take before the
@@ -102,7 +102,7 @@ public interface CacheHealthConfig {
    *
    * @see #getMaxNetSearchTime
    */
-  public void setMaxNetSearchTime(long maxNetSearchTime);
+  void setMaxNetSearchTime(long maxNetSearchTime);
 
   /**
    * Returns the maximum mumber of milliseconds a cache <code>load</code> operation can take before
@@ -110,7 +110,7 @@ public interface CacheHealthConfig {
    *
    * @see #DEFAULT_MAX_LOAD_TIME
    */
-  public long getMaxLoadTime();
+  long getMaxLoadTime();
 
   /**
    * Sets the maximum mumber of milliseconds a cache <code>load</code> operation can take before the
@@ -118,34 +118,34 @@ public interface CacheHealthConfig {
    *
    * @see #getMaxLoadTime
    */
-  public void setMaxLoadTime(long maxLoadTime);
+  void setMaxLoadTime(long maxLoadTime);
 
   /**
    * Returns the minimum hit ratio of a healthy cache member.
    *
    * @see #DEFAULT_MIN_HIT_RATIO
    */
-  public double getMinHitRatio();
+  double getMinHitRatio();
 
   /**
    * Sets the minimum hit ratio of a healthy cache member.
    *
    * @see #getMinHitRatio
    */
-  public void setMinHitRatio(double minHitRatio);
+  void setMinHitRatio(double minHitRatio);
 
   /**
    * Returns the maximum number of entries in the event delivery queue of a healthy cache member.
    *
    * @see #DEFAULT_MAX_EVENT_QUEUE_SIZE
    */
-  public long getMaxEventQueueSize();
+  long getMaxEventQueueSize();
 
   /**
    * Sets the maximum number of entries in the event delivery queue of a healthy cache member.
    *
    * @see #getMaxEventQueueSize
    */
-  public void setMaxEventQueueSize(long maxEventQueueSize);
+  void setMaxEventQueueSize(long maxEventQueueSize);
 
 }

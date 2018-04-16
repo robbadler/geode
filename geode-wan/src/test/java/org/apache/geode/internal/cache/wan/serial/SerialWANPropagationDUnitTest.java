@@ -19,14 +19,14 @@ import static org.junit.Assert.*;
 import java.io.IOException;
 import java.util.Map;
 
-import org.apache.geode.cache.DataPolicy;
-import org.apache.geode.cache.Scope;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.CacheException;
+import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.EntryExistsException;
+import org.apache.geode.cache.Scope;
 import org.apache.geode.cache.client.ServerOperationException;
 import org.apache.geode.cache30.CacheSerializableRunnable;
 import org.apache.geode.distributed.internal.DistributionConfig;
@@ -39,8 +39,9 @@ import org.apache.geode.test.dunit.SerializableRunnableIF;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class SerialWANPropagationDUnitTest extends WANTestBase {
 
   @Override
@@ -360,14 +361,6 @@ public class SerialWANPropagationDUnitTest extends WANTestBase {
 
     // these are part of remote site
     createCacheInVMs(nyPort, vm2, vm3);
-    createReceiverInVMs(vm2, vm3);
-
-    // these are part of local site
-    createCacheInVMs(lnPort, vm4, vm5, vm6, vm7);
-
-    // senders are created on local site
-    vm4.invoke(() -> WANTestBase.createSender("ln", 2, false, 100, 500, false, false, null, true));
-    vm5.invoke(() -> WANTestBase.createSender("ln", 2, false, 100, 500, false, false, null, true));
 
     // create one RR (RR_1) on remote site
     vm2.invoke(
@@ -375,8 +368,13 @@ public class SerialWANPropagationDUnitTest extends WANTestBase {
     vm3.invoke(
         () -> WANTestBase.createReplicatedRegion(getTestMethodName() + "_RR_1", null, isOffHeap()));
 
-    // start the senders on local site
-    startSenderInVMs("ln", vm4, vm5);
+    createReceiverInVMs(vm2, vm3);
+
+    vm2.invoke(() -> addListenerToSleepAfterCreateEvent(1000, getTestMethodName() + "_RR_1"));
+    vm3.invoke(() -> addListenerToSleepAfterCreateEvent(1000, getTestMethodName() + "_RR_1"));
+
+    // these are part of local site
+    createCacheInVMs(lnPort, vm4, vm5, vm6, vm7);
 
     // create one RR (RR_1) on local site
     vm4.invoke(
@@ -387,6 +385,14 @@ public class SerialWANPropagationDUnitTest extends WANTestBase {
         () -> WANTestBase.createReplicatedRegion(getTestMethodName() + "_RR_1", "ln", isOffHeap()));
     vm7.invoke(
         () -> WANTestBase.createReplicatedRegion(getTestMethodName() + "_RR_1", "ln", isOffHeap()));
+
+    // senders are created on local site
+    vm4.invoke(() -> WANTestBase.createSender("ln", 2, false, 100, 500, false, false, null, true));
+    vm5.invoke(() -> WANTestBase.createSender("ln", 2, false, 100, 500, false, false, null, true));
+
+
+    // start the senders on local site
+    startSenderInVMs("ln", vm4, vm5);
 
     IgnoredException.addIgnoredException(BatchException70.class.getName());
     IgnoredException.addIgnoredException(ServerOperationException.class.getName());
@@ -585,7 +591,7 @@ public class SerialWANPropagationDUnitTest extends WANTestBase {
    * remote site. Puts to the local region are in progress. Receiver on remote site is stopped in
    * the middle by closing remote site cache.
    */
-  @Category(FlakyTest.class) // GEODE-1552
+  @Category({FlakyTest.class, WanTest.class}) // GEODE-1552
   @Test
   public void testReplicatedSerialPropagationWithRemoteReceiverStopped() throws Exception {
     Integer lnPort = (Integer) vm0.invoke(() -> WANTestBase.createFirstLocatorWithDSId(1));
@@ -1011,9 +1017,9 @@ public class SerialWANPropagationDUnitTest extends WANTestBase {
 
   /**
    * Local site:: vm4: Primary vm5: Secondary
-   * 
+   *
    * Remote site:: vm2, vm3, vm6, vm7: All hosting receivers
-   * 
+   *
    * vm4 is killed, so vm5 takes primary charge
    *
    * SUR: disabling due to connection information not available in open source enable this once in
@@ -1087,9 +1093,9 @@ public class SerialWANPropagationDUnitTest extends WANTestBase {
 
   /**
    * Local site:: vm4: Primary vm5: Secondary
-   * 
+   *
    * Remote site:: vm2, vm3, vm6, vm7: All hosting receivers
-   * 
+   *
    * vm4 is killed, so vm5 takes primary charge. vm4 brought up. vm5 is killed, so vm4 takes primary
    * charge again.
    *

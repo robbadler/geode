@@ -27,7 +27,7 @@ import org.apache.geode.pdx.internal.DataSize;
  * Some field types are always serialized with a certain number of bytes; these are called
  * "fixed-width". Others are serialized with a variable number of bytes; these are called
  * "variable-width".
- * 
+ *
  * @since GemFire 6.6.2
  */
 public enum FieldType {
@@ -40,8 +40,8 @@ public enum FieldType {
   FLOAT(true, DataSize.FLOAT_SIZE, "float", new byte[] {0, 0, 0, 0}, 0),
   DOUBLE(true, DataSize.DOUBLE_SIZE, "double", new byte[] {0, 0, 0, 0, 0, 0, 0, 0}, 0),
   DATE(true, DataSize.DATE_SIZE, "Date", new byte[] {-1, -1, -1, -1, -1, -1, -1, -1}, null),
-  STRING(false, -1, "String", new byte[] {DSCODE.NULL_STRING}, null),
-  OBJECT(false, -1, "Object", new byte[] {DSCODE.NULL}, null),
+  STRING(false, -1, "String", new byte[] {DSCODE.NULL_STRING.toByte()}, null),
+  OBJECT(false, -1, "Object", new byte[] {DSCODE.NULL.toByte()}, null),
   BOOLEAN_ARRAY(false, -1, "boolean[]", new byte[] {InternalDataSerializer.NULL_ARRAY}, null),
   CHAR_ARRAY(false, -1, "char[]", new byte[] {InternalDataSerializer.NULL_ARRAY}, null),
   BYTE_ARRAY(false, -1, "byte[]", new byte[] {InternalDataSerializer.NULL_ARRAY}, null),

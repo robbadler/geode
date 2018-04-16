@@ -14,8 +14,32 @@
  */
 package org.apache.geode.distributed.internal;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.junit.Assert.*;
+import static org.apache.geode.distributed.ConfigurationProperties.ARCHIVE_DISK_SPACE_LIMIT;
+import static org.apache.geode.distributed.ConfigurationProperties.ARCHIVE_FILE_SIZE_LIMIT;
+import static org.apache.geode.distributed.ConfigurationProperties.CACHE_XML_FILE;
+import static org.apache.geode.distributed.ConfigurationProperties.CLUSTER_SSL_ENABLED;
+import static org.apache.geode.distributed.ConfigurationProperties.GATEWAY_SSL_ENABLED;
+import static org.apache.geode.distributed.ConfigurationProperties.GROUPS;
+import static org.apache.geode.distributed.ConfigurationProperties.HTTP_SERVICE_SSL_ENABLED;
+import static org.apache.geode.distributed.ConfigurationProperties.JMX_MANAGER_SSL_ENABLED;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_DISK_SPACE_LIMIT;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_FILE_SIZE_LIMIT;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_LEVEL;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.apache.geode.distributed.ConfigurationProperties.MEMBERSHIP_PORT_RANGE;
+import static org.apache.geode.distributed.ConfigurationProperties.MEMBER_TIMEOUT;
+import static org.apache.geode.distributed.ConfigurationProperties.NAME;
+import static org.apache.geode.distributed.ConfigurationProperties.SERVER_SSL_ENABLED;
+import static org.apache.geode.distributed.ConfigurationProperties.SSL_ENABLED_COMPONENTS;
+import static org.apache.geode.distributed.ConfigurationProperties.START_LOCATOR;
+import static org.apache.geode.distributed.ConfigurationProperties.STATISTIC_ARCHIVE_FILE;
+import static org.apache.geode.distributed.ConfigurationProperties.STATISTIC_SAMPLE_RATE;
+import static org.apache.geode.distributed.ConfigurationProperties.STATISTIC_SAMPLING_ENABLED;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -30,10 +54,8 @@ import java.util.Enumeration;
 import java.util.Properties;
 import java.util.logging.Level;
 
-import org.apache.geode.test.junit.categories.MembershipTest;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -48,11 +70,12 @@ import org.apache.geode.internal.ConfigSource;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.InternalLogWriter;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.MembershipTest;
 
 /**
  * Tests the functionality of the {@link InternalDistributedSystem} class. Mostly checks
  * configuration error checking.
- * 
+ *
  * @since GemFire 2.1
  */
 @Category({IntegrationTest.class, MembershipTest.class})
@@ -67,14 +90,14 @@ public class InternalDistributedSystemJUnitTest {
    * Creates a <code>DistributedSystem</code> with the given configuration properties.
    */
   protected InternalDistributedSystem createSystem(Properties props) {
-    assertFalse(org.apache.geode.distributed.internal.DistributionManager.isDedicatedAdminVM);
+    assertFalse(ClusterDistributionManager.isDedicatedAdminVM());
     this.system = (InternalDistributedSystem) DistributedSystem.connect(props);
     return this.system;
   }
 
   /**
    * Disconnects any distributed system that was created by this test
-   * 
+   *
    * @see DistributedSystem#disconnect
    */
   @After
@@ -243,7 +266,7 @@ public class InternalDistributedSystemJUnitTest {
 
   /**
    * Creates a new <code>DistributionConfigImpl</code> with the given locators string.
-   * 
+   *
    * @throws IllegalArgumentException If <code>locators</code> is malformed
    * @since GemFire 4.0
    */
@@ -256,7 +279,7 @@ public class InternalDistributedSystemJUnitTest {
   /**
    * Tests that both the traditional syntax ("host[port]") and post bug-32306 syntax ("host:port")
    * can be used with locators.
-   * 
+   *
    * @since GemFire 4.0
    */
   @Test
@@ -641,16 +664,11 @@ public class InternalDistributedSystemJUnitTest {
 
   @Test
   public void testDeprecatedSSLProps() {
+    // ssl-* props are copied to cluster-ssl-*.
     Properties props = getCommonProperties();
     props.setProperty(CLUSTER_SSL_ENABLED, "true");
     Config config1 = new DistributionConfigImpl(props, false);
     Properties props1 = config1.toProperties();
-    // For the deprecated ssl-* properties a decision was made
-    // to not include them in the result of "toProperties".
-    // The cause of this is: org.apache.geode.internal.AbstractConfig.isDeprecated(String)
-    // and its use in toProperties.
-    // The other thing that is done is the ssl-* props are copied to cluster-ssl-*.
-    // The following two assertions demonstrate this.
     assertEquals("true", props1.getProperty(CLUSTER_SSL_ENABLED));
     Config config2 = new DistributionConfigImpl(props1, false);
     assertEquals(true, config1.sameAs(config2));
@@ -813,7 +831,7 @@ public class InternalDistributedSystemJUnitTest {
 
   /**
    * Detect LinkLocal IPv6 address where the interface is missing, ie %[0-9].
-   * 
+   *
    * @see InetAddress#isLinkLocalAddress()
    */
   private static boolean isIPv6LinkLocalAddress(Inet6Address addr) {

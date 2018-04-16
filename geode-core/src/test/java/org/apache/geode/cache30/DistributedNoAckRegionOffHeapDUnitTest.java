@@ -29,7 +29,7 @@ import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * Tests Distributed NoAck Region with OffHeap memory.
- * 
+ *
  * @since Geode 1.0
  */
 @SuppressWarnings({"deprecation", "serial"})
@@ -47,7 +47,7 @@ public class DistributedNoAckRegionOffHeapDUnitTest extends DistributedNoAckRegi
       @Override
       public void run() {
         if (hasCache()) {
-          OffHeapTestUtil.checkOrphans();
+          OffHeapTestUtil.checkOrphans(getCache());
         }
       }
     };

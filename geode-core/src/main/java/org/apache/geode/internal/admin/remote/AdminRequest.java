@@ -17,7 +17,6 @@
 package org.apache.geode.internal.admin.remote;
 
 import java.io.DataInput;
-// import org.apache.geode.internal.*;
 import java.io.DataOutput;
 import java.io.IOException;
 
@@ -25,11 +24,10 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.admin.RuntimeAdminException;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.PooledDistributionMessage;
 import org.apache.geode.distributed.internal.ReplyException;
-// import java.util.*;
-// import java.net.*;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
@@ -73,7 +71,7 @@ public abstract class AdminRequest extends PooledDistributionMessage {
   /**
    * Sends this request, waits for the AdminReponse, and returns it
    */
-  public AdminResponse sendAndWait(DistributionManager dm) {
+  public AdminResponse sendAndWait(ClusterDistributionManager dm) {
     InternalDistributedMember recipient = this.getRecipient();
     if (dm.getId().equals(recipient)) {
       // We're sending this message to ourselves, we won't need a
@@ -130,14 +128,14 @@ public abstract class AdminRequest extends PooledDistributionMessage {
    * outgoing queue.
    */
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     AdminResponse response = null;
     InspectionClasspathManager cpMgr = InspectionClasspathManager.getInstance();
     try {
       cpMgr.jumpToModifiedClassLoader(modifiedClasspath);
       response = createResponse(dm);
     } catch (Exception ex) {
-      response = AdminFailureResponse.create(dm, this.getSender(), ex);
+      response = AdminFailureResponse.create(this.getSender(), ex);
     } finally {
       cpMgr.revertToOldClassLoader();
     }

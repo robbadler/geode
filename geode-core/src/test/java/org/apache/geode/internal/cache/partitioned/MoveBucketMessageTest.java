@@ -15,14 +15,14 @@
 package org.apache.geode.internal.cache.partitioned;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
 
-import org.apache.geode.distributed.internal.DistributionManager;
-import org.apache.geode.internal.cache.PartitionedRegion;
-import org.apache.geode.test.junit.categories.UnitTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
+import org.apache.geode.internal.cache.PartitionedRegion;
+import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
 public class MoveBucketMessageTest {
@@ -30,7 +30,7 @@ public class MoveBucketMessageTest {
   @Test
   public void shouldBeMockable() throws Exception {
     MoveBucketMessage mockMoveBucketMessage = mock(MoveBucketMessage.class);
-    DistributionManager mockDistributionManager = mock(DistributionManager.class);
+    ClusterDistributionManager mockDistributionManager = mock(ClusterDistributionManager.class);
     PartitionedRegion mockPartitionedRegion = mock(PartitionedRegion.class);
     long startTime = System.currentTimeMillis();
     Object key = new Object();

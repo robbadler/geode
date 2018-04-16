@@ -14,13 +14,29 @@
  */
 package org.apache.geode.internal.cache.functions;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.CancellationException;
+
+import org.apache.geode.DataSerializable;
+import org.apache.geode.DataSerializer;
 import org.apache.geode.LogWriter;
-import org.apache.geode.cache.*;
+import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.cache.Region;
 import org.apache.geode.cache.control.RebalanceFactory;
 import org.apache.geode.cache.control.RebalanceOperation;
 import org.apache.geode.cache.control.RebalanceResults;
 import org.apache.geode.cache.control.ResourceManager;
-import org.apache.geode.cache.execute.FunctionAdapter;
+import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.FunctionInvocationTargetException;
 import org.apache.geode.cache.execute.RegionFunctionContext;
@@ -40,17 +56,7 @@ import org.apache.geode.internal.cache.xmlcache.Declarable2;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.CancellationException;
-
-public class TestFunction extends FunctionAdapter implements Declarable2 {
+public class TestFunction<T> implements Function<T>, Declarable2, DataSerializable {
   public static final String TEST_FUNCTION10 = "TestFunction10";
   public static final String TEST_FUNCTION9 = "TestFunction9";
   public static final String TEST_FUNCTION8 = "TestFunction8";
@@ -62,6 +68,8 @@ public class TestFunction extends FunctionAdapter implements Declarable2 {
   public static final String TEST_FUNCTION2 = "TestFunction2";
   public static final String TEST_FUNCTION1 = "TestFunction1";
   public static final String TEST_FUNCTION_EXCEPTION = "TestFunctionException";
+  public static final String TEST_FUNCTION_ALWAYS_THROWS_EXCEPTION =
+      "TestFunctionAlwaysThrowsException";
   public static final String TEST_FUNCTION_RESULT_SENDER = "TestFunctionResultSender";
   public static final String MEMBER_FUNCTION = "MemberFunction";
   public static final String TEST_FUNCTION_SOCKET_TIMEOUT = "SocketTimeOutFunction";
@@ -81,6 +89,8 @@ public class TestFunction extends FunctionAdapter implements Declarable2 {
   public static final String TEST_FUNCTION_SEND_EXCEPTION = "executeFunction_SendException";
   public static final String TEST_FUNCTION_THROW_EXCEPTION = "executeFunction_ThrowException";
   public static final String TEST_FUNCTION_RETURN_ARGS = "executeFunctionToReturnArgs";
+  public static final String TEST_FUNCTION_ON_ONE_MEMBER_RETURN_ARGS =
+      "executeFunctionOnOneMemberToReturnArgs";
   public static final String TEST_FUNCTION_RUNNING_FOR_LONG_TIME =
       "executeFunctionRunningForLongTime";
   public static final String TEST_FUNCTION_BUCKET_FILTER = "TestFunctionBucketFilter";
@@ -116,7 +126,7 @@ public class TestFunction extends FunctionAdapter implements Declarable2 {
 
   /**
    * Application execution implementation
-   * 
+   *
    * @since GemFire 5.8Beta
    */
   @Override
@@ -124,7 +134,7 @@ public class TestFunction extends FunctionAdapter implements Declarable2 {
     String id = this.props.getProperty(ID);
     String noAckTest = this.props.getProperty(NOACKTEST);
 
-    if (id.equals(TEST_FUNCTION1)) {
+    if (id.equals(TEST_FUNCTION1) || id.equals(TEST_FUNCTION_ON_ONE_MEMBER_RETURN_ARGS)) {
       execute1(context);
     } else if (id.equals(TEST_FUNCTION2)) {
       execute2(context);
@@ -138,6 +148,8 @@ public class TestFunction extends FunctionAdapter implements Declarable2 {
       execute8(context);
     } else if (id.equals(TEST_FUNCTION9)) {
       execute9(context);
+    } else if (id.equals(TEST_FUNCTION_ALWAYS_THROWS_EXCEPTION)) {
+      executeAlwaysException(context);
     } else if (id.equals(TEST_FUNCTION_EXCEPTION)) {
       executeException(context);
     } else if (id.equals(TEST_FUNCTION_REEXECUTE_EXCEPTION)) {
@@ -628,6 +640,15 @@ public class TestFunction extends FunctionAdapter implements Declarable2 {
     }
   }
 
+  private void executeAlwaysException(FunctionContext context) {
+    DistributedSystem ds = InternalDistributedSystem.getAnyInstance();
+    LogWriter logger = ds.getLogWriter();
+    logger.fine("Executing executeException in TestFunction on Member : "
+        + ds.getDistributedMember() + "with Context : " + context);
+    logger.fine("MyFunctionExecutionException Exception is intentionally thrown");
+    throw new MyFunctionExecutionException("I have been thrown from TestFunction");
+  }
+
 
   private void executeWithSendException(FunctionContext context) {
     DistributedSystem ds = InternalDistributedSystem.getAnyInstance();
@@ -1033,7 +1054,7 @@ public class TestFunction extends FunctionAdapter implements Declarable2 {
 
   /**
    * Get the function identifier, used by clients to invoke this function
-   * 
+   *
    * @return an object identifying this function
    * @since GemFire 5.8Beta
    */
@@ -1063,7 +1084,7 @@ public class TestFunction extends FunctionAdapter implements Declarable2 {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.xmlcache.Declarable2#getConfig()
    */
   public Properties getConfig() {
@@ -1072,7 +1093,7 @@ public class TestFunction extends FunctionAdapter implements Declarable2 {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.Declarable#init(java.util.Properties)
    */
   public void init(Properties props) {
@@ -1092,4 +1113,19 @@ public class TestFunction extends FunctionAdapter implements Declarable2 {
     return Boolean.valueOf(this.props.getProperty(HAVE_RESULTS)).booleanValue();
   }
 
+  @Override
+  public void toData(DataOutput out) throws IOException {
+    DataSerializer.writeHashMap(this.props, out);
+  }
+
+  @Override
+  public void fromData(DataInput in) throws IOException, ClassNotFoundException {
+    Map map = DataSerializer.readHashMap(in);
+    if (map != null) {
+      for (Iterator it = map.entrySet().iterator(); it.hasNext();) {
+        Map.Entry entry = (Map.Entry) it.next();
+        props.put(entry.getKey(), entry.getValue());
+      }
+    }
+  }
 }

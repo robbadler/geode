@@ -14,6 +14,18 @@
  */
 package org.apache.geode.internal.cache.wan.misc;
 
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.*;
+
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+
+import org.junit.After;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.*;
 import org.apache.geode.cache.asyncqueue.AsyncEventListener;
 import org.apache.geode.cache.wan.*;
@@ -28,29 +40,17 @@ import org.apache.geode.internal.cache.wan.InternalGatewaySenderFactory;
 import org.apache.geode.internal.cache.wan.MyGatewaySenderEventListener;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.junit.After;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import org.apache.geode.test.junit.categories.WanTest;
 
-import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
-
-import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
-import static org.junit.Assert.*;
-
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, WanTest.class})
 public class WANConfigurationJUnitTest {
 
   private Cache cache;
 
   /**
    * Test to validate that the sender can not be started without configuring locator
-   * 
-   * @throws IOException
-   * 
-   * @throws IOException
+   *
+   *
    */
   @Test
   public void test_GatewaySender_without_Locator() throws IOException {
@@ -139,7 +139,7 @@ public class WANConfigurationJUnitTest {
   /**
    * Test to validate that distributed region can not have the gateway sender with parallel
    * distribution policy
-   * 
+   *
    */
   @Ignore("Bug51491")
   @Test
@@ -223,7 +223,7 @@ public class WANConfigurationJUnitTest {
     Region region = cache.createRegionFactory().create("test_ValidateGatewayReceiverAttributes");
     Set<GatewayReceiver> receivers = cache.getGatewayReceivers();
     GatewayReceiver rec = receivers.iterator().next();
-    assertEquals(receiver1.getHost(), rec.getHost());
+    assertEquals(receiver1.getHostnameForSenders(), rec.getHostnameForSenders());
     assertEquals(receiver1.getStartPort(), rec.getStartPort());
     assertEquals(receiver1.getEndPort(), rec.getEndPort());
     assertEquals(receiver1.getBindAddress(), rec.getBindAddress());
@@ -417,16 +417,12 @@ public class WANConfigurationJUnitTest {
   }
 
   /**
-   * This test takes a minimum of 120s to execute. It is known to hang on Mac OS X Yosemite do to
-   * changes in the the message string checked in GatewayReceiverImpl around line 167. Expects
-   * "Cannot assign requested address" but gets "Can't assign requested address". Timeout after 150s
-   * to safeguard against hanging on other platforms that may differ.
+   * This test takes a minimum of 120s to execute. Based on the experiences of the Yosemite release
+   * of macOS, timeout after 150s to safeguard against hanging on other platforms that may have
+   * different error messages.
    */
   @Test(timeout = 150000)
   public void test_ValidateGatewayReceiverAttributes_WrongBindAddress() {
-    if (System.getProperty("os.name").equals("Mac OS X")) {
-      fail("Failing to avoid known hang on Mac OS X.");
-    }
     cache = new CacheFactory().set(MCAST_PORT, "0").create();
     GatewayReceiverFactory fact = cache.createGatewayReceiverFactory();
     fact.setStartPort(50504);

@@ -31,7 +31,6 @@ import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.Scope;
 import org.apache.geode.distributed.Locator;
-import org.apache.geode.distributed.internal.DistributionStats;
 import org.apache.geode.distributed.internal.InternalLocator;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.cache.CachedDeserializableFactory;
@@ -96,7 +95,7 @@ public class DistributedMulticastRegionDUnitTest extends JUnit4CacheTestCase {
      * SerializableRunnable validateMulticastBeforeRegionOps = new
      * CacheSerializableRunnable("validateMulticast before region ops") { public void run2() throws
      * CacheException { validateMulticastOpsBeforeRegionOps(); } };
-     * 
+     *
      * vm0.invoke(validateMulticastBeforeRegionOps); vm1.invoke(validateMulticastBeforeRegionOps);
      */
 

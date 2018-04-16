@@ -14,16 +14,16 @@
  */
 package org.apache.geode.distributed.internal;
 
+import java.io.*;
+
 import org.apache.geode.*;
+import org.apache.geode.distributed.internal.membership.*;
 import org.apache.geode.internal.*;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 
-import java.io.*;
-import org.apache.geode.distributed.internal.membership.*;
-
 /**
  * A message that is sent to all other distribution manager when a distribution manager shuts down.
- * 
+ *
  * N.B. -- this is a SerialDistributionMessage due to bug32980
  */
 public class ShutdownMessage extends HighPriorityDistributionMessage
@@ -66,7 +66,7 @@ public class ShutdownMessage extends HighPriorityDistributionMessage
    * This method is invoked on the receiver side
    */
   @Override
-  protected void process(final DistributionManager dm) {
+  protected void process(final ClusterDistributionManager dm) {
     Assert.assertTrue(this.id != null);
     // The peer goes deaf after sending us this message, so do not
     // attempt a reply.

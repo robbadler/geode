@@ -15,7 +15,7 @@
 /*
  * Created on Aug 23, 2005
  *
- * 
+ *
  */
 package org.apache.geode.internal.cache;
 
@@ -42,10 +42,6 @@ import org.apache.geode.internal.util.StopWatch;
 import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 
-/**
- * 
- *  
- */
 @Category(IntegrationTest.class)
 public class MapInterface2JUnitTest {
 
@@ -110,7 +106,7 @@ public class MapInterface2JUnitTest {
   public void testBasicMapAfterClearCalback() {
     Region rgn = CacheUtils.getRegion("Portfolios");
     AttributesMutator atm = rgn.getAttributesMutator();
-    atm.setCacheListener(new CacheListenerAdapter() {
+    atm.addCacheListener(new CacheListenerAdapter() {
 
       public void afterRegionClear(RegionEvent event) {
         synchronized (MapInterface2JUnitTest.this) {

@@ -16,30 +16,26 @@ package org.apache.geode.internal.cache.ha;
 
 import java.io.IOException;
 
-import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.CacheException;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 
 /**
  * Test runs all tests of HARegionQueueStatsJUnitTest using BlockingHARegionQueue instead of
  * HARegionQueue
- * 
- * 
+ *
+ *
  */
 @Category({IntegrationTest.class, ClientSubscriptionTest.class})
 public class BlockingHARQStatsJUnitTest extends HARegionQueueStatsJUnitTest {
 
   /**
    * Creates a BlockingHARegionQueue object.
-   * 
+   *
    * @param name - name of the underlying region for region-queue
    * @return the BlockingHARegionQueue instance
-   * @throws IOException
-   * @throws ClassNotFoundException
-   * @throws CacheException
-   * @throws InterruptedException
    */
   protected HARegionQueue createHARegionQueue(String name)
       throws IOException, ClassNotFoundException, CacheException, InterruptedException {
@@ -50,14 +46,10 @@ public class BlockingHARQStatsJUnitTest extends HARegionQueueStatsJUnitTest {
 
   /**
    * Creates a BlockingHARegionQueue object.
-   * 
+   *
    * @param name - name of the underlying region for region-queue
    * @param attrs - attributes for the BlockingHARegionQueue
    * @return the BlockingHARegionQueue instance
-   * @throws IOException
-   * @throws ClassNotFoundException
-   * @throws CacheException
-   * @throws InterruptedException
    */
   protected HARegionQueue createHARegionQueue(String name, HARegionQueueAttributes attrs)
       throws IOException, ClassNotFoundException, CacheException, InterruptedException {

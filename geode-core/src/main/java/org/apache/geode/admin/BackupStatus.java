@@ -23,14 +23,13 @@ import org.apache.geode.distributed.DistributedMember;
 /**
  * The status of a backup operation, returned by
  * {@link AdminDistributedSystem#backupAllMembers(java.io.File,java.io.File)}.
- * 
+ *
  * @since GemFire 6.5
  * @deprecated as of 7.0 use the <code><a href=
  *             "{@docRoot}/org/apache/geode/management/package-summary.html">management</a></code>
  *             package instead
  */
 public interface BackupStatus {
-
   /**
    * Returns a map of disk stores that were successfully backed up. The key is an online distributed
    * member. The value is the set of disk stores on that distributed member.

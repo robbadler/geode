@@ -17,12 +17,6 @@
 
 package org.apache.geode.tools.pulse.internal;
 
-import org.apache.geode.tools.pulse.internal.controllers.PulseController;
-import org.apache.geode.tools.pulse.internal.data.PulseConstants;
-import org.apache.geode.tools.pulse.internal.data.Repository;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
@@ -30,14 +24,22 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.ResourceBundle;
 import java.util.Set;
+
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.tools.pulse.internal.controllers.PulseController;
+import org.apache.geode.tools.pulse.internal.data.PulseConstants;
+import org.apache.geode.tools.pulse.internal.data.Repository;
+
 /**
  * This class is used for checking the application running mode i.e. Embedded or not
- * 
+ *
  * @since GemFire version 7.0.Beta 2012-09-23
- * 
+ *
  */
 // @WebListener
 public class PulseAppListener implements ServletContextListener {
@@ -81,7 +83,8 @@ public class PulseAppListener implements ServletContextListener {
       // jmx connection parameters
       logger.info(resourceBundle.getString("LOG_MSG_APP_RUNNING_EMBEDDED_MODE"));
       repository.setJmxUseLocator(false);
-      repository.setHost(PulseConstants.GEMFIRE_DEFAULT_HOST);
+      repository.setHost(System.getProperty(PulseConstants.SYSTEM_PROPERTY_PULSE_HOST,
+          PulseConstants.GEMFIRE_DEFAULT_HOST));
       repository.setPort(System.getProperty(PulseConstants.SYSTEM_PROPERTY_PULSE_PORT,
           PulseConstants.GEMFIRE_DEFAULT_PORT));
 

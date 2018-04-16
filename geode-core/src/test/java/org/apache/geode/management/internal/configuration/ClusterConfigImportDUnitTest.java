@@ -13,25 +13,11 @@
  * the License.
  *
  */
-
 package org.apache.geode.management.internal.configuration;
 
 import static org.apache.geode.distributed.ConfigurationProperties.GROUPS;
 import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
 import static org.assertj.core.api.Assertions.assertThat;
-
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.RegionShortcut;
-import org.apache.geode.management.cli.Result;
-import org.apache.geode.management.internal.cli.result.CommandResult;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
-import org.apache.geode.test.dunit.rules.MemberVM;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -41,14 +27,33 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import org.apache.commons.io.FileUtils;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.RegionShortcut;
+import org.apache.geode.management.cli.Result;
+import org.apache.geode.management.internal.cli.result.CommandResult;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
+import org.apache.geode.test.dunit.rules.MemberVM;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
+
 @Category(DistributedTest.class)
 public class ClusterConfigImportDUnitTest extends ClusterConfigTestBase {
-  @Rule
-  public GfshShellConnectionRule gfshConnector = new GfshShellConnectionRule();
 
-  public static final ClusterConfig INITIAL_CONFIG = new ClusterConfig(new ConfigGroup("cluster"));
+  private static final ClusterConfig INITIAL_CONFIG = new ClusterConfig(new ConfigGroup("cluster"));
 
   private MemberVM locatorVM;
+
+  @Rule
+  public ClusterStartupRule lsRule = new ClusterStartupRule();
+
+  @Rule
+  public GfshCommandRule gfshConnector = new GfshCommandRule();
 
   @Before
   public void before() throws Exception {
@@ -67,7 +72,7 @@ public class ClusterConfigImportDUnitTest extends ClusterConfigTestBase {
     String regionName = "regionA";
     server1.invoke(() -> {
       // this region will be created on both servers, but we should only be getting the name once.
-      Cache cache = LocatorServerStartupRule.serverStarter.getCache();
+      Cache cache = ClusterStartupRule.getCache();
       cache.createRegionFactory(RegionShortcut.REPLICATE).create(regionName);
     });
 
@@ -75,7 +80,7 @@ public class ClusterConfigImportDUnitTest extends ClusterConfigTestBase {
         .executeCommand("import cluster-configuration --zip-file-name=" + clusterConfigZipPath);
 
     assertThat(result.getStatus()).isEqualTo(Result.Status.ERROR);
-    assertThat(result.getContent().toString()).contains("existing regions: " + regionName);
+    assertThat(result.getContentAsString()).contains("existing regions: " + regionName);
   }
 
   @Test
@@ -85,22 +90,51 @@ public class ClusterConfigImportDUnitTest extends ClusterConfigTestBase {
     serverProps.setProperty("groups", "group2");
     MemberVM server2 = lsRule.startServerVM(2, serverProps, locatorVM.getPort());
 
-    // even though we have a region recreated, we can still import since there is no data
-    // in the region
     CommandResult result = gfshConnector
         .executeCommand("import cluster-configuration --zip-file-name=" + clusterConfigZipPath);
-    assertThat(result.getContent().toString())
+    assertThat(result.getContentAsString())
         .contains("Successfully applied the imported cluster configuration on server-1");
-    assertThat(result.getContent().toString())
+    assertThat(result.getContentAsString())
         .contains("Successfully applied the imported cluster configuration on server-2");
     new ClusterConfig(CLUSTER).verify(server1);
     new ClusterConfig(CLUSTER, GROUP2).verify(server2);
+
+    gfshConnector.executeAndAssertThat("list members").statusIsSuccess()
+        .tableHasColumnWithExactValuesInAnyOrder("Name", "locator-0", "server-1", "server-2");
+  }
+
+  @Test
+  public void importFailWithExistingDiskStore() {
+    lsRule.startServerVM(1, locatorVM.getPort());
+    gfshConnector.executeAndAssertThat("create disk-store --name=diskStore1 --dir=testStore")
+        .statusIsSuccess();
+    locatorVM.waitTillDiskstoreIsReady("diskStore1", 1);
+    gfshConnector
+        .executeAndAssertThat(
+            "import cluster-configuration --zip-file-name=" + clusterConfigZipPath)
+        .statusIsError()
+        .containsOutput("Running servers have existing cluster configuration applied already.");
+  }
+
+  @Test
+  public void importFailWithExistingRegion() {
+    lsRule.startServerVM(1, "group1", locatorVM.getPort());
+    gfshConnector
+        .executeAndAssertThat("create region --name=regionA --type=REPLICATE --group=group1")
+        .statusIsSuccess();
+    gfshConnector
+        .executeAndAssertThat(
+            "import cluster-configuration --zip-file-name=" + clusterConfigZipPath)
+        .statusIsError()
+        .containsOutput("Running servers have existing cluster configuration applied already.");
   }
 
   @Test
   public void testImportClusterConfig() throws Exception {
-    gfshConnector.executeAndVerifyCommand(
-        "import cluster-configuration --zip-file-name=" + clusterConfigZipPath);
+    gfshConnector
+        .executeAndAssertThat(
+            "import cluster-configuration --zip-file-name=" + clusterConfigZipPath)
+        .statusIsSuccess();
 
     // Make sure that a backup of the old clusterConfig was created
     assertThat(locatorVM.getWorkingDir().listFiles())
@@ -132,8 +166,10 @@ public class ClusterConfigImportDUnitTest extends ClusterConfigTestBase {
         "localhost[" + locatorVM.getPort() + "],localhost[" + locator1.getPort() + "]");
     MemberVM locator2 = lsRule.startLocatorVM(2, locatorProps);
 
-    gfshConnector.executeAndVerifyCommand(
-        "import cluster-configuration --zip-file-name=" + clusterConfigZipPath);
+    gfshConnector
+        .executeAndAssertThat(
+            "import cluster-configuration --zip-file-name=" + clusterConfigZipPath)
+        .statusIsSuccess();
 
     CONFIG_FROM_ZIP.verify(locatorVM);
     REPLICATED_CONFIG_FROM_ZIP.verify(locator1);
@@ -143,21 +179,22 @@ public class ClusterConfigImportDUnitTest extends ClusterConfigTestBase {
   @Test
   public void testExportWithAbsolutePath() throws Exception {
     Path exportedZipPath =
-        lsRule.getTempFolder().getRoot().toPath().resolve("exportedCC.zip").toAbsolutePath();
+        temporaryFolder.getRoot().toPath().resolve("exportedCC.zip").toAbsolutePath();
 
     testExportClusterConfig(exportedZipPath.toString());
   }
 
   @Test
   public void testExportWithRelativePath() throws Exception {
-    testExportClusterConfig("tmp/exportedCC.zip");
+    testExportClusterConfig("mytemp/exportedCC.zip");
+    FileUtils.deleteQuietly(new File("mytemp"));
   }
 
   public void testExportClusterConfig(String zipFilePath) throws Exception {
     MemberVM server1 = lsRule.startServerVM(1, serverProps, locatorVM.getPort());
 
-
-    gfshConnector.executeAndVerifyCommand("create region --name=myRegion --type=REPLICATE");
+    gfshConnector.executeAndAssertThat("create region --name=myRegion --type=REPLICATE")
+        .statusIsSuccess();
 
     ConfigGroup cluster = new ConfigGroup("cluster").regions("myRegion");
     ClusterConfig expectedClusterConfig = new ClusterConfig(cluster);
@@ -165,7 +202,8 @@ public class ClusterConfigImportDUnitTest extends ClusterConfigTestBase {
     expectedClusterConfig.verify(locatorVM);
 
     gfshConnector
-        .executeAndVerifyCommand("export cluster-configuration --zip-file-name=" + zipFilePath);
+        .executeAndAssertThat("export cluster-configuration --zip-file-name=" + zipFilePath)
+        .statusIsSuccess();
 
     File exportedZip = new File(zipFilePath);
     assertThat(exportedZip).exists();

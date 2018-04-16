@@ -17,8 +17,8 @@ package org.apache.geode.internal.cache;
 import static org.junit.Assert.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyLong;
 
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -40,6 +40,7 @@ public class BucketRegionJUnitTest extends DistributedRegionJUnitTest {
     ReadWriteLock primaryMoveLock = new ReentrantReadWriteLock();
     Lock activeWriteLock = primaryMoveLock.readLock();
     when(ba.getActiveWriteLock()).thenReturn(activeWriteLock);
+    when(ba.getProxyBucketRegion()).thenReturn(mock(ProxyBucketRegion.class));
     when(ba.isPrimary()).thenReturn(true);
 
     ira.setPartitionedRegion(pr).setPartitionedRegionBucketRedundancy(1).setBucketAdvisor(ba);
@@ -49,6 +50,9 @@ public class BucketRegionJUnitTest extends DistributedRegionJUnitTest {
   protected DistributedRegion createAndDefineRegion(boolean isConcurrencyChecksEnabled,
       RegionAttributes ra, InternalRegionArguments ira, GemFireCacheImpl cache) {
     BucketRegion br = new BucketRegion("testRegion", ra, null, cache, ira);
+    // it is necessary to set the event tracker to initialized, since initialize() in not being
+    // called on the instantiated region
+    br.getEventTracker().setInitialized();
 
     // since br is a real bucket region object, we need to tell mockito to monitor it
     br = spy(br);
@@ -120,4 +124,3 @@ public class BucketRegionJUnitTest extends DistributedRegionJUnitTest {
   }
 
 }
-

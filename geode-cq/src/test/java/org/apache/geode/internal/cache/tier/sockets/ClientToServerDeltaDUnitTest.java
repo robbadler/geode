@@ -21,6 +21,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.Properties;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.DeltaTestImpl;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.AttributesMutator;
@@ -47,7 +55,7 @@ import org.apache.geode.i18n.LogWriterI18n;
 import org.apache.geode.internal.AvailablePort;
 import org.apache.geode.internal.cache.CacheServerImpl;
 import org.apache.geode.internal.cache.LocalRegion;
-import org.apache.geode.internal.cache.PartitionedRegionLocalMaxMemoryDUnitTest.TestObject1;
+import org.apache.geode.internal.cache.TestObjectWithIdentifier;
 import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.NetworkUtils;
 import org.apache.geode.test.dunit.VM;
@@ -57,17 +65,10 @@ import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.SerializationTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.Properties;
 
 /**
  * Test client to server flow for delta propogation
- * 
+ *
  * @since GemFire 6.1
  */
 @Category({DistributedTest.class, ClientSubscriptionTest.class, SerializationTest.class})
@@ -288,7 +289,8 @@ public class ClientToServerDeltaDUnitTest extends JUnit4DistributedTestCase {
     Region region = cache.getRegion(REGION_NAME);
     DeltaTestImpl val = null;
     for (int j = 0; j < numOfPuts; j++) {
-      val = new DeltaTestImpl(0, "0", new Double(0), new byte[0], new TestObject1("0", 0));
+      val = new DeltaTestImpl(0, "0", new Double(0), new byte[0],
+          new TestObjectWithIdentifier("0", 0));
       for (int i = 0; i < cqIndices.length; i++) {
         switch (i) {
           case 0:
@@ -337,7 +339,8 @@ public class ClientToServerDeltaDUnitTest extends JUnit4DistributedTestCase {
     Region r = cache.getRegion(REGION_NAME);
     DeltaTestImpl val = null;
     for (int i = 0; i < NO_PUT_OPERATION; i++) {
-      val = new DeltaTestImpl(0, "0", new Double(0), new byte[0], new TestObject1("0", 0));
+      val = new DeltaTestImpl(0, "0", new Double(0), new byte[0],
+          new TestObjectWithIdentifier("0", 0));
       switch (i) {
         case 1:
           val.setStr((String) putDelta[0]);
@@ -378,15 +381,17 @@ public class ClientToServerDeltaDUnitTest extends JUnit4DistributedTestCase {
     for (int i = 0; i < NO_PUT_OPERATION; i++) {
       switch (i) {
         case 0:
-          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0], new TestObject1("0", 0));
+          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0],
+              new TestObjectWithIdentifier("0", 0));
           break;
         case 1:
-          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0], new TestObject1("0", 0));
+          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0],
+              new TestObjectWithIdentifier("0", 0));
           val.setStr((String) putDelta[0]);
           break;
         case 2:
           val = new DeltaTestImpl(0, (String) putDelta[1], new Double(0), new byte[0],
-              new TestObject1("0", 0));
+              new TestObjectWithIdentifier("0", 0));
           val.setIntVar(((Integer) putDelta[2]).intValue());
           break;
       }
@@ -403,15 +408,17 @@ public class ClientToServerDeltaDUnitTest extends JUnit4DistributedTestCase {
     for (int i = 0; i < NO_PUT_OPERATION; i++) {
       switch (i) {
         case 0:
-          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0], new TestObject1("0", 0));
+          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0],
+              new TestObjectWithIdentifier("0", 0));
           break;
         case 1:
-          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0], new TestObject1("0", 0));
+          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0],
+              new TestObjectWithIdentifier("0", 0));
           val.setStr((String) putDelta[1]);
           break;
         case 2:
           val = new DeltaTestImpl(0, (String) putDelta[1], new Double(0), new byte[0],
-              new TestObject1("0", 0));
+              new TestObjectWithIdentifier("0", 0));
           val.setIntVar(((Integer) putDelta[2]).intValue());
           break;
       }
@@ -428,15 +435,17 @@ public class ClientToServerDeltaDUnitTest extends JUnit4DistributedTestCase {
     for (int i = 0; i < NO_PUT_OPERATION; i++) {
       switch (i) {
         case 0:
-          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0], new TestObject1("0", 0));
+          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0],
+              new TestObjectWithIdentifier("0", 0));
           break;
         case 1:
-          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0], new TestObject1("0", 0));
+          val = new DeltaTestImpl(0, "0", new Double(0), new byte[0],
+              new TestObjectWithIdentifier("0", 0));
           val.setIntVar(((Integer) putDelta[3]).intValue());
           break;
         case 2:
           val = new DeltaTestImpl(((Integer) putDelta[3]).intValue(), "0", new Double(0),
-              new byte[0], new TestObject1("0", 0));
+              new byte[0], new TestObjectWithIdentifier("0", 0));
           val.setStr((String) putDelta[0]);
           break;
       }

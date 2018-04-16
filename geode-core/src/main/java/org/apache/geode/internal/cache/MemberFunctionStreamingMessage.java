@@ -34,7 +34,7 @@ import org.apache.geode.cache.execute.FunctionInvocationTargetException;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.ResultSender;
 import org.apache.geode.cache.query.QueryException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -115,11 +115,12 @@ public class MemberFunctionStreamingMessage extends DistributionMessage
     fromData(in);
   }
 
-  private TXStateProxy prepForTransaction() throws InterruptedException {
+  private TXStateProxy prepForTransaction(ClusterDistributionManager dm)
+      throws InterruptedException {
     if (this.txUniqId == TXManagerImpl.NOTX) {
       return null;
     } else {
-      InternalCache cache = GemFireCacheImpl.getInstance();
+      InternalCache cache = dm.getCache();
       if (cache == null) {
         // ignore and return, we are shutting down!
         return null;
@@ -142,7 +143,7 @@ public class MemberFunctionStreamingMessage extends DistributionMessage
   }
 
   @Override
-  protected void process(final DistributionManager dm) {
+  protected void process(final ClusterDistributionManager dm) {
     Throwable thr = null;
     ReplyException rex = null;
     if (this.functionObject == null) {
@@ -157,24 +158,31 @@ public class MemberFunctionStreamingMessage extends DistributionMessage
     FunctionStats stats =
         FunctionStats.getFunctionStats(this.functionObject.getId(), dm.getSystem());
     TXStateProxy tx = null;
+    InternalCache cache = dm.getCache();
+
     try {
-      tx = prepForTransaction();
+      tx = prepForTransaction(dm);
       ResultSender resultSender = new MemberFunctionResultSender(dm, this, this.functionObject);
       Set<Region> regions = new HashSet<Region>();
       if (this.regionPathSet != null) {
-        InternalCache cache = GemFireCacheImpl.getInstance();
         for (String regionPath : this.regionPathSet) {
           if (checkCacheClosing(dm) || checkDSClosing(dm)) {
-            thr =
-                new CacheClosedException(LocalizedStrings.PartitionMessage_REMOTE_CACHE_IS_CLOSED_0
-                    .toLocalizedString(dm.getId()));
+            if (dm.getCache() == null) {
+              thr = new CacheClosedException(
+                  LocalizedStrings.PartitionMessage_REMOTE_CACHE_IS_CLOSED_0
+                      .toLocalizedString(dm.getId()));
+            } else {
+              dm.getCache().getCacheClosedException(
+                  LocalizedStrings.PartitionMessage_REMOTE_CACHE_IS_CLOSED_0
+                      .toLocalizedString(dm.getId()));
+            }
             return;
           }
           regions.add(cache.getRegion(regionPath));
         }
       }
-      FunctionContextImpl context = new MultiRegionFunctionContextImpl(this.functionObject.getId(),
-          this.args, resultSender, regions, isReExecute);
+      FunctionContextImpl context = new MultiRegionFunctionContextImpl(cache,
+          this.functionObject.getId(), this.args, resultSender, regions, isReExecute);
 
       long start = stats.startTime();
       stats.startFunctionExecution(this.functionObject.hasResult());
@@ -237,7 +245,7 @@ public class MemberFunctionStreamingMessage extends DistributionMessage
     }
   }
 
-  private void replyWithException(DistributionManager dm, ReplyException rex) {
+  private void replyWithException(ClusterDistributionManager dm, ReplyException rex) {
     ReplyMessage.send(getSender(), this.processorId, rex, dm);
   }
 
@@ -312,8 +320,8 @@ public class MemberFunctionStreamingMessage extends DistributionMessage
     DataSerializer.writeObject(this.regionPathSet, out);
   }
 
-  public synchronized boolean sendReplyForOneResult(DM dm, Object oneResult, boolean lastResult,
-      boolean sendResultsInOrder)
+  public synchronized boolean sendReplyForOneResult(DistributionManager dm, Object oneResult,
+      boolean lastResult, boolean sendResultsInOrder)
       throws CacheException, QueryException, ForceReattemptException, InterruptedException {
 
     if (this.replyLastMsg) {
@@ -334,8 +342,8 @@ public class MemberFunctionStreamingMessage extends DistributionMessage
     return false;
   }
 
-  protected void sendReply(InternalDistributedMember member, int procId, DM dm, Object oneResult,
-      int msgNum, boolean lastResult, boolean sendResultsInOrder) {
+  protected void sendReply(InternalDistributedMember member, int procId, DistributionManager dm,
+      Object oneResult, int msgNum, boolean lastResult, boolean sendResultsInOrder) {
     if (sendResultsInOrder) {
       FunctionStreamingOrderedReplyMessage.send(member, procId, null, dm, oneResult, msgNum,
           lastResult);
@@ -346,23 +354,23 @@ public class MemberFunctionStreamingMessage extends DistributionMessage
 
   @Override
   public int getProcessorType() {
-    return DistributionManager.REGION_FUNCTION_EXECUTION_EXECUTOR;
+    return ClusterDistributionManager.REGION_FUNCTION_EXECUTION_EXECUTOR;
   }
 
   /**
    * check to see if the cache is closing
    */
-  private boolean checkCacheClosing(DistributionManager dm) {
-    InternalCache cache = GemFireCacheImpl.getInstance();
+  private boolean checkCacheClosing(ClusterDistributionManager dm) {
+    InternalCache cache = dm.getCache();
     return (cache == null || cache.getCancelCriterion().isCancelInProgress());
   }
 
   /**
    * check to see if the distributed system is closing
-   * 
+   *
    * @return true if the distributed system is closing
    */
-  private boolean checkDSClosing(DistributionManager dm) {
+  private boolean checkDSClosing(ClusterDistributionManager dm) {
     InternalDistributedSystem ds = dm.getSystem();
     return (ds == null || ds.isDisconnecting());
   }

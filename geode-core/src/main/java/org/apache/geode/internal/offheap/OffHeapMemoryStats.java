@@ -18,56 +18,56 @@ import org.apache.geode.Statistics;
 
 /**
  * Statistics for off-heap memory storage.
- * 
+ *
  * @since Geode 1.0
  */
 public interface OffHeapMemoryStats {
 
-  public void incFreeMemory(long value);
+  void incFreeMemory(long value);
 
-  public void incMaxMemory(long value);
+  void incMaxMemory(long value);
 
-  public void incUsedMemory(long value);
+  void incUsedMemory(long value);
 
-  public void incObjects(int value);
+  void incObjects(int value);
 
-  public void incReads();
+  void incReads();
 
-  public void setFragments(long value);
+  void setFragments(long value);
 
-  public void setLargestFragment(int value);
+  void setLargestFragment(int value);
 
-  public long startDefragmentation();
+  long startDefragmentation();
 
-  public void endDefragmentation(long start);
+  void endDefragmentation(long start);
 
-  public void setFragmentation(int value);
+  void setFragmentation(int value);
 
-  public long getFreeMemory();
+  long getFreeMemory();
 
-  public long getMaxMemory();
+  long getMaxMemory();
 
-  public long getUsedMemory();
+  long getUsedMemory();
 
-  public long getReads();
+  long getReads();
 
-  public int getObjects();
+  int getObjects();
 
-  public int getDefragmentations();
+  int getDefragmentations();
 
-  public int getDefragmentationsInProgress();
+  int getDefragmentationsInProgress();
 
-  public long getFragments();
+  long getFragments();
 
-  public int getLargestFragment();
+  int getLargestFragment();
 
-  public int getFragmentation();
+  int getFragmentation();
 
-  public long getDefragmentationTime();
+  long getDefragmentationTime();
 
-  public Statistics getStats();
+  Statistics getStats();
 
-  public void close();
+  void close();
 
-  public void initialize(OffHeapMemoryStats stats);
+  void initialize(OffHeapMemoryStats stats);
 }

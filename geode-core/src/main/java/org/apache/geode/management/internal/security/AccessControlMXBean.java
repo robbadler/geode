@@ -16,11 +16,11 @@ package org.apache.geode.management.internal.security;
 
 /**
  * Interface for AccessControlMBean
- * 
+ *
  * @since Geode 1.0
  */
 public interface AccessControlMXBean {
 
-  public boolean authorize(String resource, String permission);
+  boolean authorize(String resource, String permission);
 
 }

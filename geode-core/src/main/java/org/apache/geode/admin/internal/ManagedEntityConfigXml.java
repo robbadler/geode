@@ -14,12 +14,18 @@
  */
 package org.apache.geode.admin.internal;
 
+import java.io.InputStream;
+
+import org.xml.sax.EntityResolver;
+import org.xml.sax.ErrorHandler;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.SAXNotRecognizedException;
+import org.xml.sax.SAXParseException;
+
 import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.i18n.LocalizedStrings;
-import org.xml.sax.*;
-
-import java.io.InputStream;
 
 /**
  * The abstract superclass of classes that convert XML into a
@@ -120,7 +126,6 @@ abstract class ManagedEntityConfigXml implements EntityResolver, ErrorHandler {
     String location = DTD_LOCATION;
 
     InputSource result;
-    // if (location != null) (cannot be null)
     {
       InputStream stream = ClassPathLoader.getLatest().getResourceAsStream(getClass(), location);
       if (stream != null) {
@@ -129,11 +134,6 @@ abstract class ManagedEntityConfigXml implements EntityResolver, ErrorHandler {
         throw new SAXNotRecognizedException(
             LocalizedStrings.ManagedEntityConfigXml_DTD_NOT_FOUND_0.toLocalizedString(location));
       }
-
-      // } else {
-      // throw new
-      // SAXNotRecognizedException(LocalizedStrings.ManagedEntityConfigXml_COULD_NOT_FIND_DTD_FOR_0_1.toLocalizedString(new
-      // Object[] {publicId, systemId}));
     }
 
     return result;

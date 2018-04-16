@@ -35,7 +35,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.DataSerializableFixedID;
@@ -53,7 +53,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
  * <P>
  * This class also implements Externalizable so that it can be serialized as part of a
  * PutAllPartialResultException.
- * 
+ *
  * @since GemFire 7.0
  */
 
@@ -70,15 +70,15 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
   /**
    * add a new entry to the list
-   * 
+   *
    * @param key the entry's key
    * @param versionTag the version tag for the entry, or null if there is no version information
    *        available
    */
   public void addKeyAndVersion(Object key, VersionTag versionTag) {
-    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST)) {
-      logger.trace(LogMarker.VERSIONED_OBJECT_LIST, "VersionedObjectList.addKeyAndVersion({}; {})",
-          key, versionTag);
+    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE)) {
+      logger.trace(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE,
+          "VersionedObjectList.addKeyAndVersion({}; {})", key, versionTag);
     }
     if (this.objects.size() > 0) {
       throw new IllegalStateException("attempt to add key/version to a list containing objects");
@@ -92,8 +92,8 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
   @Override
   public void addPart(Object key, Object value, byte objectType, VersionTag versionTag) {
-    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST)) {
-      logger.trace(LogMarker.VERSIONED_OBJECT_LIST, "addPart({}; {}; {}; {}", key, value,
+    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE)) {
+      logger.trace(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE, "addPart({}; {}; {}; {}", key, value,
           objectType, versionTag);
     }
     super.addPart(key, value, objectType, versionTag);
@@ -115,10 +115,6 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
   /**
    * add a versioned "map" entry to the list
-   * 
-   * @param key
-   * @param value
-   * @param versionTag
    */
   public void addObject(Object key, Object value, VersionTag versionTag) {
     addPart(key, value, OBJECT, versionTag);
@@ -156,8 +152,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
    * replace null membership IDs in version tags with the given member ID. VersionTags received from
    * a server may have null IDs because they were operations performed by that server. We transmit
    * them as nulls to cut costs, but have to do the swap on the receiving end (in the client)
-   * 
-   * @param sender
+   *
    */
   public void replaceNullIDs(DistributedMember sender) {
     for (VersionTag versionTag : versionTags) {
@@ -175,10 +170,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
   /**
    * Add a part for a destroyed or missing entry. If the version tag is not null this represents a
    * tombstone.
-   * 
-   * @param key
-   * @param value
-   * @param version
+   *
    */
   public void addObjectPartForAbsentKey(Object key, Object value, VersionTag version) {
     addPart(key, value, KEY_NOT_AT_SERVER, version);
@@ -186,8 +178,9 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
   @Override
   public void addAll(ObjectPartList other) {
-    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST)) {
-      logger.trace(LogMarker.VERSIONED_OBJECT_LIST, "VOL.addAll(other={}; this={}", other, this);
+    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE)) {
+      logger.trace(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE, "VOL.addAll(other={}; this={}", other,
+          this);
     }
     int myTypeArrayLength = this.hasKeys ? this.keys.size() : this.objects.size();
     int otherTypeArrayLength = other.hasKeys ? other.keys.size() : other.objects.size();
@@ -230,7 +223,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
   /**
    * Add a version, assuming that the key list has already been established and we are now filling
    * in version information.
-   * 
+   *
    * @param tag the version tag to add
    */
   public void addVersion(VersionTag tag) {
@@ -239,8 +232,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
   /**
    * save the current key/tag pairs in the given map
-   * 
-   * @param vault
+   *
    */
   public void saveVersions(Map<Object, VersionTag> vault) {
     Iterator it = this.iterator();
@@ -255,7 +247,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
   }
 
   /**
-   * 
+   *
    * @return whether the source region had concurrency checks enabled
    */
   public boolean regionIsVersioned() {
@@ -324,7 +316,8 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
    */
   private void getCanonicalIDs() {
     if (this.versionTags != null) {
-      DM dm = InternalDistributedSystem.getConnectedInstance().getDistributionManager();
+      DistributionManager dm =
+          InternalDistributedSystem.getConnectedInstance().getDistributionManager();
       if (dm != null) {
         for (VersionTag tag : this.versionTags) {
           if (tag != null) {
@@ -375,8 +368,8 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
     if (this.serializeValues) {
       flags |= 0x10;
     }
-    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST)) {
-      logger.trace(LogMarker.VERSIONED_OBJECT_LIST,
+    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE)) {
+      logger.trace(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE,
           "serializing {} with flags 0x{} startIndex={} numEntries={}", this,
           Integer.toHexString(flags), startIndex, numEntries);
     }
@@ -443,7 +436,8 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
   @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
-    final boolean isDebugEnabled_VOL = logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST);
+    final boolean isDebugEnabled_VOL =
+        logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE);
     int flags = in.readByte();
     this.hasKeys = (flags & 0x01) == 0x01;
     boolean hasObjects = (flags & 0x02) == 0x02;
@@ -452,14 +446,14 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
     this.serializeValues = (flags & 0x10) == 0x10;
     boolean persistent = (flags & 0x20) == 0x20;
     if (isDebugEnabled_VOL) {
-      logger.trace(LogMarker.VERSIONED_OBJECT_LIST,
+      logger.trace(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE,
           "deserializing a VersionedObjectList with flags 0x{}", Integer.toHexString(flags));
     }
     if (this.hasKeys) {
       int size = (int) InternalDataSerializer.readUnsignedVL(in);
       this.keys = new ArrayList(size);
       if (isDebugEnabled_VOL) {
-        logger.trace(LogMarker.VERSIONED_OBJECT_LIST, "reading {} keys", size);
+        logger.trace(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE, "reading {} keys", size);
       }
       for (int i = 0; i < size; i++) {
         this.keys.add(DataSerializer.readObject(in));
@@ -468,7 +462,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
     if (hasObjects) {
       int size = (int) InternalDataSerializer.readUnsignedVL(in);
       if (isDebugEnabled_VOL) {
-        logger.trace(LogMarker.VERSIONED_OBJECT_LIST, "reading {} objects", size);
+        logger.trace(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE, "reading {} objects", size);
       }
       this.objects = new ArrayList(size);
       this.objectTypeArray = new byte[size];
@@ -481,7 +475,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
     if (hasTags) {
       int size = (int) InternalDataSerializer.readUnsignedVL(in);
       if (isDebugEnabled_VOL) {
-        logger.trace(LogMarker.VERSIONED_OBJECT_LIST, "reading {} version tags", size);
+        logger.trace(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE, "reading {} version tags", size);
       }
       this.versionTags = new ArrayList<VersionTag>(size);
       List<VersionSource> ids = new ArrayList<VersionSource>(size);
@@ -514,9 +508,9 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
   private void writeObject(Object value, int index, DataOutput out) throws IOException {
     byte objectType = this.objectTypeArray[index];
-    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST)) {
-      logger.trace(LogMarker.VERSIONED_OBJECT_LIST, "writing object {} of type {}: {}", index,
-          objectType, value);
+    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE)) {
+      logger.trace(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE, "writing object {} of type {}: {}",
+          index, objectType, value);
     }
     out.writeByte(objectType);
     if (objectType == OBJECT && value instanceof byte[]) {
@@ -543,8 +537,8 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
   private void readObject(int index, DataInput in) throws IOException, ClassNotFoundException {
     Object value;
     this.objectTypeArray[index] = in.readByte();
-    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST)) {
-      logger.trace(LogMarker.VERSIONED_OBJECT_LIST, "reading object {} of type {}", index,
+    if (logger.isTraceEnabled(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE)) {
+      logger.trace(LogMarker.VERSIONED_OBJECT_LIST_VERBOSE, "reading object {} of type {}", index,
           objectTypeArray[index]);
     }
     boolean isException = this.objectTypeArray[index] == EXCEPTION;
@@ -642,7 +636,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see java.util.Map.Entry#getValue()
      */
     public Object getValue() {
@@ -655,7 +649,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see java.util.Map.Entry#setValue(java.lang.Object)
      */
     public Object setValue(Object value) {
@@ -681,7 +675,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see java.util.Iterator#hasNext()
      */
     public boolean hasNext() {
@@ -690,7 +684,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see java.util.Iterator#next()
      */
     public Entry next() {
@@ -699,7 +693,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see java.util.Iterator#remove()
      */
     public void remove() {
@@ -712,7 +706,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
    * Chunker is used to send a VersionedObjectList to a client in pieces. It works by pretending to
    * be a VersionedObjectList during serialization and writing only a portion of the list in each
    * invocation of toData().
-   * 
+   *
    *
    */
   public static class Chunker implements DataSerializableFixedID {

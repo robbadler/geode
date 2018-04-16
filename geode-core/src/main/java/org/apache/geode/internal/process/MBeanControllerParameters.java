@@ -21,19 +21,20 @@ import org.apache.geode.internal.process.ProcessController.Arguments;
 /**
  * Defines {@link ProcessController} {@link Arguments} that must be implemented to support the
  * {@link MBeanProcessController}.
- * 
+ *
  * @since GemFire 8.0
  */
 interface MBeanControllerParameters extends Arguments {
-  public ObjectName getNamePattern();
 
-  public String getPidAttribute();
+  ObjectName getNamePattern();
 
-  public String getStatusMethod();
+  String getPidAttribute();
 
-  public String getStopMethod();
+  String getStatusMethod();
 
-  public String[] getAttributes();
+  String getStopMethod();
 
-  public Object[] getValues();
+  String[] getAttributes();
+
+  Object[] getValues();
 }

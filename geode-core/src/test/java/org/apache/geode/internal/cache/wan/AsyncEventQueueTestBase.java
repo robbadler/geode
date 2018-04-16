@@ -14,8 +14,16 @@
  */
 package org.apache.geode.internal.cache.wan;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.junit.Assert.*;
+import static org.apache.geode.distributed.ConfigurationProperties.DISTRIBUTED_SYSTEM_ID;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.apache.geode.distributed.ConfigurationProperties.OFF_HEAP_MEMORY_SIZE;
+import static org.apache.geode.distributed.ConfigurationProperties.REMOTE_LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.START_LOCATOR;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -36,10 +44,10 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.geode.internal.cache.control.InternalResourceManager;
-import org.apache.geode.internal.cache.control.InternalResourceManager.ResourceObserver;
+import org.awaitility.Awaitility;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.DataSerializable;
@@ -73,6 +81,7 @@ import org.apache.geode.cache.control.RebalanceFactory;
 import org.apache.geode.cache.control.RebalanceOperation;
 import org.apache.geode.cache.control.RebalanceResults;
 import org.apache.geode.cache.control.ResourceManager;
+import org.apache.geode.cache.partition.PartitionRegionHelper;
 import org.apache.geode.cache.persistence.PartitionOfflineException;
 import org.apache.geode.cache.util.CacheListenerAdapter;
 import org.apache.geode.cache.wan.GatewayEventFilter;
@@ -84,12 +93,15 @@ import org.apache.geode.cache.wan.GatewaySender.OrderPolicy;
 import org.apache.geode.cache.wan.GatewaySenderFactory;
 import org.apache.geode.distributed.Locator;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.distributed.internal.InternalLocator;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.cache.ForceReattemptException;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.RegionQueue;
-import org.apache.geode.internal.cache.lru.Sizeable;
+import org.apache.geode.internal.cache.control.InternalResourceManager;
+import org.apache.geode.internal.cache.control.InternalResourceManager.ResourceObserver;
+import org.apache.geode.internal.size.Sizeable;
 import org.apache.geode.test.dunit.Assert;
 import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.IgnoredException;
@@ -98,7 +110,6 @@ import org.apache.geode.test.dunit.LogWriterUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
@@ -119,7 +130,7 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
 
   protected static AsyncEventListener eventListener1;
 
-  private static final long MAX_WAIT = 10000;
+  private static final long MAX_WAIT = 60000;
 
   protected static GatewayEventFilter eventFilter;
 
@@ -173,7 +184,7 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
     props.setProperty(LOCATORS, "localhost[" + port + "]");
     props.setProperty(START_LOCATOR,
         "localhost[" + port + "],server=true,peer=true,hostname-for-clients=localhost");
-    test.getSystem(props);
+    test.startLocatorDistributedSystem(props);
     return port;
   }
 
@@ -187,8 +198,18 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
     props.setProperty(START_LOCATOR,
         "localhost[" + port + "],server=true,peer=true,hostname-for-clients=localhost");
     props.setProperty(REMOTE_LOCATORS, "localhost[" + remoteLocPort + "]");
-    test.getSystem(props);
+    test.startLocatorDistributedSystem(props);
     return port;
+  }
+
+  private void startLocatorDistributedSystem(Properties props) {
+    // Start start the locator with a LOCATOR_DM_TYPE and not a NORMAL_DM_TYPE
+    System.setProperty(InternalLocator.FORCE_LOCATOR_DM_TYPE, "true");
+    try {
+      getSystem(props);
+    } finally {
+      System.clearProperty(InternalLocator.FORCE_LOCATOR_DM_TYPE);
+    }
   }
 
   public static void createReplicatedRegionWithAsyncEventQueue(String regionName,
@@ -268,6 +289,15 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
       Integer maxMemory, Integer batchSize, boolean isConflation, boolean isPersistent,
       String diskStoreName, boolean isDiskSynchronous,
       final AsyncEventListener asyncEventListener) {
+    createAsyncEventQueue(asyncChannelId, isParallel, maxMemory, batchSize, isConflation,
+        isPersistent, diskStoreName, isDiskSynchronous, numDispatcherThreadsForTheRun,
+        asyncEventListener);
+  }
+
+  public static void createAsyncEventQueue(String asyncChannelId, boolean isParallel,
+      Integer maxMemory, Integer batchSize, boolean isConflation, boolean isPersistent,
+      String diskStoreName, boolean isDiskSynchronous, int numDispatcherThreads,
+      final AsyncEventListener asyncEventListener) {
     createDiskStore(asyncChannelId, diskStoreName);
 
     AsyncEventQueueFactory factory = getInitialAsyncEventQueueFactory(isParallel, maxMemory,
@@ -275,7 +305,7 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
     factory.setDiskSynchronous(isDiskSynchronous);
     factory.setBatchConflationEnabled(isConflation);
     // set dispatcher threads
-    factory.setDispatcherThreads(numDispatcherThreadsForTheRun);
+    factory.setDispatcherThreads(numDispatcherThreads);
     // Set GatewayEventSubstitutionFilter
     AsyncEventQueue asyncChannel = factory.create(asyncChannelId, asyncEventListener);
   }
@@ -338,11 +368,7 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
     String packagePrefix = "org.apache.geode.internal.cache.wan.";
     String className = packagePrefix + simpleClassName;
     Class clazz = null;
-    try {
-      clazz = Class.forName(className);
-    } catch (Exception e) {
-      throw e;
-    }
+    clazz = Class.forName(className);
     return clazz;
   }
 
@@ -476,22 +502,28 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
     ((AsyncEventQueueImpl) theQueue).getSender().resume();
   }
 
+  public static void waitForAsyncEventQueueSize(String senderId, int numQueueEntries,
+      boolean localSize) {
+    Awaitility.await().atMost(60, TimeUnit.SECONDS)
+        .until(() -> checkAsyncEventQueueSize(senderId, numQueueEntries, localSize));
+  }
+
   public static void checkAsyncEventQueueSize(String asyncQueueId, int numQueueEntries) {
-    AsyncEventQueue theAsyncEventQueue = null;
+    checkAsyncEventQueueSize(asyncQueueId, numQueueEntries, false);
+  }
 
-    Set<AsyncEventQueue> asyncEventChannels = cache.getAsyncEventQueues();
-    for (AsyncEventQueue asyncChannel : asyncEventChannels) {
-      if (asyncQueueId.equals(asyncChannel.getId())) {
-        theAsyncEventQueue = asyncChannel;
-      }
-    }
-
-    GatewaySender sender = ((AsyncEventQueueImpl) theAsyncEventQueue).getSender();
+  public static void checkAsyncEventQueueSize(String asyncQueueId, int numQueueEntries,
+      boolean localSize) {
+    AsyncEventQueueImpl aeq = (AsyncEventQueueImpl) cache.getAsyncEventQueue(asyncQueueId);
+    GatewaySender sender = aeq.getSender();
 
     if (sender.isParallel()) {
       Set<RegionQueue> queues = ((AbstractGatewaySender) sender).getQueues();
-      assertEquals(numQueueEntries,
-          queues.toArray(new RegionQueue[queues.size()])[0].getRegion().size());
+      Region queueRegion = queues.toArray(new RegionQueue[queues.size()])[0].getRegion();
+      if (localSize) {
+        queueRegion = PartitionRegionHelper.getLocalData(queueRegion);
+      }
+      assertEquals(numQueueEntries, queueRegion.size());
     } else {
       Set<RegionQueue> queues = ((AbstractGatewaySender) sender).getQueues();
       int size = 0;
@@ -499,52 +531,6 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
         size += q.size();
       }
       assertEquals(numQueueEntries, size);
-    }
-  }
-
-  /**
-   * This method verifies the queue size of a ParallelGatewaySender. For ParallelGatewaySender
-   * conflation happens in a separate thread, hence test code needs to wait for some time for
-   * expected result
-   * 
-   * @param asyncQueueId Async Queue ID
-   * @param numQueueEntries expected number of Queue entries
-   * @throws Exception
-   */
-  public static void waitForAsyncEventQueueSize(String asyncQueueId, final int numQueueEntries)
-      throws Exception {
-    AsyncEventQueue theAsyncEventQueue = null;
-
-    Set<AsyncEventQueue> asyncEventChannels = cache.getAsyncEventQueues();
-    for (AsyncEventQueue asyncChannel : asyncEventChannels) {
-      if (asyncQueueId.equals(asyncChannel.getId())) {
-        theAsyncEventQueue = asyncChannel;
-      }
-    }
-
-    GatewaySender sender = ((AsyncEventQueueImpl) theAsyncEventQueue).getSender();
-
-    if (sender.isParallel()) {
-      final Set<RegionQueue> queues = ((AbstractGatewaySender) sender).getQueues();
-
-      Wait.waitForCriterion(new WaitCriterion() {
-
-        public String description() {
-          return "Waiting for EventQueue size to be " + numQueueEntries;
-        }
-
-        public boolean done() {
-          boolean done = numQueueEntries == queues.toArray(new RegionQueue[queues.size()])[0]
-              .getRegion().size();
-          return done;
-        }
-
-      }, MAX_WAIT, 500, true);
-
-    } else {
-      throw new Exception(
-          "This method should be used for only ParallelGatewaySender,SerialGatewaySender should use checkAsyncEventQueueSize() method instead");
-
     }
   }
 
@@ -742,6 +728,9 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
       }
     }
     final AsyncEventQueueStats statistics = ((AsyncEventQueueImpl) queue).getStatistics();
+    Awaitility.await().atMost(60, TimeUnit.SECONDS)
+        .until(() -> assertEquals("Expected queue entries: " + queueSize + " but actual entries: "
+            + statistics.getEventQueueSize(), queueSize, statistics.getEventQueueSize()));
     assertEquals(queueSize, statistics.getEventQueueSize());
     assertEquals(eventsReceived, statistics.getEventsReceived());
     assertEquals(eventsQueued, statistics.getEventsQueued());
@@ -1017,6 +1006,14 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
     // }
   }
 
+  public static void doHeavyPuts(String regionName, int numPuts) {
+    Region r = cache.getRegion(Region.SEPARATOR + regionName);
+    assertNotNull(r);
+    for (long i = 0; i < numPuts; i++) {
+      r.put(i, new byte[1024 * 1024]);
+    }
+  }
+
   /**
    * To be used for CacheLoader related tests
    */
@@ -1258,15 +1255,7 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
   }
 
   public static void waitForAsyncQueueToGetEmpty(String asyncQueueId) {
-    AsyncEventQueue theAsyncEventQueue = null;
-
-    Set<AsyncEventQueue> asyncEventChannels = cache.getAsyncEventQueues();
-    for (AsyncEventQueue asyncChannel : asyncEventChannels) {
-      if (asyncQueueId.equals(asyncChannel.getId())) {
-        theAsyncEventQueue = asyncChannel;
-      }
-    }
-
+    AsyncEventQueue theAsyncEventQueue = cache.getAsyncEventQueue(asyncQueueId);
     final GatewaySender sender = ((AsyncEventQueueImpl) theAsyncEventQueue).getSender();
 
     if (sender.isParallel()) {
@@ -1556,7 +1545,7 @@ public class AsyncEventQueueTestBase extends JUnit4DistributedTestCase {
 
   public static void cleanupVM() throws IOException {
     closeCache();
-    JUnit4CacheTestCase.cleanDiskDirs();
+    JUnit4DistributedTestCase.cleanDiskDirs();
   }
 
   public static void closeCache() throws IOException {

@@ -12,12 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-
-/******
- * THIS FILE IS ENCODED IN UTF-8 IN ORDER TO TEST UNICODE IN FIELD NAMES. THE ENCODING MUST BE
- * SPECIFIED AS UTF-8 WHEN COMPILED
- *******/
-
 package org.apache.geode.cache.query.data;
 
 import java.io.DataInput;
@@ -28,16 +22,16 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.commons.lang.StringUtils;
 
 import org.apache.geode.DataSerializable;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.internal.Assert;
 
-
+/**
+ * THIS FILE IS ENCODED IN UTF-8 IN ORDER TO TEST UNICODE IN FIELD NAMES. THE ENCODING MUST BE
+ * SPECIFIED AS UTF-8 WHEN COMPILED
+ */
 public class Portfolio implements Serializable, DataSerializable {
 
   public static AtomicInteger instanceCount = new AtomicInteger(0);
@@ -201,7 +195,7 @@ public class Portfolio implements Serializable, DataSerializable {
 
   /**
    * Getter for property type.S
-   * 
+   *
    * @return Value of property type.
    */
   public String getType() {
@@ -234,6 +228,10 @@ public class Portfolio implements Serializable, DataSerializable {
 
   public double getDoubleMinValue() {
     return this.doubleMinValue;
+  }
+
+  public void throwExceptionMethod() {
+    throw new IllegalStateException();
   }
 
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
@@ -303,5 +301,3 @@ public class Portfolio implements Serializable, DataSerializable {
   }
 
 }
-
-

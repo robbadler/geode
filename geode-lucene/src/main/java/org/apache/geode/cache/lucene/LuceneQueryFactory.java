@@ -14,8 +14,9 @@
  */
 package org.apache.geode.cache.lucene;
 
-import org.apache.geode.cache.query.Query;
 import org.apache.lucene.queryparser.flexible.standard.StandardQueryParser;
+
+import org.apache.geode.cache.query.Query;
 
 /**
  * Factory for configuring a Lucene query. Use this factory to set parameters of the query such as
@@ -33,18 +34,16 @@ public interface LuceneQueryFactory {
   /**
    * Default query result limit is 100
    */
-  public static final int DEFAULT_LIMIT = 100;
+  int DEFAULT_LIMIT = 100;
 
   /**
    * Default page size of result is 0, which means no pagination
    */
-  public static final int DEFAULT_PAGESIZE = 0;
+  int DEFAULT_PAGESIZE = 0;
 
   /**
    * Set page size for a query result. The default page size is 0 which means no pagination.
    *
-   * @param pageSize
-   * @return itself
    * @throws IllegalArgumentException if the value is less than 0
    */
   LuceneQueryFactory setPageSize(int pageSize);
@@ -53,8 +52,6 @@ public interface LuceneQueryFactory {
    * Set maximum number of results for a query. By default, the limit is set to
    * {@link #DEFAULT_LIMIT} which is 100.
    *
-   * @param limit
-   * @return itself
    * @throws IllegalArgumentException if the value is less than or equal to zero.
    */
   LuceneQueryFactory setLimit(int limit);
@@ -73,12 +70,12 @@ public interface LuceneQueryFactory {
    * @param <V> the value type in the query results
    * @return LuceneQuery object
    */
-  public <K, V> LuceneQuery<K, V> create(String indexName, String regionName, String queryString,
+  <K, V> LuceneQuery<K, V> create(String indexName, String regionName, String queryString,
       String defaultField);
 
   /**
    * <p>
-   * Create a query based on a programatically constructed Lucene {@link Query}. This can be used
+   * Create a query based on a programmatically constructed Lucene {@link Query}. This can be used
    * for queries that are not covered by {@link StandardQueryParser}, such as range queries.
    * </p>
    * <p>
@@ -90,7 +87,7 @@ public interface LuceneQueryFactory {
    * Here's an example of using this method to create a range query on an integer field called
    * "age."
    * </p>
-   * 
+   *
    * <pre>
    * {@code
    *   LuceneQuery query = factory.create("index", "region", index -> IntPoint.newRangeQuery("age", 20, 30))
@@ -104,6 +101,6 @@ public interface LuceneQueryFactory {
    * @param <V> the value type in the query results
    * @return LuceneQuery object
    */
-  public <K, V> LuceneQuery<K, V> create(String indexName, String regionName,
+  <K, V> LuceneQuery<K, V> create(String indexName, String regionName,
       LuceneQueryProvider provider);
 }

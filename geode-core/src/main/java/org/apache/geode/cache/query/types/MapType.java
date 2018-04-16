@@ -26,14 +26,14 @@ public interface MapType extends CollectionType {
 
   /**
    * Return the type of the keys in this type of map.
-   * 
+   *
    * @return the ObjectType of the keys in this type of map.
    */
-  public ObjectType getKeyType();
+  ObjectType getKeyType();
 
   /**
    * Return the type of the entries in this map. In the context of the query language, the entries
    * in a map are structs with key and value fields.
    */
-  public StructType getEntryType();
+  StructType getEntryType();
 }

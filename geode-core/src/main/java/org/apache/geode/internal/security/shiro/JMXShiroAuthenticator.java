@@ -14,11 +14,12 @@
  */
 package org.apache.geode.internal.security.shiro;
 
-import static org.apache.geode.management.internal.security.ResourceConstants.*;
+import static org.apache.geode.management.internal.security.ResourceConstants.MISSING_CREDENTIALS_MESSAGE;
 
 import java.security.Principal;
 import java.util.Collections;
 import java.util.Properties;
+
 import javax.management.Notification;
 import javax.management.NotificationListener;
 import javax.management.remote.JMXAuthenticator;
@@ -26,7 +27,6 @@ import javax.management.remote.JMXConnectionNotification;
 import javax.management.remote.JMXPrincipal;
 import javax.security.auth.Subject;
 
-import org.apache.geode.internal.security.IntegratedSecurityService;
 import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.management.internal.security.ResourceConstants;
 import org.apache.geode.security.AuthenticationFailedException;
@@ -34,10 +34,13 @@ import org.apache.geode.security.AuthenticationFailedException;
 /**
  * this will make JMX authentication to use Shiro for Authentication
  */
-
 public class JMXShiroAuthenticator implements JMXAuthenticator, NotificationListener {
 
-  private SecurityService securityService = IntegratedSecurityService.getSecurityService();
+  private final SecurityService securityService;
+
+  public JMXShiroAuthenticator(SecurityService securityService) {
+    this.securityService = securityService;
+  }
 
   @Override
   public Subject authenticate(Object credentials) {
@@ -64,8 +67,8 @@ public class JMXShiroAuthenticator implements JMXAuthenticator, NotificationList
       principal = new ShiroPrincipal(shiroSubject);
     }
 
-    return new Subject(true, Collections.singleton(principal), Collections.EMPTY_SET,
-        Collections.EMPTY_SET);
+    return new Subject(true, Collections.singleton(principal), Collections.emptySet(),
+        Collections.emptySet());
   }
 
   @Override

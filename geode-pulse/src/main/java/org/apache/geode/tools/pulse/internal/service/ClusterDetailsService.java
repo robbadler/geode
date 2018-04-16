@@ -17,23 +17,24 @@
 
 package org.apache.geode.tools.pulse.internal.service;
 
+import static org.apache.geode.tools.pulse.internal.data.PulseConstants.TWO_PLACE_DECIMAL_FORMAT;
+
+import javax.servlet.http.HttpServletRequest;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.geode.tools.pulse.internal.data.Cluster;
-import org.apache.geode.tools.pulse.internal.data.PulseConstants;
-import org.apache.geode.tools.pulse.internal.data.Repository;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
-import javax.servlet.http.HttpServletRequest;
-import java.text.DecimalFormat;
+import org.apache.geode.tools.pulse.internal.data.Cluster;
+import org.apache.geode.tools.pulse.internal.data.Repository;
 
 /**
  * Class ClusterDetailsService
- * 
+ *
  * This service class has implementation for providing cluster's basic statistical data.
- * 
+ *
  * @since GemFire version 7.5
  */
 
@@ -85,9 +86,8 @@ public class ClusterDetailsService implements PulseService {
     responseJSON.put("totalRegions", cluster.getTotalRegionCount());
     Long heapSize = cluster.getTotalHeapSize();
 
-    DecimalFormat df2 = new DecimalFormat(PulseConstants.DECIMAL_FORMAT_PATTERN);
     Double heapS = heapSize.doubleValue() / 1024;
-    responseJSON.put("totalHeap", Double.valueOf(df2.format(heapS)));
+    responseJSON.put("totalHeap", TWO_PLACE_DECIMAL_FORMAT.format(heapS));
     responseJSON.put("functions", cluster.getRunningFunctionCount());
     responseJSON.put("uniqueCQs", cluster.getRegisteredCQCount());
     responseJSON.put("subscriptions", cluster.getSubscriptionCount());

@@ -14,24 +14,25 @@
  */
 package org.apache.geode.rest.internal.web.controllers;
 
+import java.io.Serializable;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.apache.geode.internal.lang.ObjectUtils;
 
-import java.io.Serializable;
+import org.apache.geode.internal.lang.ObjectUtils;
 
 /**
  * The Customer class models a customer entity.
  * <p/>
- * 
+ *
  * @since GemFire 8.0
  */
 @JsonInclude(Include.NON_NULL)
 public class Customer implements Serializable {
 
   @JsonProperty("id")
-  private Long customerId;
+  public Long customerId;
   private String firstName;
   private String lastName;
   @JsonProperty("ssn")

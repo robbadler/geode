@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.pdx;
 
 import org.apache.geode.GemFireException;
@@ -22,7 +19,7 @@ import org.apache.geode.GemFireException;
 /**
  * Thrown if the PDX system could not be successfully initialized. The cause will give the detailed
  * reason why initialization failed.
- * 
+ *
  * @since GemFire 6.6
  *
  */
@@ -32,7 +29,7 @@ public class PdxInitializationException extends GemFireException {
 
   /**
    * Construct a new exception with the given message
-   * 
+   *
    * @param message the message of the new exception
    */
   public PdxInitializationException(String message) {
@@ -41,7 +38,7 @@ public class PdxInitializationException extends GemFireException {
 
   /**
    * Construct a new exception with the given message and cause
-   * 
+   *
    * @param message the message of the new exception
    * @param cause the cause of the new exception
    */

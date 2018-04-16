@@ -38,12 +38,12 @@ public class StoppableReentrantReadWriteLock implements /* ReadWriteLock, */ jav
   /**
    * The underlying read lock
    */
-  transient private final StoppableReadLock readLock;
+  private final transient StoppableReadLock readLock;
 
   /**
    * the underlying write lock
    */
-  transient private final StoppableWriteLock writeLock;
+  private final transient StoppableWriteLock writeLock;
 
   /**
    * This is how often waiters will wake up to check for cancellation
@@ -52,7 +52,7 @@ public class StoppableReentrantReadWriteLock implements /* ReadWriteLock, */ jav
 
   /**
    * Create a new instance
-   * 
+   *
    * @param stopper the cancellation criterion
    */
   public StoppableReentrantReadWriteLock(CancelCriterion stopper) {
@@ -82,14 +82,14 @@ public class StoppableReentrantReadWriteLock implements /* ReadWriteLock, */ jav
   /**
    * read locks that are stoppable
    */
-  static public class StoppableReadLock {
+  public static class StoppableReadLock {
 
     private final Lock lock;
     private final CancelCriterion stopper;
 
     /**
      * Create a new read lock from the given lock
-     * 
+     *
      * @param lock the lock to be used
      * @param stopper the cancellation criterion
      */
@@ -115,9 +115,6 @@ public class StoppableReentrantReadWriteLock implements /* ReadWriteLock, */ jav
       }
     }
 
-    /**
-     * @throws InterruptedException
-     */
     public void lockInterruptibly() throws InterruptedException {
       for (;;) {
         stopper.checkCancelInProgress(null);
@@ -137,7 +134,6 @@ public class StoppableReentrantReadWriteLock implements /* ReadWriteLock, */ jav
     /**
      * @param timeout how long to wait
      * @return true if the lock was acquired
-     * @throws InterruptedException
      */
     public boolean tryLock(long timeout) throws InterruptedException {
       stopper.checkCancelInProgress(null);
@@ -156,7 +152,7 @@ public class StoppableReentrantReadWriteLock implements /* ReadWriteLock, */ jav
     // }
   }
 
-  static public class StoppableWriteLock {
+  public static class StoppableWriteLock {
 
     /**
      * The underlying write lock
@@ -170,9 +166,8 @@ public class StoppableReentrantReadWriteLock implements /* ReadWriteLock, */ jav
 
     /**
      * Create a new instance
-     * 
+     *
      * @param lock the underlying lock
-     * @param stopper
      */
     public StoppableWriteLock(ReadWriteLock lock, CancelCriterion stopper) {
       this.lock = lock.writeLock();
@@ -196,9 +191,6 @@ public class StoppableReentrantReadWriteLock implements /* ReadWriteLock, */ jav
       }
     }
 
-    /**
-     * @throws InterruptedException
-     */
     public void lockInterruptibly() throws InterruptedException {
       for (;;) {
         stopper.checkCancelInProgress(null);
@@ -218,15 +210,12 @@ public class StoppableReentrantReadWriteLock implements /* ReadWriteLock, */ jav
     /**
      * @param timeout how long to wait
      * @return true if the lock was required
-     * @throws InterruptedException
      */
     public boolean tryLock(long timeout) throws InterruptedException {
       stopper.checkCancelInProgress(null);
       return lock.tryLock(timeout, TimeUnit.MILLISECONDS);
     }
 
-    /**
-     */
     public void unlock() {
       lock.unlock();
     }

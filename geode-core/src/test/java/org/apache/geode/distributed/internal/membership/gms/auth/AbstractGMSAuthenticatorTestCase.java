@@ -17,6 +17,15 @@ package org.apache.geode.distributed.internal.membership.gms.auth;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.security.Principal;
+import java.util.Properties;
+
+import org.apache.shiro.subject.Subject;
+import org.junit.Before;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
 import org.apache.geode.LogWriter;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionConfig;
@@ -27,14 +36,6 @@ import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.security.AuthInitialize;
 import org.apache.geode.security.AuthenticationFailedException;
 import org.apache.geode.security.Authenticator;
-import org.apache.shiro.subject.Subject;
-import org.junit.Before;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-
-import java.security.Principal;
-import java.util.Properties;
 
 public abstract class AbstractGMSAuthenticatorTestCase {
 
@@ -65,18 +66,19 @@ public abstract class AbstractGMSAuthenticatorTestCase {
     clearStatics();
     MockitoAnnotations.initMocks(this);
 
-    props = new Properties();
-    securityProps = new Properties();
+    this.props = new Properties();
+    this.securityProps = new Properties();
 
-    when(securityService.isIntegratedSecurity()).thenReturn(isIntegratedSecurity());
-    when(securityService.isPeerSecurityRequired()).thenReturn(true);
-    when(securityService.login(securityProps)).thenReturn(subject);
-    when(distributionConfig.getSecurityProps()).thenReturn(securityProps);
-    when(serviceConfig.getDistributionConfig()).thenReturn(distributionConfig);
-    when(services.getSecurityLogWriter()).thenReturn(mock(InternalLogWriter.class));
-    when(services.getConfig()).thenReturn(serviceConfig);
+    when(this.securityService.isIntegratedSecurity()).thenReturn(isIntegratedSecurity());
+    when(this.securityService.isPeerSecurityRequired()).thenReturn(true);
+    when(this.securityService.login(this.securityProps)).thenReturn(this.subject);
+    when(this.distributionConfig.getSecurityProps()).thenReturn(this.securityProps);
+    when(this.serviceConfig.getDistributionConfig()).thenReturn(this.distributionConfig);
+    when(this.services.getSecurityLogWriter()).thenReturn(mock(InternalLogWriter.class));
+    when(this.services.getConfig()).thenReturn(this.serviceConfig);
+    when(this.services.getSecurityService()).thenReturn(this.securityService);
 
-    authenticator.init(services);
+    this.authenticator.init(this.services);
   }
 
   protected abstract boolean isIntegratedSecurity();
@@ -135,11 +137,11 @@ public abstract class AbstractGMSAuthenticatorTestCase {
 
     @Override
     public void close() {
-      closed = true;
+      this.closed = true;
     }
 
     public boolean isClosed() {
-      return closed;
+      return this.closed;
     }
 
     public static int getCreateCount() {
@@ -284,11 +286,11 @@ public abstract class AbstractGMSAuthenticatorTestCase {
 
     @Override
     public void close() {
-      closed = true;
+      this.closed = true;
     }
 
     public boolean isClosed() {
-      return closed;
+      return this.closed;
     }
 
     public static int getCreateCount() {

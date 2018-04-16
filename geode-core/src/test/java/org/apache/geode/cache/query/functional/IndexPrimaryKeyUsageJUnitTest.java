@@ -38,18 +38,15 @@ import org.apache.geode.cache.query.IndexType;
 import org.apache.geode.cache.query.Query;
 import org.apache.geode.cache.query.QueryService;
 import org.apache.geode.cache.query.SelectResults;
-import org.apache.geode.cache.query.Utils;
 import org.apache.geode.cache.query.data.Address;
 import org.apache.geode.cache.query.data.Employee;
 import org.apache.geode.cache.query.data.Portfolio;
 import org.apache.geode.cache.query.internal.QueryObserverAdapter;
 import org.apache.geode.cache.query.internal.QueryObserverHolder;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
-/**
- *
- */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLIndexTest.class})
 public class IndexPrimaryKeyUsageJUnitTest {
 
 
@@ -84,7 +81,6 @@ public class IndexPrimaryKeyUsageJUnitTest {
         QueryObserverHolder.setInstance(observer);
         q = CacheUtils.getQueryService().newQuery(queries[i]);
         CacheUtils.getLogger().info("Executing query: " + queries[i]);
-        // DebuggerSupport.waitForJavaDebugger(CacheUtils.getLogger());
         r[i][0] = (SelectResults) q.execute();
         if (!observer.isIndexesUsed) {
           CacheUtils.log("NO INDEX USED");

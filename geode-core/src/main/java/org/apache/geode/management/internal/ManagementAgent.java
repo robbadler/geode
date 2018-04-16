@@ -14,11 +14,43 @@
  */
 package org.apache.geode.management.internal;
 
+import java.io.IOException;
+import java.io.Serializable;
+import java.lang.management.ManagementFactory;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.UnknownHostException;
+import java.rmi.AlreadyBoundException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.rmi.server.RMIClientSocketFactory;
+import java.rmi.server.RMIServerSocketFactory;
+import java.rmi.server.UnicastRemoteObject;
+import java.util.HashMap;
+import java.util.Set;
+
+import javax.management.InstanceAlreadyExistsException;
+import javax.management.MBeanRegistrationException;
+import javax.management.MBeanServer;
+import javax.management.MalformedObjectNameException;
+import javax.management.NotCompliantMBeanException;
+import javax.management.ObjectName;
+import javax.management.remote.JMXConnectorServer;
+import javax.management.remote.JMXServiceURL;
+import javax.management.remote.rmi.RMIConnectorServer;
+import javax.management.remote.rmi.RMIJRMPServerImpl;
+import javax.management.remote.rmi.RMIServerImpl;
+
+import com.healthmarketscience.rmiio.exporter.RemoteStreamExporter;
 import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.Logger;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+
 import org.apache.geode.GemFireConfigException;
 import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.GemFireVersion;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.logging.LogService;
@@ -32,41 +64,11 @@ import org.apache.geode.internal.tcp.TCPConduit;
 import org.apache.geode.management.ManagementException;
 import org.apache.geode.management.ManagementService;
 import org.apache.geode.management.ManagerMXBean;
+import org.apache.geode.management.internal.beans.FileUploader;
 import org.apache.geode.management.internal.security.AccessControlMBean;
 import org.apache.geode.management.internal.security.MBeanServerWrapper;
 import org.apache.geode.management.internal.security.ResourceConstants;
 import org.apache.geode.management.internal.unsafe.ReadOpFileAccessController;
-import org.apache.logging.log4j.Logger;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
-
-import java.io.IOException;
-import java.io.Serializable;
-import java.lang.management.ManagementFactory;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.UnknownHostException;
-import java.rmi.AlreadyBoundException;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
-import java.rmi.server.RMIClientSocketFactory;
-import java.rmi.server.RMIServerSocketFactory;
-import java.rmi.server.UnicastRemoteObject;
-import java.util.HashMap;
-import java.util.Set;
-import javax.management.InstanceAlreadyExistsException;
-import javax.management.MBeanRegistrationException;
-import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
-import javax.management.NotCompliantMBeanException;
-import javax.management.ObjectName;
-import javax.management.remote.JMXConnectorServer;
-import javax.management.remote.JMXServiceURL;
-import javax.management.remote.rmi.RMIConnectorServer;
-import javax.management.remote.rmi.RMIJRMPServerImpl;
-import javax.management.remote.rmi.RMIServerImpl;
-import javax.rmi.ssl.SslRMIClientSocketFactory;
 
 /**
  * Agent implementation that controls the JMX server end points for JMX clients to connect, such as
@@ -74,7 +76,7 @@ import javax.rmi.ssl.SslRMIClientSocketFactory;
  * <p>
  * The ManagementAgent could be used in a loner or GemFire client to define and control JMX server
  * end points for the Platform MBeanServer and the GemFire MBeans hosted within it.
- * 
+ *
  * @since GemFire 7.0
  */
 public class ManagementAgent {
@@ -88,34 +90,41 @@ public class ManagementAgent {
    */
   private boolean running = false;
   private Registry registry;
+
   private JMXConnectorServer jmxConnectorServer;
   private JMXShiroAuthenticator shiroAuthenticator;
   private final DistributionConfig config;
-  private SecurityService securityService = SecurityService.getSecurityService();
+  private final SecurityService securityService;
   private boolean isHttpServiceRunning = false;
+  private RMIClientSocketFactory rmiClientSocketFactory;
+  private RMIServerSocketFactory rmiServerSocketFactory;
+  private int port;
+  private RemoteStreamExporter remoteStreamExporter = null;
 
   /**
    * This system property is set to true when the embedded HTTP server is started so that the
    * embedded pulse webapp can use a local MBeanServer instead of a remote JMX connection.
    */
   private static final String PULSE_EMBEDDED_PROP = "pulse.embedded";
+  private static final String PULSE_HOST_PROP = "pulse.host";
   private static final String PULSE_PORT_PROP = "pulse.port";
   private static final String PULSE_USESSL_MANAGER = "pulse.useSSL.manager";
   private static final String PULSE_USESSL_LOCATOR = "pulse.useSSL.locator";
 
-  public ManagementAgent(DistributionConfig config) {
+  public ManagementAgent(DistributionConfig config, SecurityService securityService) {
     this.config = config;
+    this.securityService = securityService;
   }
 
   public synchronized boolean isRunning() {
     return this.running;
   }
 
-  public synchronized boolean isHttpServiceRunning() {
+  synchronized boolean isHttpServiceRunning() {
     return isHttpServiceRunning;
   }
 
-  public synchronized void setHttpServiceRunning(boolean isHttpServiceRunning) {
+  private synchronized void setHttpServiceRunning(boolean isHttpServiceRunning) {
     this.isHttpServiceRunning = isHttpServiceRunning;
   }
 
@@ -125,9 +134,9 @@ public class ManagementAgent {
 
   private boolean isServerNode(InternalCache cache) {
     return (cache.getInternalDistributedSystem().getDistributedMember()
-        .getVmKind() != DistributionManager.LOCATOR_DM_TYPE
+        .getVmKind() != ClusterDistributionManager.LOCATOR_DM_TYPE
         && cache.getInternalDistributedSystem().getDistributedMember()
-            .getVmKind() != DistributionManager.ADMIN_ONLY_DM_TYPE
+            .getVmKind() != ClusterDistributionManager.ADMIN_ONLY_DM_TYPE
         && !cache.isClient());
   }
 
@@ -176,7 +185,7 @@ public class ManagementAgent {
 
   private Server httpServer;
   private final String GEMFIRE_VERSION = GemFireVersion.getGemFireVersion();
-  private AgentUtil agentUtil = new AgentUtil(GEMFIRE_VERSION);
+  private final AgentUtil agentUtil = new AgentUtil(GEMFIRE_VERSION);
 
   private void startHttpService(boolean isServer) {
     final SystemManagementService managementService = (SystemManagementService) ManagementService
@@ -209,8 +218,11 @@ public class ManagementAgent {
         if (logger.isDebugEnabled()) {
           logger.debug(message);
         }
-      } else if (securityService.isIntegratedSecurity()) {
-        System.setProperty("spring.profiles.active", "pulse.authentication.gemfire");
+      } else {
+        String pwFile = this.config.getJmxManagerPasswordFile();
+        if (securityService.isIntegratedSecurity() || StringUtils.isNotBlank(pwFile)) {
+          System.setProperty("spring.profiles.active", "pulse.authentication.gemfire");
+        }
       }
 
       // Find developer REST WAR file
@@ -232,26 +244,27 @@ public class ManagementAgent {
 
           boolean isRestWebAppAdded = false;
 
-          this.httpServer = JettyHelper.initJetty(bindAddress, port,
-              SSLConfigurationFactory.getSSLConfigForComponent(SecurableCommunicationChannel.WEB));
+          this.httpServer = JettyHelper.initJetty(bindAddress, port, SSLConfigurationFactory
+              .getSSLConfigForComponent(config, SecurableCommunicationChannel.WEB));
 
           if (agentUtil.isWebApplicationAvailable(gemfireWar)) {
-            this.httpServer =
-                JettyHelper.addWebApplication(this.httpServer, "/gemfire", gemfireWar);
-            this.httpServer =
-                JettyHelper.addWebApplication(this.httpServer, "/geode-mgmt", gemfireWar);
+            this.httpServer = JettyHelper.addWebApplication(this.httpServer, "/gemfire", gemfireWar,
+                securityService);
+            this.httpServer = JettyHelper.addWebApplication(this.httpServer, "/geode-mgmt",
+                gemfireWar, securityService);
           }
 
           if (agentUtil.isWebApplicationAvailable(pulseWar)) {
-            this.httpServer = JettyHelper.addWebApplication(this.httpServer, "/pulse", pulseWar);
+            this.httpServer =
+                JettyHelper.addWebApplication(this.httpServer, "/pulse", pulseWar, securityService);
           }
 
           if (isServer && this.config.getStartDevRestApi()) {
             if (agentUtil.isWebApplicationAvailable(gemfireAPIWar)) {
-              this.httpServer =
-                  JettyHelper.addWebApplication(this.httpServer, "/geode", gemfireAPIWar);
-              this.httpServer =
-                  JettyHelper.addWebApplication(this.httpServer, "/gemfire-api", gemfireAPIWar);
+              this.httpServer = JettyHelper.addWebApplication(this.httpServer, "/geode",
+                  gemfireAPIWar, securityService);
+              this.httpServer = JettyHelper.addWebApplication(this.httpServer, "/gemfire-api",
+                  gemfireAPIWar, securityService);
               isRestWebAppAdded = true;
             }
           } else {
@@ -269,6 +282,7 @@ public class ManagementAgent {
           }
 
           System.setProperty(PULSE_EMBEDDED_PROP, "true");
+          System.setProperty(PULSE_HOST_PROP, "" + config.getJmxManagerBindAddress());
           System.setProperty(PULSE_PORT_PROP, "" + config.getJmxManagerPort());
 
           final SocketCreator jmxSocketCreator =
@@ -362,7 +376,7 @@ public class ManagementAgent {
    */
   private void configureAndStart() throws IOException {
     // get the port for RMI Registry and RMI Connector Server
-    final int port = this.config.getJmxManagerPort();
+    port = this.config.getJmxManagerPort();
     final String hostname;
     final InetAddress bindAddr;
     if (StringUtils.isBlank(this.config.getJmxManagerBindAddress())) {
@@ -387,9 +401,8 @@ public class ManagementAgent {
       logger.debug("Starting jmx manager agent on port {}{}", port,
           (bindAddr != null ? (" bound to " + bindAddr) : "") + (ssl ? " using SSL" : ""));
     }
-    RMIClientSocketFactory rmiClientSocketFactory = ssl ? new SslRMIClientSocketFactory() : null;// RMISocketFactory.getDefaultSocketFactory();
-    RMIServerSocketFactory rmiServerSocketFactory =
-        new GemFireRMIServerSocketFactory(socketCreator, bindAddr);
+    rmiClientSocketFactory = ssl ? new ContextAwareSSLRMIClientSocketFactory() : null;
+    rmiServerSocketFactory = new GemFireRMIServerSocketFactory(socketCreator, bindAddr);
 
     // Following is done to prevent rmi causing stop the world gcs
     System.setProperty("sun.rmi.dgc.server.gcInterval", Long.toString(Long.MAX_VALUE - 1));
@@ -407,7 +420,7 @@ public class ManagementAgent {
     MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
 
     // Environment map. why is this declared as HashMap?
-    final HashMap<String, Object> env = new HashMap<String, Object>();
+    final HashMap<String, Object> env = new HashMap<>();
 
     // Manually creates and binds a JMX RMI Connector Server stub with the
     // registry created above: the port we pass here is the port that can
@@ -456,25 +469,22 @@ public class ManagementAgent {
             try {
               registry.bind("jmxrmi", stub);
             } catch (AlreadyBoundException x) {
-              final IOException io = new IOException(x.getMessage());
-              io.initCause(x);
-              throw io;
+              throw new IOException(x.getMessage(), x);
             }
             super.start();
           }
         };
 
     if (securityService.isIntegratedSecurity()) {
-      shiroAuthenticator = new JMXShiroAuthenticator();
+      shiroAuthenticator = new JMXShiroAuthenticator(this.securityService);
       env.put(JMXConnectorServer.AUTHENTICATOR, shiroAuthenticator);
       jmxConnectorServer.addNotificationListener(shiroAuthenticator, null,
           jmxConnectorServer.getAttributes());
       // always going to assume authorization is needed as well, if no custom AccessControl, then
       // the CustomAuthRealm
       // should take care of that
-      MBeanServerWrapper mBeanServerWrapper = new MBeanServerWrapper();
+      MBeanServerWrapper mBeanServerWrapper = new MBeanServerWrapper(this.securityService);
       jmxConnectorServer.setMBeanServerForwarder(mBeanServerWrapper);
-      registerAccessControlMBean();
     } else {
       /* Disable the old authenticator mechanism */
       String pwFile = this.config.getJmxManagerPasswordFile();
@@ -484,14 +494,13 @@ public class ManagementAgent {
 
       String accessFile = this.config.getJmxManagerAccessFile();
       if (accessFile != null && accessFile.length() > 0) {
-        // Lets not use default connector based authorization
-        // env.put("jmx.remote.x.access.file", accessFile);
         // Rewire the mbs hierarchy to set accessController
         ReadOpFileAccessController controller = new ReadOpFileAccessController(accessFile);
         controller.setMBeanServer(mbs);
-        mbs = controller;
       }
     }
+    registerAccessControlMBean();
+    registerFileUploaderMBean();
 
     jmxConnectorServer.start();
     if (logger.isDebugEnabled()) {
@@ -501,7 +510,7 @@ public class ManagementAgent {
 
   private void registerAccessControlMBean() {
     try {
-      AccessControlMBean acc = new AccessControlMBean();
+      AccessControlMBean acc = new AccessControlMBean(this.securityService);
       ObjectName accessControlMBeanON = new ObjectName(ResourceConstants.OBJECT_NAME_ACCESSCONTROL);
       MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
 
@@ -512,37 +521,49 @@ public class ManagementAgent {
           logger.info("Registered AccessControlMBean on " + accessControlMBeanON);
         } catch (InstanceAlreadyExistsException | MBeanRegistrationException
             | NotCompliantMBeanException e) {
-          throw new GemFireConfigException("Error while configuring accesscontrol for jmx resource",
-              e);
+          throw new GemFireConfigException(
+              "Error while configuring access control for jmx resource", e);
         }
       }
     } catch (MalformedObjectNameException e) {
-      throw new GemFireConfigException("Error while configuring accesscontrol for jmx resource", e);
+      throw new GemFireConfigException("Error while configuring access control for jmx resource",
+          e);
     }
   }
 
-  private static class GemFireRMIClientSocketFactory
-      implements RMIClientSocketFactory, Serializable {
+  private void registerFileUploaderMBean() {
+    try {
+      ObjectName mbeanON = new ObjectName(ManagementConstants.OBJECTNAME__FILEUPLOADER_MBEAN);
+      MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
 
-    private static final long serialVersionUID = -7604285019188827617L;
-
-    private/* final hack to prevent serialization */ transient SocketCreator sc;
-
-    public GemFireRMIClientSocketFactory(SocketCreator sc) {
-      this.sc = sc;
+      Set<ObjectName> names = platformMBeanServer.queryNames(mbeanON, null);
+      if (names.isEmpty()) {
+        platformMBeanServer.registerMBean(new FileUploader(getRemoteStreamExporter()), mbeanON);
+        logger.info("Registered FileUploaderMBean on " + mbeanON);
+      }
+    } catch (InstanceAlreadyExistsException | MBeanRegistrationException
+        | NotCompliantMBeanException | MalformedObjectNameException e) {
+      throw new GemFireConfigException("Error while configuring FileUploader MBean", e);
     }
+  }
 
-    @Override
-    public Socket createSocket(String host, int port) throws IOException {
-      return this.sc.connectForClient(host, port, 0/* no timeout */);
+  public JMXConnectorServer getJmxConnectorServer() {
+    return jmxConnectorServer;
+  }
+
+  public synchronized RemoteStreamExporter getRemoteStreamExporter() {
+    if (remoteStreamExporter == null) {
+      remoteStreamExporter =
+          new GeodeRemoteStreamExporter(port, rmiClientSocketFactory, rmiServerSocketFactory);
     }
+    return remoteStreamExporter;
   }
 
   private static class GemFireRMIServerSocketFactory
       implements RMIServerSocketFactory, Serializable {
 
     private static final long serialVersionUID = -811909050641332716L;
-    private/* final hack to prevent serialization */ transient SocketCreator sc;
+    private transient SocketCreator sc;
     private final InetAddress bindAddr;
 
     public GemFireRMIServerSocketFactory(SocketCreator sc, InetAddress bindAddr) {

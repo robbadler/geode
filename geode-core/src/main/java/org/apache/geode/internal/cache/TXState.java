@@ -32,7 +32,6 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.SystemFailure;
-import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CommitConflictException;
 import org.apache.geode.cache.DiskAccessException;
 import org.apache.geode.cache.EntryNotFoundException;
@@ -52,6 +51,7 @@ import org.apache.geode.distributed.TXManagerCancelledException;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.cache.control.MemoryThresholds;
+import org.apache.geode.internal.cache.entries.AbstractRegionEntry;
 import org.apache.geode.internal.cache.partitioned.PutAllPRMessage;
 import org.apache.geode.internal.cache.partitioned.RemoveAllPRMessage;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
@@ -190,9 +190,10 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#getTransactionId()
    */
+  @Override
   public TransactionId getTransactionId() {
     return this.proxy.getTxId();
   }
@@ -224,15 +225,17 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.TXStateInterface#readRegion(org.apache.geode.internal.cache.
    * LocalRegion)
    */
+  @Override
   public TXRegionState readRegion(LocalRegion r) {
     return this.regions.get(r);
   }
 
+  @Override
   public void rmRegion(LocalRegion r) {
     TXRegionState txr = this.regions.remove(r);
     if (txr != null) {
@@ -242,11 +245,12 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.TXStateInterface#writeRegion(org.apache.geode.internal.cache.
    * LocalRegion)
    */
+  @Override
   public TXRegionState writeRegion(LocalRegion r) {
     TXRegionState result = readRegion(r);
     if (result == null) {
@@ -266,18 +270,20 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#getBeginTime()
    */
+  @Override
   public long getBeginTime() {
     return this.beginTime;
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#getChanges()
    */
+  @Override
   public int getChanges() {
     int changes = 0;
     Iterator<TXRegionState> it = this.regions.values().iterator();
@@ -290,18 +296,20 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#isInProgress()
    */
+  @Override
   public boolean isInProgress() {
     return !this.closed;
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#nextModSerialNum()
    */
+  @Override
   public int nextModSerialNum() {
     this.modSerialNum += 1;
     return this.modSerialNum;
@@ -309,9 +317,10 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#needsLargeModCount()
    */
+  @Override
   public boolean needsLargeModCount() {
     return this.modSerialNum > Byte.MAX_VALUE;
   }
@@ -323,20 +332,16 @@ public class TXState implements TXStateInterface {
 
     final long conflictStart = CachePerfStats.getStatTime();
     this.locks = createLockRequest();
-    try {
-      this.locks.obtain();
-      // for now check account the dlock service time
-      // later this stat end should be moved to a finally block
-      if (CachePerfStats.enableClockStats)
-        this.proxy.getTxMgr().getCachePerfStats()
-            .incTxConflictCheckTime(CachePerfStats.getStatTime() - conflictStart);
-      if (this.internalAfterReservation != null) {
-        this.internalAfterReservation.run();
-      }
-      checkForConflicts();
-    } catch (CommitConflictException conflict) {
-      throw conflict;
+    this.locks.obtain(getCache().getInternalDistributedSystem());
+    // for now check account the dlock service time
+    // later this stat end should be moved to a finally block
+    if (CachePerfStats.enableClockStats)
+      this.proxy.getTxMgr().getCachePerfStats()
+          .incTxConflictCheckTime(CachePerfStats.getStatTime() - conflictStart);
+    if (this.internalAfterReservation != null) {
+      this.internalAfterReservation.run();
     }
+    checkForConflicts();
   }
 
   byte[] getBaseMembershipId() {
@@ -361,9 +366,10 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#commit()
    */
+  @Override
   public void commit() throws CommitConflictException {
     if (this.closed) {
       return;
@@ -448,10 +454,10 @@ public class TXState implements TXStateInterface {
          * In order to preserve data consistency, we need to: 1. Modify the cache first
          * (applyChanges) 2. Ask for advice on who to send to (buildMessage) 3. Send out to other
          * members.
-         * 
+         *
          * If this is done out of order, we will have problems with GII, split brain, and HA. See
          * bug #41187
-         * 
+         *
          * @gregp
          */
 
@@ -565,9 +571,10 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#rollback()
    */
+  @Override
   public void rollback() {
     if (this.closed) {
       return;
@@ -581,7 +588,7 @@ public class TXState implements TXStateInterface {
   /**
    * This is a fix for bug #42228 where a client fails over from one server to another but gets a
    * conflict on completion because completion had already been initiated and had not yet completed
-   * 
+   *
    * @return true if a previous completion was in progress
    */
   public boolean waitForPreviousCompletion() {
@@ -608,7 +615,7 @@ public class TXState implements TXStateInterface {
   /**
    * Generate an event id for each operation that will be done by this tx during the application
    * phase of its commit.
-   * 
+   *
    * @return a sorted list of TXEntryStateWithRegionAndKey that will be used to apply the ops on the
    *         nearside in the correct order.
    */
@@ -668,7 +675,11 @@ public class TXState implements TXStateInterface {
       while (it.hasNext()) {
         Map.Entry<LocalRegion, TXRegionState> me = it.next();
         LocalRegion r = me.getKey();
-        if (r instanceof BucketRegion && (((BucketRegion) r).getBucketAdvisor().isPrimary())) {
+        if (r instanceof BucketRegion) {
+          if (isDistTx() && !((BucketRegion) r).getBucketAdvisor().isPrimary()) {
+            // For distTx we skip for taking locks on secondary.
+            continue;
+          }
           BucketRegion b = (BucketRegion) r;
           /*
            * Lock the primary bucket so it doesnt get rebalanced until we cleanup!
@@ -735,7 +746,7 @@ public class TXState implements TXStateInterface {
 
   /**
    * this builds a new TXCommitMessage and returns it
-   * 
+   *
    * @return the new message
    */
   protected TXCommitMessage buildMessage() {
@@ -754,7 +765,7 @@ public class TXState implements TXStateInterface {
 
   /**
    * this builds a new TXCommitMessage and returns it
-   * 
+   *
    * @return the new message
    */
   protected TXCommitMessage buildCompleteMessage() {
@@ -775,46 +786,47 @@ public class TXState implements TXStateInterface {
    * applies this transaction to the cache.
    */
   protected void applyChanges(List/* <TXEntryStateWithRegionAndKey> */ entries) {
-    {
-      Iterator<Map.Entry<LocalRegion, TXRegionState>> it = this.regions.entrySet().iterator();
-      while (it.hasNext()) {
-        Map.Entry<LocalRegion, TXRegionState> me = it.next();
-        LocalRegion r = me.getKey();
-        TXRegionState txrs = me.getValue();
-        txrs.applyChangesStart(r, this);
+    // applyChangesStart for each region
+    for (Map.Entry<LocalRegion, TXRegionState> me : this.regions.entrySet()) {
+      LocalRegion r = me.getKey();
+      TXRegionState txrs = me.getValue();
+      txrs.applyChangesStart(r, this);
+    }
+
+    // serializePendingValue for each entry
+    for (Object entry : entries) {
+      TXEntryStateWithRegionAndKey o = (TXEntryStateWithRegionAndKey) entry;
+      o.es.serializePendingValue();
+    }
+
+    // applyChanges for each entry
+    for (Object entry : entries) {
+      TXEntryStateWithRegionAndKey o = (TXEntryStateWithRegionAndKey) entry;
+      if (this.internalDuringApplyChanges != null) {
+        this.internalDuringApplyChanges.run();
+      }
+      try {
+        o.es.applyChanges(o.r, o.key, this);
+      } catch (RegionDestroyedException ex) {
+        // region was destroyed out from under us; after conflict checking
+        // passed. So act as if the region destroy happened right after the
+        // commit. We act this way by doing nothing; including distribution
+        // of this region's commit data.
+      } catch (CancelException ex) {
+        // cache was closed out from under us; after conflict checking
+        // passed. So do nothing.
       }
     }
-    {
-      Iterator/* <TXEntryStateWithRegionAndKey> */ it = entries.iterator();
-      while (it.hasNext()) {
-        TXEntryStateWithRegionAndKey o = (TXEntryStateWithRegionAndKey) it.next();
-        if (this.internalDuringApplyChanges != null) {
-          this.internalDuringApplyChanges.run();
-        }
-        try {
-          o.es.applyChanges(o.r, o.key, this);
-        } catch (RegionDestroyedException ex) {
-          // region was destroyed out from under us; after conflict checking
-          // passed. So act as if the region destroy happened right after the
-          // commit. We act this way by doing nothing; including distribution
-          // of this region's commit data.
-        } catch (CancelException ex) {
-          // cache was closed out from under us; after conflict checking
-          // passed. So do nothing.
-        }
-      }
-    }
-    {
-      Iterator<Map.Entry<LocalRegion, TXRegionState>> it = this.regions.entrySet().iterator();
-      while (it.hasNext()) {
-        Map.Entry<LocalRegion, TXRegionState> me = it.next();
-        LocalRegion r = me.getKey();
-        TXRegionState txrs = me.getValue();
-        txrs.applyChangesEnd(r, this);
-      }
+
+    // applyChangesEnd for each region
+    for (Map.Entry<LocalRegion, TXRegionState> me : this.regions.entrySet()) {
+      LocalRegion r = me.getKey();
+      TXRegionState txrs = me.getValue();
+      txrs.applyChangesEnd(r, this);
     }
   }
 
+  @Override
   public TXEvent getEvent() {
     return new TXEvent(this, getCache());
   }
@@ -845,7 +857,7 @@ public class TXState implements TXStateInterface {
       if (this.locks != null) {
         final long conflictStart = CachePerfStats.getStatTime();
         try {
-          this.locks.cleanup();
+          this.locks.cleanup(getCache().getInternalDistributedSystem());
         } catch (IllegalArgumentException e) {
           iae = e;
         }
@@ -897,9 +909,10 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#getEvents()
    */
+  @Override
   public List getEvents() {
     ArrayList events = new ArrayList();
     Iterator<Map.Entry<LocalRegion, TXRegionState>> it = this.regions.entrySet().iterator();
@@ -937,7 +950,7 @@ public class TXState implements TXStateInterface {
   /**
    * Used to keep track of the region and key associated with a TXEntryState. Also used to sort the
    * entries into the order in which they will be applied.
-   * 
+   *
    * @since GemFire 5.7
    */
   static class TXEntryStateWithRegionAndKey implements Comparable {
@@ -955,6 +968,7 @@ public class TXState implements TXStateInterface {
       return this.es.getSortValue();
     }
 
+    @Override
     public int compareTo(Object o) {
       TXEntryStateWithRegionAndKey other = (TXEntryStateWithRegionAndKey) o;
       return getSortValue() - other.getSortValue();
@@ -978,9 +992,10 @@ public class TXState implements TXStateInterface {
   //////////////////////////////////////////////////////////////////
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#beforeCompletion()
    */
+  @Override
   public void beforeCompletion() throws SynchronizationCommitConflictException {
     if (this.closed) {
       throw new TXManagerCancelledException();
@@ -1006,7 +1021,6 @@ public class TXState implements TXStateInterface {
             writer.beforeCommit(event);
           }
         } catch (TransactionWriterException twe) {
-          cleanup();
           throw new CommitConflictException(twe);
         } catch (VirtualMachineError err) {
           // cleanup(); this allocates objects so I don't think we can do it - that leaves the TX
@@ -1017,7 +1031,6 @@ public class TXState implements TXStateInterface {
           // now, so don't let this thread continue.
           throw err;
         } catch (Throwable t) {
-          cleanup(); // rollback the transaction!
           // Whenever you catch Error or Throwable, you must also
           // catch VirtualMachineError (see above). However, there is
           // _still_ a possibility that you are dealing with a cascading
@@ -1027,9 +1040,8 @@ public class TXState implements TXStateInterface {
           throw new CommitConflictException(t);
         }
       }
-
-
     } catch (CommitConflictException commitConflict) {
+      cleanup();
       this.proxy.getTxMgr().noteCommitFailure(opStart, this.jtaLifeTime, this);
       throw new SynchronizationCommitConflictException(
           LocalizedStrings.TXState_CONFLICT_DETECTED_IN_GEMFIRE_TRANSACTION_0
@@ -1040,9 +1052,10 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#afterCompletion(int)
    */
+  @Override
   public void afterCompletion(int status) {
     // System.err.println("start afterCompletion");
     final long opStart = CachePerfStats.getStatTime();
@@ -1052,8 +1065,9 @@ public class TXState implements TXStateInterface {
         Assert.assertTrue(this.locks != null,
             "Gemfire Transaction afterCompletion called with illegal state.");
         try {
-          this.proxy.getTxMgr().setTXState(null);
+          proxy.getTxMgr().setTXState(null);
           commit();
+          saveTXCommitMessageForClientFailover();
         } catch (CommitConflictException error) {
           Assert.assertTrue(false, "Gemfire Transaction " + getTransactionId()
               + " afterCompletion failed.due to CommitConflictException: " + error);
@@ -1067,6 +1081,7 @@ public class TXState implements TXStateInterface {
         this.jtaLifeTime = opStart - getBeginTime();
         this.proxy.getTxMgr().setTXState(null);
         rollback();
+        saveTXCommitMessageForClientFailover();
         this.proxy.getTxMgr().noteRollbackSuccess(opStart, this.jtaLifeTime, this);
         break;
       default:
@@ -1075,6 +1090,9 @@ public class TXState implements TXStateInterface {
     // System.err.println("end afterCompletion");
   }
 
+  private void saveTXCommitMessageForClientFailover() {
+    proxy.getTxMgr().saveTXStateForClientFailover(proxy);
+  }
 
 
   /**
@@ -1175,27 +1193,31 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#getCache()
    */
-  public Cache getCache() {
-    return this.proxy.getTxMgr().getCache();
+  @Override
+  public InternalCache getCache() {
+    return this.proxy.getCache();
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#getRegions()
    */
+  @Override
   public Collection<LocalRegion> getRegions() {
     return this.regions.keySet();
   }
 
+  @Override
   public TXRegionState txWriteRegion(final LocalRegion localRegion, final KeyInfo entryKey) {
     LocalRegion lr = localRegion.getDataRegionForWrite(entryKey);
     return writeRegion(lr);
   }
 
+  @Override
   public TXRegionState txReadRegion(LocalRegion localRegion) {
     return readRegion(localRegion);
   }
@@ -1242,6 +1264,7 @@ public class TXState implements TXStateInterface {
    * this version of txPutEntry takes a ConcurrentMap expectedOldValue parameter. If not null, this
    * value must match the current value of the entry or false is returned
    */
+  @Override
   public boolean txPutEntry(final EntryEventImpl event, boolean ifNew, boolean requireOldValue,
       boolean checkResources, Object expectedOldValue) {
 
@@ -1284,14 +1307,15 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#containsValueForKey(java.lang.Object,
    * org.apache.geode.internal.cache.LocalRegion)
    */
+  @Override
   public boolean containsValueForKey(KeyInfo keyInfo, LocalRegion region) {
     TXEntryState tx = txReadEntry(keyInfo, region, true, true/* create txEntry is absent */);
     if (tx != null) {
-      /**
+      /*
        * Note that we don't consult this.getDataPolicy().isProxy() when setting this because in this
        * context we don't want proxies to pretend they have a value.
        */
@@ -1304,11 +1328,12 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.TXStateInterface#destroyExistingEntry(org.apache.geode.internal
    * .cache.EntryEventImpl, boolean, java.lang.Object)
    */
+  @Override
   public void destroyExistingEntry(final EntryEventImpl event, final boolean cacheWrite,
       Object expectedOldValue) {
     if (bridgeContext == null) {
@@ -1329,10 +1354,11 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#invalidateExistingEntry(org.apache.geode.
    * internal.cache.EntryEventImpl, boolean, boolean)
    */
+  @Override
   public void invalidateExistingEntry(final EntryEventImpl event, boolean invokeCallbacks,
       boolean forceNewEntry) {
     if (bridgeContext == null) {
@@ -1350,11 +1376,8 @@ public class TXState implements TXStateInterface {
   /**
    * Write an existing entry. This form takes an expectedOldValue which, if not null, must be equal
    * to the current value of the entry. If it is not, an EntryNotFoundException is thrown.
-   * 
-   * @param event
-   * @param expectedOldValue
+   *
    * @return the tx entry object
-   * @throws EntryNotFoundException
    */
   private TXEntryState txWriteExistingEntry(final EntryEventImpl event, Object expectedOldValue)
       throws EntryNotFoundException {
@@ -1387,10 +1410,11 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#getEntry(java.lang.Object,
    * org.apache.geode.internal.cache.LocalRegion)
    */
+  @Override
   public Entry getEntry(final KeyInfo keyInfo, final LocalRegion region, boolean allowTombstones) {
     TXEntryState tx = txReadEntry(keyInfo, region, true, true/* create txEntry is absent */);
     if (tx != null && tx.existsLocally()) {
@@ -1400,6 +1424,7 @@ public class TXState implements TXStateInterface {
     }
   }
 
+  @Override
   public Entry accessEntry(KeyInfo keyInfo, LocalRegion localRegion) {
     return getEntry(keyInfo, localRegion, false);
   }
@@ -1409,14 +1434,13 @@ public class TXState implements TXStateInterface {
   }
 
   /**
-   * @param keyInfo
-   * @param localRegion
    * @param rememberRead true if the value read from committed state needs to be remembered in tx
    *        state for repeatable read.
    * @param createIfAbsent should a transactional entry be created if not present.
    * @return a txEntryState or null if the entry doesn't exist in the transaction and/or committed
    *         state.
    */
+  @Override
   public TXEntryState txReadEntry(KeyInfo keyInfo, LocalRegion localRegion, boolean rememberRead,
       boolean createIfAbsent) {
     localRegion.cache.getCancelCriterion().checkCancelInProgress(null);
@@ -1458,7 +1482,7 @@ public class TXState implements TXStateInterface {
       /*
        * This means it isn't in the cache and rememberReads = false. This should only happen from
        * test hooks at this point.
-       * 
+       *
        */
       if (txr != null) {
         txr.cleanupNonDirtyEntries(dataReg);
@@ -1484,10 +1508,11 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#getDeserializedValue(java.lang.Object,
    * org.apache.geode.internal.cache.LocalRegion, boolean)
    */
+  @Override
   public Object getDeserializedValue(KeyInfo keyInfo, LocalRegion localRegion, boolean updateStats,
       boolean disableCopyOnRead, boolean preferCD, EntryEventImpl clientEvent,
       boolean returnTombstones, boolean retainResult) {
@@ -1506,11 +1531,12 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.InternalDataView#getSerializedValue(org.apache.geode.internal.
    * cache.LocalRegion, java.lang.Object, java.lang.Object)
    */
+  @Override
   @Retained
   public Object getSerializedValue(LocalRegion localRegion, KeyInfo keyInfo, boolean doNotLockEntry,
       ClientProxyMembershipID requestingClient, EntryEventImpl clientEvent,
@@ -1536,11 +1562,12 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.InternalDataView#entryCount(org.apache.geode.internal.cache.
    * LocalRegion)
    */
+  @Override
   public int entryCount(LocalRegion localRegion) {
     int result = localRegion.getRegionSize();
     TXRegionState txr = txReadRegion(localRegion);
@@ -1559,10 +1586,11 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#containsKey(java.lang.Object,
    * org.apache.geode.internal.cache.LocalRegion)
    */
+  @Override
   public boolean containsKey(KeyInfo keyInfo, LocalRegion localRegion) {
     TXEntryState tx = txReadEntry(keyInfo, localRegion, true, true/* create txEntry is absent */);
     if (tx != null) {
@@ -1574,10 +1602,11 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#getValueInVM(java.lang.Object,
    * org.apache.geode.internal.cache.LocalRegion, boolean)
    */
+  @Override
   @Retained
   public Object getValueInVM(KeyInfo keyInfo, LocalRegion localRegion, boolean rememberRead) {
     TXEntryState tx =
@@ -1590,10 +1619,11 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#putEntry(org.apache.geode.internal.cache.
    * EntryEventImpl, boolean, boolean, java.lang.Object, boolean, long, boolean)
    */
+  @Override
   public boolean putEntry(EntryEventImpl event, boolean ifNew, boolean ifOld,
       Object expectedOldValue, boolean requireOldValue, long lastModified,
       boolean overwriteDestroyed) {
@@ -1603,8 +1633,6 @@ public class TXState implements TXStateInterface {
 
   /**
    * throws an exception when cloning is disabled while using delta
-   * 
-   * @param event
    */
   private void validateDelta(EntryEventImpl event) {
     if (event.getDeltaBytes() != null && !event.getRegion().getAttributes().getCloningEnabled()) {
@@ -1615,20 +1643,22 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.InternalDataView#isStatsDeferred()
    */
+  @Override
   public boolean isDeferredStats() {
     return true;
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.TXStateInterface#findObject(org.apache.geode.internal.cache.
    * LocalRegion, java.lang.Object, java.lang.Object, boolean, boolean, java.lang.Object)
    */
+  @Override
   public Object findObject(KeyInfo key, LocalRegion r, boolean isCreate, boolean generateCallbacks,
       Object value, boolean disableCopyOnRead, boolean preferCD,
       ClientProxyMembershipID requestingClient, EntryEventImpl clientEvent,
@@ -1653,11 +1683,12 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.TXStateInterface#getEntryForIterator(org.apache.geode.internal.
    * cache.LocalRegion, java.lang.Object, boolean)
    */
+  @Override
   public Object getEntryForIterator(KeyInfo curr, LocalRegion currRgn, boolean rememberReads,
       boolean allowTombstones) {
     if (currRgn instanceof PartitionedRegion) {
@@ -1665,11 +1696,11 @@ public class TXState implements TXStateInterface {
       if (!pr.getBucketPrimary(curr.getBucketId()).equals(pr.cache.getMyId())) {
         // to fix bug 47893 suspend the tx before calling nonTXGetEntry
         final TXManagerImpl txmgr = pr.getGemFireCache().getTXMgr();
-        final TXStateProxy tx = txmgr.internalSuspend();
+        final TXStateProxy tx = txmgr.pauseTransaction();
         try {
           return pr.nonTXGetEntry(curr, false, allowTombstones);
         } finally {
-          txmgr.internalResume(tx);
+          txmgr.unpauseTransaction(tx);
         }
       }
     }
@@ -1685,10 +1716,11 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.InternalDataView#getKeyForIterator(java.lang.Object,
    * org.apache.geode.internal.cache.LocalRegion, boolean)
    */
+  @Override
   public Object getKeyForIterator(KeyInfo curr, LocalRegion currRgn, boolean rememberReads,
       boolean allowTombstones) {
     assert !(curr.getKey() instanceof RegionEntry);
@@ -1701,11 +1733,12 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.InternalDataView#getAdditionalKeysForIterator(org.apache.geode.
    * internal.cache.LocalRegion)
    */
+  @Override
   public Set getAdditionalKeysForIterator(LocalRegion currRgn) {
     if (currRgn instanceof PartitionedRegion) {
       final HashSet ret = new HashSet();
@@ -1733,10 +1766,11 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#isInProgressAndSameAs(org.apache.geode.
    * internal.cache.TXStateInterface)
    */
+  @Override
   public boolean isInProgressAndSameAs(TXStateInterface otherState) {
     return isInProgress() && otherState == this;
   }
@@ -1744,11 +1778,12 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.InternalDataView#putEntryOnRemote(org.apache.geode.internal.
    * cache.EntryEventImpl, boolean, boolean, java.lang.Object, boolean, long, boolean)
    */
+  @Override
   public boolean putEntryOnRemote(EntryEventImpl event, boolean ifNew, boolean ifOld,
       Object expectedOldValue, boolean requireOldValue, long lastModified,
       boolean overwriteDestroyed) throws DataLocationException {
@@ -1761,6 +1796,7 @@ public class TXState implements TXStateInterface {
   }
 
 
+  @Override
   public boolean isFireCallbacks() {
     return !getEvent().hasOnlyInternalEvents();
   }
@@ -1769,23 +1805,27 @@ public class TXState implements TXStateInterface {
     return onBehalfOfRemoteStub || this.proxy.isOnBehalfOfClient();
   }
 
+  @Override
   public void destroyOnRemote(EntryEventImpl event, boolean cacheWrite, Object expectedOldValue)
       throws DataLocationException {
     event.setOriginRemote(true);
     destroyExistingEntry(event, cacheWrite, expectedOldValue);
   }
 
+  @Override
   public void invalidateOnRemote(EntryEventImpl event, boolean invokeCallbacks,
       boolean forceNewEntry) throws DataLocationException {
     event.setOriginRemote(true);
     invalidateExistingEntry(event, invokeCallbacks, forceNewEntry);
   }
 
+  @Override
   public void checkSupportsRegionDestroy() throws UnsupportedOperationInTransactionException {
     throw new UnsupportedOperationInTransactionException(
         LocalizedStrings.TXState_REGION_DESTROY_NOT_SUPPORTED_IN_A_TRANSACTION.toLocalizedString());
   }
 
+  @Override
   public void checkSupportsRegionInvalidate() throws UnsupportedOperationInTransactionException {
     throw new UnsupportedOperationInTransactionException(
         LocalizedStrings.TXState_REGION_INVALIDATE_NOT_SUPPORTED_IN_A_TRANSACTION
@@ -1800,11 +1840,12 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.InternalDataView#getBucketKeys(org.apache.geode.internal.cache.
    * LocalRegion, int)
    */
+  @Override
   public Set getBucketKeys(LocalRegion localRegion, int bucketId, boolean allowTombstones) {
     PartitionedRegion pr = (PartitionedRegion) localRegion;
     return pr.getBucketKeys(bucketId, allowTombstones);
@@ -1812,10 +1853,11 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.InternalDataView#getEntryOnRemote(java.lang.Object,
    * org.apache.geode.internal.cache.LocalRegion)
    */
+  @Override
   public Entry getEntryOnRemote(KeyInfo key, LocalRegion localRegion, boolean allowTombstones)
       throws DataLocationException {
     PartitionedRegion pr = (PartitionedRegion) localRegion;
@@ -1832,29 +1874,33 @@ public class TXState implements TXStateInterface {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.TXStateInterface#getSemaphore()
    */
+  @Override
   public ReentrantLock getLock() {
     return proxy.getLock();
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.InternalDataView#getRegionKeysForIteration(org.apache.geode.
    * internal.cache.LocalRegion)
    */
+  @Override
   public Set getRegionKeysForIteration(LocalRegion currRegion) {
     return currRegion.getRegionKeysForIteration();
   }
 
 
+  @Override
   public boolean isRealDealLocal() {
     return true;
   }
 
+  @Override
   public InternalDistributedMember getOriginatingMember() {
     /*
      * State will never fwd on to other nodes so this is not relevant
@@ -1862,6 +1908,7 @@ public class TXState implements TXStateInterface {
     return null;
   }
 
+  @Override
   public boolean isMemberIdForwardingRequired() {
     /*
      * State will never fwd on to other nodes so this is not relevant
@@ -1869,6 +1916,7 @@ public class TXState implements TXStateInterface {
     return false;
   }
 
+  @Override
   public TXCommitMessage getCommitMessage() {
     return commitMessage;
   }
@@ -1881,6 +1929,7 @@ public class TXState implements TXStateInterface {
    * org.apache.geode.internal.cache.InternalDataView#postPutAll(org.apache.geode.internal.cache.
    * DistributedPutAllOperation, java.util.Map, org.apache.geode.internal.cache.LocalRegion)
    */
+  @Override
   public void postPutAll(final DistributedPutAllOperation putallOp,
       final VersionedObjectList successfulPuts, LocalRegion reg) {
 
@@ -1900,6 +1949,7 @@ public class TXState implements TXStateInterface {
      * We need to put this into the tx state.
      */
     theRegion.syncBulkOp(new Runnable() {
+      @Override
       public void run() {
         // final boolean requiresRegionContext = theRegion.keyRequiresRegionContext();
         InternalDistributedMember myId =
@@ -1937,6 +1987,7 @@ public class TXState implements TXStateInterface {
      * will push them out. We need to put this into the tx state.
      */
     theRegion.syncBulkOp(new Runnable() {
+      @Override
       public void run() {
         InternalDistributedMember myId =
             theRegion.getDistributionManager().getDistributionManagerId();
@@ -1959,14 +2010,17 @@ public class TXState implements TXStateInterface {
 
   }
 
+  @Override
   public void suspend() {
     // no special tasks to perform
   }
 
+  @Override
   public void resume() {
     // no special tasks to perform
   }
 
+  @Override
   public void recordTXOperation(ServerRegionDataAccess region, ServerRegionOperation op, Object key,
       Object arguments[]) {
     // no-op here

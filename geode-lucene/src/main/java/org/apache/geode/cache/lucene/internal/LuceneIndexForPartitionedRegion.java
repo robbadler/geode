@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -16,6 +16,7 @@
 package org.apache.geode.cache.lucene.internal;
 
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.cache.AttributesFactory;
@@ -28,6 +29,7 @@ import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.RegionShortcut;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.ResultCollector;
+import org.apache.geode.cache.lucene.LuceneSerializer;
 import org.apache.geode.cache.lucene.internal.directory.DumpDirectoryFiles;
 import org.apache.geode.cache.lucene.internal.filesystem.FileSystemStats;
 import org.apache.geode.cache.lucene.internal.partition.BucketTargetingFixedResolver;
@@ -35,37 +37,42 @@ import org.apache.geode.cache.lucene.internal.partition.BucketTargetingResolver;
 import org.apache.geode.cache.lucene.internal.repository.RepositoryManager;
 import org.apache.geode.cache.lucene.internal.repository.serializer.HeterogeneousLuceneSerializer;
 import org.apache.geode.cache.partition.PartitionListener;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.distributed.internal.ReplyProcessor21;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.PartitionedRegion;
 
-/* wrapper of IndexWriter */
 public class LuceneIndexForPartitionedRegion extends LuceneIndexImpl {
   protected Region fileAndChunkRegion;
   protected final FileSystemStats fileSystemStats;
 
   public static final String FILES_REGION_SUFFIX = ".files";
 
+  private final ExecutorService waitingThreadPoolFromDM;
+
   public LuceneIndexForPartitionedRegion(String indexName, String regionPath, InternalCache cache) {
     super(indexName, regionPath, cache);
+    this.waitingThreadPoolFromDM = cache.getDistributionManager().getWaitingThreadPool();
 
     final String statsName = indexName + "-" + regionPath;
     this.fileSystemStats = new FileSystemStats(cache.getDistributedSystem(), statsName);
   }
 
-  protected RepositoryManager createRepositoryManager() {
-    HeterogeneousLuceneSerializer mapper = new HeterogeneousLuceneSerializer(getFieldNames());
+  protected RepositoryManager createRepositoryManager(LuceneSerializer luceneSerializer) {
+    LuceneSerializer mapper = luceneSerializer;
+    if (mapper == null) {
+      mapper = new HeterogeneousLuceneSerializer();
+    }
     PartitionedRepositoryManager partitionedRepositoryManager =
-        new PartitionedRepositoryManager(this, mapper);
+        new PartitionedRepositoryManager(this, mapper, this.waitingThreadPoolFromDM);
     return partitionedRepositoryManager;
   }
 
   protected void createLuceneListenersAndFileChunkRegions(
-      AbstractPartitionedRepositoryManager partitionedRepositoryManager) {
-    partitionedRepositoryManager.setUserRegionForRepositoryManager();
+      PartitionedRepositoryManager partitionedRepositoryManager) {
+    partitionedRepositoryManager.setUserRegionForRepositoryManager((PartitionedRegion) dataRegion);
     RegionShortcut regionShortCut;
     final boolean withPersistence = withPersistence();
     RegionAttributes regionAttributes = dataRegion.getAttributes();
@@ -87,13 +94,13 @@ public class LuceneIndexForPartitionedRegion extends LuceneIndexImpl {
     // create PR fileAndChunkRegion, but not to create its buckets for now
     final String fileRegionName = createFileRegionName();
     PartitionAttributes partitionAttributes = dataRegion.getPartitionAttributes();
-    DM dm = this.cache.getInternalDistributedSystem().getDistributionManager();
+    DistributionManager dm = this.cache.getInternalDistributedSystem().getDistributionManager();
     LuceneBucketListener lucenePrimaryBucketListener =
         new LuceneBucketListener(partitionedRepositoryManager, dm);
 
     if (!fileRegionExists(fileRegionName)) {
-      fileAndChunkRegion = createFileRegion(regionShortCut, fileRegionName, partitionAttributes,
-          regionAttributes, lucenePrimaryBucketListener);
+      fileAndChunkRegion = createRegion(fileRegionName, regionShortCut, this.regionPath,
+          partitionAttributes, regionAttributes, lucenePrimaryBucketListener);
     }
 
     fileSystemStats
@@ -111,13 +118,6 @@ public class LuceneIndexForPartitionedRegion extends LuceneIndexImpl {
 
   boolean fileRegionExists(String fileRegionName) {
     return cache.getRegion(fileRegionName) != null;
-  }
-
-  Region createFileRegion(final RegionShortcut regionShortCut, final String fileRegionName,
-      final PartitionAttributes partitionAttributes, final RegionAttributes regionAttributes,
-      PartitionListener listener) {
-    return createRegion(fileRegionName, regionShortCut, this.regionPath, partitionAttributes,
-        regionAttributes, listener);
   }
 
   public String createFileRegionName() {
@@ -206,9 +206,16 @@ public class LuceneIndexForPartitionedRegion extends LuceneIndexImpl {
     }
   }
 
+  @Override
+  public boolean isIndexAvailable(int id) {
+    PartitionedRegion fileAndChunkRegion = getFileAndChunkRegion();
+    return (fileAndChunkRegion.get(IndexRepositoryFactory.APACHE_GEODE_INDEX_COMPLETE, id) != null
+        || !LuceneServiceImpl.LUCENE_REINDEX);
+  }
+
   private void destroyOnRemoteMembers() {
     PartitionedRegion pr = (PartitionedRegion) getDataRegion();
-    DM dm = pr.getDistributionManager();
+    DistributionManager dm = pr.getDistributionManager();
     Set<InternalDistributedMember> recipients = pr.getRegionAdvisor().adviseAllPRNodes();
     if (!recipients.isEmpty()) {
       if (logger.isDebugEnabled()) {

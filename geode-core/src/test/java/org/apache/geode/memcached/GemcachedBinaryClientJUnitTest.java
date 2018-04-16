@@ -15,9 +15,6 @@
 package org.apache.geode.memcached;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
@@ -27,8 +24,9 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
+import net.spy.memcached.BinaryConnectionFactory;
+import net.spy.memcached.MemcachedClient;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.CacheLoader;
@@ -42,11 +40,6 @@ import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.memcached.KeyWrapper;
 import org.apache.geode.memcached.GemFireMemcachedServer.Protocol;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-
-import net.spy.memcached.BinaryConnectionFactory;
-import net.spy.memcached.ConnectionFactoryBuilder;
-import net.spy.memcached.FailureMode;
-import net.spy.memcached.MemcachedClient;
 
 /**
  * Test for binary protocol

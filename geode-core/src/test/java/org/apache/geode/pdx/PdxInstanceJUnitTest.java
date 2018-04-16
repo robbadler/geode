@@ -14,19 +14,8 @@
  */
 package org.apache.geode.pdx;
 
-import org.apache.geode.DataSerializer;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.internal.HeapDataOutputStream;
-import org.apache.geode.internal.Version;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
-import org.apache.geode.pdx.internal.EnumInfo.PdxInstanceEnumInfo;
-import org.apache.geode.pdx.internal.PdxInstanceFactoryImpl;
-import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.apache.geode.test.junit.categories.SerializationTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import static org.apache.geode.distributed.ConfigurationProperties.*;
+import static org.junit.Assert.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -36,12 +25,21 @@ import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.util.*;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.junit.Assert.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
-/**
- *
- */
+import org.apache.geode.DataSerializer;
+import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.internal.HeapDataOutputStream;
+import org.apache.geode.internal.Version;
+import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.pdx.internal.EnumInfo.PdxInstanceEnumInfo;
+import org.apache.geode.pdx.internal.PdxInstanceFactoryImpl;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.SerializationTest;
+
 @Category({IntegrationTest.class, SerializationTest.class})
 public class PdxInstanceJUnitTest {
 
@@ -104,12 +102,12 @@ public class PdxInstanceJUnitTest {
 
   @Test
   public void testEquals() throws IOException, ClassNotFoundException {
-    PdxInstanceFactory c = PdxInstanceFactoryImpl.newCreator("testEquals", false);
+    PdxInstanceFactory c = PdxInstanceFactoryImpl.newCreator("testEquals", false, this.c);
     c.writeInt("intField", 37);
     PdxInstance pi = c.create();
     assertEquals(false, pi.equals(null));
     assertEquals(false, pi.equals(new Date(37)));
-    c = PdxInstanceFactoryImpl.newCreator("testEquals", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEquals", false, this.c);
     c.writeInt("intField", 37);
     c.writeInt("intField2", 38);
     PdxInstance pi2 = c.create();
@@ -118,10 +116,10 @@ public class PdxInstanceJUnitTest {
     assertEquals(false, pi.equals(pi2));
     assertEquals(false, pi2.equals(pi));
 
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new Date());
     pi = c.create();
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", null);
     pi2 = c.create();
     pi.hashCode();
@@ -129,10 +127,10 @@ public class PdxInstanceJUnitTest {
     assertEquals(false, pi.equals(pi2));
     assertEquals(false, pi2.equals(pi));
 
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new int[] {1});
     pi = c.create();
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new byte[] {(byte) 1});
     pi2 = c.create();
     pi.hashCode();
@@ -140,10 +138,10 @@ public class PdxInstanceJUnitTest {
     assertEquals(false, pi.equals(pi2));
     assertEquals(false, pi2.equals(pi));
 
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new int[] {1});
     pi = c.create();
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new int[] {2});
     pi2 = c.create();
     pi.hashCode();
@@ -151,20 +149,20 @@ public class PdxInstanceJUnitTest {
     assertEquals(false, pi.equals(pi2));
     assertEquals(false, pi2.equals(pi));
 
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new int[] {1});
     pi = c.create();
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new int[] {1});
     pi2 = c.create();
     assertEquals(pi.hashCode(), pi2.hashCode());
     assertEquals(true, pi.equals(pi2));
     assertEquals(true, pi2.equals(pi));
 
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new int[] {1});
     pi = c.create();
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new Date());
     pi2 = c.create();
     pi.hashCode();
@@ -172,10 +170,10 @@ public class PdxInstanceJUnitTest {
     assertEquals(false, pi.equals(pi2));
     assertEquals(false, pi2.equals(pi));
 
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new Date[] {new Date(1)});
     pi = c.create();
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new Date[] {new Date(2)});
     pi2 = c.create();
     pi.hashCode();
@@ -183,20 +181,20 @@ public class PdxInstanceJUnitTest {
     assertEquals(false, pi.equals(pi2));
     assertEquals(false, pi2.equals(pi));
 
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new Date[] {new Date(1)});
     pi = c.create();
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", new Date[] {new Date(1)});
     pi2 = c.create();
     assertEquals(pi.hashCode(), pi2.hashCode());
     assertEquals(true, pi.equals(pi2));
     assertEquals(true, pi2.equals(pi));
 
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", MyEnum.ONE);
     pi = c.create();
-    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false);
+    c = PdxInstanceFactoryImpl.newCreator("testEqualsOF", false, this.c);
     c.writeObject("objField", MyEnum.ONE);
     pi2 = c.create();
     assertEquals(pi.hashCode(), pi2.hashCode());
@@ -215,7 +213,7 @@ public class PdxInstanceJUnitTest {
   };
 
   public void testPdxComplexEnum() {
-    PdxInstanceFactory c = PdxInstanceFactoryImpl.newCreator("testPdxEnum", false);
+    PdxInstanceFactory c = PdxInstanceFactoryImpl.newCreator("testPdxEnum", false, this.c);
     c.writeObject("enumField", MyComplexEnum.ONE);
     PdxInstance pi = c.create();
     Object f = pi.getField("enumField");
@@ -232,7 +230,7 @@ public class PdxInstanceJUnitTest {
   }
 
   public void testPdxSimpleEnum() {
-    PdxInstanceFactory c = PdxInstanceFactoryImpl.newCreator("testPdxEnum", false);
+    PdxInstanceFactory c = PdxInstanceFactoryImpl.newCreator("testPdxEnum", false, this.c);
     c.writeObject("enumField", MyEnum.ONE);
     PdxInstance pi = c.create();
     Object f = pi.getField("enumField");
@@ -399,7 +397,7 @@ public class PdxInstanceJUnitTest {
 
 
 
-  static abstract class TestPdx implements PdxSerializable {
+  abstract static class TestPdx implements PdxSerializable {
 
     public void fromData(PdxReader in) {}
 

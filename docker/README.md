@@ -1,6 +1,6 @@
 # Building the container image
 
-The current Dockerfile is based on a CentOS 7 image, downloads JDK 8, clone the Apache Geode git repository, starts a build and execute the basic tests.
+The current Dockerfile is based on the [OpenJDK image](https://hub.docker.com/_/openjdk/) and includes the officially released Apache Geode binaries which are verified via GPG _and_ SHA256.
 
 ```
 docker build .
@@ -9,13 +9,14 @@ docker build .
 If you're updating the image for a release, tag the build with the version:
 
 ```
-docker build -t apachegeode/geode:1.0.0-incubating .
+docker build -t apachegeode/geode:{version} .
+docker build -t apachegeode/geode:latest .
 ```
 
 Once it's tagged, push to DockerHub:
 
 ```
-docker push apachegeode/geode:1.0.0-incubating
+docker push apachegeode/geode:{version}
 ```
 
 * You need to be authenticated in DockerHub and be an administrator of the project.  Ask for permissions at *dev@geode.apache.org*.
@@ -26,7 +27,7 @@ docker push apachegeode/geode:1.0.0-incubating
 1. Execute the following command to run the container and start `gfsh`:
 
 ```
-docker run -it -p 10334:10334 -p 7575:7575 -p 1099:1099  apache/geode:1.0.0-incubating
+docker run -it -p 10334:10334 -p 7575:7575 -p 1099:1099  apachegeode/geode
 ```
 
 From this point you can pretty much follow [Apache Geode in 5 minutes](https://cwiki.apache.org/confluence/display/GEODE/Index#Index-Geodein5minutes) for example:

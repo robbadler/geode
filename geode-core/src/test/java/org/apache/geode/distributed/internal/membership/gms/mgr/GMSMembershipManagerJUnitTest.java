@@ -39,7 +39,7 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DMStats;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.DistributionConfigImpl;
@@ -105,7 +105,7 @@ public class GMSMembershipManagerJUnitTest {
     distConfig = new DistributionConfigImpl(nonDefault);
     distProperties = nonDefault;
     RemoteTransportConfig tconfig =
-        new RemoteTransportConfig(distConfig, DistributionManager.NORMAL_DM_TYPE);
+        new RemoteTransportConfig(distConfig, ClusterDistributionManager.NORMAL_DM_TYPE);
 
     mockConfig = mock(ServiceConfig.class);
     when(mockConfig.getDistributionConfig()).thenReturn(distConfig);
@@ -303,7 +303,7 @@ public class GMSMembershipManagerJUnitTest {
     Set<InternalDistributedMember> failures = manager.directChannelSend(recipients, m, null);
     assertTrue(failures == null);
     verify(dc).send(isA(GMSMembershipManager.class), isA(mockMembers.getClass()),
-        isA(DistributionMessage.class), anyInt(), anyInt());
+        isA(DistributionMessage.class), anyLong(), anyLong());
   }
 
   @Test
@@ -318,7 +318,7 @@ public class GMSMembershipManagerJUnitTest {
     ConnectExceptions exception = new ConnectExceptions();
     exception.addFailure(recipients[0], new Exception("testing"));
     when(dc.send(any(GMSMembershipManager.class), any(mockMembers.getClass()),
-        any(DistributionMessage.class), anyInt(), anyInt())).thenThrow(exception);
+        any(DistributionMessage.class), anyLong(), anyLong())).thenThrow(exception);
     failures = manager.directChannelSend(recipients, m, null);
     assertTrue(failures != null);
     assertEquals(1, failures.size());
@@ -352,7 +352,7 @@ public class GMSMembershipManagerJUnitTest {
     Set<InternalDistributedMember> failures = manager.directChannelSend(null, m, null);
     assertTrue(failures == null);
     verify(dc).send(isA(GMSMembershipManager.class), isA(mockMembers.getClass()),
-        isA(DistributionMessage.class), anyInt(), anyInt());
+        isA(DistributionMessage.class), anyLong(), anyLong());
   }
 
   @Test
@@ -367,7 +367,7 @@ public class GMSMembershipManagerJUnitTest {
     ConnectExceptions exception = new ConnectExceptions();
     exception.addFailure(recipients[0], new Exception("testing"));
     when(dc.send(any(GMSMembershipManager.class), any(mockMembers.getClass()),
-        any(DistributionMessage.class), anyInt(), anyInt())).thenThrow(exception);
+        any(DistributionMessage.class), anyLong(), anyLong())).thenThrow(exception);
     Assertions.assertThatThrownBy(() -> {
       manager.directChannelSend(recipients, m, null);
     }).isInstanceOf(DistributedSystemDisconnectedException.class);
@@ -402,7 +402,7 @@ public class GMSMembershipManagerJUnitTest {
 
   @Test
   public void testReplyProcessorInitiatesSuspicion() throws Exception {
-    DM dm = mock(DM.class);
+    DistributionManager dm = mock(DistributionManager.class);
     DMStats stats = mock(DMStats.class);
 
     InternalDistributedSystem system =

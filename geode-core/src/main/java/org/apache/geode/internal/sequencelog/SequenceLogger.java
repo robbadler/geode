@@ -26,18 +26,18 @@ public interface SequenceLogger {
    *
    * There can be many independent sequence diagrams that are logged. Each sequence diagram is
    * identified by a graphName and a graphType.
-   * 
+   *
    * Each log statement creates a transition in the diagram
-   * 
+   *
    * <pre>
    * Source         Dest
    *   |             |
    *   |-(edgeName)->| (now in state "state")
    * </pre>
-   * 
+   *
    * The graphName can a Pattern, at which point it will be considered a transition for all
    * graphNames that match the pattern at that time to the given state.
-   * 
+   *
    * @param type the type of graph this is.
    * @param graphName The name of the graph we're recording. For example, an individual key, like
    *        "Object_123"
@@ -46,10 +46,10 @@ public interface SequenceLogger {
    * @param source the source, for example ("member 1, region 1");
    * @param dest the destination, for example ("member 2, region 1");
    */
-  public void logTransition(GraphType type, Object graphName, Object edgeName, Object state,
-      Object source, Object dest);
+  void logTransition(GraphType type, Object graphName, Object edgeName, Object state, Object source,
+      Object dest);
 
-  public boolean isEnabled(GraphType type);
+  boolean isEnabled(GraphType type);
 
-  public void flush() throws InterruptedException;
+  void flush() throws InterruptedException;
 }

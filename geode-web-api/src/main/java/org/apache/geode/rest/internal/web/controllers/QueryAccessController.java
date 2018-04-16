@@ -59,7 +59,7 @@ import org.apache.geode.rest.internal.web.util.ValidationUtils;
  */
 @Controller("queryController")
 @Api(value = "queries", description = "Rest api for geode query execution",
-    produces = MediaType.APPLICATION_JSON_VALUE)
+    produces = MediaType.APPLICATION_JSON_VALUE, tags = "queries")
 @RequestMapping(QueryAccessController.REST_API_VERSION + "/queries")
 @SuppressWarnings("unused")
 public class QueryAccessController extends AbstractBaseController {
@@ -85,12 +85,12 @@ public class QueryAccessController extends AbstractBaseController {
 
   /**
    * list all parametrized Queries created in a Gemfire data node
-   * 
+   *
    * @return result as a JSON document.
    */
   @RequestMapping(method = RequestMethod.GET, produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
   @ApiOperation(value = "list all parametrized queries",
-      notes = "List all parametrized queries by id/name", response = void.class)
+      notes = "List all parametrized queries by id/name")
   @ApiResponses({@ApiResponse(code = 200, message = "OK."),
       @ApiResponse(code = 401, message = "Invalid Username or Password."),
       @ApiResponse(code = 403, message = "Insufficient privileges for operation."),
@@ -112,7 +112,7 @@ public class QueryAccessController extends AbstractBaseController {
 
   /**
    * Create a named, parametrized Query
-   * 
+   *
    * @param queryId uniquely identify the query
    * @param oqlInUrl OQL query string specified in a request URL
    * @param oqlInBody OQL query string specified in a request body
@@ -120,8 +120,7 @@ public class QueryAccessController extends AbstractBaseController {
    */
   @RequestMapping(method = RequestMethod.POST)
   @ApiOperation(value = "create a parametrized Query",
-      notes = "Prepare the specified parametrized query and assign the corresponding ID for lookup",
-      response = void.class)
+      notes = "Prepare the specified parametrized query and assign the corresponding ID for lookup")
   @ApiResponses({@ApiResponse(code = 201, message = "Successfully created."),
       @ApiResponse(code = 401, message = "Invalid Username or Password."),
       @ApiResponse(code = 403, message = "Insufficient privileges for operation."),
@@ -155,15 +154,14 @@ public class QueryAccessController extends AbstractBaseController {
 
   /**
    * Run an adhoc Query specified in a query string
-   * 
+   *
    * @param oql OQL query string to be executed
    * @return query result as a JSON document
    */
   @RequestMapping(method = RequestMethod.GET, value = "/adhoc",
       produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
   @ApiOperation(value = "run an adhoc query",
-      notes = "Run an unnamed (unidentified), ad-hoc query passed as a URL parameter",
-      response = void.class)
+      notes = "Run an unnamed (unidentified), ad-hoc query passed as a URL parameter")
   @ApiResponses({@ApiResponse(code = 200, message = "OK."),
       @ApiResponse(code = 401, message = "Invalid Username or Password."),
       @ApiResponse(code = 403, message = "Insufficient privileges for operation."),
@@ -213,7 +211,7 @@ public class QueryAccessController extends AbstractBaseController {
 
   /**
    * Run named parametrized Query with ID
-   * 
+   *
    * @param queryId id of the OQL string
    * @param arguments query bind params required while executing query
    * @return query result as a JSON document
@@ -221,8 +219,7 @@ public class QueryAccessController extends AbstractBaseController {
   @RequestMapping(method = RequestMethod.POST, value = "/{query}",
       produces = {MediaType.APPLICATION_JSON_VALUE})
   @ApiOperation(value = "run parametrized query",
-      notes = "run the specified named query passing in scalar values for query parameters in the GemFire cluster",
-      response = void.class)
+      notes = "run the specified named query passing in scalar values for query parameters in the GemFire cluster")
   @ApiResponses({@ApiResponse(code = 200, message = "Query successfully executed."),
       @ApiResponse(code = 401, message = "Invalid Username or Password."),
       @ApiResponse(code = 403, message = "Insufficient privileges for operation."),
@@ -298,14 +295,14 @@ public class QueryAccessController extends AbstractBaseController {
 
   /**
    * Update named, parametrized Query
-   * 
+   *
    * @param queryId uniquely identify the query
    * @param oqlInUrl OQL query string specified in a request URL
    * @param oqlInBody OQL query string specified in a request body
    */
   @RequestMapping(method = RequestMethod.PUT, value = "/{query}")
   @ApiOperation(value = "update parametrized query",
-      notes = "Update named, parametrized query by ID", response = void.class)
+      notes = "Update named, parametrized query by ID")
   @ApiResponses({@ApiResponse(code = 200, message = "Updated successfully."),
       @ApiResponse(code = 401, message = "Invalid Username or Password."),
       @ApiResponse(code = 403, message = "Insufficient privileges for operation."),
@@ -331,12 +328,12 @@ public class QueryAccessController extends AbstractBaseController {
 
   /**
    * Delete named, parametrized Query
-   * 
+   *
    * @param queryId uniquely identify the query to be deleted
    */
   @RequestMapping(method = RequestMethod.DELETE, value = "/{query}")
   @ApiOperation(value = "delete parametrized query",
-      notes = "delete named, parametrized query by ID", response = void.class)
+      notes = "delete named, parametrized query by ID")
   @ApiResponses({@ApiResponse(code = 200, message = "Deleted successfully."),
       @ApiResponse(code = 401, message = "Invalid Username or Password."),
       @ApiResponse(code = 403, message = "Insufficient privileges for operation."),

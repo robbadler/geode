@@ -15,22 +15,23 @@
 
 package org.apache.geode.admin.internal;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.*;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.admin.AdminDistributedSystem;
 import org.apache.geode.admin.DistributionLocator;
 import org.apache.geode.admin.DistributionLocatorConfig;
 import org.apache.geode.admin.ManagedEntityConfig;
-import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.admin.remote.DistributionLocatorId;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
-import org.apache.logging.log4j.Logger;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.*;
 
 /**
  * Default administrative implementation of a DistributionLocator.
@@ -173,7 +174,8 @@ public class DistributionLocatorImpl implements DistributionLocator, InternalMan
   }
 
   public boolean isRunning() {
-    DM dm = ((AdminDistributedSystemImpl) getDistributedSystem()).getDistributionManager();
+    DistributionManager dm =
+        ((AdminDistributedSystemImpl) getDistributedSystem()).getDistributionManager();
     if (dm == null) {
       try {
         return this.controller.isRunning(this);
@@ -193,14 +195,14 @@ public class DistributionLocatorImpl implements DistributionLocator, InternalMan
       for (Iterator<String> locatorIter =
           hostedLocators.get(memberIter.next()).iterator(); locatorIter.hasNext();) {
         DistributionLocatorId locator = new DistributionLocatorId(locatorIter.next());
-        found = found || locator.getHost().getHostAddress().equals(host);
-        found = found || locator.getHost().getHostName().equals(host);
+        found = found || locator.getHostName().equals(host);
         if (!found && !host.contains(".")) {
           try {
             InetAddress inetAddr = InetAddress.getByName(host);
             found = locator.getHost().getHostName().equals(inetAddr.getHostName());
             if (!found) {
-              found = locator.getHost().getHostAddress().equals(inetAddr.getHostAddress());
+              found =
+                  locator.getHost().getAddress().getHostAddress().equals(inetAddr.getHostAddress());
             }
           } catch (UnknownHostException e) {
             // try config host as if it is an IP address instead of host name
@@ -326,4 +328,3 @@ public class DistributionLocatorImpl implements DistributionLocator, InternalMan
   }
 
 }
-

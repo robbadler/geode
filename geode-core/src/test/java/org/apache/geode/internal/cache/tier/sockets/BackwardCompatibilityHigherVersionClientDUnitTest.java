@@ -19,7 +19,6 @@ import static org.junit.Assert.*;
 
 import java.util.Properties;
 
-import org.apache.geode.test.junit.categories.ClientServerTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -31,6 +30,7 @@ import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.Scope;
 import org.apache.geode.cache.client.PoolManager;
+import org.apache.geode.cache.client.internal.ClientSideHandshakeImpl;
 import org.apache.geode.cache.client.internal.ConnectionFactoryImpl;
 import org.apache.geode.cache.client.internal.PoolImpl;
 import org.apache.geode.cache.server.CacheServer;
@@ -42,6 +42,7 @@ import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.NetworkUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
+import org.apache.geode.test.junit.categories.ClientServerTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
@@ -169,7 +170,7 @@ public class BackwardCompatibilityHigherVersionClientDUnitTest extends JUnit4Dis
    * handshake.
    */
   public static void setHandshakeVersionForTesting() throws Exception {
-    HandShake.setVersionForTesting((short) (currentClientVersion + 1));
+    ClientSideHandshakeImpl.setVersionForTesting((short) (currentClientVersion + 1));
   }
 
   public static void addExceptions() throws Exception {
@@ -211,7 +212,7 @@ public class BackwardCompatibilityHigherVersionClientDUnitTest extends JUnit4Dis
    * handshake.
    */
   public static void unsetHandshakeVersionForTesting() throws Exception {
-    HandShake.setVersionForTesting(currentClientVersion);
+    ClientSideHandshakeImpl.setVersionForTesting(currentClientVersion);
   }
 
   /*

@@ -34,8 +34,6 @@ gfsh> define index --name=myIndex1 --expression=exp1 --region=/exampleRegion
 
 gfsh> define index --name=myIndex2 --expression="c.exp2" --region="/exampleRegion e, e.collection1 c" 
 
-gfsh> define index --name=myIndex3 --expression=exp3 --region=/exampleRegion --type=hash 
-
 gfsh> create defined indexes
  
 ```
@@ -56,12 +54,11 @@ Message : Region ' /r3' not found: from  /r3Occurred on following members
     QueryService queryService = cache.getQueryService();
     queryService.defineIndex("name1", "indexExpr1", "regionPath1");
     queryService.defineIndex("name2", "indexExpr2", "regionPath2");
-    queryService.defineHashIndex("name3", "indexExpr3", "regionPath2");
     queryService.defineKeyIndex("name4", "indexExpr4", "regionPath2");
     List<Index> indexes = queryService.createDefinedIndexes();
 ```
 
-If one or more index population fails, Geode collect the Exceptions and continues to populate the rest of the indexes. The collected `Exceptions` are stored in a Map of index names and exceptions that can be accessed through `MultiIndexCreationException`.
+If one or more index population fails, <%=vars.product_name%> collect the Exceptions and continues to populate the rest of the indexes. The collected `Exceptions` are stored in a Map of index names and exceptions that can be accessed through `MultiIndexCreationException`.
 
 Index definitions are stored locally on the `gfsh` client. If you want to create a new set of indexes or if one or more of the index creations fail, you might want to clear the definitions stored by using `clear defined indexes`command. The defined indexes can be cleared by using the Java API:
 

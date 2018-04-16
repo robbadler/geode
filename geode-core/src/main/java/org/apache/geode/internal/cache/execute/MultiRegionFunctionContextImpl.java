@@ -16,15 +16,16 @@ package org.apache.geode.internal.cache.execute;
 
 import java.util.Set;
 
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.execute.ResultSender;
 
 /**
  * Context available when called using {@link InternalFunctionService#onRegions(Set)}
- * 
- * 
+ *
+ *
  * @since GemFire 6.5
- * 
+ *
  */
 public class MultiRegionFunctionContextImpl extends FunctionContextImpl
     implements MultiRegionFunctionContext {
@@ -33,9 +34,10 @@ public class MultiRegionFunctionContextImpl extends FunctionContextImpl
 
   private final boolean isPossibleDuplicate;
 
-  public MultiRegionFunctionContextImpl(final String functionId, final Object args,
-      ResultSender resultSender, Set<Region> regions, boolean isPossibleDuplicate) {
-    super(functionId, args, resultSender);
+  public MultiRegionFunctionContextImpl(final Cache cache, final String functionId,
+      final Object args, ResultSender resultSender, Set<Region> regions,
+      boolean isPossibleDuplicate) {
+    super(cache, functionId, args, resultSender);
     this.regions = regions;
     this.isPossibleDuplicate = isPossibleDuplicate;
   }

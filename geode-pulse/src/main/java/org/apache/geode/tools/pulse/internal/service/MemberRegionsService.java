@@ -17,28 +17,28 @@
 
 package org.apache.geode.tools.pulse.internal.service;
 
+import static org.apache.geode.tools.pulse.internal.data.PulseConstants.FOUR_PLACE_DECIMAL_FORMAT;
 import static org.apache.geode.tools.pulse.internal.util.NameUtil.makeCompliantName;
+
+import javax.servlet.http.HttpServletRequest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.commons.lang.StringUtils;
-import org.apache.geode.tools.pulse.internal.data.Cluster;
-import org.apache.geode.tools.pulse.internal.data.PulseConstants;
-import org.apache.geode.tools.pulse.internal.data.Repository;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
-import java.text.DecimalFormat;
-import javax.servlet.http.HttpServletRequest;
+import org.apache.geode.tools.pulse.internal.data.Cluster;
+import org.apache.geode.tools.pulse.internal.data.Repository;
 
 /**
  * Class MemberRegionsService
- * 
+ *
  * This class contains implementations of getting Memeber's Regions details.
- * 
+ *
  * @since GemFire version 7.5
  */
 
@@ -86,8 +86,7 @@ public class MemberRegionsService implements PulseService {
         regionJSON.put("entryCount", memberRegion.getSystemRegionEntryCount());
         Long entrySize = memberRegion.getEntrySize();
 
-        DecimalFormat form = new DecimalFormat(PulseConstants.DECIMAL_FORMAT_PATTERN_2);
-        String entrySizeInMB = form.format(entrySize / (1024f * 1024f));
+        String entrySizeInMB = FOUR_PLACE_DECIMAL_FORMAT.format(entrySize / (1024f * 1024f));
 
         if (entrySize < 0) {
           regionJSON.put(this.ENTRY_SIZE, VALUE_NA);

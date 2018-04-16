@@ -23,7 +23,6 @@ import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -35,8 +34,10 @@ import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.CacheListener;
 import org.apache.geode.cache.EntryEvent;
+import org.apache.geode.cache.Operation;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionDestroyedException;
+import org.apache.geode.cache.wan.GatewayQueueEvent;
 import org.apache.geode.cache.wan.GatewaySender;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.internal.Assert;
@@ -45,12 +46,12 @@ import org.apache.geode.internal.cache.EntryEventImpl;
 import org.apache.geode.internal.cache.EnumListenerEvent;
 import org.apache.geode.internal.cache.EventID;
 import org.apache.geode.internal.cache.wan.AbstractGatewaySender;
+import org.apache.geode.internal.cache.wan.AbstractGatewaySender.EventWrapper;
 import org.apache.geode.internal.cache.wan.AbstractGatewaySenderEventProcessor;
 import org.apache.geode.internal.cache.wan.GatewaySenderEventCallbackArgument;
 import org.apache.geode.internal.cache.wan.GatewaySenderEventCallbackDispatcher;
 import org.apache.geode.internal.cache.wan.GatewaySenderEventImpl;
 import org.apache.geode.internal.cache.wan.GatewaySenderStats;
-import org.apache.geode.internal.cache.wan.AbstractGatewaySender.EventWrapper;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.LoggingThreadGroup;
@@ -59,7 +60,7 @@ import org.apache.geode.pdx.internal.PeerTypeRegistration;
 
 /**
  * @since GemFire 7.0
- * 
+ *
  */
 public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEventProcessor {
   private static final Logger logger = LogService.getLogger();
@@ -84,7 +85,7 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
    * to keep track. Note: unprocessedEventsLock MUST be synchronized before using this map. This is
    * not a cut and paste error. sync unprocessedEventsLock when using unprocessedTokens.
    */
-  private Map<EventID, Long> unprocessedTokens;
+  protected Map<EventID, Long> unprocessedTokens;
 
   private ExecutorService executor;
 
@@ -98,7 +99,7 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
    * When the Number of unchecked events exceeds this threshold and the number of tokens in the map
    * exceeds this threshold then a check will be done for old tokens.
    */
-  static private final int REAP_THRESHOLD = 1000;
+  protected static final int REAP_THRESHOLD = 1000;
 
   /*
    * How many events have happened without a reap check being done?
@@ -253,7 +254,7 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
   /**
    * Handle failover. This method is called when a secondary <code>GatewaySender</code> becomes a
    * primary <code>GatewaySender</code>.
-   * 
+   *
    * Once this secondary becomes the primary, it must:
    * <ul>
    * <li>Remove the queue's CacheListener
@@ -378,6 +379,9 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
       if (m != null) {
         for (EventWrapper ew : m.values()) {
           GatewaySenderEventImpl gatewayEvent = ew.event;
+          if (logger.isDebugEnabled()) {
+            logger.debug("releaseUnprocessedEvents:" + gatewayEvent);
+          }
           gatewayEvent.release();
         }
         this.unprocessedEvents = null;
@@ -422,9 +426,14 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
         } else {
           // If it is not, create an uninitialized GatewayEventImpl and
           // put it into the map of unprocessed events.
-          senderEvent = new GatewaySenderEventImpl(operation, event, substituteValue, false); // OFFHEAP
-                                                                                              // ok
-          handleSecondaryEvent(senderEvent);
+          // 2 Special cases:
+          // 1) UPDATE_VERSION_STAMP: only enqueue to primary
+          // 2) CME && !originRemote: only enqueue to primary
+          if (!(event.getOperation().equals(Operation.UPDATE_VERSION_STAMP)
+              || ((EntryEventImpl) event).isConcurrencyConflict() && !event.isOriginRemote())) {
+            senderEvent = new GatewaySenderEventImpl(operation, event, substituteValue, false); // OFFHEAP
+            handleSecondaryEvent(senderEvent);
+          }
         }
       }
     }
@@ -539,17 +548,17 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
    * <code>GatewaySender</code> to store a gateway event until it is processed by a primary
    * <code>GatewaySender</code>. The complexity of this method is the fact that the event could be
    * processed first by either the primary or secondary <code>GatewaySender</code>.
-   * 
+   *
    * If the primary processes the event first, the map will already contain an entry for the event
    * (through
    * {@link org.apache.geode.internal.cache.wan.serial.SerialSecondaryGatewayListener#afterDestroy}
    * ). When the secondary processes the event, it will remove it from the map.
-   * 
+   *
    * If the secondary processes the event first, it will add it to the map. When the primary
    * processes the event (through
    * {@link org.apache.geode.internal.cache.wan.serial.SerialSecondaryGatewayListener#afterDestroy}
    * ), it will then be removed from the map.
-   * 
+   *
    * @param senderEvent The event being processed
    */
   protected void handleSecondaryEvent(GatewaySenderEventImpl senderEvent) {
@@ -564,14 +573,14 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
    * event has been added to the queue, the secondary no longer needs to keep track of it in the
    * unprocessed events map. The complexity of this method is the fact that the event could be
    * processed first by either the primary or secondary <code>Gateway</code>.
-   * 
+   *
    * If the primary processes the event first, the map will not contain an entry for the event. It
    * will be added to the map in this case so that when the secondary processes it, it will know
    * that the primary has already processed it, and it can be safely removed.
-   * 
+   *
    * If the secondary processes the event first, the map will already contain an entry for the
    * event. In this case, the event can be removed from the map.
-   * 
+   *
    * @param gatewayEvent The event being processed
    */
   protected void handlePrimaryEvent(final GatewaySenderEventImpl gatewayEvent) {
@@ -581,15 +590,11 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
         // should mean we are now primary
         return;
       }
-      try {
-        my_executor.execute(new Runnable() {
-          public void run() {
-            basicHandlePrimaryEvent(gatewayEvent);
-          }
-        });
-      } catch (RejectedExecutionException ex) {
-        throw ex;
-      }
+      my_executor.execute(new Runnable() {
+        public void run() {
+          basicHandlePrimaryEvent(gatewayEvent);
+        }
+      });
     }
   }
 
@@ -603,15 +608,11 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
         // should mean we are now primary
         return;
       }
-      try {
-        my_executor.execute(new Runnable() {
-          public void run() {
-            basicHandlePrimaryDestroy(gatewayEvent);
-          }
-        });
-      } catch (RejectedExecutionException ex) {
-        throw ex;
-      }
+      my_executor.execute(new Runnable() {
+        public void run() {
+          basicHandlePrimaryDestroy(gatewayEvent);
+        }
+      });
     }
   }
 
@@ -859,4 +860,9 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
 
   }
 
+  @Override
+  protected void enqueueEvent(GatewayQueueEvent event) {
+    // @TODO This API hasn't been implemented yet
+    throw new UnsupportedOperationException();
+  }
 }

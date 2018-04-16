@@ -24,6 +24,14 @@ import static org.apache.geode.distributed.ConfigurationProperties.STATISTIC_ARC
 import static org.apache.geode.distributed.ConfigurationProperties.STATISTIC_SAMPLING_ENABLED;
 import static org.junit.Assert.assertEquals;
 
+import java.util.Collection;
+import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+
+import org.awaitility.Awaitility;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.EntryEvent;
 import org.apache.geode.cache.Region;
@@ -49,12 +57,6 @@ import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Properties;
 
 @Category({DistributedTest.class, ClientSubscriptionTest.class})
 public class Bug48571DUnitTest extends JUnit4DistributedTestCase {
@@ -79,11 +81,11 @@ public class Bug48571DUnitTest extends JUnit4DistributedTestCase {
   @Override
   public final void preTearDown() throws Exception {
     reset();
-    server.invoke(() -> Bug48571DUnitTest.reset());
-    client.invoke(() -> Bug48571DUnitTest.reset());
+    server.invoke(Bug48571DUnitTest::reset);
+    client.invoke(Bug48571DUnitTest::reset);
   }
 
-  public static void reset() throws Exception {
+  private static void reset() {
     lastKeyReceived = false;
     numOfCreates = 0;
     numOfUpdates = 0;
@@ -94,57 +96,47 @@ public class Bug48571DUnitTest extends JUnit4DistributedTestCase {
     }
   }
 
-  private static void verifyProxyHasBeenPaused() {
-    WaitCriterion criterion = new WaitCriterion() {
-      @Override
-      public boolean done() {
-        CacheClientNotifier ccn = CacheClientNotifier.getInstance();
-        Collection<CacheClientProxy> ccProxies = ccn.getClientProxies();
-
-        Iterator<CacheClientProxy> itr = ccProxies.iterator();
-
-        while (itr.hasNext()) {
-          CacheClientProxy ccp = itr.next();
-          System.out.println("proxy status " + ccp.getState());
-          if (ccp.isPaused())
-            return true;
-        }
-        return false;
-      }
-
-      @Override
-      public String description() {
-        return "Proxy has not paused yet";
-      }
-    };
-    Wait.waitForCriterion(criterion, 15 * 1000, 200, true);
-  }
-
-  // @Category(FlakyTest.class) // GEODE-510
   @Test
   public void testStatsMatchWithSize() throws Exception {
     IgnoredException.addIgnoredException("Unexpected IOException||Connection reset");
     // start a server
-    int port = (Integer) server.invoke(() -> Bug48571DUnitTest.createServerCache());
+    int port = server.invoke(Bug48571DUnitTest::createServerCache);
     // create durable client, with durable RI
     client.invoke(() -> Bug48571DUnitTest.createClientCache(client.getHost(), port));
     // do puts on server from three different threads, pause after 500 puts each.
-    server.invoke(() -> Bug48571DUnitTest.doPuts());
+    server.invoke(Bug48571DUnitTest::doPuts);
     // close durable client
-    client.invoke(() -> Bug48571DUnitTest.closeClientCache());
+    client.invoke(Bug48571DUnitTest::closeClientCache);
 
-    server.invoke("verifyProxyHasBeenPaused", () -> verifyProxyHasBeenPaused());
+    server.invoke("verifyProxyHasBeenPaused", Bug48571DUnitTest::verifyProxyHasBeenPaused);
     // resume puts on server, add another 100.
-    server.invokeAsync(() -> Bug48571DUnitTest.resumePuts()); // TODO: join or await result
+    server.invoke(Bug48571DUnitTest::resumePuts);
     // start durable client
     client.invoke(() -> Bug48571DUnitTest.createClientCache(client.getHost(), port));
     // wait for full queue dispatch
-    client.invoke(() -> Bug48571DUnitTest.waitForLastKey());
+    client.invoke(Bug48571DUnitTest::waitForLastKey);
     // verify the stats
-    server.invoke(() -> Bug48571DUnitTest.verifyStats());
+    server.invoke(Bug48571DUnitTest::verifyStats);
   }
 
-  public static int createServerCache() throws Exception {
+  private static void verifyProxyHasBeenPaused() {
+    Awaitility.await().atMost(60, TimeUnit.SECONDS).until(() -> {
+      CacheClientNotifier ccn = CacheClientNotifier.getInstance();
+      Collection<CacheClientProxy> ccProxies = ccn.getClientProxies();
+      boolean pausedFlag = false;
+
+      for (CacheClientProxy ccp : ccProxies) {
+        System.out.println("proxy status " + ccp.getState());
+        if (ccp.isPaused()) {
+          pausedFlag = true;
+          break;
+        }
+      }
+      assertEquals("Proxy has not been paused in 1 minute", true, pausedFlag);
+    });
+  }
+
+  private static int createServerCache() throws Exception {
     Properties props = new Properties();
     props.setProperty(LOCATORS, "localhost[" + DistributedTestUtils.getDUnitLocatorPort() + "]");
     props.setProperty(LOG_FILE, "server_" + OSProcess.getId() + ".log");
@@ -168,11 +160,11 @@ public class Bug48571DUnitTest extends JUnit4DistributedTestCase {
     return server1.getPort();
   }
 
-  public static void closeClientCache() throws Exception {
+  private static void closeClientCache() {
     cache.close(true);
   }
 
-  public static void createClientCache(Host host, Integer port) throws Exception {
+  private static void createClientCache(Host host, Integer port) {
 
     Properties props = new Properties();
     props.setProperty(MCAST_PORT, "0");
@@ -208,7 +200,7 @@ public class Bug48571DUnitTest extends JUnit4DistributedTestCase {
       }
 
       public void afterCreate(EntryEvent<String, String> event) {
-        if (((String) event.getKey()).equals("last_key")) {
+        if (event.getKey().equals("last_key")) {
           lastKeyReceived = true;
         }
         cache.getLoggerI18n().fine("Create Event: " + event.getKey() + ", " + event.getNewValue());
@@ -226,27 +218,21 @@ public class Bug48571DUnitTest extends JUnit4DistributedTestCase {
     cache.readyForEvents();
   }
 
-  public static void doPuts() throws Exception {
+  private static void doPuts() throws Exception {
     final Region<String, String> r = cache.getRegion(region);
-    Thread t1 = new Thread(new Runnable() {
-      public void run() {
-        for (int i = 0; i < 500; i++) {
-          r.put("T1_KEY_" + i, "VALUE_" + i);
-        }
+    Thread t1 = new Thread(() -> {
+      for (int i = 0; i < 500; i++) {
+        r.put("T1_KEY_" + i, "VALUE_" + i);
       }
     });
-    Thread t2 = new Thread(new Runnable() {
-      public void run() {
-        for (int i = 0; i < 500; i++) {
-          r.put("T2_KEY_" + i, "VALUE_" + i);
-        }
+    Thread t2 = new Thread(() -> {
+      for (int i = 0; i < 500; i++) {
+        r.put("T2_KEY_" + i, "VALUE_" + i);
       }
     });
-    Thread t3 = new Thread(new Runnable() {
-      public void run() {
-        for (int i = 0; i < 500; i++) {
-          r.put("T3_KEY_" + i, "VALUE_" + i);
-        }
+    Thread t3 = new Thread(() -> {
+      for (int i = 0; i < 500; i++) {
+        r.put("T3_KEY_" + i, "VALUE_" + i);
       }
     });
 
@@ -259,7 +245,7 @@ public class Bug48571DUnitTest extends JUnit4DistributedTestCase {
     t3.join();
   }
 
-  public static void resumePuts() {
+  private static void resumePuts() {
     Region<String, String> r = cache.getRegion(region);
     for (int i = 0; i < 100; i++) {
       r.put("NEWKEY_" + i, "NEWVALUE_" + i);
@@ -267,7 +253,7 @@ public class Bug48571DUnitTest extends JUnit4DistributedTestCase {
     r.put("last_key", "last_value");
   }
 
-  public static void waitForLastKey() {
+  private static void waitForLastKey() {
     WaitCriterion wc = new WaitCriterion() {
       @Override
       public boolean done() {
@@ -282,20 +268,23 @@ public class Bug48571DUnitTest extends JUnit4DistributedTestCase {
     Wait.waitForCriterion(wc, 60 * 1000, 500, true);
   }
 
-  public static void verifyStats() throws Exception {
-    CacheClientNotifier ccn = CacheClientNotifier.getInstance();
-    CacheClientProxy ccp = ccn.getClientProxies().iterator().next();
-    cache.getLoggerI18n().info(LocalizedStrings.DEBUG, "getQueueSize() " + ccp.getQueueSize());
-    cache.getLoggerI18n().info(LocalizedStrings.DEBUG,
-        "getQueueSizeStat() " + ccp.getQueueSizeStat());
-    cache.getLoggerI18n().info(LocalizedStrings.DEBUG,
-        "getEventsEnqued() " + ccp.getHARegionQueue().getStatistics().getEventsEnqued());
-    cache.getLoggerI18n().info(LocalizedStrings.DEBUG,
-        "getEventsDispatched() " + ccp.getHARegionQueue().getStatistics().getEventsDispatched());
-    cache.getLoggerI18n().info(LocalizedStrings.DEBUG,
-        "getEventsRemoved() " + ccp.getHARegionQueue().getStatistics().getEventsRemoved());
-    cache.getLoggerI18n().info(LocalizedStrings.DEBUG,
-        "getNumVoidRemovals() " + ccp.getHARegionQueue().getStatistics().getNumVoidRemovals());
-    assertEquals(ccp.getQueueSize(), ccp.getQueueSizeStat());
+  private static void verifyStats() {
+    Awaitility.await().atMost(60, TimeUnit.SECONDS).until(() -> {
+      CacheClientNotifier ccn = CacheClientNotifier.getInstance();
+      CacheClientProxy ccp = ccn.getClientProxies().iterator().next();
+      cache.getLoggerI18n().info(LocalizedStrings.DEBUG, "getQueueSize() " + ccp.getQueueSize());
+      cache.getLoggerI18n().info(LocalizedStrings.DEBUG,
+          "getQueueSizeStat() " + ccp.getQueueSizeStat());
+      cache.getLoggerI18n().info(LocalizedStrings.DEBUG,
+          "getEventsEnqued() " + ccp.getHARegionQueue().getStatistics().getEventsEnqued());
+      cache.getLoggerI18n().info(LocalizedStrings.DEBUG,
+          "getEventsDispatched() " + ccp.getHARegionQueue().getStatistics().getEventsDispatched());
+      cache.getLoggerI18n().info(LocalizedStrings.DEBUG,
+          "getEventsRemoved() " + ccp.getHARegionQueue().getStatistics().getEventsRemoved());
+      cache.getLoggerI18n().info(LocalizedStrings.DEBUG,
+          "getNumVoidRemovals() " + ccp.getHARegionQueue().getStatistics().getNumVoidRemovals());
+      assertEquals("The queue size did not match the stat value", ccp.getQueueSize(),
+          ccp.getQueueSizeStat());
+    });
   }
 }

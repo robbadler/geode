@@ -15,14 +15,6 @@
 
 package org.apache.geode.modules.session.internal.filter;
 
-import org.apache.geode.DataSerializable;
-import org.apache.geode.DataSerializer;
-import org.apache.geode.Delta;
-import org.apache.geode.Instantiator;
-import org.apache.geode.InvalidDeltaException;
-import org.apache.geode.modules.session.internal.filter.attributes.AbstractSessionAttributes;
-import org.apache.geode.modules.session.internal.filter.attributes.SessionAttributes;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
@@ -33,13 +25,22 @@ import java.io.ObjectOutputStream;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpSession;
 import javax.servlet.http.HttpSessionContext;
 
-import org.apache.geode.modules.util.ClassLoaderObjectInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.geode.DataSerializable;
+import org.apache.geode.DataSerializer;
+import org.apache.geode.Delta;
+import org.apache.geode.Instantiator;
+import org.apache.geode.InvalidDeltaException;
+import org.apache.geode.modules.session.internal.filter.attributes.AbstractSessionAttributes;
+import org.apache.geode.modules.session.internal.filter.attributes.SessionAttributes;
+import org.apache.geode.modules.util.ClassLoaderObjectInputStream;
 
 /**
  * Class which implements a Gemfire persisted {@code HttpSession}
@@ -47,7 +48,7 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings("deprecation")
 public class GemfireHttpSession implements HttpSession, DataSerializable, Delta {
 
-  private static transient final Logger LOG =
+  private static final transient Logger LOG =
       LoggerFactory.getLogger(GemfireHttpSession.class.getName());
 
   /**
@@ -67,7 +68,7 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
 
   private transient SessionManager manager;
 
-  private HttpSession nativeSession = null;
+  private ServletContext context;
 
   /**
    * A session becomes invalid if it is explicitly invalidated or if it expires.
@@ -88,6 +89,10 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
    * Register ourselves for de-serialization
    */
   static {
+    registerInstantiator();
+  }
+
+  public static void registerInstantiator() {
     Instantiator.register(new Instantiator(GemfireHttpSession.class, 27315) {
       @Override
       public DataSerializable newInstance() {
@@ -104,13 +109,10 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
   /**
    * Constructor
    */
-  public GemfireHttpSession(String id, HttpSession nativeSession) {
+  public GemfireHttpSession(String id, ServletContext context) {
     this();
     this.id = id;
-    this.nativeSession = nativeSession;
-    if (nativeSession != null) {
-      attributes.setMaxInactiveInterval(nativeSession.getMaxInactiveInterval());
-    }
+    this.context = context;
   }
 
   /**
@@ -159,9 +161,7 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
    */
   @Override
   public Enumeration getAttributeNames() {
-    if (!isValid) {
-      throw new IllegalStateException("Session is already invalidated");
-    }
+    checkValid();
     return Collections.enumeration(attributes.getAttributeNames());
   }
 
@@ -170,11 +170,8 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
    */
   @Override
   public long getCreationTime() {
-    if (nativeSession != null) {
-      return nativeSession.getCreationTime();
-    } else {
-      return 0;
-    }
+    checkValid();
+    return attributes.getCreationTime();
   }
 
   /**
@@ -196,16 +193,16 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
     return attributes.getLastAccessedTime();
   }
 
+  public void setServletContext(ServletContext context) {
+    this.context = context;
+  }
+
   /**
    * {@inheritDoc}
    */
   @Override
   public ServletContext getServletContext() {
-    if (nativeSession != null) {
-      return nativeSession.getServletContext();
-    } else {
-      return null;
-    }
+    return context;
   }
 
   /**
@@ -237,7 +234,6 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
    */
   @Override
   public void invalidate() {
-    nativeSession.invalidate();
     manager.destroySession(id);
     isValid = false;
   }
@@ -262,9 +258,6 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
    */
   @Override
   public void setMaxInactiveInterval(int interval) {
-    if (nativeSession != null) {
-      nativeSession.setMaxInactiveInterval(interval);
-    }
     attributes.setMaxInactiveInterval(interval);
     isDirty = true;
   }
@@ -274,11 +267,7 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
    */
   @Override
   public int getMaxInactiveInterval() {
-    if (nativeSession != null) {
-      return nativeSession.getMaxInactiveInterval();
-    } else {
-      return attributes.getMaxIntactiveInterval();
-    }
+    return attributes.getMaxIntactiveInterval();
   }
 
   /**
@@ -294,8 +283,8 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
    */
   @Override
   public void removeAttribute(final String name) {
+    checkValid();
     LOG.debug("Session {} removing attribute {}", getId(), name);
-    nativeSession.removeAttribute(name);
     attributes.removeAttribute(name);
   }
 
@@ -312,17 +301,23 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
    */
   @Override
   public void setAttribute(final String name, final Object value) {
+    checkValid();
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("Session {} setting attribute {} = '{}'", new Object[] {id, name, value});
     }
 
     isDirty = true;
-    nativeSession.setAttribute(name, value);
     if (value == null) {
       removeAttribute(name);
     } else {
       attributes.putAttribute(name, value);
+    }
+  }
+
+  private void checkValid() {
+    if (!isValid()) {
+      throw new IllegalStateException("Session is invalid");
     }
   }
 
@@ -342,12 +337,6 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     id = DataSerializer.readString(in);
     attributes = DataSerializer.readObject(in);
-    if (getNativeSession() != null) {
-      for (String s : attributes.getAttributeNames()) {
-        getNativeSession().setAttribute(s, attributes.getAttribute(s));
-      }
-    }
-
     // Explicit sets
     serialized.set(true);
     attributes.setSession(this);
@@ -432,34 +421,6 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
     this.manager = manager;
   }
 
-  /**
-   * For testing allow retrieval of the wrapped, native session.
-   */
-  public HttpSession getNativeSession() {
-    return nativeSession;
-  }
-
-
-  public void setNativeSession(HttpSession session) {
-    this.nativeSession = session;
-  }
-
-  /**
-   * Handle the process of failing over the session to a new native session object.
-   *
-   * @param session
-   */
-  public void failoverSession(HttpSession session) {
-    LOG.debug("Failing over session {} to {}", getId(), session.getId());
-    setNativeSession(session);
-    for (String name : attributes.getAttributeNames()) {
-      LOG.debug("Copying '{}' => {}", name, attributes.getAttribute(name));
-      session.setAttribute(name, attributes.getAttribute(name));
-    }
-    session.setMaxInactiveInterval(attributes.getMaxIntactiveInterval());
-    manager.putSession(this);
-  }
-
 
   /**
    * Update the last accessed time
@@ -471,7 +432,6 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
   /**
    * The {@code SessionManager} injects this when creating a new session.
    *
-   * @param attributes
    */
   public void setAttributes(AbstractSessionAttributes attributes) {
     this.attributes = attributes;
@@ -504,4 +464,3 @@ public class GemfireHttpSession implements HttpSession, DataSerializable, Delta 
     return null;
   }
 }
-

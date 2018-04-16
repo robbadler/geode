@@ -14,17 +14,24 @@
  */
 package org.apache.geode.internal.offheap;
 
-import org.apache.geode.OutOfOffHeapMemoryException;
-import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.internal.logging.LogService;
-import org.apache.logging.log4j.Logger;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.NavigableSet;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.OutOfOffHeapMemoryException;
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.internal.logging.LogService;
 
 /**
  * Manages the free lists and slabs for a MemoryAllocator
@@ -39,7 +46,7 @@ public class FreeListManager {
   private final Slab[] slabs;
   private final long totalSlabSize;
 
-  final private AtomicReferenceArray<OffHeapStoredObjectAddressStack> tinyFreeLists =
+  private final AtomicReferenceArray<OffHeapStoredObjectAddressStack> tinyFreeLists =
       new AtomicReferenceArray<OffHeapStoredObjectAddressStack>(TINY_FREE_LIST_COUNT);
   // hugeChunkSet is sorted by chunk size in ascending order. It will only contain chunks larger
   // than MAX_TINY.
@@ -178,7 +185,7 @@ public class FreeListManager {
    * It might be better not to include step 3 since we expect and freed chunk to be reallocated in
    * the future. Maybe it would be better for 3 to look for adjacent free blocks that can be merged
    * together. For now we will just try 1 and 2 and then report out of mem.
-   * 
+   *
    * @param size minimum bytes the returned chunk must have.
    * @return the allocated chunk
    * @throws IllegalStateException if a chunk can not be allocated.
@@ -294,7 +301,7 @@ public class FreeListManager {
    * not account for the additional internal fragmentation caused by the off-heap header which
    * currently is always 8 bytes.
    */
-  public final static int TINY_MULTIPLE =
+  public static final int TINY_MULTIPLE =
       Integer.getInteger(DistributionConfig.GEMFIRE_PREFIX + "OFF_HEAP_ALIGNMENT", 8);
   static {
     verifyOffHeapAlignment(TINY_MULTIPLE);
@@ -302,7 +309,7 @@ public class FreeListManager {
   /**
    * Number of free lists to keep for tiny allocations.
    */
-  public final static int TINY_FREE_LIST_COUNT =
+  public static final int TINY_FREE_LIST_COUNT =
       Integer.getInteger(DistributionConfig.GEMFIRE_PREFIX + "OFF_HEAP_FREE_LIST_COUNT", 65536);
   static {
     verifyOffHeapFreeListCount(TINY_FREE_LIST_COUNT);
@@ -310,11 +317,11 @@ public class FreeListManager {
   /**
    * How many unused bytes are allowed in a huge memory allocation.
    */
-  public final static int HUGE_MULTIPLE = 256;
+  public static final int HUGE_MULTIPLE = 256;
   static {
     verifyHugeMultiple(HUGE_MULTIPLE);
   }
-  public final static int MAX_TINY = TINY_MULTIPLE * TINY_FREE_LIST_COUNT;
+  public static final int MAX_TINY = TINY_MULTIPLE * TINY_FREE_LIST_COUNT;
 
   /**
    * Return true if the two chunks have been combined into one. If low and high are adjacent to each
@@ -388,7 +395,7 @@ public class FreeListManager {
     /**
      * Retrieves and removes the top of this stack, or returns {@code 0L} if this stack is empty.
      */
-    public long poll();
+    long poll();
   }
   /**
    * Manages an array of primitive longs. The array can grow.

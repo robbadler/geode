@@ -21,11 +21,10 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.geode.internal.cache.InternalCache;
-import org.apache.geode.internal.cache.ha.HARegionQueue.MapWrapper;
-import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.logging.log4j.Logger;
+import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -34,7 +33,6 @@ import org.junit.experimental.categories.Category;
 
 import org.apache.geode.LogWriter;
 import org.apache.geode.cache.AttributesFactory;
-import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.CacheListener;
@@ -44,8 +42,11 @@ import org.apache.geode.cache.Scope;
 import org.apache.geode.cache.util.CacheListenerAdapter;
 import org.apache.geode.internal.cache.Conflatable;
 import org.apache.geode.internal.cache.EventID;
+import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.ha.HARegionQueue.MapWrapper;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.test.dunit.ThreadUtils;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 
 /**
@@ -64,13 +65,13 @@ public class HARQAddOperationJUnitTest {
   /** The <code>RegionQueue</code> instance */
   private HARegionQueue rq = null;
 
-  protected final static String KEY1 = "Key-1";
+  protected static final String KEY1 = "Key-1";
 
-  protected final static String KEY2 = "Key-2";
+  protected static final String KEY2 = "Key-2";
 
-  protected final static String VALUE1 = "Value-1";
+  protected static final String VALUE1 = "Value-1";
 
-  protected final static String VALUE2 = "Value-2";
+  protected static final String VALUE2 = "Value-2";
 
   protected boolean testFailed = false;
 
@@ -78,7 +79,7 @@ public class HARQAddOperationJUnitTest {
 
   protected int barrierCount = 0;
 
-  volatile static int expiryCount = 0;
+  static volatile int expiryCount = 0;
 
   @Before
   public void setUp() throws Exception {
@@ -286,13 +287,11 @@ public class HARQAddOperationJUnitTest {
           "ThreadIdentifier removed itself through expiry even though data was lying in the queue",
           eventsMap.get(threadId));
 
-      // wait for some more time to allow expiry on data
-      Thread.sleep(16000);
-
       // After the expiry of the data , AvaialbleIds size should be 0,
       // entry
       // removed from Region, LastDispatchedWrapperSet should have size 0.
-      assertEquals(0, regionqueue.getRegion().entrySet(false).size());
+      Awaitility.await().atMost(60, TimeUnit.SECONDS)
+          .until(() -> assertEquals(0, regionqueue.getRegion().entrySet(false).size()));
       assertEquals(0, regionqueue.getAvalaibleIds().size());
       assertNull(regionqueue.getCurrentCounterSet(id1));
 

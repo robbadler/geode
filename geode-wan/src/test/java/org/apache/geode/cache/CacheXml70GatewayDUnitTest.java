@@ -43,8 +43,9 @@ import org.apache.geode.internal.cache.xmlcache.ParallelGatewaySenderCreation;
 import org.apache.geode.internal.cache.xmlcache.RegionAttributesCreation;
 import org.apache.geode.internal.cache.xmlcache.SerialGatewaySenderCreation;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class CacheXml70GatewayDUnitTest extends CacheXmlTestCase {
 
   @Override
@@ -219,7 +220,7 @@ public class CacheXml70GatewayDUnitTest extends CacheXmlTestCase {
   }
 
   static void validateGatewayReceiver(GatewayReceiver receiver1, GatewayReceiver gatewayReceiver) {
-    assertEquals(receiver1.getHost(), gatewayReceiver.getHost());
+    assertEquals(receiver1.getHostnameForSenders(), gatewayReceiver.getHostnameForSenders());
     assertEquals(receiver1.getStartPort(), gatewayReceiver.getStartPort());
     assertEquals(receiver1.getEndPort(), gatewayReceiver.getEndPort());
     assertEquals(receiver1.getMaximumTimeBetweenPings(),

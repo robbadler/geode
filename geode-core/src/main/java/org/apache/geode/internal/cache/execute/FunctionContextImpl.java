@@ -14,6 +14,8 @@
  */
 package org.apache.geode.internal.cache.execute;
 
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
@@ -22,14 +24,14 @@ import org.apache.geode.cache.execute.ResultSender;
 
 /**
  * Context available to application functions which is passed from GemFire to {@link Function}. <br>
- * 
+ *
  * For data dependent functions refer to {@link RegionFunctionContext}
- * 
- * 
+ *
+ *
  * @since GemFire 6.0
- * 
+ *
  * @see RegionFunctionContextImpl
- * 
+ *
  */
 public class FunctionContextImpl implements FunctionContext {
 
@@ -37,20 +39,20 @@ public class FunctionContextImpl implements FunctionContext {
 
   private String functionId = null;
 
+  private Cache cache = null;
+
   private ResultSender resultSender = null;
 
   private final boolean isPossDup;
 
-  public FunctionContextImpl(final String functionId, final Object args,
+  public FunctionContextImpl(final Cache cache, final String functionId, final Object args,
       ResultSender resultSender) {
-    this.functionId = functionId;
-    this.args = args;
-    this.resultSender = resultSender;
-    this.isPossDup = false;
+    this(cache, functionId, args, resultSender, false);
   }
 
-  public FunctionContextImpl(final String functionId, final Object args, ResultSender resultSender,
-      boolean isPossibleDuplicate) {
+  public FunctionContextImpl(final Cache cache, final String functionId, final Object args,
+      ResultSender resultSender, boolean isPossibleDuplicate) {
+    this.cache = cache;
     this.functionId = functionId;
     this.args = args;
     this.resultSender = resultSender;
@@ -60,7 +62,7 @@ public class FunctionContextImpl implements FunctionContext {
   /**
    * Returns the arguments provided to this function execution. These are the arguments specified by
    * caller using {@link Execution#setArguments(Object)}
-   * 
+   *
    * @return the arguments or null if there are no arguments
    */
   public Object getArguments() {
@@ -69,7 +71,7 @@ public class FunctionContextImpl implements FunctionContext {
 
   /**
    * Get the identifier of the running function used for logging and administration purposes
-   * 
+   *
    * @return String uniquely identifying this running instance
    * @see Function#getId()
    */
@@ -95,6 +97,14 @@ public class FunctionContextImpl implements FunctionContext {
 
   public boolean isPossibleDuplicate() {
     return this.isPossDup;
+  }
+
+  @Override
+  public Cache getCache() throws CacheClosedException {
+    if (cache == null) {
+      throw new CacheClosedException("FunctionContext does not have a valid Cache");
+    }
+    return cache;
   }
 
 }

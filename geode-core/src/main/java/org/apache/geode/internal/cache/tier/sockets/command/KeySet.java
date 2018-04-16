@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- *
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
 import java.io.IOException;
@@ -37,19 +34,22 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.security.AuthorizeRequest;
 import org.apache.geode.internal.security.AuthorizeRequestPP;
+import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.security.NotAuthorizedException;
+import org.apache.geode.security.ResourcePermission.Operation;
+import org.apache.geode.security.ResourcePermission.Resource;
 
 public class KeySet extends BaseCommand {
 
-  private final static KeySet singleton = new KeySet();
+  private static final KeySet singleton = new KeySet();
 
   public static Command getCommand() {
     return singleton;
   }
 
   @Override
-  public void cmdExecute(Message clientMessage, ServerConnection serverConnection, long start)
-      throws IOException, InterruptedException {
+  public void cmdExecute(final Message clientMessage, final ServerConnection serverConnection,
+      final SecurityService securityService, long start) throws IOException, InterruptedException {
     Part regionNamePart = null;
     String regionName = null;
     serverConnection.setAsTrue(REQUIRES_RESPONSE);
@@ -93,7 +93,7 @@ public class KeySet extends BaseCommand {
     }
 
     try {
-      this.securityService.authorizeRegionRead(regionName);
+      securityService.authorize(Resource.DATA, Operation.READ, regionName);
     } catch (NotAuthorizedException ex) {
       writeChunkedException(clientMessage, ex, serverConnection);
       serverConnection.setAsTrue(RESPONDED);

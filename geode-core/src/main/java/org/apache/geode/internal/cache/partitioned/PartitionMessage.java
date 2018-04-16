@@ -35,7 +35,7 @@ import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.query.QueryException;
 import org.apache.geode.cache.query.RegionNotFoundException;
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DirectReplyProcessor;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
@@ -52,7 +52,6 @@ import org.apache.geode.internal.cache.DataLocationException;
 import org.apache.geode.internal.cache.EntryEventImpl;
 import org.apache.geode.internal.cache.FilterRoutingInfo;
 import org.apache.geode.internal.cache.ForceReattemptException;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.PartitionedRegionException;
@@ -68,7 +67,7 @@ import org.apache.geode.internal.sequencelog.EntryLogger;
 
 /**
  * The base PartitionedRegion message type upon which other messages should be based.
- * 
+ *
  * @since GemFire 5.0
  */
 public abstract class PartitionMessage extends DistributionMessage
@@ -96,7 +95,7 @@ public abstract class PartitionMessage extends DistributionMessage
    * these bit masks are used for encoding the bits of a short on the wire instead of transmitting
    * booleans. Any subclasses interested in saving bits on the wire should add a mask here and then
    * override computeCompressedShort and setBooleans
-   * 
+   *
    */
   /** flag to indicate notification message */
   protected static final short NOTIFICATION_ONLY = DistributionMessage.UNRESERVED_FLAGS_START;
@@ -138,7 +137,6 @@ public abstract class PartitionMessage extends DistributionMessage
       processor.enableSevereAlertProcessing();
     }
     initTxMemberId();
-    setIfTransactionDistributed();
   }
 
   public PartitionMessage(Collection<InternalDistributedMember> recipients, int regionId,
@@ -150,7 +148,6 @@ public abstract class PartitionMessage extends DistributionMessage
       processor.enableSevereAlertProcessing();
     }
     initTxMemberId();
-    setIfTransactionDistributed();
   }
 
 
@@ -166,9 +163,10 @@ public abstract class PartitionMessage extends DistributionMessage
             "Sending remote txId even though transaction is local. This should never happen: txState="
                 + txState);
       }
-    }
-    if (txState != null && txState.isMemberIdForwardingRequired()) {
-      this.txMemberId = txState.getOriginatingMember();
+      // GEODE-3679. Even if TXStateProxy has a local transaction,
+      // we still need to forward original txMemberId to other nodes
+      // if the message does not start a new transaction.
+      this.txMemberId = txState.getTxId().getMemberId();
     }
   }
 
@@ -199,7 +197,7 @@ public abstract class PartitionMessage extends DistributionMessage
    * Severe alert processing enables suspect processing at the ack-wait-threshold and issuing of a
    * severe alert at the end of the ack-severe-alert-threshold. Some messages should not support
    * this type of processing (e.g., GII, or DLockRequests)
-   * 
+   *
    * @return whether severe-alert processing may be performed on behalf of this message
    */
   @Override
@@ -210,9 +208,9 @@ public abstract class PartitionMessage extends DistributionMessage
   @Override
   public int getProcessorType() {
     if (this.notificationOnly) {
-      return DistributionManager.SERIAL_EXECUTOR;
+      return ClusterDistributionManager.SERIAL_EXECUTOR;
     } else {
-      return DistributionManager.PARTITIONED_REGION_EXECUTOR;
+      return ClusterDistributionManager.PARTITIONED_REGION_EXECUTOR;
     }
   }
 
@@ -252,28 +250,26 @@ public abstract class PartitionMessage extends DistributionMessage
   /**
    * check to see if the cache is closing
    */
-  public boolean checkCacheClosing(DistributionManager dm) {
-    InternalCache cache = getInternalCache();
-    // return (cache != null && cache.isClosed());
+  public boolean checkCacheClosing(ClusterDistributionManager dm) {
+    if (dm == null) {
+      return true;
+    }
+    InternalCache cache = dm.getCache();
     return cache == null || cache.isClosed();
   }
 
   /**
    * check to see if the distributed system is closing
-   * 
+   *
    * @return true if the distributed system is closing
    */
-  public boolean checkDSClosing(DistributionManager dm) {
+  public boolean checkDSClosing(ClusterDistributionManager dm) {
     InternalDistributedSystem ds = dm.getSystem();
     return (ds == null || ds.isDisconnecting());
   }
 
   PartitionedRegion getPartitionedRegion() throws PRLocallyDestroyedException {
     return PartitionedRegion.getPRFromId(this.regionId);
-  }
-
-  InternalCache getInternalCache() {
-    return GemFireCacheImpl.getInstance();
   }
 
   TXManagerImpl getTXManagerImpl(InternalCache cache) {
@@ -289,21 +285,28 @@ public abstract class PartitionMessage extends DistributionMessage
    * Upon receipt of the message, both process the message and send an acknowledgement, not
    * necessarily in that order. Note: Any hang in this message may cause a distributed deadlock for
    * those threads waiting for an acknowledgement.
-   * 
+   *
    * @throws PartitionedRegionException if the region does not exist (typically, if it has been
    *         destroyed)
    */
   @Override
-  public void process(final DistributionManager dm) {
+  public void process(final ClusterDistributionManager dm) {
     Throwable thr = null;
     boolean sendReply = true;
     PartitionedRegion pr = null;
     long startTime = 0;
     EntryLogger.setSource(getSender(), "PR");
     try {
+      InternalCache cache = dm.getCache();
       if (checkCacheClosing(dm) || checkDSClosing(dm)) {
-        thr = new CacheClosedException(LocalizedStrings.PartitionMessage_REMOTE_CACHE_IS_CLOSED_0
-            .toLocalizedString(dm.getId()));
+        if (cache != null) {
+          thr = cache
+              .getCacheClosedException(LocalizedStrings.PartitionMessage_REMOTE_CACHE_IS_CLOSED_0
+                  .toLocalizedString(dm.getId()));
+        } else {
+          thr = new CacheClosedException(LocalizedStrings.PartitionMessage_REMOTE_CACHE_IS_CLOSED_0
+              .toLocalizedString(dm.getId()));
+        }
         return;
       }
       pr = getPartitionedRegion();
@@ -321,7 +324,6 @@ public abstract class PartitionMessage extends DistributionMessage
       }
       thr = UNHANDLED_EXCEPTION;
 
-      InternalCache cache = getInternalCache();
       if (cache == null) {
         throw new ForceReattemptException(
             LocalizedStrings.PartitionMessage_REMOTE_CACHE_IS_CLOSED_0.toLocalizedString());
@@ -391,9 +393,9 @@ public abstract class PartitionMessage extends DistributionMessage
                   .toLocalizedString());
         }
       }
-      if (logger.isTraceEnabled(LogMarker.DM) && t instanceof RuntimeException) {
-        logger.trace(LogMarker.DM, "Exception caught while processing message: {}", t.getMessage(),
-            t);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE) && t instanceof RuntimeException) {
+        logger.trace(LogMarker.DM_VERBOSE, "Exception caught while processing message: {}",
+            t.getMessage(), t);
       }
     } finally {
       if (sendReply) {
@@ -420,13 +422,13 @@ public abstract class PartitionMessage extends DistributionMessage
   /**
    * Send a generic ReplyMessage. This is in a method so that subclasses can override the reply
    * message type
-   * 
+   *
    * @param pr the Partitioned Region for the message whose statistics are incremented
    * @param startTime the start time of the operation in nanoseconds
    * @see PutMessage#sendReply
    */
-  protected void sendReply(InternalDistributedMember member, int procId, DM dm, ReplyException ex,
-      PartitionedRegion pr, long startTime) {
+  protected void sendReply(InternalDistributedMember member, int procId, DistributionManager dm,
+      ReplyException ex, PartitionedRegion pr, long startTime) {
     if (pr != null && startTime > 0) {
       pr.getPrStats().endPartitionMessagesProcessing(startTime);
     }
@@ -438,7 +440,7 @@ public abstract class PartitionMessage extends DistributionMessage
    * Allow classes that over-ride to choose whether a RegionDestroyException is thrown if no
    * partitioned region is found (typically occurs if the message will be sent before the
    * PartitionedRegion has been fully constructed.
-   * 
+   *
    * @return true if throwing a {@link RegionDestroyedException} is acceptable
    */
   protected boolean failIfRegionMissing() {
@@ -447,7 +449,7 @@ public abstract class PartitionMessage extends DistributionMessage
 
   /**
    * relay this message to another set of recipients for event notification
-   * 
+   *
    * @param cacheOpRecipients recipients of associated bucket CacheOperationMessage
    * @param adjunctRecipients recipients who unconditionally get the message
    * @param filterRoutingInfo routing information for all recipients
@@ -464,8 +466,8 @@ public abstract class PartitionMessage extends DistributionMessage
     this.setFilterInfo(filterRoutingInfo);
     Set failures1 = null;
     if (!adjunctRecipients.isEmpty()) {
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "Relaying partition message to other processes for listener notification");
       }
       resetRecipients();
@@ -485,7 +487,7 @@ public abstract class PartitionMessage extends DistributionMessage
   }
 
 
-  protected boolean operateOnRegion(DistributionManager dm, PartitionedRegion pr) {
+  protected boolean operateOnRegion(ClusterDistributionManager dm, PartitionedRegion pr) {
     throw new InternalGemFireError(
         LocalizedStrings.PartitionMessage_SORRY_USE_OPERATEONPARTITIONEDREGION_FOR_PR_MESSAGES
             .toLocalizedString());
@@ -493,7 +495,7 @@ public abstract class PartitionMessage extends DistributionMessage
 
   /**
    * An operation upon the messages partitioned region which each subclassing message must implement
-   * 
+   *
    * @param dm the manager that received the message
    * @param pr the partitioned region that should be modified
    * @param startTime the start time of the operation
@@ -501,7 +503,7 @@ public abstract class PartitionMessage extends DistributionMessage
    * @throws CacheException if an error is generated in the remote cache
    * @throws DataLocationException if the peer is no longer available
    */
-  protected abstract boolean operateOnPartitionedRegion(DistributionManager dm,
+  protected abstract boolean operateOnPartitionedRegion(ClusterDistributionManager dm,
       PartitionedRegion pr, long startTime) throws CacheException, QueryException,
       DataLocationException, InterruptedException, IOException;
 
@@ -567,7 +569,7 @@ public abstract class PartitionMessage extends DistributionMessage
   /**
    * Sets the bits of a short by using the bit masks. A subclass must override this method if it is
    * using bits in the compressed short.
-   * 
+   *
    * @return short with appropriate bits set
    */
   protected short computeCompressedShort(short s) {
@@ -584,7 +586,7 @@ public abstract class PartitionMessage extends DistributionMessage
     return s;
   }
 
-  public final static String PN_TOKEN = ".cache.";
+  public static final String PN_TOKEN = ".cache.";
 
   @Override
   public String toString() {
@@ -646,7 +648,7 @@ public abstract class PartitionMessage extends DistributionMessage
 
   /**
    * added to support old value to be written on wire.
-   * 
+   *
    * @param value true or false
    * @since GemFire 5.5
    */
@@ -682,7 +684,7 @@ public abstract class PartitionMessage extends DistributionMessage
     return true;
   }
 
-  protected boolean _mayAddToMultipleSerialGateways(DistributionManager dm) {
+  protected boolean _mayAddToMultipleSerialGateways(ClusterDistributionManager dm) {
     try {
       PartitionedRegion pr = PartitionedRegion.getPRFromId(this.regionId);
       if (pr == null) {
@@ -699,7 +701,7 @@ public abstract class PartitionMessage extends DistributionMessage
   /**
    * A processor on which to await a response from the {@link PartitionMessage} recipient, capturing
    * any CacheException thrown by the recipient and handle it as an expected exception.
-   * 
+   *
    * @since GemFire 5.0
    * @see #waitForCacheException()
    */
@@ -750,7 +752,8 @@ public abstract class PartitionMessage extends DistributionMessage
     }
 
     @Override
-    public void memberDeparted(final InternalDistributedMember id, final boolean crashed) {
+    public void memberDeparted(DistributionManager distributionManager,
+        final InternalDistributedMember id, final boolean crashed) {
       if (id != null) {
         if (removeMember(id, true)) {
           this.prce = new ForceReattemptException(
@@ -769,7 +772,7 @@ public abstract class PartitionMessage extends DistributionMessage
 
     /**
      * Waits for the response from the {@link PartitionMessage}'s recipient
-     * 
+     *
      * @throws CacheException if the recipient threw a cache exception during message processing
      * @throws ForceReattemptException if the recipient left the distributed system before the
      *         response was received.
@@ -823,7 +826,7 @@ public abstract class PartitionMessage extends DistributionMessage
               e.getSender(), t);
           throw (LowMemoryException) t;
         }
-        e.handleAsUnexpected();
+        e.handleCause();
       }
     }
 
@@ -845,17 +848,5 @@ public abstract class PartitionMessage extends DistributionMessage
    */
   public void setTransactionDistributed(boolean isDistTx) {
     this.isTransactionDistributed = isDistTx;
-  }
-
-  /*
-   * For Distributed Tx
-   */
-  private void setIfTransactionDistributed() {
-    InternalCache cache = GemFireCacheImpl.getInstance();
-    if (cache != null) {
-      if (cache.getTxManager() != null) {
-        this.isTransactionDistributed = cache.getTxManager().isDistributed();
-      }
-    }
   }
 }

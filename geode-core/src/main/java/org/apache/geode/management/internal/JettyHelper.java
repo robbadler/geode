@@ -14,10 +14,10 @@
  */
 package org.apache.geode.management.internal;
 
+import java.io.File;
+import java.util.concurrent.CountDownLatch;
+
 import org.apache.commons.lang.StringUtils;
-import org.apache.geode.GemFireConfigException;
-import org.apache.geode.internal.admin.SSLConfig;
-import org.apache.geode.internal.logging.LogService;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.http.HttpVersion;
 import org.eclipse.jetty.server.Connector;
@@ -31,8 +31,10 @@ import org.eclipse.jetty.server.handler.HandlerCollection;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.webapp.WebAppContext;
 
-import java.io.File;
-import java.util.concurrent.CountDownLatch;
+import org.apache.geode.GemFireConfigException;
+import org.apache.geode.internal.admin.SSLConfig;
+import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.internal.security.SecurityService;
 
 /**
  * @since GemFire 8.1
@@ -52,6 +54,9 @@ public class JettyHelper {
   private static String bindAddress = "0.0.0.0";
 
   private static int port = 0;
+
+  public static final String SECURITY_SERVICE_SERVLET_CONTEXT_PARAM =
+      "org.apache.geode.securityService";
 
   public static Server initJetty(final String bindAddress, final int port, SSLConfig sslConfig) {
 
@@ -77,7 +82,7 @@ public class JettyHelper {
 
       if (StringUtils.isNotBlank(sslConfig.getCiphers())
           && !"any".equalsIgnoreCase(sslConfig.getCiphers())) {
-        // If use has mentioned "any" let the SSL layer decide on the ciphers
+        sslContextFactory.setExcludeCipherSuites();
         sslContextFactory.setIncludeCipherSuites(SSLUtil.readArray(sslConfig.getCiphers()));
       }
 
@@ -112,6 +117,9 @@ public class JettyHelper {
         sslContextFactory.setTrustStorePassword(sslConfig.getTruststorePassword());
       }
 
+      if (logger.isDebugEnabled()) {
+        logger.debug(sslContextFactory.dump());
+      }
       httpConfig.addCustomizer(new SecureRequestCustomizer());
 
       // Somehow With HTTP_2.0 Jetty throwing NPE. Need to investigate further whether all GemFire
@@ -151,12 +159,13 @@ public class JettyHelper {
   }
 
   public static Server addWebApplication(final Server jetty, final String webAppContext,
-      final String warFilePath) {
+      final String warFilePath, SecurityService securityService) {
     WebAppContext webapp = new WebAppContext();
     webapp.setContextPath(webAppContext);
     webapp.setWar(warFilePath);
     webapp.setParentLoaderPriority(false);
     webapp.setInitParameter("org.eclipse.jetty.servlet.Default.dirAllowed", "false");
+    webapp.setAttribute(SECURITY_SERVICE_SERVLET_CONTEXT_PARAM, securityService);
 
     File tmpPath = new File(getWebAppBaseDirectory(webAppContext));
     tmpPath.mkdirs();
@@ -188,28 +197,6 @@ public class JettyHelper {
 
   private static String normalizeWebAppContext(final String webAppContext) {
     return (webAppContext.startsWith("/") ? webAppContext : "/" + webAppContext);
-  }
-
-  public static void main(final String... args) throws Exception {
-    if (args.length > 1) {
-      System.out.printf("Temporary Directory @ ($1%s)%n", USER_DIR);
-
-      final Server jetty = JettyHelper.initJetty(null, 8090, new SSLConfig());
-
-      for (int index = 0; index < args.length; index += 2) {
-        final String webAppContext = args[index];
-        final String webAppArchivePath = args[index + 1];
-
-        JettyHelper.addWebApplication(jetty, normalizeWebAppContext(webAppContext),
-            normalizeWebAppArchivePath(webAppArchivePath));
-      }
-
-      JettyHelper.startJetty(jetty);
-      latch.await();
-    } else {
-      System.out.printf(
-          "usage:%n>java org.apache.geode.management.internal.TomcatHelper <web-app-context> <war-file-path> [<web-app-context> <war-file-path>]*");
-    }
   }
 
 }

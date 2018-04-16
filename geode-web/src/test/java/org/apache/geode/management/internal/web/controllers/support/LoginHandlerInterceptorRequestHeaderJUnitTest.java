@@ -18,8 +18,9 @@ package org.apache.geode.management.internal.web.controllers.support;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 
-import org.apache.geode.internal.security.SecurityService;
-import org.apache.geode.test.junit.categories.UnitTest;
+import java.util.Map;
+import java.util.Properties;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,8 +29,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.mock.web.MockHttpServletRequest;
 
-import java.util.Map;
-import java.util.Properties;
+import org.apache.geode.internal.security.SecurityService;
+import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
 public class LoginHandlerInterceptorRequestHeaderJUnitTest {
@@ -41,8 +42,7 @@ public class LoginHandlerInterceptorRequestHeaderJUnitTest {
   public void before() {
     LoginHandlerInterceptor.getEnvironment().clear();
     securityService = Mockito.mock(SecurityService.class);
-    interceptor = new LoginHandlerInterceptor();
-    interceptor.setSecurityService(securityService);
+    interceptor = new LoginHandlerInterceptor(securityService);
   }
 
   @After

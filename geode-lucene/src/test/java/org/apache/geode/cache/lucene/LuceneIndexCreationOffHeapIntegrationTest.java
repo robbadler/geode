@@ -14,6 +14,15 @@
  */
 package org.apache.geode.cache.lucene;
 
+import static org.apache.geode.cache.lucene.test.LuceneTestUtilities.REGION_NAME;
+import static org.apache.geode.cache.lucene.test.LuceneTestUtilities.createIndex;
+import static org.junit.Assert.assertEquals;
+
+import java.util.function.Consumer;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.RegionShortcut;
 import org.apache.geode.cache.lucene.test.LuceneTestUtilities;
@@ -21,19 +30,12 @@ import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.offheap.MemoryAllocatorImpl;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import java.util.function.Consumer;
-
-import static org.apache.geode.cache.lucene.test.LuceneTestUtilities.REGION_NAME;
-import static org.apache.geode.cache.lucene.test.LuceneTestUtilities.createIndex;
-import static org.junit.Assert.assertEquals;
+import org.apache.geode.test.junit.categories.LuceneTest;
 
 /**
  * Tests of lucene index creation that use off heap memory
  */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, LuceneTest.class})
 public class LuceneIndexCreationOffHeapIntegrationTest extends LuceneIntegrationTest {
 
   @Override

@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -20,24 +20,23 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.geode.cache.EntryDestroyedException;
-import org.apache.geode.cache.Region.Entry;
-import org.apache.geode.internal.cache.EntrySnapshot;
-import org.apache.geode.internal.cache.wan.parallel.ParallelGatewaySenderQueue;
 import org.apache.logging.log4j.Logger;
-import org.apache.geode.cache.CacheClosedException;
+import org.apache.lucene.store.AlreadyClosedException;
+
 import org.apache.geode.InternalGemFireError;
+import org.apache.geode.cache.CacheClosedException;
+import org.apache.geode.cache.EntryDestroyedException;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.asyncqueue.AsyncEvent;
 import org.apache.geode.cache.asyncqueue.AsyncEventListener;
-import org.apache.geode.cache.lucene.internal.repository.RepositoryManager;
 import org.apache.geode.cache.lucene.internal.repository.IndexRepository;
-import org.apache.geode.cache.query.internal.DefaultQuery;
+import org.apache.geode.cache.lucene.internal.repository.RepositoryManager;
 import org.apache.geode.internal.cache.BucketNotFoundException;
+import org.apache.geode.internal.cache.EntrySnapshot;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.PrimaryBucketException;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.lucene.store.AlreadyClosedException;
 
 /**
  * An Async event queue listener that writes all of the events in batches to Lucene
@@ -46,13 +45,15 @@ public class LuceneEventListener implements AsyncEventListener {
 
   private static LuceneExceptionObserver exceptionObserver = exception -> {
   };
+  private InternalCache cache;
 
-  Logger logger = LogService.getLogger();
+  private static final Logger logger = LogService.getLogger();
 
   private final RepositoryManager repositoryManager;
 
-  public LuceneEventListener(RepositoryManager repositoryManager) {
+  public LuceneEventListener(InternalCache cache, RepositoryManager repositoryManager) {
     this.repositoryManager = repositoryManager;
+    this.cache = cache;
   }
 
   @Override
@@ -69,17 +70,18 @@ public class LuceneEventListener implements AsyncEventListener {
       exceptionObserver.onException(e);
       throw e;
     }
-
   }
 
   protected boolean process(final List<AsyncEvent> events) {
     // Try to get a PDX instance if possible, rather than a deserialized object
-    DefaultQuery.setPdxReadSerialized(true);
+    Boolean initialPdxReadSerialized = this.cache.getPdxReadSerializedOverride();
+    cache.setPdxReadSerializedOverride(true);
 
-    Set<IndexRepository> affectedRepos = new HashSet<IndexRepository>();
+    Set<IndexRepository> affectedRepos = new HashSet<>();
 
     try {
       for (AsyncEvent event : events) {
+
         Region region = event.getRegion();
         Object key = event.getKey();
         Object callbackArgument = event.getCallbackArgument();
@@ -112,7 +114,7 @@ public class LuceneEventListener implements AsyncEventListener {
     } catch (IOException e) {
       throw new InternalGemFireError("Unable to save to lucene index", e);
     } finally {
-      DefaultQuery.setPdxReadSerialized(false);
+      cache.setPdxReadSerializedOverride(initialPdxReadSerialized);
     }
   }
 

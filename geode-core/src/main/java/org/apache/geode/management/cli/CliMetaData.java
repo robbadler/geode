@@ -14,12 +14,12 @@
  */
 package org.apache.geode.management.cli;
 
-import org.apache.geode.management.internal.cli.CliAroundInterceptor;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+
+import org.apache.geode.management.internal.cli.CliAroundInterceptor;
 
 /**
  * An annotation to define additional meta-data for commands.
@@ -32,14 +32,14 @@ import java.lang.annotation.Target;
 public @interface CliMetaData {
 
   /** Represents a default value to an option of a command. **/
-  public static final String ANNOTATION_DEFAULT_VALUE = "__DEFAULT__";
+  String ANNOTATION_DEFAULT_VALUE = "__DEFAULT__";
 
   /** Represents a null value to an option of a command. **/
-  public static final String ANNOTATION_NULL_VALUE = "__NULL__";
+  String ANNOTATION_NULL_VALUE = "__NULL__";
 
   /**
-   * Indicates that the command will only run in the gfsh shell and will not need the management
-   * service
+   * Indicates that the command will only run in the gfsh shell Gfsh ExecutionStrategy will use this
+   * flag to determine whether to invoke remote call or not.
    **/
   boolean shellOnly() default false;
 
@@ -50,6 +50,12 @@ public @interface CliMetaData {
    * to use that temp file to fit your need.
    **/
   boolean isFileDownloadOverHttp() default false;
+
+  /**
+   * Indicates whether this command would require fileData to be sent from the client. If this is
+   * true, the preExecution of the interceptor needs to return a FileResult
+   */
+  boolean isFileUploaded() default false;
 
   /**
    * Indicates that the effect of the command is persisted or the commands affects the persistent
@@ -68,7 +74,7 @@ public @interface CliMetaData {
 
   /**
    * String used as a separator when multiple values for a command are specified
-   * 
+   *
    * @deprecated since 1.2, Command methods may override both the delimiter and the escape through
    *             spring shell's {@code splittingRegex} option context
    */
@@ -84,7 +90,7 @@ public @interface CliMetaData {
    */
   @Retention(RetentionPolicy.RUNTIME)
   @Target({ElementType.METHOD})
-  public @interface AvailabilityMetadata {
+  @interface AvailabilityMetadata {
     /**
      * String describing the availability condition.
      */

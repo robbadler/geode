@@ -40,14 +40,14 @@ import org.apache.geode.cache.query.QueryInvalidException;
 import org.apache.geode.cache.query.QueryService;
 import org.apache.geode.cache.query.RegionNotFoundException;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
-import org.apache.geode.redis.internal.executor.ExpirationExecutor;
-import org.apache.geode.redis.internal.executor.ListQuery;
-import org.apache.geode.redis.internal.executor.SortedSetQuery;
 import org.apache.geode.internal.hll.HyperLogLogPlus;
 import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.cli.Result.Status;
-import org.apache.geode.management.internal.cli.commands.CreateAlterDestroyRegionCommands;
+import org.apache.geode.management.internal.cli.commands.CreateRegionCommand;
 import org.apache.geode.redis.GeodeRedisServer;
+import org.apache.geode.redis.internal.executor.ExpirationExecutor;
+import org.apache.geode.redis.internal.executor.ListQuery;
+import org.apache.geode.redis.internal.executor.SortedSetQuery;
 
 /**
  * This class stands between {@link Executor} and {@link Cache#getRegion(String)}. This is needed
@@ -81,12 +81,11 @@ public class RegionProvider implements Closeable {
   private final Cache cache;
   private final QueryService queryService;
   private final ConcurrentMap<ByteArrayWrapper, Map<Enum<?>, Query>> preparedQueries =
-      new ConcurrentHashMap<ByteArrayWrapper, Map<Enum<?>, Query>>();
+      new ConcurrentHashMap<>();
   private final ConcurrentMap<ByteArrayWrapper, ScheduledFuture<?>> expirationsMap;
   private final ScheduledExecutorService expirationExecutor;
   private final RegionShortcut defaultRegionType;
-  private static final CreateAlterDestroyRegionCommands cliCmds =
-      new CreateAlterDestroyRegionCommands();
+  private static final CreateRegionCommand createRegionCmd = new CreateRegionCommand();
   private final ConcurrentHashMap<String, Lock> locks;
 
   public RegionProvider(Region<ByteArrayWrapper, ByteArrayWrapper> stringsRegion,
@@ -96,7 +95,7 @@ public class RegionProvider implements Closeable {
       ScheduledExecutorService expirationExecutor, RegionShortcut defaultShortcut) {
     if (stringsRegion == null || hLLRegion == null || redisMetaRegion == null)
       throw new NullPointerException();
-    this.regions = new ConcurrentHashMap<ByteArrayWrapper, Region<?, ?>>();
+    this.regions = new ConcurrentHashMap<>();
     this.stringsRegion = stringsRegion;
     this.hLLRegion = hLLRegion;
     this.redisMetaRegion = redisMetaRegion;
@@ -105,7 +104,7 @@ public class RegionProvider implements Closeable {
     this.expirationsMap = expirationsMap;
     this.expirationExecutor = expirationExecutor;
     this.defaultRegionType = defaultShortcut;
-    this.locks = new ConcurrentHashMap<String, Lock>();
+    this.locks = new ConcurrentHashMap<>();
   }
 
   public boolean existsKey(ByteArrayWrapper key) {
@@ -325,7 +324,7 @@ public class RegionProvider implements Closeable {
 
   /**
    * SYNCHRONIZE EXTERNALLY OF this.locks.get(key.toString())!!!!!
-   * 
+   *
    * @param key Key of region to destroy
    * @param type Type of region to destroyu
    * @return Flag if destroyed
@@ -346,7 +345,7 @@ public class RegionProvider implements Closeable {
 
   /**
    * Do not call this method if you are not synchronized on the lock associated with this key
-   * 
+   *
    * @param key Key of region to remove
    * @param type Type of key to remove all state
    */
@@ -365,7 +364,7 @@ public class RegionProvider implements Closeable {
     } catch (IndexNameConflictException | IndexExistsException | UnsupportedOperationException e) {
       // ignore, these indexes already exist or unsupported but make sure prepared queries are made
     }
-    HashMap<Enum<?>, Query> queryList = new HashMap<Enum<?>, Query>();
+    HashMap<Enum<?>, Query> queryList = new HashMap<>();
     for (SortedSetQuery lq : SortedSetQuery.values()) {
       String queryString = lq.getQueryString(fullpath);
       Query query = this.queryService.newQuery(queryString);
@@ -375,10 +374,10 @@ public class RegionProvider implements Closeable {
   }
 
   private void doInitializeList(ByteArrayWrapper key, Region r) {
-    r.put("head", Integer.valueOf(0));
-    r.put("tail", Integer.valueOf(0));
+    r.put("head", 0);
+    r.put("tail", 0);
     String fullpath = r.getFullPath();
-    HashMap<Enum<?>, Query> queryList = new HashMap<Enum<?>, Query>();
+    HashMap<Enum<?>, Query> queryList = new HashMap<>();
     for (ListQuery lq : ListQuery.values()) {
       String queryString = lq.getQueryString(fullpath);
       Query query = this.queryService.newQuery(queryString);
@@ -390,7 +389,7 @@ public class RegionProvider implements Closeable {
   /**
    * This method creates a Region globally with the given name. If there is an error in the
    * creation, a runtime exception will be thrown.
-   * 
+   *
    * @param key Name of Region to create
    * @return Region Region created globally
    */
@@ -400,10 +399,12 @@ public class RegionProvider implements Closeable {
     if (r != null)
       return r;
     do {
-      Result result = cliCmds.createRegion(key, defaultRegionType, null, null, true, null, null,
-          null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-          null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-          null, null);
+      createRegionCmd.setCache(cache);
+      Result result = createRegionCmd.createRegion(key, defaultRegionType, null, null, true, null,
+          null, null, null, null, null, null, null, false, false, true, false, false, false, true,
+          null, null, null, null, null, null, null, null, null, null, null, null, null, false, null,
+          null, null, null, null, null, null, null, null, null, null);
+
       r = cache.getRegion(key);
       if (result.getStatus() == Status.ERROR && r == null) {
         String err = "";
@@ -430,7 +431,7 @@ public class RegionProvider implements Closeable {
   /**
    * Checks if the given key is associated with the passed data type. If there is a mismatch, a
    * {@link RuntimeException} is thrown
-   * 
+   *
    * @param key Key to check
    * @param type Type to check to
    */
@@ -470,7 +471,7 @@ public class RegionProvider implements Closeable {
    * a delay, which means that both expiring after a time and at a time can be done but the delay to
    * expire at a time must be calculated before these calls. It is also important to note that the
    * delay is always handled in milliseconds
-   * 
+   *
    * @param key The key to set the expiration for
    * @param delay The delay in milliseconds of the expiration
    * @return True is expiration set, false otherwise
@@ -487,7 +488,7 @@ public class RegionProvider implements Closeable {
 
   /**
    * Modifies an expiration on a key
-   * 
+   *
    * @param key String key to modify expiration on
    * @param delay Delay in milliseconds to reset the expiration to
    * @return True if reset, false if not
@@ -513,7 +514,7 @@ public class RegionProvider implements Closeable {
 
   /**
    * Removes an expiration from a key
-   * 
+   *
    * @param key Key
    * @return True is expiration cancelled on the key, false otherwise
    */
@@ -530,7 +531,7 @@ public class RegionProvider implements Closeable {
 
   /**
    * Check method if key has expiration
-   * 
+   *
    * @param key Key
    * @return True if key has expiration, false otherwise
    */
@@ -540,7 +541,7 @@ public class RegionProvider implements Closeable {
 
   /**
    * Get remaining expiration time
-   * 
+   *
    * @param key Key
    * @return Remaining time in milliseconds or 0 if no delay or key doesn't exist
    */

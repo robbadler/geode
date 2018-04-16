@@ -23,12 +23,11 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.lucene.LuceneServiceProvider;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.MessageWithReply;
 import org.apache.geode.distributed.internal.PooledDistributionMessage;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.distributed.internal.ReplyMessage;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.logging.LogService;
 
@@ -58,7 +57,7 @@ public class DestroyLuceneIndexMessage extends PooledDistributionMessage
   }
 
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     ReplyException replyException = null;
     try {
       if (logger.isDebugEnabled()) {
@@ -66,7 +65,7 @@ public class DestroyLuceneIndexMessage extends PooledDistributionMessage
             + "; indexName=" + this.indexName);
       }
       try {
-        InternalCache cache = GemFireCacheImpl.getInstance();
+        InternalCache cache = dm.getCache();
         LuceneServiceImpl impl = (LuceneServiceImpl) LuceneServiceProvider.get(cache);
         impl.destroyIndex(this.indexName, this.regionPath, false);
         if (logger.isDebugEnabled()) {

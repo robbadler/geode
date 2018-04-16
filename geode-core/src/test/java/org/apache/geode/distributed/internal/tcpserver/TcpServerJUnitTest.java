@@ -19,21 +19,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import org.apache.geode.DataSerializable;
-import org.apache.geode.cache.GemFireCache;
-import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.distributed.internal.ClusterConfigurationService;
-import org.apache.geode.distributed.internal.DistributionConfigImpl;
-import org.apache.geode.distributed.internal.PoolStatHelper;
-import org.apache.geode.internal.AvailablePort;
-import org.apache.geode.internal.net.SocketCreatorFactory;
-import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.apache.geode.test.junit.categories.MembershipTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -44,6 +29,23 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.DataSerializable;
+import org.apache.geode.cache.GemFireCache;
+import org.apache.geode.distributed.DistributedSystem;
+import org.apache.geode.distributed.internal.DistributionConfigImpl;
+import org.apache.geode.distributed.internal.InternalClusterConfigurationService;
+import org.apache.geode.distributed.internal.PoolStatHelper;
+import org.apache.geode.internal.AvailablePort;
+import org.apache.geode.internal.cache.tier.sockets.TcpServerFactory;
+import org.apache.geode.internal.net.SocketCreatorFactory;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.MembershipTest;
 
 @Category({IntegrationTest.class, MembershipTest.class})
 public class TcpServerJUnitTest {
@@ -68,8 +70,8 @@ public class TcpServerJUnitTest {
     port = AvailablePort.getRandomAvailablePort(AvailablePort.SOCKET);
 
     stats = new SimpleStats();
-    server = new TcpServer(port, localhost, new Properties(), null, handler, stats,
-        Thread.currentThread().getThreadGroup(), "server thread");
+    server = new TcpServerFactory().makeTcpServer(port, localhost, new Properties(), null, handler,
+        stats, Thread.currentThread().getThreadGroup(), "server thread", null);
     server.start();
   }
 
@@ -181,7 +183,7 @@ public class TcpServerJUnitTest {
     }
 
     public void restarting(DistributedSystem ds, GemFireCache cache,
-        ClusterConfigurationService sharedConfig) {}
+        InternalClusterConfigurationService sharedConfig) {}
 
     public void endRequest(Object request, long startTime) {}
 
@@ -214,7 +216,7 @@ public class TcpServerJUnitTest {
     public void shutDown() {}
 
     public void restarting(DistributedSystem ds, GemFireCache cache,
-        ClusterConfigurationService sharedConfig) {}
+        InternalClusterConfigurationService sharedConfig) {}
 
     public void endRequest(Object request, long startTime) {}
 

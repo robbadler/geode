@@ -17,7 +17,7 @@ package org.apache.geode.internal.cache.tier.sockets.command;
 import java.io.IOException;
 
 import org.apache.geode.cache.TransactionDataNodeHasDepartedException;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.distributed.internal.WaitForViewInstallation;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
@@ -33,6 +33,7 @@ import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.sockets.BaseCommand;
 import org.apache.geode.internal.cache.tier.sockets.Message;
 import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
+import org.apache.geode.internal.security.SecurityService;
 
 /**
  * Used for bootstrapping txState/PeerTXStateStub on the server. This command is send when in client
@@ -46,11 +47,15 @@ public class TXFailoverCommand extends BaseCommand {
     return singleton;
   }
 
-  private TXFailoverCommand() {}
+  TXFailoverCommand() {
+    // nothing
+  }
 
   @Override
-  public void cmdExecute(Message clientMessage, ServerConnection serverConnection, long start)
+  public void cmdExecute(final Message clientMessage, final ServerConnection serverConnection,
+      final SecurityService securityService, long start)
       throws IOException, ClassNotFoundException, InterruptedException {
+
     serverConnection.setAsTrue(REQUIRES_RESPONSE);
     // Build the TXId for the transaction
     InternalDistributedMember client =
@@ -59,7 +64,7 @@ public class TXFailoverCommand extends BaseCommand {
     if (logger.isDebugEnabled()) {
       logger.debug("TX: Transaction {} from {} is failing over to this server", uniqId, client);
     }
-    TXId txId = new TXId(client, uniqId);
+    TXId txId = createTXId(client, uniqId);
     TXManagerImpl mgr = (TXManagerImpl) serverConnection.getCache().getCacheTransactionManager();
     mgr.waitForCompletingTransaction(txId); // in case it's already completing here in another
                                             // thread
@@ -69,17 +74,19 @@ public class TXFailoverCommand extends BaseCommand {
       mgr.removeHostedTXState(txId);
       return;
     }
+
     boolean wasInProgress = mgr.setInProgress(true); // fixes bug 43350
     TXStateProxy tx = mgr.getTXState();
     Assert.assertTrue(tx != null);
+
     if (!tx.isRealDealLocal()) {
       // send message to all peers to find out who hosts the transaction
       FindRemoteTXMessageReplyProcessor processor =
-          FindRemoteTXMessage.send(serverConnection.getCache(), txId);
+          sendFindRemoteTXMessage(serverConnection.getCache(), txId);
       try {
         processor.waitForRepliesUninterruptibly();
       } catch (ReplyException e) {
-        e.handleAsUnexpected();
+        e.handleCause();
       }
       // if hosting member is not null, bootstrap PeerTXStateStub to that member
       // if hosting member is null, rebuild TXCommitMessage from partial TXCommitMessages
@@ -90,6 +97,10 @@ public class TXFailoverCommand extends BaseCommand {
               "TX: txState is not local, bootstrapping PeerTXState stub for targetNode: {}",
               hostingMember);
         }
+        // GEODE-3310 set the target node in the tx
+        if (tx.getTarget() == null) {
+          tx.setTarget(hostingMember);
+        }
         // inject the real deal
         tx.setLocalTXState(new PeerTXStateStub(tx, hostingMember, client));
       } else {
@@ -98,7 +109,7 @@ public class TXFailoverCommand extends BaseCommand {
         // the same keys can be used in a new transaction by the same client thread
         InternalCache cache = serverConnection.getCache();
         try {
-          WaitForViewInstallation.send((DistributionManager) cache.getDistributionManager());
+          WaitForViewInstallation.send((ClusterDistributionManager) cache.getDistributionManager());
         } catch (InterruptedException e) {
           cache.getDistributionManager().getCancelCriterion().checkCancelInProgress(e);
           Thread.currentThread().interrupt();
@@ -123,6 +134,14 @@ public class TXFailoverCommand extends BaseCommand {
     }
     writeReply(clientMessage, serverConnection);
     serverConnection.setAsTrue(RESPONDED);
+  }
+
+  FindRemoteTXMessageReplyProcessor sendFindRemoteTXMessage(InternalCache cache, TXId txId) {
+    return FindRemoteTXMessage.send(cache, txId);
+  }
+
+  TXId createTXId(InternalDistributedMember client, int uniqId) {
+    return new TXId(client, uniqId);
   }
 
 }

@@ -17,6 +17,7 @@ package org.apache.geode.internal.cache.execute;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Set;
+
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.cache.execute.ResultSender;
@@ -25,8 +26,6 @@ import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 
-/**
- */
 public abstract class StreamingFunctionOperation {
 
   protected final InternalDistributedSystem sys;

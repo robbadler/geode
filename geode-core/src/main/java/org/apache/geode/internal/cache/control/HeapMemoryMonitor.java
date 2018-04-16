@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.CacheClosedException;
-import org.apache.geode.cache.query.internal.QueryMonitor;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.SetUtils;
@@ -58,7 +57,7 @@ import org.apache.geode.internal.statistics.StatisticsImpl;
  * the thresholds are crossed. Gathering memory usage information from the JVM is done using a
  * listener on the MemoryMXBean, by polling the JVM and as a listener on GemFire Statistics output
  * in order to accommodate differences in the various JVMs.
- * 
+ *
  * @since Geode 1.0
  */
 public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
@@ -167,9 +166,9 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
   /**
    * Determines if the name of the memory pool MXBean provided matches a list of known tenured pool
    * names.
-   * 
+   *
    * Package private for testing.
-   * 
+   *
    * @param memoryPoolMXBean The memory pool MXBean to check.
    * @return True if the pool name matches a known tenured pool name, false otherwise.
    */
@@ -292,7 +291,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
 
   /**
    * Start a listener on the cache stats to monitor memory usage.
-   * 
+   *
    * @return True of the listener was correctly started, false otherwise.
    */
   private boolean startCacheStatListener() {
@@ -460,9 +459,9 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
   /**
    * Compare the number of bytes used to the thresholds. If necessary, change the state and send an
    * event for the state change.
-   * 
+   *
    * Public for testing.
-   * 
+   *
    * @param bytesUsed Number of bytes of heap memory currently used.
    */
   public void updateStateAndSendEvent(long bytesUsed) {
@@ -498,7 +497,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
 
   /**
    * Update resource manager stats based upon the given event.
-   * 
+   *
    * @param event Event from which to derive data for updating stats.
    */
   private void updateStatsFromEvent(MemoryEvent event) {
@@ -519,7 +518,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
 
   /**
    * Populate heap memory data in the given profile.
-   * 
+   *
    * @param profile Profile to populate.
    */
   @Override
@@ -550,7 +549,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
   /**
    * Sets the usage threshold on the tenured pool to either the eviction threshold or the critical
    * threshold depending on the current number of bytes used
-   * 
+   *
    * @param bytesUsed Number of bytes of heap memory currently used.
    */
   private void setUsageThresholdOnMXBean(final long bytesUsed) {
@@ -559,7 +558,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
 
   /**
    * Register with the JVM to get threshold events.
-   * 
+   *
    * Package private for testing.
    */
   void startJVMThresholdListener() {
@@ -586,7 +585,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
   /**
    * To avoid memory spikes in jrockit, we only deliver events if we receive more than
    * {@link HeapMemoryMonitor#memoryStateChangeTolerance} of the same state change.
-   * 
+   *
    * @return True if an event should be skipped, false otherwise.
    */
   private boolean skipEventDueToToleranceLimits(MemoryState oldState, MemoryState newState) {
@@ -644,9 +643,9 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
    * Deliver a memory event from one of the monitors to both local listeners and remote resource
    * managers. Also, if a critical event is received and a query monitor has been enabled, then the
    * query monitor will be notified.
-   * 
+   *
    * Package private for testing.
-   * 
+   *
    * @param event Event to process.
    */
   synchronized void processLocalEvent(MemoryEvent event) {
@@ -661,7 +660,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
           LocalizedStrings.MemoryMonitor_MEMBER_ABOVE_CRITICAL_THRESHOLD,
           new Object[] {event.getMember(), "heap"});
       if (!this.cache.isQueryMonitorDisabledForLowMemory()) {
-        QueryMonitor.setLowMemory(true, event.getBytesUsed());
+        this.cache.getQueryMonitor().setLowMemory(true, event.getBytesUsed());
         this.cache.getQueryMonitor().cancelAllQueriesDueToMemory();
       }
 
@@ -670,7 +669,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
           LocalizedStrings.MemoryMonitor_MEMBER_BELOW_CRITICAL_THRESHOLD,
           new Object[] {event.getMember(), "heap"});
       if (!this.cache.isQueryMonitorDisabledForLowMemory()) {
-        QueryMonitor.setLowMemory(false, event.getBytesUsed());
+        this.cache.getQueryMonitor().setLowMemory(false, event.getBytesUsed());
       }
     }
 
@@ -736,7 +735,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
 
   /**
    * Given a set of members, determine if any member in the set is above critical threshold.
-   * 
+   *
    * @param members The set of members to check.
    * @return True if the set contains a member above critical threshold, false otherwise
    */
@@ -750,9 +749,9 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
 
   /**
    * Determines if the given member is in a heap critical state.
-   * 
+   *
    * @param member Member to check.
-   * 
+   *
    * @return True if the member's heap memory is in a critical state, false otherwise.
    */
   public boolean isMemberHeapCritical(final InternalDistributedMember member) {
@@ -765,7 +764,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
   class LocalHeapStatListener implements LocalStatListener {
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.geode.internal.statistics.LocalStatListener#statValueChanged(double)
      */
     @Override
@@ -824,7 +823,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
 
   /**
    * Overrides the value returned by the JVM as the number of bytes of available memory.
-   * 
+   *
    * @param testMaxMemoryBytes The value to use as the maximum number of bytes of memory available.
    */
   public void setTestMaxMemoryBytes(final long testMaxMemoryBytes) {
@@ -856,7 +855,7 @@ public class HeapMemoryMonitor implements NotificationListener, MemoryMonitor {
    * based upon the new threshold value and the number of bytes currently used by the JVM, there
    * needs to be a way to override the number of bytes of memory reported as in use for testing.
    * That's what this method and the value it sets are for.
-   * 
+   *
    * @param newTestBytesUsedForThresholdSet Value to use as the amount of memory in use when calling
    *        the setEvictionThreshold or setCriticalThreshold methods are called.
    */

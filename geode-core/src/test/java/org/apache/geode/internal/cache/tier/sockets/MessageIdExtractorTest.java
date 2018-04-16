@@ -21,17 +21,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
+import java.io.DataOutputStream;
+import java.io.IOException;
+
 import org.apache.commons.io.output.ByteArrayOutputStream;
-import org.apache.geode.security.AuthenticationRequiredException;
-import org.apache.geode.test.junit.categories.UnitTest;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.io.DataOutputStream;
-import java.io.IOException;
+import org.apache.geode.internal.cache.tier.Encryptor;
+import org.apache.geode.security.AuthenticationRequiredException;
+import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
 public class MessageIdExtractorTest {
@@ -39,7 +41,7 @@ public class MessageIdExtractorTest {
   Message requestMessage;
 
   @Mock
-  HandShake handshake;
+  Encryptor encryptor;
 
   private MessageIdExtractor messageIdExtractor;
 
@@ -54,12 +56,12 @@ public class MessageIdExtractorTest {
 
     MockitoAnnotations.initMocks(this);
 
-    when(handshake.decryptBytes(any())).thenReturn(decryptedBytes);
+    when(encryptor.decryptBytes(any())).thenReturn(decryptedBytes);
   }
 
   @Test
   public void getUniqueIdFromMessage() throws Exception {
-    assertThat(messageIdExtractor.getUniqueIdFromMessage(requestMessage, handshake, connectionId))
+    assertThat(messageIdExtractor.getUniqueIdFromMessage(requestMessage, encryptor, connectionId))
         .isEqualTo(uniqueId);
   }
 
@@ -67,7 +69,7 @@ public class MessageIdExtractorTest {
   public void throwsWhenConnectionIdsDoNotMatch() throws Exception {
     long otherConnectionId = 789L;
 
-    assertThatThrownBy(() -> messageIdExtractor.getUniqueIdFromMessage(requestMessage, handshake,
+    assertThatThrownBy(() -> messageIdExtractor.getUniqueIdFromMessage(requestMessage, encryptor,
         otherConnectionId)).isInstanceOf(AuthenticationRequiredException.class);
   }
 

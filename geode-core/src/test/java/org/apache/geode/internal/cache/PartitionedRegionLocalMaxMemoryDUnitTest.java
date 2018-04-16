@@ -14,277 +14,202 @@
  */
 package org.apache.geode.internal.cache;
 
-import static org.junit.Assert.*;
+import static org.apache.geode.cache.EvictionAlgorithm.NONE;
+import static org.apache.geode.cache.EvictionAttributes.createLRUEntryAttributes;
+import static org.apache.geode.cache.PartitionAttributesFactory.RECOVERY_DELAY_DEFAULT;
+import static org.apache.geode.internal.cache.PartitionedRegion.RETRY_TIMEOUT_PROPERTY;
+import static org.apache.geode.internal.cache.PartitionedRegionHelper.BYTES_PER_MB;
+import static org.apache.geode.test.dunit.Host.getHost;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import org.apache.geode.DataSerializable;
-import org.apache.geode.DataSerializer;
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.PartitionedRegionStorageException;
+import org.apache.geode.cache.EvictionAction;
+import org.apache.geode.cache.EvictionAttributes;
 import org.apache.geode.cache.Region;
-import org.apache.geode.cache.util.ObjectSizer;
-import org.apache.geode.cache30.CacheSerializableRunnable;
-import org.apache.geode.internal.cache.lru.Sizeable;
-import org.apache.geode.test.dunit.Host;
-import org.apache.geode.test.dunit.LogWriterUtils;
-import org.apache.geode.test.dunit.SerializableRunnable;
+import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.dunit.cache.CacheTestCase;
+import org.apache.geode.test.dunit.rules.DistributedRestoreSystemProperties;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
- * This class is to test localMaxMemory property of partition region while creation of bucket.
+ * This class is to test LOCAL_MAX_MEMORY property of partition region while creation of bucket.
  */
 @Category(DistributedTest.class)
-public class PartitionedRegionLocalMaxMemoryDUnitTest extends PartitionedRegionDUnitTestCase {
+@SuppressWarnings("serial")
+public class PartitionedRegionLocalMaxMemoryDUnitTest extends CacheTestCase {
 
-  /** Prefix is used in name of Partition Region */
-  private static String prPrefix = null;
+  private static final String RETRY_TIMEOUT_PROPERTY_VALUE = "20000";
+  private static final int LOCAL_MAX_MEMORY = 1;
+  private static final long EXPECTED_LOCAL_MAX_MEMORY = LOCAL_MAX_MEMORY * BYTES_PER_MB;
+  private static final int REDUNDANCY = 1;
 
-  /** Maximum number of regions * */
-  static int MAX_REGIONS = 1;
+  private String regionName;
+  private boolean evict;
 
-  /** local maxmemory used for the creation of the partition region */
-  int localMaxMemory = 1;
+  private VM vm0;
+  private VM vm1;
 
-  /** to store references of 4 vms */
-  VM vm[] = new VM[4];
+  @Rule
+  public DistributedRestoreSystemProperties restoreSystemProperties =
+      new DistributedRestoreSystemProperties();
+
+  @Before
+  public void setUp() {
+    vm0 = getHost(0).getVM(0);
+    vm1 = getHost(0).getVM(1);
+
+    regionName = getUniqueName();
+    evict = false;
+  }
+
+  protected RegionAttributes<?, ?> createRegionAttrsForPR(int redundancy, int localMaxMemory,
+      long recoveryDelay, EvictionAttributes evictionAttributes) {
+    return PartitionedRegionTestHelper.createRegionAttrsForPR(redundancy, localMaxMemory,
+        recoveryDelay, evictionAttributes, null);
+  }
 
   /**
    * This test performs following operations <br>
-   * 1.Create Partition region with localMaxMemory = 1MB on all the VMs </br>
-   * <br>
-   * 2.Put objects in partition region so that only one bucket gets created and size of that bucket
-   * exceeds localMaxMemory <br>
-   * 3.Put object such that new bucket gets formed</br>
-   * <br>
-   * 4.Test should throw PartitionedRegionStorageException when it tries to create new bucket</br>
+   * 1. Create Partition region with LOCAL_MAX_MEMORY = 1MB on all the VMs <br>
+   * 2. Put objects in partition region so that only one bucket gets created and size of that bucket
+   * exceeds LOCAL_MAX_MEMORY <br>
+   * 3. Put object such that new bucket gets formed <br>
+   * 4. Test should create a new bucket
    */
   @Test
   public void testLocalMaxMemoryInPartitionedRegion() {
-    Host host = Host.getHost(0);
-    /** creating 4 VMs */
-    this.vm[0] = host.getVM(0);
-    this.vm[1] = host.getVM(1);
-    this.vm[2] = null;
-    this.vm[3] = null;
-    /** Prefix will be used for naming the partititon Region */
-    prPrefix = "testLocalMaxMemoryInPartitionedRegion";
-    /** these indices represents range of partition regions present in each VM */
-    int startIndexForRegion = 0;
-    int endIndexForRegion = MAX_REGIONS;
-    int startIndexForNode = 0;
-    int endIndexForNode = 2;
-    // creating partition region on 4 nodes with
-    // localMaxMemory=1MB redundancy = 3
-    List vmList = addNodeToList(startIndexForNode, endIndexForNode);
-    localMaxMemory = 1;
-    final int redundancy = 1;
-    System.setProperty(PartitionedRegion.RETRY_TIMEOUT_PROPERTY, "20000");
-    createPartitionRegion(vmList, startIndexForRegion, endIndexForRegion, localMaxMemory,
-        redundancy, false);
-    System.setProperty(PartitionedRegion.RETRY_TIMEOUT_PROPERTY,
-        Integer.toString(PartitionedRegionHelper.DEFAULT_TOTAL_WAIT_RETRY_ITERATION));
-    putFromOneVm(vm[0], true);
-    putFromOneVm(vm[0], false);
-    destroyRegion(vm[0]);
+    evict = false;
+
+    vm0.invoke(() -> createMultiplePartitionRegion(evict));
+    vm1.invoke(() -> createMultiplePartitionRegion(evict));
+
+    vm0.invoke(() -> validateEvictionIsEnabled(evict));
+    vm1.invoke(() -> validateEvictionIsEnabled(evict));
+
+    // puts to one bucket to use up LOCAL_MAX_MEMORY
+    vm0.invoke(() -> fillDataStoreWithPutsToOneBucket(10));
+    long currentAllocatedMemory = vm0.invoke(() -> validateDataStoreExceedsLocalMaxMemory());
+
+    // exceed LOCAL_MAX_MEMORY
+    vm0.invoke(() -> putOneObjectInPartitionedRegion(21));
+    vm0.invoke(() -> validateDataStoreExceeds(currentAllocatedMemory));
   }
 
   /**
-   * This test makes sure that we don't enforce the localMaxMemory setting when eviction is enabled.
+   * This test makes sure that we don't enforce the LOCAL_MAX_MEMORY setting when eviction is
+   * enabled.
    */
   @Test
   public void testLocalMaxMemoryInPartitionedRegionWithEviction() {
-    Host host = Host.getHost(0);
-    /** creating 4 VMs */
-    this.vm[0] = host.getVM(0);
-    this.vm[1] = host.getVM(1);
-    this.vm[2] = null;
-    this.vm[3] = null;
-    /** Prefix will be used for naming the partititon Region */
-    prPrefix = "testLocalMaxMemoryInPartitionedRegion";
-    /** these indices represents range of partition regions present in each VM */
-    int startIndexForRegion = 0;
-    int endIndexForRegion = MAX_REGIONS;
-    int startIndexForNode = 0;
-    int endIndexForNode = 2;
-    // creating partition region on 4 nodes with
-    // localMaxMemory=1MB redundancy = 3
-    List vmList = addNodeToList(startIndexForNode, endIndexForNode);
-    localMaxMemory = 1;
-    final int redundancy = 1;
-    System.setProperty(PartitionedRegion.RETRY_TIMEOUT_PROPERTY, "20000");
-    createPartitionRegion(vmList, startIndexForRegion, endIndexForRegion, localMaxMemory,
-        redundancy, true);
-    System.setProperty(PartitionedRegion.RETRY_TIMEOUT_PROPERTY,
-        Integer.toString(PartitionedRegionHelper.DEFAULT_TOTAL_WAIT_RETRY_ITERATION));
-    putFromOneVm(vm[0], true);
-    putFromOneVm(vm[0], true);
-    destroyRegion(vm[0]);
+    evict = true;
+
+    vm0.invoke(() -> createMultiplePartitionRegion(evict));
+    vm1.invoke(() -> createMultiplePartitionRegion(evict));
+
+    vm0.invoke(() -> validateEvictionIsEnabled(evict));
+    vm1.invoke(() -> validateEvictionIsEnabled(evict));
+
+    // puts to one bucket to use up LOCAL_MAX_MEMORY
+    vm0.invoke(() -> fillDataStoreWithPutsToOneBucket(10));
+
+    // exceed LOCAL_MAX_MEMORY
+    vm0.invoke(() -> putOneObjectInPartitionedRegion(21));
+    vm0.invoke(() -> validateDataStoreExceeds(EXPECTED_LOCAL_MAX_MEMORY));
   }
 
-  /**
-   * function is used perform put() operation from one VM
-   * 
-   * @param vm
-   * @param objectFlg
-   */
-  private void putFromOneVm(VM vm, boolean objectFlg) {
-    vm.invoke(putObjectInPartitionRegion(objectFlg));
+  private void putOneObjectInPartitionedRegion(final int objectId) {
+    Region<TestObjectWithIdentifier, TestObjectWithIdentifier> region =
+        getCache().getRegion(regionName);
+    TestObjectWithIdentifier kv =
+        new TestObjectWithIdentifier("TestObjectWithIdentifier-" + 0, objectId);
+    region.put(kv, kv);
   }
 
-  /**
-   * This function is used to put objects of different hashcode depending upon value of objectFlag
-   * 
-   * @param objectFlg
-   * @return
-   */
-  private CacheSerializableRunnable putObjectInPartitionRegion(final boolean objectFlg) {
+  private void fillDataStoreWithPutsToOneBucket(final int objectId) {
+    Region<TestObjectWithIdentifier, TestObjectWithIdentifier> region =
+        getCache().getRegion(regionName);
+    fillAllMemoryWithPuts(region, objectId);
 
-    CacheSerializableRunnable putObject = new CacheSerializableRunnable("putObject") {
-      public void run2() {
-        Cache cache = getCache();
-        PartitionedRegion pr = (PartitionedRegion) cache
-            .getRegion(Region.SEPARATOR + "testLocalMaxMemoryInPartitionedRegion0");
-        assertNotNull("Name of region : " + pr.getName(), pr);
-        int i = 0;
-
-        if (objectFlg == true) {
-          long size = 0;
-          while ((size =
-              pr.getDataStore().currentAllocatedMemory()) < PartitionedRegionHelper.BYTES_PER_MB) {
-            cache.getLogger().info("size: " + size);
-            Object obj = new TestObject1("testObject1" + i, 10);
-            pr.put(obj, obj);
-            i++;
-          }
-          assertEquals(1, pr.getDataStore().localBucket2RegionMap.size());
-          LogWriterUtils.getLogWriter()
-              .info("putObjectInPartitionRegion() - Put operation done successfully");
-        } else {
-          final String expectedExceptions = PartitionedRegionStorageException.class.getName();
-          getCache().getLogger()
-              .info("<ExpectedException action=add>" + expectedExceptions + "</ExpectedException>");
-          try {
-            TestObject1 kv = new TestObject1("testObject1" + i, 21);
-            pr.put(kv, kv);
-            fail("Bucket gets created even if no memory is available");
-          } catch (PartitionedRegionStorageException e) {
-            LogWriterUtils.getLogWriter().info(
-                "putObjectInPartitionRegion()- got correct PartitionedRegionStorageException while creating bucket when no memory is available");
-          }
-          getCache().getLogger().info(
-              "<ExpectedException action=remove>" + expectedExceptions + "</ExpectedException>");
-        }
-      }
-    };
-    return putObject;
+    PartitionedRegionDataStore dataStore = ((PartitionedRegion) region).getDataStore();
+    assertThat(dataStore.getLocalBucket2RegionMap()).hasSize(1);
   }
 
-  /**
-   * This function createas multiple partition regions on nodes specified in the vmList
-   * 
-   * @param evict
-   */
-  private void createPartitionRegion(List vmList, int startIndexForRegion, int endIndexForRegion,
-      int localMaxMemory, int redundancy, boolean evict) {
-    Iterator nodeIterator = vmList.iterator();
-    while (nodeIterator.hasNext()) {
-      VM vm = (VM) nodeIterator.next();
-      vm.invoke(createMultiplePartitionRegion(prPrefix, startIndexForRegion, endIndexForRegion,
-          redundancy, localMaxMemory, evict));
+  private void fillAllMemoryWithPuts(
+      final Region<TestObjectWithIdentifier, TestObjectWithIdentifier> region, final int objectId) {
+    PartitionedRegion partitionedRegion = (PartitionedRegion) region;
+    assertThat(partitionedRegion.getLocalMaxMemory()).isEqualTo(LOCAL_MAX_MEMORY);
+
+    PartitionedRegionDataStore dataStore = partitionedRegion.getDataStore();
+    for (int i = 0; dataStore.currentAllocatedMemory() <= EXPECTED_LOCAL_MAX_MEMORY; i++) {
+      TestObjectWithIdentifier id =
+          new TestObjectWithIdentifier("TestObjectWithIdentifier-" + i, objectId);
+      region.put(id, id);
+    }
+    assertThat(dataStore.getLocalBucket2RegionMap()).hasSize(1);
+  }
+
+  private long validateDataStoreExceedsLocalMaxMemory() {
+    Region<TestObjectWithIdentifier, TestObjectWithIdentifier> region =
+        getCache().getRegion(regionName);
+    PartitionedRegion partitionedRegion = (PartitionedRegion) region;
+    assertThat(partitionedRegion.getLocalMaxMemory()).isEqualTo(LOCAL_MAX_MEMORY);
+
+    PartitionedRegionDataStore dataStore = partitionedRegion.getDataStore();
+    assertThat(dataStore.currentAllocatedMemory())
+        .isGreaterThanOrEqualTo(EXPECTED_LOCAL_MAX_MEMORY);
+
+    return dataStore.currentAllocatedMemory();
+  }
+
+  private void validateDataStoreExceeds(final long memory) {
+    Region<TestObjectWithIdentifier, TestObjectWithIdentifier> region =
+        getCache().getRegion(regionName);
+    PartitionedRegion partitionedRegion = (PartitionedRegion) region;
+
+    PartitionedRegionDataStore dataStore = partitionedRegion.getDataStore();
+    assertThat(dataStore.currentAllocatedMemory()).isGreaterThanOrEqualTo(memory);
+  }
+
+  private void validateEvictionIsEnabled(final boolean evict) {
+    Region<TestObjectWithIdentifier, TestObjectWithIdentifier> region =
+        getCache().getRegion(regionName);
+    RegionAttributes regionAttributes = region.getAttributes();
+    if (evict) {
+      assertThat(regionAttributes.getEvictionAttributes().getAlgorithm()).isNotEqualTo(NONE);
+    } else {
+      assertThat(regionAttributes.getEvictionAttributes().getAlgorithm()).isEqualTo(NONE);
     }
   }
 
-  /**
-   * This function adds nodes to node list
-   * 
-   * @param startIndexForNode
-   * @param endIndexForNode
-   * @return
-   */
-  private List addNodeToList(int startIndexForNode, int endIndexForNode) {
-    List localvmList = new ArrayList();
-    for (int i = startIndexForNode; i < endIndexForNode; i++) {
-      localvmList.add(vm[i]);
-    }
-    return localvmList;
-  }
-
-  /**
-   * this function creates vms in given host
-   * 
-   * @param host
-   */
-  private void createVMs(Host host) {
-    for (int i = 0; i < 4; i++) {
-      vm[i] = host.getVM(i);
+  private void createMultiplePartitionRegion(final boolean evict) {
+    String value = setSystemProperty(RETRY_TIMEOUT_PROPERTY, RETRY_TIMEOUT_PROPERTY_VALUE);
+    try {
+      EvictionAttributes evictionAttributes = getEvictionAttributes(evict);
+      getCache().createRegion(regionName, createRegionAttrsForPR(REDUNDANCY, LOCAL_MAX_MEMORY,
+          RECOVERY_DELAY_DEFAULT, evictionAttributes));
+    } finally {
+      setSystemProperty(RETRY_TIMEOUT_PROPERTY, value);
     }
   }
 
-  private void destroyRegion(VM vm) {
-    SerializableRunnable destroyObj = new CacheSerializableRunnable("destroyObj") {
-      public void run2() {
-        Cache cache = getCache();
-        PartitionedRegion pr = (PartitionedRegion) cache
-            .getRegion(Region.SEPARATOR + "testLocalMaxMemoryInPartitionedRegion0");
-        assertNotNull("Name of region : " + pr.getName(), pr);
-        pr.destroyRegion();
-      }
-    };
-    vm.invoke(destroyObj);
+  private EvictionAttributes getEvictionAttributes(final boolean evict) {
+    if (evict) {
+      return createLRUEntryAttributes(Integer.MAX_VALUE, EvictionAction.LOCAL_DESTROY);
+    } else {
+      return null;
+    }
   }
 
-  /**
-   * Object used for the put() operation as key and object
-   */
-  static public class TestObject1 implements DataSerializable, Sizeable {
-    String name;
-
-    byte arr[] = new byte[1024 * 4];
-
-    int identifier;
-
-    public TestObject1() {}
-
-    public TestObject1(String objectName, int objectIndentifier) {
-      this.name = objectName;
-      Arrays.fill(this.arr, (byte) 'A');
-      this.identifier = objectIndentifier;
-    }
-
-    public int hashCode() {
-      return this.identifier;
-    }
-
-    public boolean equals(TestObject1 obj) {
-      return (this.name.equals(obj.name) && Arrays.equals(this.arr, obj.arr));
-    }
-
-    public void toData(DataOutput out) throws IOException {
-      DataSerializer.writeByteArray(this.arr, out);
-      DataSerializer.writeString(this.name, out);
-      out.writeInt(this.identifier);
-    }
-
-    public void fromData(DataInput in) throws IOException, ClassNotFoundException {
-      this.arr = DataSerializer.readByteArray(in);
-      this.name = DataSerializer.readString(in);
-      this.identifier = in.readInt();
-    }
-
-    public int getSizeInBytes() {
-      return ObjectSizer.DEFAULT.sizeof(arr) + ObjectSizer.DEFAULT.sizeof(name)
-          + ObjectSizer.DEFAULT.sizeof(identifier) + Sizeable.PER_OBJECT_OVERHEAD * 3;
+  private String setSystemProperty(final String property, final String value) {
+    if (value == null) {
+      return System.clearProperty(property);
+    } else {
+      return System.setProperty(property, value);
     }
   }
 }

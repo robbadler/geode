@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.FunctionService;
@@ -31,10 +32,10 @@ import org.apache.geode.internal.cache.LocalDataSet;
  * {@link FunctionService#onRegion(Region)}, the FunctionContext can be type casted to
  * RegionFunctionContext. Methods provided to retrieve the Region and filter passed to the function
  * execution
- * 
- * 
+ *
+ *
  * @since GemFire 6.0
- * 
+ *
  * @see FunctionContextImpl
  */
 public class RegionFunctionContextImpl extends FunctionContextImpl
@@ -50,10 +51,11 @@ public class RegionFunctionContextImpl extends FunctionContextImpl
 
   private final boolean isPossibleDuplicate;
 
-  public RegionFunctionContextImpl(final String functionId, final Region dataSet, final Object args,
-      final Set<?> routingObjects, final Map<String, LocalDataSet> colocatedLocalDataMap,
-      Set<Integer> localBucketSet, ResultSender<?> resultSender, boolean isPossibleDuplicate) {
-    super(functionId, args, resultSender);
+  public RegionFunctionContextImpl(final Cache cache, final String functionId, final Region dataSet,
+      final Object args, final Set<?> routingObjects,
+      final Map<String, LocalDataSet> colocatedLocalDataMap, Set<Integer> localBucketSet,
+      ResultSender<?> resultSender, boolean isPossibleDuplicate) {
+    super(cache, functionId, args, resultSender);
     this.dataSet = dataSet;
     this.filter = routingObjects;
     this.colocatedLocalDataMap = colocatedLocalDataMap;
@@ -72,9 +74,9 @@ public class RegionFunctionContextImpl extends FunctionContextImpl
 
   /**
    * Returns the Region on which function is executed
-   * 
+   *
    * @see FunctionService#onRegion(Region)
-   * 
+   *
    * @return Returns the Region on which function is executed
    */
   public <K, V> Region<K, V> getDataSet() {
@@ -84,9 +86,9 @@ public class RegionFunctionContextImpl extends FunctionContextImpl
   /**
    * Returns subset of keys provided by the invoking thread (aka routing objects) which may exist in
    * the local data set.
-   * 
+   *
    * @see Execution#withFilter(Set)
-   * 
+   *
    * @return the objects should be local to this context
    */
   public Set<?> getFilter() {

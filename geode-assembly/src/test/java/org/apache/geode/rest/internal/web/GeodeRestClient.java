@@ -15,6 +15,19 @@
 
 package org.apache.geode.rest.internal.web;
 
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.auth.AuthScope;
@@ -37,20 +50,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.security.KeyStore;
-import java.security.SecureRandom;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
-
 public class GeodeRestClient {
-  public final static String CONTEXT = "/geode/v1";
+  public static final String CONTEXT = "/geode/v1";
 
   private int restPort = 0;
   private String bindAddress = null;
@@ -81,7 +82,7 @@ public class GeodeRestClient {
 
   /**
    * Retrieve the status code of the HttpResponse
-   * 
+   *
    * @param response The HttpResponse message received from the server
    * @return a numeric value
    */

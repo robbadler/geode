@@ -12,19 +12,18 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
+
+import java.io.IOException;
 
 import org.apache.geode.internal.cache.EventID;
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.sockets.*;
-import java.io.IOException;
+import org.apache.geode.internal.security.SecurityService;
 
 public class PeriodicAck extends BaseCommand {
 
-  private final static PeriodicAck singleton = new PeriodicAck();
+  private static final PeriodicAck singleton = new PeriodicAck();
 
   public static Command getCommand() {
     return singleton;
@@ -33,7 +32,8 @@ public class PeriodicAck extends BaseCommand {
   private PeriodicAck() {}
 
   @Override
-  public void cmdExecute(Message clientMessage, ServerConnection serverConnection, long start)
+  public void cmdExecute(final Message clientMessage, final ServerConnection serverConnection,
+      final SecurityService securityService, long start)
       throws IOException, ClassNotFoundException {
     serverConnection.setAsTrue(REQUIRES_RESPONSE);
     if (logger.isDebugEnabled()) {

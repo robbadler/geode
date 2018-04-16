@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.Cache;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.HighPriorityDistributionMessage;
@@ -66,7 +66,7 @@ public class FindRemoteTXMessage extends HighPriorityDistributionMessage
 
   /**
    * Asks all the peers if they host a transaction for the given txId
-   * 
+   *
    * @param txId the transaction id
    * @return reply processor containing memberId of the member that hosts the transaction and a
    *         recently committed transactionMessage if any
@@ -74,7 +74,7 @@ public class FindRemoteTXMessage extends HighPriorityDistributionMessage
   public static FindRemoteTXMessageReplyProcessor send(Cache cache, TXId txId) {
     final InternalDistributedSystem system =
         (InternalDistributedSystem) cache.getDistributedSystem();
-    DM dm = system.getDistributionManager();
+    DistributionManager dm = system.getDistributionManager();
     Set recipients = dm.getOtherDistributionManagerIds();
     FindRemoteTXMessageReplyProcessor processor =
         new FindRemoteTXMessageReplyProcessor(dm, recipients, txId);
@@ -88,7 +88,7 @@ public class FindRemoteTXMessage extends HighPriorityDistributionMessage
   }
 
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     boolean sendReply = true;
     Throwable thr = null;
     try {
@@ -96,7 +96,7 @@ public class FindRemoteTXMessage extends HighPriorityDistributionMessage
         logger.debug("processing {}", this);
       }
       FindRemoteTXMessageReply reply = new FindRemoteTXMessageReply();
-      InternalCache cache = GemFireCacheImpl.getInstance();
+      InternalCache cache = dm.getCache();
       if (cache != null) {
         TXManagerImpl mgr = (TXManagerImpl) cache.getCacheTransactionManager();
         mgr.waitForCompletingTransaction(txId); // in case there is a lost commit going on
@@ -180,7 +180,8 @@ public class FindRemoteTXMessage extends HighPriorityDistributionMessage
     private TXId txId;
     private Set<TXCommitMessage> partialCommitMessages = new HashSet<TXCommitMessage>();
 
-    public FindRemoteTXMessageReplyProcessor(DM dm, Collection initMembers, TXId txId) {
+    public FindRemoteTXMessageReplyProcessor(DistributionManager dm, Collection initMembers,
+        TXId txId) {
       super(dm, initMembers);
       this.txId = txId;
     }

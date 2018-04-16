@@ -25,15 +25,12 @@ import org.apache.geode.internal.ByteArrayDataInput;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.cache.DistributedPutAllOperation;
+import org.apache.geode.internal.cache.DistributedPutAllOperation.EntryVersionsList;
+import org.apache.geode.internal.cache.DistributedPutAllOperation.PutAllEntryData;
 import org.apache.geode.internal.cache.DistributedRemoveAllOperation;
 import org.apache.geode.internal.cache.DistributedRemoveAllOperation.RemoveAllEntryData;
 import org.apache.geode.internal.cache.EntryEventImpl;
 import org.apache.geode.internal.cache.EventID;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
-import org.apache.geode.internal.cache.InternalCache;
-import org.apache.geode.internal.cache.LocalRegion;
-import org.apache.geode.internal.cache.DistributedPutAllOperation.EntryVersionsList;
-import org.apache.geode.internal.cache.DistributedPutAllOperation.PutAllEntryData;
 import org.apache.geode.internal.cache.versions.VersionTag;
 import org.apache.geode.internal.offheap.annotations.Retained;
 
@@ -41,6 +38,8 @@ public class DistTxEntryEvent extends EntryEventImpl {
 
   protected static final byte HAS_PUTALL_OP = 0x1;
   protected static final byte HAS_REMOVEALL_OP = 0x2;
+
+  private String regionName;
 
   /**
    * TODO DISTTX: callers of this constructor need to make sure that release is called. In general
@@ -53,6 +52,10 @@ public class DistTxEntryEvent extends EntryEventImpl {
 
   // For Serialization
   public DistTxEntryEvent() {}
+
+  public String getRegionName() {
+    return this.regionName;
+  }
 
   @Override
   public Version[] getSerializationVersions() {
@@ -68,7 +71,7 @@ public class DistTxEntryEvent extends EntryEventImpl {
   @Override
   public void toData(DataOutput out) throws IOException {
     DataSerializer.writeObject(this.eventID, out);
-    DataSerializer.writeObject(this.region.getFullPath(), out);
+    DataSerializer.writeObject(this.getRegion().getFullPath(), out);
     out.writeByte(this.op.ordinal);
     DataSerializer.writeObject(this.getKey(), out);
     DataSerializer.writeInteger(this.keyInfo.getBucketId(), out);
@@ -96,9 +99,7 @@ public class DistTxEntryEvent extends EntryEventImpl {
   @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     this.eventID = (EventID) DataSerializer.readObject(in);
-    String regionName = DataSerializer.readString(in);
-    InternalCache cache = GemFireCacheImpl.getInstance();
-    this.region = (LocalRegion) cache.getRegion(regionName);
+    this.regionName = DataSerializer.readString(in);
     this.op = Operation.fromOrdinal(in.readByte());
     Object key = DataSerializer.readObject(in);
     Integer bucketId = DataSerializer.readInteger(in);
@@ -107,9 +108,10 @@ public class DistTxEntryEvent extends EntryEventImpl {
                                                */, null/*
                                                        * callbackarg [DISTTX] TODO
                                                        */, bucketId);
-    basicSetNewValue(DataSerializer.readObject(in));
+    basicSetNewValue(DataSerializer.readObject(in), true);
 
     byte flags = DataSerializer.readByte(in);
+
     if ((flags & HAS_PUTALL_OP) != 0) {
       putAllFromData(in);
     }
@@ -119,10 +121,6 @@ public class DistTxEntryEvent extends EntryEventImpl {
     }
   }
 
-  /**
-   * @param out
-   * @throws IOException
-   */
   private void putAllToData(DataOutput out) throws IOException {
     DataSerializer.writeInteger(this.putAllOp.putAllDataSize, out);
     EntryVersionsList versionTags = new EntryVersionsList(this.putAllOp.putAllDataSize);
@@ -144,11 +142,6 @@ public class DistTxEntryEvent extends EntryEventImpl {
     }
   }
 
-  /**
-   * @param in
-   * @throws IOException
-   * @throws ClassNotFoundException
-   */
   private void putAllFromData(DataInput in) throws IOException, ClassNotFoundException {
     int putAllSize = DataSerializer.readInteger(in);
     PutAllEntryData[] putAllEntries = new PutAllEntryData[putAllSize];
@@ -167,18 +160,14 @@ public class DistTxEntryEvent extends EntryEventImpl {
         }
       }
     }
-    // TODO DISTTX: release this event?
-    EntryEventImpl e = EntryEventImpl.create(this.region, Operation.PUTALL_CREATE, null, null, null,
-        true, this.getDistributedMember(), true, true);
+    this.op = Operation.PUTALL_CREATE;
+    this.setOriginRemote(true);
+    this.setGenerateCallbacks(true);
 
-    this.putAllOp = new DistributedPutAllOperation(e, putAllSize, false /* [DISTTX] TODO */);
+    this.putAllOp = new DistributedPutAllOperation(this, putAllSize, false /* [DISTTX] TODO */);
     this.putAllOp.setPutAllEntryData(putAllEntries);
   }
 
-  /**
-   * @param out
-   * @throws IOException
-   */
   private void removeAllToData(DataOutput out) throws IOException {
     DataSerializer.writeInteger(this.removeAllOp.removeAllDataSize, out);
 
@@ -202,11 +191,6 @@ public class DistTxEntryEvent extends EntryEventImpl {
     }
   }
 
-  /**
-   * @param in
-   * @throws IOException
-   * @throws ClassNotFoundException
-   */
   private void removeAllFromData(DataInput in) throws IOException, ClassNotFoundException {
     int removeAllSize = DataSerializer.readInteger(in);
     final RemoveAllEntryData[] removeAllData = new RemoveAllEntryData[removeAllSize];
@@ -223,11 +207,12 @@ public class DistTxEntryEvent extends EntryEventImpl {
         removeAllData[i].versionTag = versionTags.get(i);
       }
     }
-    // TODO DISTTX: release this event
-    EntryEventImpl e = EntryEventImpl.create(this.region, Operation.REMOVEALL_DESTROY, null, null,
-        null, true, this.getDistributedMember(), true, true);
+    this.op = Operation.REMOVEALL_DESTROY;
+    this.setOriginRemote(true);
+    this.setGenerateCallbacks(true);
+
     this.removeAllOp =
-        new DistributedRemoveAllOperation(e, removeAllSize, false /* [DISTTX] TODO */);
+        new DistributedRemoveAllOperation(this, removeAllSize, false /* [DISTTX] TODO */);
     this.removeAllOp.setRemoveAllEntryData(removeAllData);
   }
 
@@ -242,8 +227,8 @@ public class DistTxEntryEvent extends EntryEventImpl {
     buf.append("[");
     buf.append("eventID=");
     buf.append(this.eventID);
-    if (this.region != null) {
-      buf.append(";r=").append(this.region.getName());
+    if (this.getRegion() != null) {
+      buf.append(";r=").append(this.getRegion().getName());
     }
     buf.append(";op=");
     buf.append(getOperation());

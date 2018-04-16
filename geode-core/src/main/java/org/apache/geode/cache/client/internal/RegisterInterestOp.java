@@ -33,14 +33,14 @@ import org.apache.geode.internal.cache.tier.sockets.VersionedObjectList;
 
 /**
  * Does a region registerInterest on a server
- * 
+ *
  * @since GemFire 5.7
  */
 public class RegisterInterestOp {
   /**
    * Does a region registerInterest on a server using connections from the given pool to communicate
    * with the server.
-   * 
+   *
    * @param pool the pool to use to communicate with the server.
    * @param region the name of the region to do the registerInterest on
    * @param key describes what we are interested in
@@ -61,7 +61,7 @@ public class RegisterInterestOp {
   /**
    * Does a region registerInterest on a server using connections from the given pool to communicate
    * with the given server location.
-   * 
+   *
    * @param sl the server to do the register interest on.
    * @param pool the pool to use to communicate with the server.
    * @param region the name of the region to do the registerInterest on
@@ -84,7 +84,7 @@ public class RegisterInterestOp {
   /**
    * Does a region registerInterest on a server using connections from the given pool to communicate
    * with the given server location.
-   * 
+   *
    * @param conn the connection to do the register interest on.
    * @param pool the pool to use to communicate with the server.
    * @param region the name of the region to do the registerInterest on
@@ -139,7 +139,7 @@ public class RegisterInterestOp {
 
     /**
      * This constructor is used by our subclass CreateCQWithIROpImpl
-     * 
+     *
      * @throws org.apache.geode.SerializationException if serialization fails
      */
     protected RegisterInterestOpImpl(String region, int msgType, int numParts) {
@@ -168,8 +168,6 @@ public class RegisterInterestOp {
           try {
             localRegion = (LocalRegion) GemFireCacheImpl.getInstance().getRegion(this.region);
           } catch (Exception ignore) {
-            // ignore but read message
-            // GemFireCacheImpl.getInstance().getLogger().config("hitesh error " + ex.getClass());
           }
 
           ArrayList list = new ArrayList();
@@ -192,14 +190,12 @@ public class RegisterInterestOp {
               throw new ServerOperationException(s, (Throwable) partObj);
               // Get the exception toString part.
               // This was added for c++ thin client and not used in java
-              // Part exceptionToStringPart = msg.getPart(1);
             } else {
               if (partObj instanceof VersionedObjectList) {
                 if (serverEntries == null) {
                   serverEntries = new VersionedObjectList(true);
                 }
                 ((VersionedObjectList) partObj).replaceNullIDs(con.getEndpoint().getMemberId());
-                // serverEntries.addAll((VersionedObjectList)partObj);
                 list.clear();
                 list.add(partObj);
 
@@ -208,8 +204,6 @@ public class RegisterInterestOp {
                     localRegion.refreshEntriesFromServerKeys(con, listOfList,
                         InterestResultPolicy.KEYS_VALUES);
                   } catch (Exception ex) {
-                    // GemFireCacheImpl.getInstance().getLogger().config("hitesh error2 " +
-                    // ex.getClass());
                   }
                 }
               } else {
@@ -237,7 +231,6 @@ public class RegisterInterestOp {
           Part part = chunkedMessage.getPart(0);
           // Get the exception toString part.
           // This was added for c++ thin client and not used in java
-          // Part exceptionToStringPart = msg.getPart(1);
           Object obj = part.getObject(); {
           String s = this + ": While performing a remote " + getOpName();
           throw new ServerOperationException(s, (Throwable) obj);

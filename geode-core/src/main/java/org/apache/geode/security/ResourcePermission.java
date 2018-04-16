@@ -14,7 +14,16 @@
  */
 package org.apache.geode.security;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+
+import org.apache.commons.lang.StringUtils;
 import org.apache.shiro.authz.permission.WildcardPermission;
+
+import org.apache.geode.cache.Region;
 
 /**
  * ResourcePermission defines the resource, the operation, the region and the key involved in the
@@ -25,81 +34,163 @@ import org.apache.shiro.authz.permission.WildcardPermission;
  */
 public class ResourcePermission extends WildcardPermission {
 
+  public static String ALL = "*";
+  public static String NULL = "NULL";
+
+  /**
+   * @deprecated use ALL
+   */
   public static String ALL_REGIONS = "*";
+  /**
+   * @deprecated use All
+   */
   public static String ALL_KEYS = "*";
 
   public enum Resource {
-    NULL, CLUSTER, DATA
+    ALL, NULL, CLUSTER, DATA;
+
+    public String getName() {
+      if (this == ALL) {
+        return ResourcePermission.ALL;
+      }
+      return name();
+    }
   }
 
   public enum Operation {
-    NULL, MANAGE, WRITE, READ
+    ALL, NULL, MANAGE, WRITE, READ;
+    public String getName() {
+      if (this == ALL) {
+        return ResourcePermission.ALL;
+      }
+      return name();
+    }
   }
 
-  // these default values are used when creating a lock around an operation
-  private Resource resource = Resource.NULL;
-  private Operation operation = Operation.NULL;
-  private String regionName = ALL_REGIONS;
-  private String key = ALL_KEYS;
+  public enum Target {
+    ALL, DISK, GATEWAY, QUERY, DEPLOY;
+    public String getName() {
+      if (this == ALL) {
+        return ResourcePermission.ALL;
+      }
+      return name();
+    }
+  }
+
+  // these default values are used when creating an allow-all lock around an operation
+  private String resource = NULL;
+  private String operation = NULL;
+  private String target = ALL;
+  private String key = ALL;
 
   public ResourcePermission() {
-    this(Resource.NULL, Operation.NULL);
-  }
-
-  public ResourcePermission(String resource, String operation) {
-    this(resource, operation, ALL_REGIONS);
-  }
-
-  public ResourcePermission(String resource, String operation, String regionName) {
-    this(resource, operation, regionName, ALL_KEYS);
-  }
-
-  public ResourcePermission(String resource, String operation, String regionName, String key) {
-    this((resource == null) ? Resource.NULL : Resource.valueOf(resource.toUpperCase()),
-        (operation == null) ? Operation.NULL : Operation.valueOf(operation.toUpperCase()),
-        regionName, key);
+    setParts(this.resource + ":" + this.operation + ":" + this.target + ":" + this.key, true);
   }
 
   public ResourcePermission(Resource resource, Operation operation) {
-    this(resource, operation, ALL_REGIONS);
+    this(resource, operation, ALL, ALL);
   }
 
-  public ResourcePermission(Resource resource, Operation operation, String regionName) {
-    this(resource, operation, regionName, ALL_KEYS);
+  public ResourcePermission(Resource resource, Operation operation, String target) {
+    this(resource, operation, target, ALL);
   }
 
-  public ResourcePermission(Resource resource, Operation operation, String regionName, String key) {
-    if (resource != null)
-      this.resource = resource;
-    if (operation != null)
-      this.operation = operation;
-    if (regionName != null)
-      this.regionName = regionName;
-    if (key != null)
+  public ResourcePermission(Resource resource, Operation operation, Target target) {
+    this(resource, operation, target, ALL);
+  }
+
+  public ResourcePermission(Resource resource, Operation operation, Target target, String key) {
+    this(resource == null ? null : resource.getName(),
+        operation == null ? null : operation.getName(), target == null ? null : target.getName(),
+        key);
+  }
+
+  public ResourcePermission(Resource resource, Operation operation, String target, String key) {
+    this(resource == null ? null : resource.getName(),
+        operation == null ? null : operation.getName(), target, key);
+  }
+
+  public ResourcePermission(String resource, String operation) {
+    this(resource, operation, ALL, ALL);
+  }
+
+  public ResourcePermission(String resource, String operation, String target) {
+    this(resource, operation, target, ALL);
+  }
+
+  public ResourcePermission(String resource, String operation, String target, String key) {
+    // what's eventually stored are either "*", "NULL" or a valid enum except ALL.
+    // Fields are never null.
+    this.resource = parsePart(resource, r -> Resource.valueOf(r).getName());
+    this.operation = parsePart(operation, o -> Operation.valueOf(o).getName());
+
+    if (target != null) {
+      this.target = StringUtils.stripStart(target, Region.SEPARATOR);
+    }
+    if (key != null) {
       this.key = key;
+    }
 
-    setParts(this.resource + ":" + this.operation + ":" + this.regionName + ":" + this.key, true);
+    setParts(this.resource + ":" + this.operation + ":" + this.target + ":" + this.key, true);
+  }
+
+  private String parsePart(String part, UnaryOperator<String> operator) {
+    if (part == null) {
+      return NULL;
+    }
+    if (part.equals(ALL)) {
+      return ALL;
+    }
+    return operator.apply(part.toUpperCase());
   }
 
   /**
-   * Returns the resource, could be either DATA or CLUSTER
+   * Returns the resource, could be either ALL, NULL, DATA or CLUSTER
    */
   public Resource getResource() {
+    if (ALL.equals(resource)) {
+      return Resource.ALL;
+    }
+    return Resource.valueOf(resource);
+  }
+
+  /**
+   * Returns the operation, could be either ALL, NULL, MANAGE, WRITE or READ
+   */
+  public Operation getOperation() {
+    if (ALL.equals(operation)) {
+      return Operation.ALL;
+    }
+    return Operation.valueOf(operation);
+  }
+
+
+  /**
+   * could be either "*", "NULL", "DATA", "CLUSTER"
+   */
+  public String getResourceString() {
     return resource;
   }
 
   /**
-   * Returns the operation, could be either MANAGE, WRITE or READ
+   * Returns the operation, could be either "*", "NULL", "MANAGE", "WRITE" or "READ"
    */
-  public Operation getOperation() {
+  public String getOperationString() {
     return operation;
   }
 
   /**
-   * returns the regionName, could be "*", meaning all regions
+   * returns the regionName, or cluster target, could be "*", meaning all regions or all targets
+   */
+  public String getTarget() {
+    return target;
+  }
+
+  /**
+   * @deprecated use getTarget()
    */
   public String getRegionName() {
-    return regionName;
+    return getTarget();
   }
 
   /**
@@ -111,13 +202,18 @@ public class ResourcePermission extends WildcardPermission {
 
   @Override
   public String toString() {
-    if (ALL_REGIONS.equals(regionName)) {
-      return getResource() + ":" + getOperation();
-    } else if (ALL_KEYS.equals(key)) {
-      return resource + ":" + operation + ":" + regionName;
-    } else {
-      return resource + ":" + operation + ":" + regionName + ":" + key;
+    List<String> parts = new ArrayList<>(Arrays.asList(resource, operation, target, key));
+    if (ALL.equals(key)) {
+      parts.remove(3);
+      if (ALL.equals(target)) {
+        parts.remove(2);
+        if (ALL.equals(operation)) {
+          parts.remove(1);
+        }
+      }
     }
+
+    return parts.stream().collect(Collectors.joining(":"));
   }
 
 }

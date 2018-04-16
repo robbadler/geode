@@ -18,7 +18,6 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,9 +29,9 @@ import org.apache.geode.internal.admin.remote.DistributionLocatorId;
 
 /**
  * List of remote locators as a response
- * 
- * 
- * 
+ *
+ *
+ *
  */
 public class RemoteLocatorJoinResponse implements DataSerializableFixedID {
 

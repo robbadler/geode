@@ -14,28 +14,31 @@
  */
 package org.apache.geode.test.dunit;
 
-import java.io.Serializable;
-import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
 import org.apache.geode.test.dunit.internal.InternalBlackboard;
 import org.apache.geode.test.dunit.internal.InternalBlackboardImpl;
 
 /**
  * DUnitBlackboard provides mailboxes and synchronization gateways for distributed unit tests.
+ *
  * <p>
  * Tests may use the blackboard to pass objects and status between JVMs with mailboxes instead of
  * using static variables in classes. The caveat being that the objects will be serialized using
  * Java serialization.
+ *
  * <p>
  * Gates may be used to synchronize operations between unit test JVMs. Combined with Awaitility
  * these can be used to test for conditions being met, actions having happened, etc.
+ *
  * <p>
  * Look for references to the given methods in your IDE for examples.
  */
 public class DUnitBlackboard {
-  InternalBlackboard blackboard;
+
+  private InternalBlackboard blackboard;
 
   public DUnitBlackboard() {
     blackboard = InternalBlackboardImpl.getInstance();
@@ -75,7 +78,6 @@ public class DUnitBlackboard {
     } catch (RemoteException e) {
       throw new RuntimeException("remote call failed", e);
     }
-
   }
 
   /**
@@ -114,12 +116,11 @@ public class DUnitBlackboard {
   /**
    * retrieve an object from a mailbox slot
    */
-  public Object getMailbox(String boxName) {
+  public <T> T getMailbox(String boxName) {
     try {
       return blackboard.getMailbox(boxName);
     } catch (RemoteException e) {
       throw new RuntimeException("remote call failed", e);
     }
   }
-
 }

@@ -50,7 +50,7 @@ public class DiskStoreAttributesCreation extends UserSpecifiedDiskStoreAttribute
    * NOTE: Currently attrs will not be an instance of DiskStoreAttributesCreation. If it could be
    * then this code should be changed to use attrs' hasXXX methods to initialize the has booleans
    * when defaults is false.
-   * 
+   *
    * @param attrs the attributes to initialize this guy with.
    */
   public DiskStoreAttributesCreation(DiskStoreAttributes attrs) {
@@ -101,9 +101,7 @@ public class DiskStoreAttributesCreation extends UserSpecifiedDiskStoreAttribute
 
   /**
    * returns true if two long[] are equal
-   * 
-   * @param array1
-   * @param array2
+   *
    * @return true if equal
    */
   private boolean equal(long[] array1, long[] array2) {
@@ -121,9 +119,7 @@ public class DiskStoreAttributesCreation extends UserSpecifiedDiskStoreAttribute
 
   /**
    * returns true if two int[] are equal
-   * 
-   * @param array1
-   * @param array2
+   *
    * @return true if equal
    */
   private boolean equal(int[] array1, int[] array2) {
@@ -314,8 +310,7 @@ public class DiskStoreAttributesCreation extends UserSpecifiedDiskStoreAttribute
 
   /**
    * Checks if directories exist
-   * 
-   * @param disk_dirs
+   *
    */
   private void checkIfDirectoriesExist(File[] disk_dirs) {
     // for (int i=0; i < disk_dirs.length; i++) {

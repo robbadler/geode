@@ -15,33 +15,42 @@
 package org.apache.geode.internal.cache.execute;
 
 import static org.apache.geode.test.dunit.Wait.pause;
-import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+
+import org.apache.geode.DataSerializable;
+import org.apache.geode.DataSerializer;
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
+import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.cache.execute.ResultCollector;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
-import org.apache.geode.test.dunit.Host;
+import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.junit.categories.FlakyTest;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.junit.rules.ExpectedException;
 
 /*
  * Base class for tests of FunctionService that are agnostic to the type of Execution that they are
@@ -71,6 +80,30 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
    */
   public abstract int numberOfExecutions();
 
+
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties result = super.getDistributedSystemProperties();
+    result.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.internal.cache.execute.**;org.apache.geode.test.dunit.**");
+    return result;
+  }
+
+
+
+  @Test
+  public void functionContextGetCacheIsNotNullAndOpen() {
+    ResultCollector rc = getExecution().execute((context) -> {
+      Cache cache = context.getCache();
+      assertNotNull(cache);
+      assertFalse(cache.isClosed());
+      context.getResultSender().lastResult("done");
+    });
+    List<String> results = (List<String>) rc.getResult();
+    assertEquals(numberOfExecutions(), results.size());
+    results.stream().forEach(element -> assertEquals("done", element));
+  }
+
   @Test
   public void defaultCollectorReturnsSingleResult() {
     ResultCollector rc = getExecution().execute((context) -> {
@@ -94,6 +127,7 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
 
   @Test()
   public void defaultCollectorThrowsExceptionAfterFunctionThrowsIllegalState() {
+    IgnoredException.addIgnoredException("java.lang.IllegalStateException");
     // GEODE-1762 - clients throw from execute, but peers throw from rc.getResult
     thrown.expect(FunctionException.class);
     // GEODE-1762 - clients wrap cause in a ServerOperationException
@@ -131,7 +165,7 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
     final Object result = rc.getResult();
   }
 
-  @Test()
+  @Test
   public void defaultCollectorThrowsExceptionAfterFunctionReturnsFunctionException() {
     // GEODE-1762 - clients throw from execute, but peers throw from rc.getResult
     thrown.expect(FunctionException.class);
@@ -142,7 +176,7 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
     final Object result = rc.getResult();
   }
 
-  @Test()
+  @Test
   public void defaultCollectorThrowsExceptionAfterFunctionReturnsIllegalStateExceptionAsIntermediateResult() {
     // GEODE-1762 - clients throw from execute, but peers throw from rc.getResult
     // GEODE-1762 - client throws a ServerOperationException
@@ -156,7 +190,7 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
     final Object result = rc.getResult();
   }
 
-  @Test()
+  @Test
   public void defaultCollectorThrowsExceptionAfterFunctionReturnsFunctionExceptionAsIntermediateResult() {
     // GEODE-1762 - clients throw from execute, but peers throw from rc.getResult
     thrown.expect(FunctionException.class);
@@ -192,6 +226,7 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
   @Test
   public void customCollectorDoesNotSeeExceptionFunctionThrowsIllegalState() {
     // GEODE-1762 - clients throw from execute, but peers throw from rc.getResult
+    IgnoredException.addIgnoredException("java.lang.IllegalStateException");
     try {
       ResultCollector rc = getExecution().withCollector(customCollector).execute((context) -> {
         throw new IllegalStateException();
@@ -250,7 +285,6 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
     Assert.assertEquals(0, customCollector.getResult().size());
   }
 
-  @Category(FlakyTest.class) // GEODE-1981
   @Test
   public void customCollectorReturnsResultOfSendException() {
     ResultCollector rc = getExecution().withCollector(customCollector).execute((context) -> {
@@ -263,7 +297,6 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
     assertEquals(result, customCollector.getResult());
   }
 
-  @Category(FlakyTest.class) // GEODE-1827
   @Test
   public void customCollectorReturnsResultOfSendFunctionException() {
     ResultCollector rc = getExecution().withCollector(customCollector).execute((context) -> {
@@ -297,6 +330,28 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
     members.remove(firstMember);
     assertEquals(members, customCollector.getResult());
     assertEquals(numberOfExecutions() - 1, customCollector.getResult().size());
+  }
+
+  /**
+   * Test the a result collector will timeout using the timeout provided
+   */
+  @Test
+  public void resultCollectorHonorsFunctionTimeout() throws InterruptedException {
+    Function sleepingFunction = context -> {
+      try {
+        long endTime = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (!context.getCache().isClosed() && System.nanoTime() < endTime) {
+          Thread.sleep(10);
+        }
+      } catch (InterruptedException e) {
+        // exit
+      }
+      context.getResultSender().sendResult("FAILED");
+    };
+
+    ResultCollector collector = getExecution().execute(sleepingFunction);
+    thrown.expect(FunctionException.class);
+    collector.getResult(1, TimeUnit.SECONDS);
   }
 
   protected List<InternalDistributedMember> getAllMembers() {
@@ -340,9 +395,11 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
    * A function which will close the cache if the given member matches the member executing this
    * function
    */
-  private class CacheClosingNonHAFunction implements Function {
+  public static class CacheClosingNonHAFunction implements Function, DataSerializable {
 
-    private final InternalDistributedMember member;
+    private InternalDistributedMember member;
+
+    public CacheClosingNonHAFunction() {} // for serialization
 
     public CacheClosingNonHAFunction(final InternalDistributedMember member) {
       this.member = member;
@@ -353,7 +410,7 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
       final InternalDistributedMember myId =
           InternalDistributedSystem.getAnyInstance().getDistributedMember();
       if (myId.equals(member)) {
-        getCache().close();
+        CacheFactory.getAnyInstance().close();
         throw new CacheClosedException();
       }
       pause(1000);
@@ -363,6 +420,16 @@ public abstract class FunctionServiceBase extends JUnit4CacheTestCase {
     @Override
     public boolean isHA() {
       return false;
+    }
+
+    @Override
+    public void toData(DataOutput out) throws IOException {
+      DataSerializer.writeObject(member, out);
+    }
+
+    @Override
+    public void fromData(DataInput in) throws IOException, ClassNotFoundException {
+      member = DataSerializer.readObject(in);
     }
   }
 

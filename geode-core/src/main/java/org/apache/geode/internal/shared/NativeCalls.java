@@ -34,7 +34,7 @@ import org.apache.geode.SystemFailure;
 /**
  * Encapsulates native C/C++ calls via JNA. To obtain an instance of implementation for a platform,
  * use {@link NativeCalls#getInstance()}.
- * 
+ *
  * @since GemFire 8.0
  */
 public abstract class NativeCalls {
@@ -43,7 +43,7 @@ public abstract class NativeCalls {
    * Static instance of NativeCalls implementation. This can be one of JNA implementations in
    * <code>NativeCallsJNAImpl</code> or can fall back to a generic implementation in case JNA is not
    * available for the platform.
-   * 
+   *
    * Note: this variable is deliberately not final so that other clients can plug in their own
    * native implementations of NativeCalls.
    */
@@ -80,39 +80,15 @@ public abstract class NativeCalls {
     return instance;
   }
 
-  @SuppressWarnings("unchecked")
-  protected static Map<String, String> getModifiableJavaEnv() {
-    final Map<String, String> env = System.getenv();
-    try {
-      final Field m = env.getClass().getDeclaredField("m");
-      m.setAccessible(true);
-      return (Map<String, String>) m.get(env);
-    } catch (Exception ex) {
-      return null;
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  protected static Map<String, String> getModifiableJavaEnvWIN() {
-    try {
-      final Field envField = Class.forName("java.lang.ProcessEnvironment")
-          .getDeclaredField("theCaseInsensitiveEnvironment");
-      envField.setAccessible(true);
-      return (Map<String, String>) envField.get(null);
-    } catch (Exception ex) {
-      return null;
-    }
-  }
-
   /**
    * Get the native kernel descriptor given the java Socket. This is a horribly implementation
    * dependent code checking various cases to get to the underlying kernel socket descriptor but
    * works for the JDK's we support or intend to support directly or indirectly (e.g. GCJ for ODBC
    * clients).
-   * 
+   *
    * @param sock the java socket
    * @param sockStream the {@link InputStream} of the java socket, if available
-   * 
+   *
    * @throws UnsupportedOperationException if the kernel descriptor could not be extracted
    */
   protected int getSocketKernelDescriptor(Socket sock, InputStream sockStream)
@@ -257,21 +233,10 @@ public abstract class NativeCalls {
    * Get the value of given environment variable. This is different from
    * {@link System#getenv(String)} in that it returns the current value of the environment variable
    * in the process rather than from a static unmodifiable map created on the first call.
-   * 
+   *
    * @param name the name of the environment variable to be modified
    */
   public abstract String getEnvironment(String name);
-
-  /**
-   * Set the value of an environment variable. This modifies both the value in the process, and the
-   * cached static map maintained by JVM on the first call so further calls to
-   * {@link System#getenv(String)} will also return the modified value.
-   * 
-   * @param name the name of the environment variable to be modified
-   * @param value the new value of the environment variable; a value of null clears the existing
-   *        value
-   */
-  public abstract void setEnvironment(String name, String value);
 
   /**
    * Get the process ID of the current process.
@@ -280,7 +245,7 @@ public abstract class NativeCalls {
 
   /**
    * Check whether a process with given ID is still running.
-   * 
+   *
    * @throws UnsupportedOperationException if no native API to determine the process status could be
    *         invoked
    */
@@ -289,19 +254,19 @@ public abstract class NativeCalls {
   /**
    * Kill the process with given process ID immediately (i.e. without giving it a chance to cleanup
    * properly).
-   * 
+   *
    * @param processId the PID of the process to be kill
-   * 
+   *
    * @throws UnsupportedOperationException if no native API to kill the process could be invoked
    */
   public abstract boolean killProcess(int processId) throws UnsupportedOperationException;
 
   /**
    * Perform the steps necessary to make the current JVM a proper UNIX daemon.
-   * 
+   *
    * @param callback register callback to be invoked on catching a SIGHUP signal; SIGHUP signal is
    *        ignored if the callback is null
-   * 
+   *
    * @throws UnsupportedOperationException if the native calls could not be completed for some
    *         reason or are not available
    * @throws IllegalStateException for a non-UNIX platform
@@ -333,13 +298,13 @@ public abstract class NativeCalls {
 
   /**
    * Set given extended socket options on a Java {@link Socket}.
-   * 
+   *
    * @throws UnsupportedOperationException if the native API to set the option could not be found or
    *         invoked
-   * 
+   *
    * @return the unsupported {@link TCPSocketOptions} for the current platform and the underlying
    *         exception
-   * 
+   *
    * @see TCPSocketOptions
    */
   public abstract Map<TCPSocketOptions, Throwable> setSocketOptions(Socket sock,
@@ -428,20 +393,20 @@ public abstract class NativeCalls {
    * Callback invoked when an OS-level SIGHUP signal is caught after handler has been installed by
    * {@link NativeCalls#daemonize}. This is provided to allow for re-reading configuration files or
    * any other appropriate actions on receiving HUP signal as is the convention in other servers.
-   * 
+   *
    * @since GemFire 8.0
    */
-  public static interface RehashServerOnSIGHUP {
+  public interface RehashServerOnSIGHUP {
 
     /**
      * Perform the actions required to "rehash" the server.
      */
-    public void rehash();
+    void rehash();
   }
 
   /**
    * whether o/s supports high resolution clock or equivalent perf counter.
-   * 
+   *
    * @return true if implemented, otherwise false.
    */
   public boolean isNativeTimerEnabled() {
@@ -451,11 +416,10 @@ public abstract class NativeCalls {
   /**
    * This is fall back for jni based library implementation of NanoTimer which is more efficient
    * than current impl through jna.
-   * 
+   *
    * Linux impls create temporary timespec object and marshals that for invoking native api.
    * Shouldn't be used if to be called too many times, instead jni implementation is more desirable.
-   * 
-   * @param clock_id
+   *
    * @return nanosecond precision performance counter.
    */
   public long nanoTime(int clock_id) {
@@ -474,18 +438,15 @@ public abstract class NativeCalls {
    * A generic fallback implementation of {@link NativeCalls} when no JNA based implementation could
    * be initialized (e.g. if JNA itself does not provide an implementation for the platform, or JNA
    * is not found).
-   * 
+   *
    * @since GemFire 8.0
    */
   public static class NativeCallsGeneric extends NativeCalls {
-
-    private static final Map<String, String> javaEnv;
 
     private static final boolean isWin;
 
     static {
       isWin = System.getProperty("os.name").indexOf("Windows") >= 0;
-      javaEnv = isWin ? getModifiableJavaEnvWIN() : getModifiableJavaEnv();
     }
 
     /**
@@ -502,21 +463,6 @@ public abstract class NativeCalls {
     @Override
     public String getEnvironment(final String name) {
       return System.getenv(name);
-    }
-
-    /**
-     * @see NativeCalls#setEnvironment(String, String)
-     */
-    @Override
-    public void setEnvironment(final String name, final String value) {
-      // just change the cached map in java env if possible
-      if (javaEnv != null) {
-        if (value != null) {
-          javaEnv.put(name, value);
-        } else {
-          javaEnv.remove(name);
-        }
-      }
     }
 
     /**

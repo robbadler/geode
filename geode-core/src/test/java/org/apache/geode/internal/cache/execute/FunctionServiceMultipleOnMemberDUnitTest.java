@@ -17,20 +17,21 @@ package org.apache.geode.internal.cache.execute;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.junit.Before;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.junit.categories.DistributedTest;
-
-import org.junit.Before;
-import org.junit.experimental.categories.Category;
+import org.apache.geode.test.junit.categories.FunctionServiceTest;
 
 /**
  * Test of the behavior of a custom ResultCollector when handling exceptions
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, FunctionServiceTest.class})
 public class FunctionServiceMultipleOnMemberDUnitTest extends FunctionServiceBase {
 
   private Set<DistributedMember> members = new HashSet<DistributedMember>();
@@ -41,8 +42,8 @@ public class FunctionServiceMultipleOnMemberDUnitTest extends FunctionServiceBas
     Host host = Host.getHost(0);
     VM vm0 = host.getVM(0);
     VM vm1 = host.getVM(1);
-    members.add(vm0.invoke(() -> getSystem().getDistributedMember()));
-    members.add(vm1.invoke(() -> getSystem().getDistributedMember()));
+    members.add(vm0.invoke(() -> getCache().getDistributedSystem().getDistributedMember()));
+    members.add(vm1.invoke(() -> getCache().getDistributedSystem().getDistributedMember()));
   }
 
   @Override

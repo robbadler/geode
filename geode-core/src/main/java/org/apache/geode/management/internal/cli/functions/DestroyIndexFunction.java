@@ -18,31 +18,27 @@ import java.util.List;
 
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.Region;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.query.Index;
 import org.apache.geode.cache.query.QueryService;
-import org.apache.geode.internal.InternalEntity;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.cache.xmlcache.CacheXml;
 import org.apache.geode.management.internal.cli.domain.IndexInfo;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.management.internal.configuration.domain.XmlEntity;
 
-
-
-public class DestroyIndexFunction extends FunctionAdapter implements InternalEntity {
-
-  private static final long serialVersionUID = 1L;
+public class DestroyIndexFunction implements InternalFunction {
+  private static final long serialVersionUID = -868082551095130315L;
 
   @Override
   public void execute(FunctionContext context) {
     IndexInfo indexInfo = (IndexInfo) context.getArguments();
     String memberId = null;
 
+    CliFunctionResult result;
     try {
-      Cache cache = CacheFactory.getAnyInstance();
+      Cache cache = context.getCache();
       memberId = cache.getDistributedSystem().getDistributedMember().getId();
       QueryService queryService = cache.getQueryService();
       String indexName = indexInfo.getIndexName();
@@ -57,47 +53,55 @@ public class DestroyIndexFunction extends FunctionAdapter implements InternalEnt
         if (region != null) {
           if (indexName == null || indexName.isEmpty()) {
             queryService.removeIndexes(region);
-            context.getResultSender().lastResult(new CliFunctionResult(memberId, xmlEntity));
+            result = new CliFunctionResult(memberId, xmlEntity,
+                "Destroyed all indexes on region " + regionPath);
           } else {
             Index index = queryService.getIndex(region, indexName);
 
             if (index != null) {
               queryService.removeIndex(index);
-              context.getResultSender().lastResult(new CliFunctionResult(memberId, xmlEntity));
+              result = new CliFunctionResult(memberId, xmlEntity,
+                  "Destroyed index " + indexName + " on region " + regionPath);
+            } else if (indexInfo.isIfExists()) {
+              result = new CliFunctionResult(memberId, true,
+                  "Index " + indexName + " not found - skipped");
             } else {
-              context.getResultSender().lastResult(new CliFunctionResult(memberId, false,
-                  CliStrings.format(CliStrings.DESTROY_INDEX__INDEX__NOT__FOUND, indexName)));
+              result = new CliFunctionResult(memberId, false,
+                  CliStrings.format(CliStrings.DESTROY_INDEX__INDEX__NOT__FOUND, indexName));
             }
           }
         } else {
-          context.getResultSender().lastResult(new CliFunctionResult(memberId, false,
-              CliStrings.format(CliStrings.DESTROY_INDEX__REGION__NOT__FOUND, regionPath)));
+          result = new CliFunctionResult(memberId, false,
+              CliStrings.format(CliStrings.DESTROY_INDEX__REGION__NOT__FOUND, regionPath));
         }
-
       } else {
         if (indexName == null || indexName.isEmpty()) {
           queryService.removeIndexes();
-          context.getResultSender().lastResult(new CliFunctionResult(memberId, xmlEntity));
+          result = new CliFunctionResult(memberId, xmlEntity, "Destroyed all indexes");
         } else {
-          if (removeIndexByName(indexName, queryService)) {
-            context.getResultSender().lastResult(new CliFunctionResult(memberId, xmlEntity));
+          boolean indexRemoved = removeIndexByName(indexName, queryService);
+          if (indexRemoved) {
+            result = new CliFunctionResult(memberId, xmlEntity, "Destroyed index " + indexName);
+          } else if (indexInfo.isIfExists()) {
+            result = new CliFunctionResult(memberId, true,
+                "Index " + indexName + " not found - skipped");
           } else {
-            context.getResultSender().lastResult(new CliFunctionResult(memberId, false,
-                CliStrings.format(CliStrings.DESTROY_INDEX__INDEX__NOT__FOUND, indexName)));
+            result = new CliFunctionResult(memberId, false,
+                CliStrings.format(CliStrings.DESTROY_INDEX__INDEX__NOT__FOUND, indexName));
           }
         }
       }
     } catch (CacheClosedException e) {
-      context.getResultSender().lastResult(new CliFunctionResult(memberId, e, e.getMessage()));
+      result = new CliFunctionResult(memberId, e, e.getMessage());
     } catch (Exception e) {
-      context.getResultSender().lastResult(new CliFunctionResult(memberId, e, e.getMessage()));
+      result = new CliFunctionResult(memberId, e, e.getMessage());
     }
+
+    context.getResultSender().lastResult(result);
   }
 
   /***
-   * 
-   * @param name
-   * @param queryService
+   *
    * @return true if the index was found and removed/false if the index was not found.
    */
   private boolean removeIndexByName(String name, QueryService queryService) {

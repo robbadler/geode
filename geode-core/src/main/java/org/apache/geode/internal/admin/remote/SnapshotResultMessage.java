@@ -16,13 +16,12 @@
 
 package org.apache.geode.internal.admin.remote;
 
-import org.apache.geode.distributed.internal.*;
-import org.apache.geode.*;
-// import org.apache.geode.internal.*;
-import org.apache.geode.internal.admin.*;
-import org.apache.geode.cache.*;
 import java.io.*;
-// import java.util.*;
+
+import org.apache.geode.*;
+import org.apache.geode.cache.*;
+import org.apache.geode.distributed.internal.*;
+import org.apache.geode.internal.admin.*;
 
 public class SnapshotResultMessage extends PooledDistributionMessage implements AdminMessageType {
   private CacheSnapshot results;
@@ -36,7 +35,7 @@ public class SnapshotResultMessage extends PooledDistributionMessage implements 
   }
 
   @Override
-  public void process(DistributionManager dm) {
+  public void process(ClusterDistributionManager dm) {
     RemoteGfManagerAgent agent = dm.getAgent();
     if (agent != null) {
       agent.enqueueSnapshotResults(this);

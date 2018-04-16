@@ -121,15 +121,21 @@ public abstract class ExpiryTask extends SystemTimer.SystemTimerTask {
 
   /** Return the absolute time when idle expiration occurs, or 0 if not used */
   public long getIdleExpirationTime() throws EntryNotFoundException {
+    long idle = getIdleTimeoutInMillis();
+    if (idle > 0) {
+      return getLastAccessedTime() + idle;
+    }
+    return 0L;
+  }
+
+  protected long getIdleTimeoutInMillis() {
     long idle = getIdleAttributes().getTimeout();
-    long tilt = 0;
     if (idle > 0) {
       if (getLocalRegion() != null && !getLocalRegion().EXPIRY_UNITS_MS) {
         idle *= 1000;
       }
-      tilt = getLastAccessedTime() + idle;
     }
-    return tilt;
+    return idle;
   }
 
   /**
@@ -144,16 +150,36 @@ public abstract class ExpiryTask extends SystemTimer.SystemTimerTask {
       return extm;
   }
 
-
   /**
    * Return true if current task could have expired. Return false if expiration is impossible.
    */
   protected boolean isExpirationPossible() throws EntryNotFoundException {
     long expTime = getExpirationTime();
-    if (expTime > 0L && getNow() >= expTime) {
-      return true;
+    if (expTime > 0L) {
+      long now = getNow();
+      if (now >= expTime) {
+        if (isIdleExpiredOnOthers()) {
+          return true;
+        } else {
+          // our last access time was reset so recheck
+          expTime = getExpirationTime();
+          if (expTime > 0L && now >= expTime) {
+            return true;
+          }
+        }
+      }
     }
     return false;
+  }
+
+  /**
+   * Added for GEODE-3764.
+   *
+   * @return true if other members last access time indicates we have expired
+   */
+  protected boolean isIdleExpiredOnOthers() throws EntryNotFoundException {
+    // by default return true since we don't need to check with others
+    return true;
   }
 
   /**
@@ -182,7 +208,7 @@ public abstract class ExpiryTask extends SystemTimer.SystemTimerTask {
 
   /**
    * Test method that causes expiration to be suspended until permitExpiration is called.
-   * 
+   *
    * @since GemFire 5.0
    */
   public static void suspendExpiration() {
@@ -201,7 +227,7 @@ public abstract class ExpiryTask extends SystemTimer.SystemTimerTask {
   /**
    * Wait until permission is given for expiration to be done. Tests are allowed to suspend
    * expiration.
-   * 
+   *
    * @since GemFire 5.0
    */
   private void waitOnExpirationSuspension() {
@@ -240,7 +266,7 @@ public abstract class ExpiryTask extends SystemTimer.SystemTimerTask {
 
   /**
    * Why did this expire?
-   * 
+   *
    * @return the action to perform or null if NONE
    */
   protected ExpirationAction getAction() {
@@ -404,7 +430,7 @@ public abstract class ExpiryTask extends SystemTimer.SystemTimerTask {
   /**
    * Reschedule (or not) this task for later consideration
    */
-  abstract protected void reschedule() throws CacheException;
+  protected abstract void reschedule() throws CacheException;
 
   @Override
   public String toString() {
@@ -457,41 +483,25 @@ public abstract class ExpiryTask extends SystemTimer.SystemTimerTask {
   private static final ThreadLocal<Long> now = new ThreadLocal<Long>();
 
   /**
-   * To reduce the number of times we need to call System.currentTimeMillis you can call this method
-   * to set a thread local. Make sure and call {@link #clearNow()} in a finally block after calling
-   * this method.
+   * To reduce the number of times we need to call calculateNow, you can call this method to set now
+   * in a thread local. When the run returns the thread local is cleared.
    */
-  public static void setNow() {
-    now.set(calculateNow());
-  }
-
-  private static long calculateNow() {
-    InternalCache cache = GemFireCacheImpl.getInstance();
-    if (cache != null) {
-      // Use cache.cacheTimeMillis here. See bug 52267.
-      InternalDistributedSystem ids = cache.getInternalDistributedSystem();
-      if (ids != null) {
-        return ids.getClock().cacheTimeMillis();
-      }
+  static void doWithNowSet(LocalRegion lr, Runnable runnable) {
+    now.set(calculateNow(lr.getCache()));
+    try {
+      runnable.run();
+    } finally {
+      now.remove();
     }
-    return 0L;
   }
 
   /**
-   * Call this method after a thread has called {@link #setNow()} once you are done calling code
-   * that may call {@link #getNow()}.
-   */
-  public static void clearNow() {
-    now.remove();
-  }
-
-  /**
-   * Returns the current time in milliseconds. If the current thread has called {@link #setNow()}
-   * then that time is return.
-   * 
+   * Returns the current time in milliseconds. If the current thread has set the now thread local
+   * then that time is return. Otherwise now is calculated and returned.
+   *
    * @return the current time in milliseconds
    */
-  public static long getNow() {
+  protected long getNow() {
     long result;
     Long tl = now.get();
     if (tl != null) {
@@ -500,6 +510,21 @@ public abstract class ExpiryTask extends SystemTimer.SystemTimerTask {
       result = calculateNow();
     }
     return result;
+  }
+
+  public long calculateNow() {
+    return calculateNow(getLocalRegion().getCache());
+  }
+
+  public static long calculateNow(InternalCache cache) {
+    if (cache != null) {
+      // Use cache.cacheTimeMillis here. See bug 52267.
+      InternalDistributedSystem ids = cache.getInternalDistributedSystem();
+      if (ids != null) {
+        return ids.getClock().cacheTimeMillis();
+      }
+    }
+    return 0L;
   }
 
   // Should only be set by unit tests
@@ -512,31 +537,31 @@ public abstract class ExpiryTask extends SystemTimer.SystemTimerTask {
     /**
      * Called after entry is schedule for expiration.
      */
-    public void afterSchedule(ExpiryTask et);
+    void afterSchedule(ExpiryTask et);
 
     /**
      * Called after the given expiry task has run. This means that the time it was originally
      * scheduled to run has elapsed and the scheduler has run the task. While running the task it
      * may decide to expire it or reschedule it.
      */
-    public void afterTaskRan(ExpiryTask et);
+    void afterTaskRan(ExpiryTask et);
 
     /**
      * Called after the given expiry task has been rescheduled. afterTaskRan can still be called on
      * the same task. In some cases a task is rescheduled without expiring it. In others it is
      * expired and rescheduled.
      */
-    public void afterReschedule(ExpiryTask et);
+    void afterReschedule(ExpiryTask et);
 
     /**
      * Called after the given expiry task has expired.
      */
-    public void afterExpire(ExpiryTask et);
+    void afterExpire(ExpiryTask et);
 
     /**
      * Called when task has been canceled
      */
-    public void afterCancel(ExpiryTask et);
+    void afterCancel(ExpiryTask et);
 
   }
 }
