@@ -15,6 +15,7 @@
  */
 package org.apache.geode.tools.pulse.tests.ui;
 
+import static org.apache.geode.tools.pulse.internal.data.PulseConstants.TWO_PLACE_DECIMAL_FORMAT;
 import static org.apache.geode.tools.pulse.tests.ui.PulseTestConstants.CLUSTER_CLIENTS_ID;
 import static org.apache.geode.tools.pulse.tests.ui.PulseTestConstants.CLUSTER_FUNCTIONS_ID;
 import static org.apache.geode.tools.pulse.tests.ui.PulseTestConstants.CLUSTER_GCPAUSES_ID;
@@ -67,9 +68,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import org.apache.geode.tools.pulse.internal.data.PulseConstants;
-import org.apache.geode.tools.pulse.tests.JMXProperties;
-import org.apache.geode.tools.pulse.tests.PulseTestLocators;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.text.DecimalFormat;
+import java.util.List;
+
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -77,14 +81,9 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.interactions.Actions;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
-import java.text.DecimalFormat;
-import java.util.List;
+import org.apache.geode.tools.pulse.tests.JMXProperties;
+import org.apache.geode.tools.pulse.tests.PulseTestLocators;
 
 /**
  * If you try to run the Pulse UI Tests through your IDE without forking enabled, you will see
@@ -319,8 +318,7 @@ public abstract class PulseBase {
     searchByIdAndClick("M1&M1");
     String LoadAvg = getWebDriver().findElement(By.id(MEMBER_VIEW_LOADAVG_ID)).getText();
     String memberLoadAvg = JMXProperties.getInstance().getProperty("member.M1.loadAverage");
-    assertEquals(new DecimalFormat(PulseConstants.DECIMAL_FORMAT_PATTERN)
-        .format(Double.valueOf(memberLoadAvg)), LoadAvg);
+    assertEquals(TWO_PLACE_DECIMAL_FORMAT.format(Double.valueOf(memberLoadAvg)), LoadAvg);
   }
 
   @Ignore("WIP") // May be useful in near future
@@ -742,8 +740,7 @@ public abstract class PulseBase {
               By.xpath("//div[@id='_tooltip']/div/div/div[2]/div[" + (j + 2) + "]/div[2]/div"))
           .getText();
       String loadAvgM1 = JMXProperties.getInstance().getProperty("member.M" + (i) + ".loadAverage");
-      assertEquals(new DecimalFormat(PulseConstants.DECIMAL_FORMAT_PATTERN)
-          .format(Double.valueOf(loadAvgM1)), LoadAvgM1);
+      assertEquals(TWO_PLACE_DECIMAL_FORMAT.format(Double.valueOf(loadAvgM1)), LoadAvgM1);
 
       String ThreadsM1 = getWebDriver()
           .findElement(

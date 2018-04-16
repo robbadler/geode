@@ -41,15 +41,15 @@ import org.apache.geode.cache.query.IndexType;
 import org.apache.geode.cache.query.Query;
 import org.apache.geode.cache.query.QueryService;
 import org.apache.geode.cache.query.SelectResults;
-import org.apache.geode.cache.query.Utils;
 import org.apache.geode.cache.query.data.Portfolio;
 import org.apache.geode.cache.query.internal.QueryObserverAdapter;
 import org.apache.geode.cache.query.internal.QueryObserverHolder;
 import org.apache.geode.cache.query.internal.StructImpl;
 import org.apache.geode.cache.query.types.ObjectType;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class NestedQueryJUnitTest {
 
   private ObjectType resType1 = null;
@@ -268,7 +268,6 @@ public class NestedQueryJUnitTest {
       try {
         q = CacheUtils.getQueryService().newQuery(queries[i]);
         CacheUtils.getLogger().info("Executing query: " + queries[i]);
-        // DebuggerSupport.waitForJavaDebugger(CacheUtils.getLogger());
         r[i][0] = (SelectResults) q.execute();
         QueryObserverImpl observer = new QueryObserverImpl();
         QueryObserverHolder.setInstance(observer);
@@ -276,7 +275,6 @@ public class NestedQueryJUnitTest {
         resType1 = (r[i][0]).getCollectionType().getElementType();
         resSize1 = ((r[i][0]).size());
         set1 = ((r[i][0]).asSet());
-        // Iterator iter=set1.iterator();
 
       } catch (Exception e) {
         throw new AssertionError(e);
@@ -480,4 +478,3 @@ public class NestedQueryJUnitTest {
     }
   }
 }
-

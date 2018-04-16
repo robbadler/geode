@@ -22,24 +22,24 @@ import org.apache.geode.cache.execute.FunctionContext;
 
 /**
  * Context available when called using {@link InternalFunctionService#onRegions(Set)}
- * 
- * 
+ *
+ *
  * @since GemFire 6.5
- * 
+ *
  */
 public interface MultiRegionFunctionContext extends FunctionContext {
 
-  public Set<Region> getRegions();
+  Set<Region> getRegions();
 
   /**
    * Returns a boolean to identify whether this is a re-execute. Returns true if it is a re-execute
    * else returns false
-   * 
+   *
    * @return a boolean (true) to identify whether it is a re-execute (else false)
-   * 
+   *
    * @since GemFire 6.5
    * @see Function#isHA()
    */
-  public boolean isPossibleDuplicate();
+  boolean isPossibleDuplicate();
 
 }

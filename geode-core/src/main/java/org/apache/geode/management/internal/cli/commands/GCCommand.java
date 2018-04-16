@@ -23,9 +23,9 @@ import java.util.Set;
 import org.springframework.shell.core.annotation.CliCommand;
 import org.springframework.shell.core.annotation.CliOption;
 
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.ConverterHint;
 import org.apache.geode.management.cli.Result;
@@ -39,7 +39,7 @@ import org.apache.geode.management.internal.cli.result.TabularResultData;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
-public class GCCommand implements GfshCommand {
+public class GCCommand extends InternalGfshCommand {
   @CliCommand(value = CliStrings.GC, help = CliStrings.GC__HELP)
   @CliMetaData(relatedTopic = {CliStrings.TOPIC_GEODE_DEBUG_UTIL})
   @ResourceOperation(resource = ResourcePermission.Resource.CLUSTER,
@@ -49,7 +49,7 @@ public class GCCommand implements GfshCommand {
           help = CliStrings.GC__GROUP__HELP) String[] groups,
       @CliOption(key = CliStrings.MEMBER, optionContext = ConverterHint.ALL_MEMBER_IDNAME,
           help = CliStrings.GC__MEMBER__HELP) String memberId) {
-    InternalCache cache = getCache();
+    Cache cache = getCache();
     Result result;
     CompositeResultData gcResultTable = ResultBuilder.createCompositeResultData();
     TabularResultData resultTable = gcResultTable.addSection().addTable("Table1");
@@ -57,11 +57,7 @@ public class GCCommand implements GfshCommand {
     resultTable.setHeader(headerText);
     Set<DistributedMember> dsMembers = new HashSet<>();
     if (memberId != null && memberId.length() > 0) {
-      DistributedMember member = CliUtil.getDistributedMemberByNameOrId(memberId);
-      if (member == null) {
-        return ResultBuilder
-            .createGemFireErrorResult(memberId + CliStrings.GC__MSG__MEMBER_NOT_FOUND);
-      }
+      DistributedMember member = getMember(memberId);
       dsMembers.add(member);
       result = executeAndBuildResult(resultTable, dsMembers);
     } else if (groups != null && groups.length > 0) {
@@ -73,7 +69,7 @@ public class GCCommand implements GfshCommand {
     } else {
       // gc on entire cluster
       // exclude locators
-      dsMembers = CliUtil.getAllNormalMembers(cache);
+      dsMembers = getAllNormalMembers();
       result = executeAndBuildResult(resultTable, dsMembers);
 
     }
@@ -82,42 +78,38 @@ public class GCCommand implements GfshCommand {
 
   private Result executeAndBuildResult(TabularResultData resultTable,
       Set<DistributedMember> dsMembers) {
-    try {
-      List<?> resultList;
-      Function garbageCollectionFunction = new GarbageCollectionFunction();
-      resultList =
-          (List<?>) CliUtil.executeFunction(garbageCollectionFunction, null, dsMembers).getResult();
 
-      for (Object object : resultList) {
-        if (object instanceof Exception) {
-          LogWrapper.getInstance().fine("Exception in GC " + ((Throwable) object).getMessage(),
-              ((Throwable) object));
-          continue;
-        } else if (object instanceof Throwable) {
-          LogWrapper.getInstance().fine("Exception in GC " + ((Throwable) object).getMessage(),
-              ((Throwable) object));
-          continue;
-        }
+    List<?> resultList;
+    Function garbageCollectionFunction = new GarbageCollectionFunction();
+    resultList =
+        (List<?>) CliUtil.executeFunction(garbageCollectionFunction, null, dsMembers).getResult();
 
-        if (object != null) {
-          if (object instanceof String) {
-            // unexpected exception string - cache may be closed or something
-            return ResultBuilder.createUserErrorResult((String) object);
-          } else {
-            Map<String, String> resultMap = (Map<String, String>) object;
-            toTabularResultData(resultTable, resultMap.get("MemberId"),
-                resultMap.get("HeapSizeBeforeGC"), resultMap.get("HeapSizeAfterGC"),
-                resultMap.get("TimeSpentInGC"));
-          }
-        } else {
-          LogWrapper.getInstance().fine("ResultMap was null ");
-        }
+    for (Object object : resultList) {
+      if (object instanceof Exception) {
+        LogWrapper.getInstance(getCache())
+            .fine("Exception in GC " + ((Throwable) object).getMessage(), ((Throwable) object));
+        continue;
+      } else if (object instanceof Throwable) {
+        LogWrapper.getInstance(getCache())
+            .fine("Exception in GC " + ((Throwable) object).getMessage(), ((Throwable) object));
+        continue;
       }
-    } catch (Exception e) {
-      String stack = CliUtil.stackTraceAsString(e);
-      LogWrapper.getInstance().info("GC exception is " + stack);
-      return ResultBuilder.createGemFireErrorResult(e.getMessage() + ": " + stack);
+
+      if (object != null) {
+        if (object instanceof String) {
+          // unexpected exception string - cache may be closed or something
+          return ResultBuilder.createUserErrorResult((String) object);
+        } else {
+          Map<String, String> resultMap = (Map<String, String>) object;
+          toTabularResultData(resultTable, resultMap.get("MemberId"),
+              resultMap.get("HeapSizeBeforeGC"), resultMap.get("HeapSizeAfterGC"),
+              resultMap.get("TimeSpentInGC"));
+        }
+      } else {
+        LogWrapper.getInstance(getCache()).fine("ResultMap was null ");
+      }
     }
+
     return ResultBuilder.buildResult(resultTable);
   }
 

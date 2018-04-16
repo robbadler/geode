@@ -37,7 +37,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import org.apache.geode.distributed.internal.ShutdownMessage;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
@@ -53,14 +52,15 @@ import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
 import org.apache.geode.distributed.Locator;
 import org.apache.geode.distributed.internal.AdminMessageType;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DMStats;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.DistributionException;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.InternalLocator;
 import org.apache.geode.distributed.internal.OverflowQueueWithDMStats;
+import org.apache.geode.distributed.internal.ShutdownMessage;
 import org.apache.geode.distributed.internal.SizeableRunnable;
 import org.apache.geode.distributed.internal.StartupMessage;
 import org.apache.geode.distributed.internal.direct.DirectChannel;
@@ -120,12 +120,8 @@ public class GMSMembershipManager implements MembershipManager, Manager {
    * conserve-sockets=true. Use of this should be removed when connection pools are implemented in
    * the direct-channel
    */
-  private final ThreadLocal<Boolean> forceUseUDPMessaging = new ThreadLocal<Boolean>() {
-    @Override
-    protected Boolean initialValue() {
-      return Boolean.FALSE;
-    }
-  };
+  private final ThreadLocal<Boolean> forceUseUDPMessaging =
+      ThreadLocal.withInitial(() -> Boolean.FALSE);
 
   /**
    * Trick class to make the startup synch more visible in stack traces
@@ -153,8 +149,6 @@ public class GMSMembershipManager implements MembershipManager, Manager {
 
     // Miscellaneous state depending on the kind of event
     InternalDistributedMember member;
-    boolean crashed;
-    String reason;
     DistributionMessage dmsg;
     NetView gmsView;
 
@@ -348,7 +342,7 @@ public class GMSMembershipManager implements MembershipManager, Manager {
    *
    * @see #shunnedMembers
    */
-  static private final int SHUNNED_SUNSET = Integer
+  private static final int SHUNNED_SUNSET = Integer
       .getInteger(DistributionConfig.GEMFIRE_PREFIX + "shunned-member-timeout", 300).intValue();
 
   /**
@@ -377,7 +371,7 @@ public class GMSMembershipManager implements MembershipManager, Manager {
   /**
    * ARB: the map of latches is used to block peer handshakes till authentication is confirmed.
    */
-  final private HashMap<DistributedMember, CountDownLatch> memberLatch = new HashMap<>();
+  private final HashMap<DistributedMember, CountDownLatch> memberLatch = new HashMap<>();
 
   /**
    * Insert our own MessageReceiver between us and the direct channel, in order to correctly filter
@@ -408,7 +402,7 @@ public class GMSMembershipManager implements MembershipManager, Manager {
       handleOrDeferMessage(msg);
     }
 
-    public DistributionManager getDM() {
+    public ClusterDistributionManager getDM() {
       return upCall.getDM();
     }
 
@@ -670,7 +664,7 @@ public class GMSMembershipManager implements MembershipManager, Manager {
 
         long delta = System.currentTimeMillis() - start;
 
-        logger.info(LogMarker.DISTRIBUTION, LocalizedMessage
+        logger.info(LogMarker.DISTRIBUTION_MARKER, LocalizedMessage
             .create(LocalizedStrings.GroupMembershipService_JOINED_TOOK__0__MS, delta));
 
         NetView initialView = services.getJoinLeave().getView();
@@ -919,8 +913,12 @@ public class GMSMembershipManager implements MembershipManager, Manager {
             logger.warn(LocalizedMessage.create(
                 LocalizedStrings.GroupMembershipService_Invalid_Surprise_Member,
                 new Object[] {member, latestView}));
-            requestMemberRemoval(member,
-                "this member is no longer in the view but is initiating connections");
+            try {
+              requestMemberRemoval(member,
+                  "this member is no longer in the view but is initiating connections");
+            } catch (CancelException e) {
+              // okay to ignore
+            }
           }
         }.start();
         addShunnedMember(member);
@@ -1085,7 +1083,6 @@ public class GMSMembershipManager implements MembershipManager, Manager {
 
     // If this member is shunned or new, grab the latestViewWriteLock: update the appropriate data
     // structure.
-    // synchronized (latestViewLock) {
     if (isShunnedOrNew(m)) {
       latestViewWriteLock.lock();
       try {
@@ -1113,8 +1110,8 @@ public class GMSMembershipManager implements MembershipManager, Manager {
     if (shunned) { // bug #41538 - shun notification must be outside synchronization to avoid
       // hanging
       warnShun(m);
-      if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_VIEWS)) {
-        logger.trace(LogMarker.DISTRIBUTION_VIEWS,
+      if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_VIEWS_VERBOSE)) {
+        logger.trace(LogMarker.DISTRIBUTION_VIEWS_VERBOSE,
             "Membership: Ignoring message from shunned member <{}>:{}", m, msg);
       }
       throw new MemberShunnedException(m);
@@ -1397,6 +1394,7 @@ public class GMSMembershipManager implements MembershipManager, Manager {
    *
    * @return the current membership view coordinator
    */
+  @Override
   public DistributedMember getCoordinator() {
     latestViewReadLock.lock();
     try {
@@ -1664,11 +1662,11 @@ public class GMSMembershipManager implements MembershipManager, Manager {
    * like memberExists() this checks to see if the given ID is in the current membership view. If it
    * is in the view though we try to contact it to see if it's still around. If we can't contact it
    * then suspect messages are sent to initiate final checks
-   * 
+   *
    * @param mbr the member to verify
-   * 
+   *
    * @param reason why the check is being done (must not be blank/null)
-   * 
+   *
    * @return true if the member checks out
    */
   public boolean verifyMember(DistributedMember mbr, String reason) {
@@ -1741,19 +1739,14 @@ public class GMSMembershipManager implements MembershipManager, Manager {
       if (allDestinations)
         return null;
 
-      List<InternalDistributedMember> members = (List<InternalDistributedMember>) ex.getMembers(); // We
-      // need
-      // to
-      // return
-      // this
-      // list
-      // of
-      // failures
+      // We need to return this list of failures
+      List<InternalDistributedMember> members = (List<InternalDistributedMember>) ex.getMembers();
 
       // SANITY CHECK: If we fail to send a message to an existing member
       // of the view, we have a serious error (bug36202).
-      NetView view = services.getJoinLeave().getView(); // grab a recent view, excluding shunned
-      // members
+
+      // grab a recent view, excluding shunned members
+      NetView view = services.getJoinLeave().getView();
 
       // Iterate through members and causes in tandem :-(
       Iterator it_mem = members.iterator();
@@ -1792,7 +1785,7 @@ public class GMSMembershipManager implements MembershipManager, Manager {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.distributed.internal.membership.MembershipManager#isConnected()
    */
   public boolean isConnected() {
@@ -1951,7 +1944,7 @@ public class GMSMembershipManager implements MembershipManager, Manager {
   public boolean shutdownInProgress() {
     // Impossible condition (bug36329): make sure that we check DM's
     // view of shutdown here
-    DistributionManager dm = listener.getDM();
+    ClusterDistributionManager dm = listener.getDM();
     return shutdownInProgress || (dm != null && dm.shutdownInProgress());
   }
 
@@ -2239,7 +2232,7 @@ public class GMSMembershipManager implements MembershipManager, Manager {
   /*
    * (non-Javadoc) MembershipManager method: wait for the given member to be gone. Throws
    * TimeoutException if the wait goes too long
-   * 
+   *
    * @see
    * org.apache.geode.distributed.internal.membership.MembershipManager#waitForDeparture(org.apache.
    * geode.distributed.DistributedMember)
@@ -2377,31 +2370,6 @@ public class GMSMembershipManager implements MembershipManager, Manager {
     return services.getShutdownCause();
   }
 
-  // @Override
-  // public void membershipFailure(String reason, Exception e) {
-  // try {
-  // if (this.membershipTestHooks != null) {
-  // List l = this.membershipTestHooks;
-  // for (Iterator it=l.iterator(); it.hasNext(); ) {
-  // MembershipTestHook dml = (MembershipTestHook)it.next();
-  // dml.beforeMembershipFailure(reason, e);
-  // }
-  // }
-  // listener.membershipFailure(reason, e);
-  // if (this.membershipTestHooks != null) {
-  // List l = this.membershipTestHooks;
-  // for (Iterator it=l.iterator(); it.hasNext(); ) {
-  // MembershipTestHook dml = (MembershipTestHook)it.next();
-  // dml.afterMembershipFailure(reason, e);
-  // }
-  // }
-  // }
-  // catch (RuntimeException re) {
-  // logger.warn(LocalizedMessage.create(LocalizedStrings.GroupMembershipService_EXCEPTION_CAUGHT_WHILE_SHUTTING_DOWN),
-  // re);
-  // }
-  // }
-
   public void registerTestHook(MembershipTestHook mth) {
     // lock for additions to avoid races during startup
     latestViewWriteLock.lock();
@@ -2440,6 +2408,7 @@ public class GMSMembershipManager implements MembershipManager, Manager {
   /**
    * Test hook - be a sick member
    */
+  @Override
   public synchronized void beSick() {
     if (!beingSick) {
       beingSick = true;
@@ -2447,15 +2416,13 @@ public class GMSMembershipManager implements MembershipManager, Manager {
           this.address);
       services.getJoinLeave().beSick();
       services.getHealthMonitor().beSick();
-      if (directChannel != null) {
-        directChannel.beSick();
-      }
     }
   }
 
   /**
    * Test hook - don't answer "are you alive" requests
    */
+  @Override
   public synchronized void playDead() {
     if (!playingDead) {
       playingDead = true;
@@ -2469,6 +2436,7 @@ public class GMSMembershipManager implements MembershipManager, Manager {
   /**
    * Test hook - recover health
    */
+  @Override
   public synchronized void beHealthy() {
     if (beingSick || playingDead) {
       synchronized (startupMutex) {
@@ -2478,9 +2446,6 @@ public class GMSMembershipManager implements MembershipManager, Manager {
       }
       logger.info("GroupMembershipService.beHealthy invoked for {} - recovering health now",
           this.address);
-      if (directChannel != null) {
-        directChannel.beHealthy();
-      }
       services.getJoinLeave().beHealthy();
       services.getHealthMonitor().beHealthy();
       services.getMessenger().beHealthy();
@@ -2516,16 +2481,19 @@ public class GMSMembershipManager implements MembershipManager, Manager {
       }
     }
 
-    protected void process(DistributionManager dm) {
+    @Override
+    protected void process(ClusterDistributionManager dm) {
       // not used
     }
 
+    @Override
     public int getDSFID() {
       return 0;
     }
 
+    @Override
     public int getProcessorType() {
-      return DistributionManager.SERIAL_EXECUTOR;
+      return ClusterDistributionManager.SERIAL_EXECUTOR;
     }
   }
 
@@ -2608,7 +2576,7 @@ public class GMSMembershipManager implements MembershipManager, Manager {
    * Class <code>BoundedLinkedHashMap</code> is a bounded <code>LinkedHashMap</code>. The bound is
    * the maximum number of entries the <code>BoundedLinkedHashMap</code> can contain.
    */
-  static class BoundedLinkedHashMap<K, V> extends LinkedHashMap {
+  static class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> {
     private static final long serialVersionUID = -3419897166186852692L;
 
     /**
@@ -2628,8 +2596,15 @@ public class GMSMembershipManager implements MembershipManager, Manager {
 
   @Override
   public boolean isShutdownStarted() {
-    DistributionManager dm = listener.getDM();
+    ClusterDistributionManager dm = listener.getDM();
     return shutdownInProgress || (dm != null && dm.isShutdownStarted());
   }
 
+  public void disconnect(boolean beforeJoined) {
+    if (beforeJoined) {
+      uncleanShutdown("Failed to start distribution", null);
+    } else {
+      shutdown();
+    }
+  }
 }

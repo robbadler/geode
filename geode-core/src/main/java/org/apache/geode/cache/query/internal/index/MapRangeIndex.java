@@ -16,21 +16,24 @@ package org.apache.geode.cache.query.internal.index;
 
 import java.util.Collection;
 import java.util.Iterator;
+
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.query.IndexStatistics;
 import org.apache.geode.internal.cache.BucketRegion;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.RegionEntry;
 
 public class MapRangeIndex extends AbstractMapIndex {
   protected final RegionEntryToValuesMap entryToMapKeysMap;
 
-  MapRangeIndex(String indexName, Region region, String fromClause, String indexedExpression,
-      String projectionAttributes, String origFromClause, String origIndxExpr, String[] defintions,
-      boolean isAllKeys, String[] multiIndexingKeysPattern, Object[] mapKeys,
-      IndexStatistics stats) {
-    super(indexName, region, fromClause, indexedExpression, projectionAttributes, origFromClause,
-        origIndxExpr, defintions, isAllKeys, multiIndexingKeysPattern, mapKeys, stats);
+  MapRangeIndex(InternalCache cache, String indexName, Region region, String fromClause,
+      String indexedExpression, String projectionAttributes, String origFromClause,
+      String origIndxExpr, String[] defintions, boolean isAllKeys,
+      String[] multiIndexingKeysPattern, Object[] mapKeys, IndexStatistics stats) {
+    super(cache, indexName, region, fromClause, indexedExpression, projectionAttributes,
+        origFromClause, origIndxExpr, defintions, isAllKeys, multiIndexingKeysPattern, mapKeys,
+        stats);
     RegionAttributes ra = region.getAttributes();
     this.entryToMapKeysMap =
         new RegionEntryToValuesMap(
@@ -131,7 +134,7 @@ public class MapRangeIndex extends AbstractMapIndex {
         prIndex = (PartitionedIndex) this.getPRIndex();
         prIndex.incNumMapKeysStats(mapKey);
       }
-      rg = new RangeIndex(indexName + "-" + mapKey, region, fromClause, indexedExpression,
+      rg = new RangeIndex(cache, indexName + "-" + mapKey, region, fromClause, indexedExpression,
           projectionAttributes, this.originalFromClause, this.originalIndexedExpression,
           this.canonicalizedDefinitions, stats);
       // Shobhit: We need evaluator to verify RegionEntry and IndexEntry inconsistency.
@@ -165,7 +168,7 @@ public class MapRangeIndex extends AbstractMapIndex {
         prIndex = (PartitionedIndex) this.getPRIndex();
         prIndex.incNumMapKeysStats(mapKey);
       }
-      rg = new RangeIndex(indexName + "-" + mapKey, region, fromClause, indexedExpression,
+      rg = new RangeIndex(cache, indexName + "-" + mapKey, region, fromClause, indexedExpression,
           projectionAttributes, this.originalFromClause, this.originalIndexedExpression,
           this.canonicalizedDefinitions, stats);
       rg.evaluator = this.evaluator;

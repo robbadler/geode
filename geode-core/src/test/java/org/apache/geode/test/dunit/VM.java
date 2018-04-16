@@ -14,15 +14,18 @@
  */
 package org.apache.geode.test.dunit;
 
+import static org.apache.geode.test.dunit.standalone.DUnitLauncher.NUM_VMS;
+
 import java.io.File;
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.io.StringWriter;
 import java.rmi.RemoteException;
+import java.util.List;
 import java.util.concurrent.Callable;
 
-import org.awaitility.Awaitility;
 import hydra.MethExecutorResult;
+import org.awaitility.Awaitility;
 
 import org.apache.geode.internal.process.ProcessUtils;
 import org.apache.geode.test.dunit.standalone.BounceResult;
@@ -31,16 +34,20 @@ import org.apache.geode.test.dunit.standalone.StandAloneDUnitEnv;
 import org.apache.geode.test.dunit.standalone.VersionManager;
 
 /**
- * This class represents a Java Virtual Machine that runs on a host.
+ * This class represents a Java Virtual Machine that runs in a DistributedTest.
  */
-@SuppressWarnings("serial")
+@SuppressWarnings("serial,unused")
 public class VM implements Serializable {
 
-  /** The host on which this VM runs */
-  private Host host;
+  public static final int CONTROLLER_VM = -1;
 
-  /** The process id of this VM */
-  private int pid;
+  public static final int DEFAULT_VM_COUNT = NUM_VMS;
+
+  /** The host on which this VM runs */
+  private final Host host;
+
+  /** The sequential id of this VM */
+  private int id;
 
   /** The version of Geode used in this VM */
   private String version;
@@ -60,32 +67,60 @@ public class VM implements Serializable {
   }
 
   /**
-   * restart an unavailable VM
+   * Returns true if executed from the main JUnit VM.
    */
-  public synchronized void makeAvailable() {
-    if (!this.available) {
-      this.available = true;
-      bounce();
-    }
+  public static boolean isControllerVM() {
+    return getCurrentVMNum() == CONTROLLER_VM;
   }
 
   /**
-   * Returns the total number of {@code VM}s on all {@code Host}s (note that DUnit currently only
-   * supports one {@code Host}).
+   * Returns true if executed from a DUnit VM. Returns false if executed from the main JUnit VM.
+   */
+  public static boolean isVM() {
+    return getCurrentVMNum() != CONTROLLER_VM;
+  }
+
+  /**
+   * Returns a VM that runs in this DistributedTest.
+   *
+   * @param whichVM A zero-based identifier of the VM
+   */
+  public static VM getVM(int whichVM) {
+    return Host.getHost(0).getVM(whichVM);
+  }
+
+  /**
+   * Returns a collection of all DistributedTest VMs.
+   */
+  public static List<VM> getAllVMs() {
+    return Host.getHost(0).getAllVMs();
+  }
+
+  /**
+   * Returns the number of VMs that run in this DistributedTest.
    */
   public static int getVMCount() {
-    int count = 0;
-    for (int h = 0; h < Host.getHostCount(); h++) {
-      Host host = Host.getHost(h);
-      count += host.getVMCount();
-    }
-    return count;
+    return Host.getHost(0).getVMCount();
+  }
+
+  /**
+   * Returns the DistributedTest Locator VM.
+   */
+  public static VM getLocator() {
+    return Host.getLocator();
+  }
+
+  /**
+   * Returns the machine name hosting this DistributedTest.
+   */
+  public static String getHostName() {
+    return Host.getHost(0).getHostName();
   }
 
   /**
    * Returns the name of a VM for use in the RMI naming service or working directory on disk
    */
-  public static String getVMName(String version, int pid) {
+  public static String getVMName(final String version, final int pid) {
     if (pid == -2) {
       return "locator";
     }
@@ -98,43 +133,48 @@ public class VM implements Serializable {
 
   /**
    * Creates a new {@code VM} that runs on a given host with a given process id.
-   *
-   * TODO: change pid to reflect value from {@link ProcessUtils#identifyPid()}
    */
-  public VM(final Host host, final int pid, final RemoteDUnitVMIF client) {
-    this(host, VersionManager.CURRENT_VERSION, pid, client);
+  public VM(final Host host, final int id, final RemoteDUnitVMIF client) {
+    this(host, VersionManager.CURRENT_VERSION, id, client);
   }
 
-  public VM(final Host host, final String version, final int pid, final RemoteDUnitVMIF client) {
+  public VM(final Host host, final String version, final int id, final RemoteDUnitVMIF client) {
     this.host = host;
-    this.pid = pid;
+    this.id = id;
     this.version = version;
     this.client = client;
-    this.available = true;
+    available = true;
   }
 
   /**
    * Returns the {@code Host} on which this {@code VM} is running.
    */
   public Host getHost() {
-    return this.host;
+    return host;
   }
 
   /**
    * Returns the version of Geode used in this VM.
-   * 
+   *
    * @see VersionManager#CURRENT_VERSION
    * @see Host#getVM(String, int)
    */
   public String getVersion() {
-    return this.version;
+    return version;
+  }
+
+  /**
+   * Returns the VM id of this {@code VM}.
+   */
+  public int getId() {
+    return id;
   }
 
   /**
    * Returns the process id of this {@code VM}.
    */
   public int getPid() {
-    return this.pid;
+    return invoke(() -> ProcessUtils.identifyPid());
   }
 
   /**
@@ -148,7 +188,8 @@ public class VM implements Serializable {
    *
    * @deprecated Please use {@link #invoke(SerializableCallableIF)} instead
    */
-  public Object invoke(final Class targetClass, final String methodName) {
+  @Deprecated
+  public <V> V invoke(final Class<?> targetClass, final String methodName) {
     return invoke(targetClass, methodName, new Object[0]);
   }
 
@@ -161,7 +202,8 @@ public class VM implements Serializable {
    *
    * @deprecated Please use {@link #invoke(SerializableCallableIF)} instead
    */
-  public AsyncInvocation invokeAsync(final Class targetClass, final String methodName) {
+  @Deprecated
+  public <V> AsyncInvocation<V> invokeAsync(final Class<?> targetClass, final String methodName) {
     return invokeAsync(targetClass, methodName, null);
   }
 
@@ -178,8 +220,9 @@ public class VM implements Serializable {
    *
    * @deprecated Please use {@link #invoke(SerializableCallableIF)} instead
    */
-  public Object invoke(final Class targetClass, final String methodName, final Object[] args) {
-    if (!this.available) {
+  @Deprecated
+  public <V> V invoke(final Class<?> targetClass, final String methodName, final Object[] args) {
+    if (!available) {
       throw new RMIException(this, targetClass.getName(), methodName,
           new IllegalStateException("VM not available: " + this));
     }
@@ -187,7 +230,7 @@ public class VM implements Serializable {
     MethExecutorResult result = execute(targetClass, methodName, args);
 
     if (!result.exceptionOccurred()) {
-      return result.getResult();
+      return (V) result.getResult();
 
     } else {
       throw new RMIException(this, targetClass.getName(), methodName, result.getException(),
@@ -205,9 +248,10 @@ public class VM implements Serializable {
    *
    * @deprecated Please use {@link #invoke(SerializableCallableIF)} instead
    */
-  public AsyncInvocation invokeAsync(final Object targetObject, final String methodName,
+  @Deprecated
+  public <V> AsyncInvocation<V> invokeAsync(final Object targetObject, final String methodName,
       final Object[] args) {
-    return new AsyncInvocation(targetObject, methodName,
+    return new AsyncInvocation<V>(targetObject, methodName,
         () -> invoke(targetObject, methodName, args)).start();
   }
 
@@ -221,10 +265,11 @@ public class VM implements Serializable {
    *
    * @deprecated Please use {@link #invoke(SerializableCallableIF)} instead
    */
-  public AsyncInvocation invokeAsync(final Class<?> targetClass, final String methodName,
+  @Deprecated
+  public <V> AsyncInvocation<V> invokeAsync(final Class<?> targetClass, final String methodName,
       final Object[] args) {
-    return new AsyncInvocation(targetClass, methodName, () -> invoke(targetClass, methodName, args))
-        .start();
+    return new AsyncInvocation<V>(targetClass, methodName,
+        () -> invoke(targetClass, methodName, args)).start();
   }
 
   /**
@@ -235,7 +280,7 @@ public class VM implements Serializable {
    *
    * @see SerializableRunnable
    */
-  public AsyncInvocation invokeAsync(final SerializableRunnableIF runnable) {
+  public <V> AsyncInvocation<V> invokeAsync(final SerializableRunnableIF runnable) {
     return invokeAsync(runnable, "run", new Object[0]);
   }
 
@@ -249,7 +294,8 @@ public class VM implements Serializable {
    *
    * @see SerializableRunnable
    */
-  public AsyncInvocation invokeAsync(final String name, final SerializableRunnableIF runnable) {
+  public <V> AsyncInvocation<V> invokeAsync(final String name,
+      final SerializableRunnableIF runnable) {
     return invokeAsync(new NamedRunnable(name, runnable), "run", new Object[0]);
   }
 
@@ -261,9 +307,9 @@ public class VM implements Serializable {
    *
    * @see SerializableCallable
    */
-  public <T> AsyncInvocation<T> invokeAsync(final String name,
-      final SerializableCallableIF<T> callable) {
-    return invokeAsync(new NamedCallable(name, callable), "call", new Object[0]);
+  public <V> AsyncInvocation<V> invokeAsync(final String name,
+      final SerializableCallableIF<V> callable) {
+    return invokeAsync(new NamedCallable<>(name, callable), "call", new Object[0]);
   }
 
   /**
@@ -273,7 +319,7 @@ public class VM implements Serializable {
    *
    * @see SerializableCallable
    */
-  public <T> AsyncInvocation<T> invokeAsync(final SerializableCallableIF<T> callable) {
+  public <V> AsyncInvocation<V> invokeAsync(final SerializableCallableIF<V> callable) {
     return invokeAsync(callable, "call", new Object[0]);
   }
 
@@ -310,8 +356,8 @@ public class VM implements Serializable {
    *
    * @see SerializableCallable
    */
-  public <T> T invoke(final String name, final SerializableCallableIF<T> callable) {
-    return (T) invoke(new NamedCallable(name, callable), "call");
+  public <V> V invoke(final String name, final SerializableCallableIF<V> callable) {
+    return invoke(new NamedCallable<>(name, callable), "call");
   }
 
   /**
@@ -321,8 +367,8 @@ public class VM implements Serializable {
    *
    * @see SerializableCallable
    */
-  public <T> T invoke(final SerializableCallableIF<T> callable) {
-    return (T) invoke(callable, "call");
+  public <V> V invoke(final SerializableCallableIF<V> callable) {
+    return invoke(callable, "call");
   }
 
   /**
@@ -331,10 +377,11 @@ public class VM implements Serializable {
    * until it either succeeds, or repeatTimeoutMs has passed. The AssertionError is thrown back to
    * the sender of this method if {@code run} has not completed successfully before repeatTimeoutMs
    * has passed.
-   * 
+   *
    * @deprecated Please use {@link Awaitility} to await condition and then
    *             {@link #invoke(SerializableCallableIF)} instead.
    */
+  @Deprecated
   public void invokeRepeatingIfNecessary(final RepeatableRunnable runnable,
       final long repeatTimeoutMs) {
     invoke(runnable, "runRepeatingIfNecessary", new Object[] {repeatTimeoutMs});
@@ -353,7 +400,8 @@ public class VM implements Serializable {
    *
    * @deprecated Please use {@link #invoke(SerializableCallableIF)} instead.
    */
-  public Object invoke(final Object targetObject, final String methodName) {
+  @Deprecated
+  public <V> V invoke(final Object targetObject, final String methodName) {
     return invoke(targetObject, methodName, new Object[0]);
   }
 
@@ -371,8 +419,9 @@ public class VM implements Serializable {
    *
    * @deprecated Please use {@link #invoke(SerializableCallableIF)} instead.
    */
-  public Object invoke(final Object targetObject, final String methodName, final Object[] args) {
-    if (!this.available) {
+  @Deprecated
+  public <V> V invoke(final Object targetObject, final String methodName, final Object[] args) {
+    if (!available) {
       throw new RMIException(this, targetObject.getClass().getName(), methodName,
           new IllegalStateException("VM not available: " + this));
     }
@@ -380,7 +429,7 @@ public class VM implements Serializable {
     MethExecutorResult result = execute(targetObject, methodName, args);
 
     if (!result.exceptionOccurred()) {
-      return result.getResult();
+      return (V) result.getResult();
 
     } else {
       throw new RMIException(this, targetObject.getClass().getName(), methodName,
@@ -389,63 +438,69 @@ public class VM implements Serializable {
   }
 
   /**
+   * Restart an unavailable VM
+   */
+  public synchronized void makeAvailable() {
+    if (!available) {
+      available = true;
+      bounce();
+    }
+  }
+
+  /**
    * Synchronously bounces (mean kills and restarts) this {@code VM}. Concurrent bounce attempts are
    * synchronized but attempts to invoke methods on a bouncing {@code VM} will cause test failure.
    * Tests using bounce should be placed at the end of the DUnit test suite, since an exception here
    * will cause all tests using the unsuccessfully bounced {@code VM} to fail.
-   * 
+   *
    * This method is currently not supported by the standalone DUnit runner.
    *
-   * @throws RMIException if an exception occurs while bouncing this {@code VM}, for example a
-   *         {@code HydraTimeoutException} if the {@code VM} fails to stop within
-   *         {@code hydra.Prms#maxClientShutdownWaitSec} or restart within
-   *         {@code hydra.Prms#maxClientStartupWaitSec}.
+   * @throws RMIException if an exception occurs while bouncing this {@code VM}
    */
   public synchronized void bounce() {
-    bounce(this.version);
+    bounce(version);
   }
 
-  public synchronized void bounce(String targetVersion) {
-    if (!this.available) {
+  public synchronized void bounce(final String targetVersion) {
+    if (!available) {
       throw new RMIException(this, getClass().getName(), "bounceVM",
           new IllegalStateException("VM not available: " + this));
     }
 
-    this.available = false;
+    available = false;
 
     try {
-      BounceResult result = DUnitEnv.get().bounce(targetVersion, this.pid);
-      this.pid = result.getNewPid();
-      this.client = result.getNewClient();
-      this.version = targetVersion;
-      this.available = true;
+      BounceResult result = DUnitEnv.get().bounce(targetVersion, id);
+      id = result.getNewId();
+      client = result.getNewClient();
+      version = targetVersion;
+      available = true;
 
     } catch (UnsupportedOperationException e) {
-      this.available = true;
+      available = true;
       throw e;
 
     } catch (RemoteException e) {
       StringWriter sw = new StringWriter();
       e.printStackTrace(new PrintWriter(sw, true));
-      RMIException rmie =
-          new RMIException(this, getClass().getName(), "bounceVM", e, sw.toString());
-      throw rmie;
+      throw new RMIException(this, getClass().getName(), "bounceVM", e, sw.toString());
     }
   }
 
+  public File getWorkingDirectory() {
+    return DUnitEnv.get().getWorkingDirectory(getVersion(), getId());
+  }
+
+  @Override
   public String toString() {
-    return "VM " + getPid() + " running on " + getHost()
+    return "VM " + getId() + " running on " + getHost()
         + (VersionManager.isCurrentVersion(version) ? "" : (" with version " + version));
   }
 
-  public File getWorkingDirectory() {
-    return DUnitEnv.get().getWorkingDirectory(getVersion(), getPid());
-  }
-
-  private MethExecutorResult execute(final Class targetClass, final String methodName,
+  private MethExecutorResult execute(final Class<?> targetClass, final String methodName,
       final Object[] args) {
     try {
-      return this.client.executeMethodOnClass(targetClass.getName(), methodName, args);
+      return client.executeMethodOnClass(targetClass.getName(), methodName, args);
     } catch (RemoteException exception) {
       throw new RMIException(this, targetClass.getName(), methodName, exception);
     }
@@ -455,9 +510,9 @@ public class VM implements Serializable {
       final Object[] args) {
     try {
       if (args == null) {
-        return this.client.executeMethodOnObject(targetObject, methodName);
+        return client.executeMethodOnObject(targetObject, methodName);
       } else {
-        return this.client.executeMethodOnObject(targetObject, methodName, args);
+        return client.executeMethodOnObject(targetObject, methodName, args);
       }
     } catch (RemoteException exception) {
       throw new RMIException(this, targetObject.getClass().getName(), methodName, exception);

@@ -14,6 +14,10 @@
  */
 package org.apache.geode.cache;
 
+import static org.apache.geode.distributed.internal.InternalDistributedSystem.ALLOW_MULTIPLE_SYSTEMS;
+
+import java.util.Properties;
+
 import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -32,8 +36,6 @@ import org.apache.geode.security.GemFireSecurityException;
 import org.apache.geode.security.PostProcessor;
 import org.apache.geode.security.SecurityManager;
 
-import java.util.Properties;
-
 /**
  * Factory class used to create the singleton {@link Cache cache} and connect to the GemFire
  * singleton {@link DistributedSystem distributed system}. If the application wants to connect to
@@ -51,39 +53,39 @@ import java.util.Properties;
  * The following examples illustrate bootstrapping the cache using region shortcuts:
  * <p>
  * Example 1: Create a cache and a replicate region named customers.
- * 
+ *
  * <PRE>
  * Cache c = new CacheFactory().create();
  * Region r = c.createRegionFactory(REPLICATE).create("customers");
  * </PRE>
- * 
+ *
  * Example 2: Create a cache and a partition region with redundancy
- * 
+ *
  * <PRE>
  * Cache c = new CacheFactory().create();
  * Region r = c.createRegionFactory(PARTITION_REDUNDANT).create("customers");
  * </PRE>
- * 
+ *
  * Example 3: Construct the cache region declaratively in cache.xml
- * 
+ *
  * <PRE>
   &lt;!DOCTYPE cache PUBLIC
     "-//GemStone Systems, Inc.//GemFire Declarative Caching 8.0//EN"
     "http://www.gemstone.com/dtd/cache8_0.dtd">
-  &lt;cache>	
+  &lt;cache>
     &lt;region name="myRegion" refid="REPLICATE"/>
       &lt;!-- you can override or add to the REPLICATE attributes by adding
            a region-attributes sub element here -->
   &lt;/cache>
  * </PRE>
- * 
+ *
  * Now, create the cache telling it to read your cache.xml file:
- * 
+ *
  * <PRE>
  * Cache c = new CacheFactory().set("cache-xml-file", "myCache.xml").create();
  * Region r = c.getRegion("myRegion");
  * </PRE>
- * 
+ *
  * <p>
  * For a complete list of all region shortcuts see {@link RegionShortcut}. Applications that need to
  * explicitly control the individual region attributes can do this declaratively in XML or using
@@ -99,7 +101,7 @@ public class CacheFactory {
 
   /**
    * Creates a default cache factory.
-   * 
+   *
    * @since GemFire 6.5
    */
   public CacheFactory() {
@@ -109,7 +111,7 @@ public class CacheFactory {
   /**
    * Create a CacheFactory initialized with the given gemfire properties. For a list of valid
    * GemFire properties and their meanings see {@linkplain ConfigurationProperties}.
-   * 
+   *
    * @param props the gemfire properties to initialize the factory with.
    * @since GemFire 6.5
    */
@@ -123,7 +125,7 @@ public class CacheFactory {
   /**
    * Sets a gemfire property that will be used when creating the Cache. For a list of valid GemFire
    * properties and their meanings see {@link ConfigurationProperties}.
-   * 
+   *
    * @param name the name of the gemfire property
    * @param value the value of the gemfire property
    * @return a reference to this CacheFactory object
@@ -204,7 +206,7 @@ public class CacheFactory {
       throws TimeoutException, CacheWriterException, GatewayException, RegionExistsException {
     synchronized (CacheFactory.class) {
       DistributedSystem ds = null;
-      if (this.dsProps.isEmpty()) {
+      if (this.dsProps.isEmpty() && !ALLOW_MULTIPLE_SYSTEMS) {
         // any ds will do
         ds = InternalDistributedSystem.getConnectedInstance();
         validateUsabilityOfSecurityCallbacks(ds);
@@ -247,7 +249,7 @@ public class CacheFactory {
 
   /**
    * Gets the instance of {@link Cache} produced by an earlier call to {@link #create()}.
-   * 
+   *
    * @param system the {@code DistributedSystem} the cache was created with.
    * @return the {@link Cache} associated with the specified system.
    * @throws CacheClosedException if a cache has not been created or the created one is
@@ -260,7 +262,7 @@ public class CacheFactory {
   /**
    * Gets the instance of {@link Cache} produced by an earlier call to {@link #create()} even if it
    * has been closed.
-   * 
+   *
    * @param system the {@code DistributedSystem} the cache was created with.
    * @return the {@link Cache} associated with the specified system.
    * @throws CacheClosedException if a cache has not been created
@@ -295,7 +297,7 @@ public class CacheFactory {
             LocalizedStrings.CacheFactory_THE_CACHE_HAS_BEEN_CLOSED.toLocalizedString(), null);
       }
       if (!instance.getDistributedSystem().equals(system)) {
-        throw new CacheClosedException(
+        throw instance.getCacheClosedException(
             LocalizedStrings.CacheFactory_A_CACHE_HAS_NOT_YET_BEEN_CREATED_FOR_THE_GIVEN_DISTRIBUTED_SYSTEM
                 .toLocalizedString());
       }
@@ -306,7 +308,15 @@ public class CacheFactory {
   /**
    * Gets an arbitrary open instance of {@link Cache} produced by an earlier call to
    * {@link #create()}.
-   * 
+   *
+   * <p>
+   * WARNING: To avoid risk of deadlock, do not invoke getAnyInstance() from within any
+   * CacheCallback including CacheListener, CacheLoader, CacheWriter, TransactionListener,
+   * TransactionWriter. Instead use EntryEvent.getRegion().getCache(),
+   * RegionEvent.getRegion().getCache(), LoaderHelper.getRegion().getCache(), or
+   * TransactionEvent.getCache().
+   * </p>
+   *
    * @throws CacheClosedException if a cache has not been created or the only created one is
    *         {@link Cache#isClosed closed}
    */
@@ -323,7 +333,7 @@ public class CacheFactory {
 
   /**
    * Returns the version of the cache implementation.
-   * 
+   *
    * @return the version of the cache implementation as a {@code String}
    */
   public static String getVersion() {
@@ -341,7 +351,7 @@ public class CacheFactory {
    * Note that a PdxInstance is only returned if a serialized PDX is found in the cache. If the
    * cache contains a deserialized PDX, then a domain class instance is returned instead of a
    * PdxInstance.
-   * 
+   *
    * @param readSerialized true to prefer PdxInstance
    * @return this CacheFactory
    * @since GemFire 6.6
@@ -374,7 +384,7 @@ public class CacheFactory {
    * This is provided mostly for container to inject an already initialized post processor. An
    * object provided this way is expected to be initialized already. We are not calling the init
    * method on this object
-   * 
+   *
    * @return this CacheFactory
    */
   public CacheFactory setPostProcessor(PostProcessor postProcessor) {
@@ -386,7 +396,7 @@ public class CacheFactory {
    * Set the PDX serializer for the cache. If this serializer is set, it will be consulted to see if
    * it can serialize any domain classes which are added to the cache in portable data exchange
    * format.
-   * 
+   *
    * @param serializer the serializer to use
    * @return this CacheFactory
    * @since GemFire 6.6
@@ -401,9 +411,9 @@ public class CacheFactory {
    * Set the disk store that is used for PDX meta data. When serializing objects in the PDX format,
    * the type definitions are persisted to disk. This setting controls which disk store is used for
    * that persistence.
-   * 
+   *
    * If not set, the metadata will go in the default disk store.
-   * 
+   *
    * @param diskStoreName the name of the disk store to use for the PDX metadata.
    * @return this CacheFactory
    * @since GemFire 6.6
@@ -418,7 +428,7 @@ public class CacheFactory {
    * setting is false. If you are using persistent regions with PDX then you must set this to true.
    * If you are using a {@code GatewaySender} or {@code AsyncEventQueue} with PDX then you should
    * set this to true.
-   * 
+   *
    * @param isPersistent true if the metadata should be persistent
    * @return this CacheFactory
    * @since GemFire 6.6
@@ -436,7 +446,7 @@ public class CacheFactory {
    * You should only set this attribute to {@code true} if you know this member will only be reading
    * cache data. In this use case you do not need to pay the cost of preserving the unread fields
    * since you will never be reserializing pdx data.
-   * 
+   *
    * @param ignore {@code true} if fields not read during pdx deserialization should be ignored;
    *        {@code false}, the default, if they should be preserved.
    * @return this CacheFactory

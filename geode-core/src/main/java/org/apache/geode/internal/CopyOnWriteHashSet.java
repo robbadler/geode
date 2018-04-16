@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -29,7 +28,7 @@ import java.util.Set;
  * A Hash set where every modification makes an internal copy of a HashSet. Similar to
  * java.util.concurrent.CopyOnWriteArrayList, except methods provide the access time characteristics
  * of HashSet, instead of ArrayList, for example contains is O(1) instead of O(n).
- * 
+ *
  * Also, this class provides a getSnapshot method, which should be used for any thing that needs an
  * unchanging snapshot of this this (For example, any serialization of this class should use
  * getSnapshot).
@@ -39,7 +38,7 @@ public class CopyOnWriteHashSet<T> implements Set<T>, Serializable {
 
   private static final long serialVersionUID = 8591978652141659932L;
 
-  private volatile transient Set<T> snapshot = Collections.emptySet();
+  private transient volatile Set<T> snapshot = Collections.emptySet();
 
   public CopyOnWriteHashSet() {}
 
@@ -148,7 +147,7 @@ public class CopyOnWriteHashSet<T> implements Set<T>, Serializable {
   /**
    * Return a snapshot of the set at this point in time. The snapshot is guaranteed not to change.
    * It is therefore unmodifiable. This will likely be more efficient than copying this set.
-   * 
+   *
    * @return A snapshot of this set.
    */
   public Set<T> getSnapshot() {

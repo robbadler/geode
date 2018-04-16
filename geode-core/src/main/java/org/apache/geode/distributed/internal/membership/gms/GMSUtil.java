@@ -21,8 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
 
-import org.apache.logging.log4j.Logger;
-
 import org.apache.geode.GemFireConfigException;
 import org.apache.geode.distributed.internal.membership.gms.membership.HostAddress;
 import org.apache.geode.internal.net.SocketCreator;
@@ -31,7 +29,7 @@ public class GMSUtil {
 
   /**
    * parse locators & check that the resulting address is compatible with the given address
-   * 
+   *
    * @param locatorsString a DistributionConfig "locators" string
    * @param bindAddress optional address to check for loopback compatibility
    * @return addresses of locators
@@ -53,7 +51,7 @@ public class GMSUtil {
 
   /**
    * parse locators & check that the resulting address is compatible with the given address
-   * 
+   *
    * @param locatorsString a DistributionConfig "locators" string
    * @param bindAddress optional address to check for loopback compatibility
    * @return addresses of locators

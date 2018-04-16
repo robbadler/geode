@@ -14,7 +14,7 @@
  */
 package org.apache.geode.cache.query.internal.index;
 
-import static org.apache.geode.internal.lang.SystemUtils.*;
+import static org.apache.geode.internal.lang.SystemUtils.getLineSeparator;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -67,7 +67,6 @@ import org.apache.geode.cache.query.internal.types.StructTypeImpl;
 import org.apache.geode.cache.query.internal.types.TypeUtils;
 import org.apache.geode.cache.query.types.ObjectType;
 import org.apache.geode.internal.cache.CachedDeserializable;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.RegionEntry;
@@ -86,7 +85,12 @@ import org.apache.geode.internal.offheap.StoredObject;
  * This index does not support the storage of projection attributes.
  * <p>
  * Currently this implementation only supports an index on a region path.
+ *
+ * @deprecated Due to the overhead caused by rehashing while expanding the backing array, Hash Index
+ *             has been deprecated since Apache Geode 1.4.0. Instead the use of
+ *             {@link CompactRangeIndex} is recommended
  */
+@Deprecated
 public class HashIndex extends AbstractIndex {
   private static final Logger logger = LogService.getLogger();
 
@@ -126,11 +130,11 @@ public class HashIndex extends AbstractIndex {
    * @param projectionAttributes not used
    * @param definitions the canonicalized definitions
    */
-  public HashIndex(String indexName, Region region, String fromClause, String indexedExpression,
-      String projectionAttributes, String origFromClause, String origIndexExpr,
-      String[] definitions, IndexStatistics stats) {
-    super(indexName, region, fromClause, indexedExpression, projectionAttributes, origFromClause,
-        origIndexExpr, definitions, stats);
+  public HashIndex(InternalCache cache, String indexName, Region region, String fromClause,
+      String indexedExpression, String projectionAttributes, String origFromClause,
+      String origIndexExpr, String[] definitions, IndexStatistics stats) {
+    super(cache, indexName, region, fromClause, indexedExpression, projectionAttributes,
+        origFromClause, origIndexExpr, definitions, stats);
     RegionAttributes ra = region.getAttributes();
 
 
@@ -517,7 +521,7 @@ public class HashIndex extends AbstractIndex {
     }
 
     try {
-      long iteratorCreationTime = GemFireCacheImpl.getInstance().cacheTimeMillis();
+      long iteratorCreationTime = cache.cacheTimeMillis();
 
       switch (operator) {
         case OQLLexerTokenTypes.TOK_EQ:
@@ -544,7 +548,7 @@ public class HashIndex extends AbstractIndex {
       } else if (operator == OQLLexerTokenTypes.TOK_NE
           || operator == OQLLexerTokenTypes.TOK_NE_ALT) { // put
         keysToRemove.add(key);
-        long iteratorCreationTime = GemFireCacheImpl.getInstance().cacheTimeMillis();
+        long iteratorCreationTime = cache.cacheTimeMillis();
         addToResultsFromEntries(this.entriesSet.getAllNotMatching(keysToRemove), results, iterOps,
             runtimeItr, context, projAttrib, intermediateResults, isIntersection,
             multiColOrderBy ? -1 : limit, keysToRemove, applyOrderBy, asc, iteratorCreationTime);
@@ -1142,7 +1146,7 @@ public class HashIndex extends AbstractIndex {
      * the additional projection attribute. If the boolean isFirstItrOnEntry is tru e& additional
      * projection attribute is null, then teh 0th iterator itself will evaluate to Region.Entry
      * Object.
-     * 
+     *
      * The 2nd element of Object Array contains the Struct object ( tuple) created. If the boolean
      * isFirstItrOnEntry is false, then the first attribute of the Struct object is obtained by
      * evaluating the additional projection attribute.

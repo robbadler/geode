@@ -18,8 +18,10 @@ package org.apache.geode.management.internal.cli.commands;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,7 +47,7 @@ import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
-public class NetstatCommand implements GfshCommand {
+public class NetstatCommand extends InternalGfshCommand {
   private static final String NETSTAT_FILE_REQUIRED_EXTENSION = ".txt";
 
   @CliCommand(value = CliStrings.NETSTAT, help = CliStrings.NETSTAT__HELP)
@@ -102,7 +104,7 @@ public class NetstatCommand implements GfshCommand {
         if (!notFoundMembers.isEmpty()) {
           throw new IllegalArgumentException(
               CliStrings.format(CliStrings.NETSTAT__MSG__COULD_NOT_FIND_MEMBERS_0,
-                  new Object[] {CliUtil.collectionToString(notFoundMembers, -1)}));
+                  new Object[] {collectionToString(notFoundMembers, -1)}));
         }
       } else {
         Set<DistributedMember> membersToExecuteOn;
@@ -145,7 +147,7 @@ public class NetstatCommand implements GfshCommand {
             String remoteHost = netstatFunctionResult.getHost();
             List<String> membersList = hostMemberListMap.get(remoteHost);
             resultInfo.append(MessageFormat.format(netstatFunctionResult.getHeaderInfo(),
-                CliUtil.collectionToString(membersList, 120)));
+                collectionToString(membersList, 120)));
             CliUtil.DeflaterInflaterData uncompressedBytes = CliUtil.uncompressBytes(
                 deflaterInflaterData.getData(), deflaterInflaterData.getDataLength());
             resultInfo.append(new String(uncompressedBytes.getData()));
@@ -169,13 +171,13 @@ public class NetstatCommand implements GfshCommand {
       }
       result = ResultBuilder.buildResult(resultData);
     } catch (IllegalArgumentException e) {
-      LogWrapper.getInstance()
+      LogWrapper.getInstance(getCache())
           .info(CliStrings.format(
               CliStrings.NETSTAT__MSG__ERROR_OCCURRED_WHILE_EXECUTING_NETSTAT_ON_0,
               new Object[] {Arrays.toString(members)}));
       result = ResultBuilder.createUserErrorResult(e.getMessage());
     } catch (RuntimeException e) {
-      LogWrapper.getInstance()
+      LogWrapper.getInstance(getCache())
           .info(CliStrings.format(
               CliStrings.NETSTAT__MSG__ERROR_OCCURRED_WHILE_EXECUTING_NETSTAT_ON_0,
               new Object[] {Arrays.toString(members)}), e);
@@ -187,6 +189,27 @@ public class NetstatCommand implements GfshCommand {
       hostMemberListMap.clear();
     }
     return result;
+  }
+
+  String collectionToString(Collection<?> col, int newlineAfter) {
+    if (col != null) {
+      StringBuilder builder = new StringBuilder();
+      int lastNewlineAt = 0;
+
+      for (Iterator<?> it = col.iterator(); it.hasNext();) {
+        Object object = it.next();
+        builder.append(String.valueOf(object));
+        if (it.hasNext()) {
+          builder.append(", ");
+        }
+        if (newlineAfter > 0 && (builder.length() - lastNewlineAt) / newlineAfter >= 1) {
+          builder.append(GfshParser.LINE_SEPARATOR);
+        }
+      }
+      return builder.toString();
+    } else {
+      return "" + null;
+    }
   }
 
   private void buildMaps(Map<String, DistributedMember> hostMemberMap,

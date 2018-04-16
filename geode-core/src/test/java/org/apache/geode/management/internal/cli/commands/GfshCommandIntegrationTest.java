@@ -15,35 +15,32 @@
 
 package org.apache.geode.management.internal.cli.commands;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorStarterRule;
+import org.apache.geode.test.junit.categories.GfshTest;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
+import org.apache.geode.test.junit.rules.LocatorStarterRule;
 
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, GfshTest.class})
 public class GfshCommandIntegrationTest {
   @ClassRule
   public static LocatorStarterRule locator = new LocatorStarterRule().withAutoStart();
 
   @Rule
-  public GfshShellConnectionRule gfsh = new GfshShellConnectionRule();
+  public GfshCommandRule gfsh = new GfshCommandRule();
 
   @Test
   public void invalidCommandWhenNotConnected() throws Exception {
-    String result = gfsh.execute("abc");
-    assertThat(result).contains("Command 'abc' not found");
+    gfsh.executeAndAssertThat("abc").statusIsError().containsOutput("Command 'abc' not found");
   }
 
   @Test
   public void invalidCommandWhenConnected() throws Exception {
     gfsh.connectAndVerify(locator);
-    String result = gfsh.execute("abc");
-    assertThat(result).contains("Command 'abc' not found");
+    gfsh.executeAndAssertThat("abc").statusIsError().containsOutput("Command 'abc' not found");
   }
 }

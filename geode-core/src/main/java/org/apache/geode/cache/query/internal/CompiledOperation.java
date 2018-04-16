@@ -111,7 +111,7 @@ public class CompiledOperation extends AbstractCompiledValue {
       /*
        * // evaluate on current iteration of collection if (rcvrItr != null) { result =
        * eval0(rcvrItr.evaluate(context), rcvrItr.getElementType().resolveClass(), context); }
-       * 
+       *
        * // function call: no functions implemented except keywords in the grammar throw new
        * TypeMismatchException(LocalizedStrings.CompiledOperation_COULD_NOT_RESOLVE_METHOD_NAMED_0.
        * toLocalizedString(this.methodName));
@@ -258,7 +258,9 @@ public class CompiledOperation extends AbstractCompiledValue {
     methodDispatch = (MethodDispatch) CompiledOperation.cache.get(key);
     if (methodDispatch == null) {
       try {
-        methodDispatch = new MethodDispatch(resolutionType, this.methodName, argTypes);
+        methodDispatch =
+            new MethodDispatch(context.getCache().getQueryService().getMethodInvocationAuthorizer(),
+                resolutionType, this.methodName, argTypes);
       } catch (NameResolutionException nre) {
         if (!org.apache.geode.cache.query.Struct.class.isAssignableFrom(resolutionType)
             && (DefaultQueryService.QUERY_HETEROGENEOUS_OBJECTS

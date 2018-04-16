@@ -14,18 +14,19 @@
  */
 package org.apache.geode.internal.cache;
 
-import org.apache.geode.internal.cache.versions.ConcurrentCacheModificationException;
-import org.apache.geode.internal.i18n.LocalizedStrings;
-import org.apache.geode.internal.offheap.annotations.Released;
+import java.io.*;
+
 import org.apache.geode.*;
 import org.apache.geode.cache.*;
 import org.apache.geode.distributed.DistributedMember;
-import java.io.*;
+import org.apache.geode.internal.cache.versions.ConcurrentCacheModificationException;
+import org.apache.geode.internal.i18n.LocalizedStrings;
+import org.apache.geode.internal.offheap.annotations.Released;
 
 /**
  * Represents a single operation that can be queued for reliable delivery. Instances are owned in
  * the context of a region.
- * 
+ *
  * @since GemFire 5.0
  */
 public class QueuedOperation {
@@ -39,7 +40,7 @@ public class QueuedOperation {
 
   /**
    * Deserialization policies defined in AbstractUpdateOperation
-   * 
+   *
    * @see org.apache.geode.internal.cache.AbstractUpdateOperation
    */
   private final byte deserializationPolicy;
@@ -113,7 +114,7 @@ public class QueuedOperation {
           }
         } else if (this.op.isInvalidate()) {
           ee.setOldValueFromRegion();
-          boolean forceNewEntry = lr.dataPolicy.withReplication() && !lr.isInitialized();
+          boolean forceNewEntry = lr.getDataPolicy().withReplication() && !lr.isInitialized();
           boolean invokeCallbacks = lr.isInitialized();
           try {
             lr.basicInvalidate(ee, invokeCallbacks, forceNewEntry);

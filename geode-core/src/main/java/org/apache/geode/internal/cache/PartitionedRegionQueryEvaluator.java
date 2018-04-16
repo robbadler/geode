@@ -1,4 +1,5 @@
 /*
+ * /*
  * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
  * agreements. See the NOTICE file distributed with this work for additional information regarding
  * copyright ownership. The ASF licenses this file to You under the Apache License, Version 2.0 (the
@@ -14,35 +15,75 @@
  */
 package org.apache.geode.internal.cache;
 
-import org.apache.geode.CopyHelper;
-import org.apache.geode.SystemFailure;
-import org.apache.geode.cache.query.*;
-import org.apache.geode.cache.query.internal.*;
-import org.apache.geode.cache.query.internal.IndexTrackingQueryObserver.IndexInfo;
-import org.apache.geode.cache.query.internal.utils.PDXUtils;
-import org.apache.geode.cache.query.types.ObjectType;
-import org.apache.geode.cache.query.types.StructType;
-import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.*;
-import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
-import org.apache.geode.internal.Assert;
-import org.apache.geode.internal.NanoTimer;
-import org.apache.geode.internal.Version;
-import org.apache.geode.internal.cache.partitioned.QueryMessage;
-import org.apache.geode.internal.cache.partitioned.StreamingPartitionOperation;
-import org.apache.geode.internal.i18n.LocalizedStrings;
-import org.apache.geode.internal.logging.LogService;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.LinkedBlockingQueue;
+
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
-import java.util.concurrent.*;
+import org.apache.geode.CopyHelper;
+import org.apache.geode.SystemFailure;
+import org.apache.geode.cache.query.QueryException;
+import org.apache.geode.cache.query.QueryExecutionLowMemoryException;
+import org.apache.geode.cache.query.QueryInvocationTargetException;
+import org.apache.geode.cache.query.SelectResults;
+import org.apache.geode.cache.query.Struct;
+import org.apache.geode.cache.query.internal.CompiledGroupBySelect;
+import org.apache.geode.cache.query.internal.CompiledSelect;
+import org.apache.geode.cache.query.internal.CompiledSortCriterion;
+import org.apache.geode.cache.query.internal.CompiledValue;
+import org.apache.geode.cache.query.internal.CumulativeNonDistinctResults;
+import org.apache.geode.cache.query.internal.DefaultQuery;
+import org.apache.geode.cache.query.internal.DefaultQueryService;
+import org.apache.geode.cache.query.internal.ExecutionContext;
+import org.apache.geode.cache.query.internal.IndexTrackingQueryObserver.IndexInfo;
+import org.apache.geode.cache.query.internal.NWayMergeResults;
+import org.apache.geode.cache.query.internal.OrderByComparator;
+import org.apache.geode.cache.query.internal.PRQueryTraceInfo;
+import org.apache.geode.cache.query.internal.QueryExecutionContext;
+import org.apache.geode.cache.query.internal.QueryMonitor;
+import org.apache.geode.cache.query.internal.ResultsSet;
+import org.apache.geode.cache.query.internal.SortedResultsBag;
+import org.apache.geode.cache.query.internal.SortedStructBag;
+import org.apache.geode.cache.query.internal.StructSet;
+import org.apache.geode.cache.query.internal.utils.PDXUtils;
+import org.apache.geode.cache.query.types.ObjectType;
+import org.apache.geode.cache.query.types.StructType;
+import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.DistributionMessage;
+import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.distributed.internal.ReplyException;
+import org.apache.geode.distributed.internal.ReplyProcessor21;
+import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
+import org.apache.geode.internal.Assert;
+import org.apache.geode.internal.NanoTimer;
+import org.apache.geode.internal.Version;
+import org.apache.geode.internal.cache.partitioned.PartitionMessage;
+import org.apache.geode.internal.cache.partitioned.QueryMessage;
+import org.apache.geode.internal.cache.partitioned.RegionAdvisor;
+import org.apache.geode.internal.cache.partitioned.StreamingPartitionOperation;
+import org.apache.geode.internal.i18n.LocalizedStrings;
+import org.apache.geode.internal.logging.LogService;
 
 /**
  * This class sends the query on various <code>PartitionedRegion</code> data store nodes and
  * collects the results back, does the union of all the results.
- * 
+ *
  * revamped with streaming of results retry logic
  */
 public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation {
@@ -50,7 +91,7 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
 
   /**
    * An ArrayList which might be unconsumable.
-   * 
+   *
    * @since GemFire 6.6.2
    */
   public static class MemberResultsList extends ArrayList {
@@ -67,11 +108,11 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
 
   /**
    * Simple testing interface
-   * 
+   *
    * @since GemFire 6.0
    */
   public interface TestHook {
-    public void hook(final int spot) throws RuntimeException;
+    void hook(final int spot) throws RuntimeException;
   }
 
   private static final int MAX_PR_QUERY_RETRIES =
@@ -96,7 +137,7 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
 
   /**
    * Construct a PartitionedRegionQueryEvaluator
-   * 
+   *
    * @param sys the distributed system
    * @param pr the partitioned region
    * @param query the query
@@ -126,7 +167,7 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
     throw new UnsupportedOperationException();
   }
 
-  protected DistributionMessage createRequestMessage(InternalDistributedMember recipient,
+  protected PartitionMessage createRequestMessage(InternalDistributedMember recipient,
       ReplyProcessor21 processor, List bucketIds) {
     return new QueryMessage(recipient, this.pr.getPRId(), processor, this.query, this.parameters,
         bucketIds);
@@ -190,16 +231,23 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
     }
 
     synchronized (results) {
-      if (!QueryMonitor.isLowMemory()) {
+      if (!QueryMonitor.isLowMemory() && !this.query.isCanceled()) {
         results.add(objects);
       } else {
         if (logger.isDebugEnabled()) {
           logger.debug("query canceled while gathering results, aborting");
         }
-        String reason =
-            LocalizedStrings.QueryMonitor_LOW_MEMORY_WHILE_GATHERING_RESULTS_FROM_PARTITION_REGION
-                .toLocalizedString();
-        query.setCanceled(true, new QueryExecutionLowMemoryException(reason));
+        if (QueryMonitor.isLowMemory()) {
+          String reason =
+              LocalizedStrings.QueryMonitor_LOW_MEMORY_WHILE_GATHERING_RESULTS_FROM_PARTITION_REGION
+                  .toLocalizedString();
+          query.setCanceled(true, new QueryExecutionLowMemoryException(reason));
+        } else {
+          if (logger.isDebugEnabled()) {
+            logger.debug("query cancelled while gathering results, aborting due to exception "
+                + query.getQueryCanceledException());
+          }
+        }
         return false;
       }
 
@@ -247,7 +295,7 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
 
   /**
    * Returns normally if succeeded to get data, otherwise throws an exception
-   * 
+   *
    * @param th a test hook
    * @return true if parts of the query need to be retried, otherwise false
    */
@@ -294,7 +342,8 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
         Map.Entry<InternalDistributedMember, List<Integer>> me = itr.next();
         final InternalDistributedMember rcp = me.getKey();
         final List<Integer> bucketIds = me.getValue();
-        DistributionMessage m = createRequestMessage(rcp, processor, bucketIds);
+        PartitionMessage m = createRequestMessage(rcp, processor, bucketIds);
+        m.setTransactionDistributed(this.sys.getCache().getTxManager().isDistributed());
         Set notReceivedMembers = sendMessage(m);
         if (th != null) {
           th.hook(4);
@@ -416,7 +465,6 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
    * @throws QueryException if data loss is detected during the query, when the number of retries
    *         has exceeded the system wide maximum, or when there are logic errors that cause bucket
    *         data to be omitted from the results.
-   * @throws InterruptedException
    */
   public SelectResults queryBuckets(final TestHook th) throws QueryException, InterruptedException {
     final boolean isDebugEnabled = logger.isDebugEnabled();
@@ -618,7 +666,7 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
 
     for (Map.Entry<InternalDistributedMember, Collection<Collection>> e : this.resultsPerMember
         .entrySet()) {
-      checkLowMemory();
+      checkIfQueryShouldBeCancelled();
       // If its a local query, the results should contain domain objects.
       // in case of client/server query the objects from PdxInstances were
       // retrieved on the client side.
@@ -651,7 +699,7 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
         }
       } else {
         for (Collection res : e.getValue()) {
-          checkLowMemory();
+          checkIfQueryShouldBeCancelled();
           // final TaintableArrayList res = (TaintableArrayList) e.getValue();
           if (res != null) {
             if (isDebugEnabled) {
@@ -664,7 +712,7 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
             boolean[] objectChangedMarker = new boolean[1];
 
             for (Object obj : res) {
-              checkLowMemory();
+              checkIfQueryShouldBeCancelled();
               int occurence = 0;
               obj = PDXUtils.convertPDX(obj, isStruct, getDomainObjectForPdx, getDeserializedObject,
                   localResults, objectChangedMarker, true);
@@ -709,7 +757,7 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
     return this.cumulativeResults;
   }
 
-  private void checkLowMemory() {
+  private void checkIfQueryShouldBeCancelled() {
     if (QueryMonitor.isLowMemory()) {
       String reason =
           LocalizedStrings.QueryMonitor_LOW_MEMORY_WHILE_GATHERING_RESULTS_FROM_PARTITION_REGION
@@ -719,6 +767,8 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
         DefaultQuery.testHook.doTestHook(5);
       }
       throw query.getQueryCanceledException();
+    } else if (query.isCanceled()) {
+      throw query.getQueryCanceledException();
     }
   }
 
@@ -726,8 +776,7 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
 
   /**
    * Adds all counts from all member buckets to cumulative results.
-   * 
-   * @param limit
+   *
    */
   private void addTotalCountForMemberToResults(int limit) {
     int count = 0;
@@ -797,7 +846,6 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
   }
 
   /**
-   * @param bucketIdsToConsider
    * @return Map of {@link InternalDistributedMember} to {@link ArrayList} of Integers
    */
   private Map<InternalDistributedMember, List<Integer>> buildNodeToBucketMapForBuckets(
@@ -828,7 +876,7 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
       }
     }
 
-    final List allNodes = getAllNodes();
+    final List allNodes = getAllNodes(this.pr.getRegionAdvisor());
     /*
      * for(Map.Entry<InternalDistributedMember, Collection<Collection>> entry :
      * resultsPerMember.entrySet()) { InternalDistributedMember member = entry.getKey();
@@ -877,13 +925,15 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
     return pr.getRegionAdvisor().getBucketOwners(bid.intValue());
   }
 
-  protected ArrayList getAllNodes() {
-    return new ArrayList(this.pr.getRegionAdvisor().adviseDataStore());
+  protected ArrayList getAllNodes(RegionAdvisor regionAdvisor) {
+    ArrayList nodes = new ArrayList(regionAdvisor.adviseDataStore());
+    Collections.shuffle(nodes);
+    return nodes;
   }
 
   /**
    * Executes query on local data store.
-   * 
+   *
    * @throws QueryException, InterruptedException
    * @return true if the local query needs to be retried, otherwise false
    */
@@ -990,7 +1040,7 @@ public class PartitionedRegionQueryEvaluator extends StreamingPartitionOperation
    * This class is used to accumulate information about indexes used in multipleThreads and results
    * gained from buckets. In future this can be used for adding for more information to final query
    * running info from pool threads.
-   * 
+   *
    * @since GemFire 6.6
    */
   public static class PRQueryResultCollector {

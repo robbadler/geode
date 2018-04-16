@@ -17,7 +17,6 @@ package org.apache.geode.cache.client.internal.locator;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.geode.distributed.internal.ServerLocation;
@@ -58,7 +57,7 @@ public class LocatorListResponse extends ServerLocationResponse {
 
   /**
    * Returns an array list of type ServerLocation containing controllers.
-   * 
+   *
    * @return list of controllers
    */
   public List<ServerLocation> getLocators() {
@@ -68,7 +67,7 @@ public class LocatorListResponse extends ServerLocationResponse {
   /**
    * Returns whether or not the locator thinks that the servers in this group are currently
    * balanced.
-   * 
+   *
    * @return true if the servers are balanced.
    */
   public boolean isBalanced() {

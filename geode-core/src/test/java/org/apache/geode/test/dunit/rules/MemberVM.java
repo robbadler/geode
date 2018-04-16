@@ -20,23 +20,19 @@ import java.util.Arrays;
 
 import org.apache.commons.io.FileUtils;
 
-import org.apache.geode.test.dunit.AsyncInvocation;
-import org.apache.geode.test.dunit.SerializableRunnableIF;
 import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.junit.rules.Locator;
+import org.apache.geode.test.junit.rules.Member;
+import org.apache.geode.test.junit.rules.Server;
+import org.apache.geode.test.junit.rules.VMProvider;
 
-public class MemberVM<T extends Member> implements Member {
-  private T member;
-  private VM vm;
-  private boolean tempWorkingDir;
+public class MemberVM extends VMProvider implements Member {
+  protected Member member;
+  protected VM vm;
 
-  public MemberVM(T member, VM vm) {
-    this(member, vm, false);
-  }
-
-  public MemberVM(T member, VM vm, boolean tempWorkingDir) {
+  public MemberVM(Member member, VM vm) {
     this.member = member;
     this.vm = vm;
-    this.tempWorkingDir = tempWorkingDir;
   }
 
   public boolean isLocator() {
@@ -47,22 +43,12 @@ public class MemberVM<T extends Member> implements Member {
     return vm;
   }
 
-  public void invoke(final SerializableRunnableIF runnable) {
-    vm.invoke(runnable);
-  }
-
-  public AsyncInvocation invokeAsync(final SerializableRunnableIF runnable) {
-    return vm.invokeAsync(runnable);
-  }
-
-  public T getMember() {
-    return (T) member;
+  public Member getMember() {
+    return member;
   }
 
   @Override
   public File getWorkingDir() {
-    if (tempWorkingDir)
-      return member.getWorkingDir();
     return vm.getWorkingDirectory();
   }
 
@@ -86,21 +72,46 @@ public class MemberVM<T extends Member> implements Member {
     return member.getName();
   }
 
-  public void stopMember() {
-    this.invoke(LocatorServerStartupRule::stopMemberInThisVM);
-    if (tempWorkingDir) {
-      /*
-       * this temporary workingDir will dynamically change the "user.dir". system property to point
-       * to a temporary folder. The Path API caches the first value of "user.dir" that it sees, and
-       * this can result in a stale cached value of "user.dir" which points to a directory that no
-       * longer exists.
-       */
-      vm.bounce();
-    } else
-      // if using the dunit/vm dir as the preset working dir, need to cleanup dir except
-      // the locator0view* file, so that regions/indexes won't get persisted across tests
-      Arrays.stream(getWorkingDir().listFiles((dir, name) -> {
-        return !name.startsWith("locator0view");
-      })).forEach(FileUtils::deleteQuietly);
+  public int getEmbeddedLocatorPort() {
+    if (!(member instanceof Server)) {
+      throw new RuntimeException("member needs to be a server");
+    }
+    return ((Server) member).getEmbeddedLocatorPort();
+  }
+
+  @Override
+  public void stopVM(boolean cleanWorkingDir) {
+    super.stopVM(cleanWorkingDir);
+
+    if (!cleanWorkingDir) {
+      return;
+    }
+
+    // if using the dunit/vm dir as the preset working dir, need to cleanup dir
+    // so that regions/indexes won't get persisted across tests
+    Arrays.stream(getWorkingDir().listFiles()).forEach(FileUtils::deleteQuietly);
+  }
+
+  /**
+   * this should called on a locatorVM or a serverVM with jmxManager enabled
+   */
+  public void waitTillRegionsAreReadyOnServers(String regionPath, int serverCount) {
+    vm.invoke(() -> ClusterStartupRule.memberStarter.waitTillRegionIsReadyOnServers(regionPath,
+        serverCount));
+  }
+
+  public void waitTillDiskstoreIsReady(String diskstoreName, int serverCount) {
+    vm.invoke(() -> ClusterStartupRule.memberStarter.waitTillDiskStoreIsReady(diskstoreName,
+        serverCount));
+  }
+
+  public void waitTillAsyncEventQueuesAreReadyOnServers(String queueId, int serverCount) {
+    vm.invoke(() -> ClusterStartupRule.memberStarter
+        .waitTillAsyncEventQueuesAreReadyOnServers(queueId, serverCount));
+  }
+
+  public void waitTilGatewaySendersAreReady(int expectedGatewayObjectCount) throws Exception {
+    vm.invoke(() -> ClusterStartupRule.memberStarter
+        .waitTilGatewaySendersAreReady(expectedGatewayObjectCount));
   }
 }

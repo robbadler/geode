@@ -35,7 +35,7 @@ import org.apache.geode.cache.CommitIncompleteException;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.UnsupportedOperationInTransactionException;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.ReplyException;
@@ -53,9 +53,6 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 
-/**
- *
- */
 public class DistTXPrecommitMessage extends TXMessage {
 
   private static final Logger logger = LogService.getLogger();
@@ -75,7 +72,8 @@ public class DistTXPrecommitMessage extends TXMessage {
   }
 
   @Override
-  protected boolean operateOnTx(TXId txId, DistributionManager dm) throws RemoteOperationException {
+  protected boolean operateOnTx(TXId txId, ClusterDistributionManager dm)
+      throws RemoteOperationException {
     InternalCache cache = dm.getCache();
     TXManagerImpl txMgr = cache.getTXMgr();
 
@@ -87,7 +85,8 @@ public class DistTXPrecommitMessage extends TXMessage {
     // should not be commited before
     assert (!txMgr.isHostedTxRecentlyCompleted(txId));
     // @see TXCommitMessage.process(DistributionManager)
-    TXLockService.createDTLS(); // fix bug 38843; no-op if already created
+    TXLockService.createDTLS(cache.getInternalDistributedSystem()); // fix bug 38843; no-op if
+                                                                    // already created
     final TXStateProxy txStateProxy = txMgr.getTXState();
     boolean precommitSuccess = true;
     TreeMap<String, ArrayList<DistTxThinEntryState>> entryStateSortedMap =
@@ -222,17 +221,18 @@ public class DistTXPrecommitMessage extends TXMessage {
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    public void process(final DM dm, ReplyProcessor21 processor) {
+    public void process(final DistributionManager dm, ReplyProcessor21 processor) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "DistTXPhaseOneCommitReplyMessage process invoking reply processor with processorId:{}",
             this.processorId);
       }
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "DistTXPhaseOneCommitReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE,
+              "DistTXPhaseOneCommitReplyMessage processor not found");
         }
         return;
       }
@@ -282,7 +282,7 @@ public class DistTXPrecommitMessage extends TXMessage {
     private Map<DistributedMember, DistTxPrecommitResponse> commitResponseMap;
     private transient TXId txIdent = null;
 
-    public DistTxPrecommitReplyProcessor(TXId txUniqId, DM dm, Set initMembers,
+    public DistTxPrecommitReplyProcessor(TXId txUniqId, DistributionManager dm, Set initMembers,
         HashMap<DistributedMember, DistTXCoordinatorInterface> msgMap) {
       super(dm, initMembers);
       this.msgMap = msgMap;
@@ -389,7 +389,6 @@ public class DistTXPrecommitMessage extends TXMessage {
      * Determine if the commit processing was incomplete, if so throw a detailed exception
      * indicating the source of the problem
      *
-     * @param msgMap
      */
     public void handlePotentialCommitFailure(
         HashMap<DistributedMember, DistTXCoordinatorInterface> msgMap) {
@@ -437,8 +436,6 @@ public class DistTXPrecommitMessage extends TXMessage {
     /**
      * Protected by (this)
      *
-     * @param member
-     * @param exceptions
      */
     public void addExceptionsFromMember(InternalDistributedMember member, Set exceptions) {
       for (Iterator iter = exceptions.iterator(); iter.hasNext();) {

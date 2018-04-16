@@ -55,7 +55,6 @@ import org.apache.geode.CancelCriterion;
 import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.Instantiator;
-import org.apache.geode.InternalGemFireException;
 import org.apache.geode.cache.DiskAccessException;
 import org.apache.geode.cache.EvictionAction;
 import org.apache.geode.cache.EvictionAlgorithm;
@@ -120,35 +119,35 @@ public class DiskInitFile implements DiskInitFileInterpreter {
   /**
    * Written to IF Used to say that persistent member id is online. Byte Format: RegionId 4:
    * blobLength blobLength: member bytes 1: EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint1
    */
   public static final byte IFREC_ONLINE_MEMBER_ID = 59;
   /**
    * Written to IF Used to say that persistent member id is offline. Byte Format: RegionId 4:
    * blobLength blobLength: member bytes 1: EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint1
    */
   public static final byte IFREC_OFFLINE_MEMBER_ID = 60;
   /**
    * Written to IF Used to say that persistent member id no longer exists. Byte Format: RegionId 4:
    * blobLength blobLength: member bytes 1: EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint1
    */
   public static final byte IFREC_RM_MEMBER_ID = 61;
   /**
    * Written to IF. Used to record the persistent member id of this file. Byte Format: RegionId 4:
    * blobLength blobLength: member bytes 1: EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint1
    */
   public static final byte IFREC_MY_MEMBER_INITIALIZING_ID = 62;
   /**
    * Written to IF. Used to record the previous my member id completed initialization. Byte Format:
    * RegionId 1: EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint1
    */
   public static final byte IFREC_MY_MEMBER_INITIALIZED_ID = 63;
@@ -156,42 +155,42 @@ public class DiskInitFile implements DiskInitFileInterpreter {
   /**
    * Written to IF. Used to record create of region Byte Format: RegionId 4: nameLength nameLength:
    * name bytes 1: EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint1
    */
   public static final byte IFREC_CREATE_REGION_ID = 64;
   /**
    * Written to IF. Used to record begin of destroy of region Byte Format: RegionId 1:
    * EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint1
    */
   public static final byte IFREC_BEGIN_DESTROY_REGION_ID = 65;
   /**
    * Written to IF. Used to record clear of region Byte Format: RegionId 8: oplogEntryId 1:
    * EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint1
    */
   public static final byte IFREC_CLEAR_REGION_ID = 66;
   /**
    * Written to IF. Used to record that the end of a destroy region. Byte Format: RegionId 1:
    * EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint1
    */
   public static final byte IFREC_END_DESTROY_REGION_ID = 67;
   /**
    * Written to IF. Used to record that a region is about to be partially destroyed Byte Format:
    * RegionId 1: EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint1
    */
   public static final byte IFREC_BEGIN_PARTIAL_DESTROY_REGION_ID = 68;
   /**
    * Written to IF. Used to record that a region is partially destroyed Byte Format: RegionId 1:
    * EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint1
    */
   public static final byte IFREC_END_PARTIAL_DESTROY_REGION_ID = 69;
@@ -221,16 +220,16 @@ public class DiskInitFile implements DiskInitFileInterpreter {
    * 4: lruLimit (int) // no need to ObjectSize during recovery since all data is in blob form 4:
    * concurrencyLevel (int) 4: initialCapacity (int) 4: loadFactor (float) 1: statisticsEnabled
    * (boolean) 1: isBucket (boolean) 1: EndOfRecordMarker
-   * 
+   *
    * Used to read the region configuration for 6.5 disk stores.
-   * 
+   *
    */
   public static final byte IFREC_REGION_CONFIG_ID = 74;
 
   /*
    * Written to IF Used to say that persistent member id is offline and has the same data on disk as
    * this member Byte Format: RegionId 4: blobLength blobLength: member bytes 1: EndOfRecordMarker
-   * 
+   *
    * @since GemFire prPersistSprint3
    */
   public static final byte IFREC_OFFLINE_AND_EQUAL_MEMBER_ID = 75;
@@ -266,7 +265,7 @@ public class DiskInitFile implements DiskInitFileInterpreter {
   /**
    * Maps a member id (either a disk store ID or a distributed system id plus a byte) to a single
    * integer, which can be used in oplogs.
-   * 
+   *
    * Byte Format: 4: the number assigned to this id. variable: serialized object representing the
    * ID. variable: pr name 1: EndOfRecord
    */
@@ -274,7 +273,7 @@ public class DiskInitFile implements DiskInitFileInterpreter {
   /**
    * Written to IF Used to say that a disk store has been revoked Byte Format: variable: a
    * PersistentMemberPattern
-   * 
+   *
    * @since GemFire 7.0
    */
   public static final byte IFREC_REVOKE_DISK_STORE_ID = 81;
@@ -282,7 +281,7 @@ public class DiskInitFile implements DiskInitFileInterpreter {
   /**
    * Written gemfire version to IF Byte Format: 1: version byte from Version.GFE_CURRENT.ordinal 1:
    * EndOfRecord
-   * 
+   *
    * @since GemFire 7.0
    */
   public static final byte IFREC_GEMFIRE_VERSION = 82;
@@ -290,7 +289,7 @@ public class DiskInitFile implements DiskInitFileInterpreter {
   /**
    * Written to IF. Used to record clear of using an RVV Byte Format: RegionId variable: serialized
    * RVV 1: EndOfRecordMarker
-   * 
+   *
    * @since GemFire 7.0
    */
   public static final byte IFREC_CLEAR_REGION_WITH_RVV_ID = 83;
@@ -301,7 +300,7 @@ public class DiskInitFile implements DiskInitFileInterpreter {
    * concurrencyLevel (int) 4: initialCapacity (int) 4: loadFactor (float) 1: statisticsEnabled
    * (boolean) 1: isBucket (boolean) variable: partitionName (utf) 4: startingBucketId (int)
    * variable: compressorClassName (utf) 1: versioned (boolean) 1: EndOfRecordMarker
-   * 
+   *
    */
   public static final byte IFREC_REGION_CONFIG_ID_80 = 88;
 
@@ -309,7 +308,7 @@ public class DiskInitFile implements DiskInitFileInterpreter {
    * Persist oplog file magic number. Written once at the beginning of every oplog file; CRF, DRF,
    * KRF, and IF. Followed by 6 byte magic number. Each oplog type has a different magic number
    * Followed by EndOfRecord Fix for bug 43824
-   * 
+   *
    * @since GemFire 8.0
    */
   public static final byte OPLOG_MAGIC_SEQ_ID = 89;
@@ -321,7 +320,7 @@ public class DiskInitFile implements DiskInitFileInterpreter {
    * (boolean) 1: isBucket (boolean) variable: partitionName (utf) 4: startingBucketId (int)
    * variable: compressorClassName (utf) 1: versioned (boolean) 1: offHeap (boolean) added in 9.0 1:
    * EndOfRecordMarker
-   * 
+   *
    * @since Geode 1.0
    */
   public static final byte IFREC_REGION_CONFIG_ID_90 = 90;
@@ -382,9 +381,9 @@ public class DiskInitFile implements DiskInitFileInterpreter {
   private final Set<PersistentMemberPattern> revokedMembers =
       new HashSet<PersistentMemberPattern>();
 
-  transient private long nextSeekPosition;
+  private transient long nextSeekPosition;
 
-  transient private boolean gotEOF;
+  private transient boolean gotEOF;
 
   private void lock(boolean useBackupLock) {
     if (useBackupLock) {
@@ -446,8 +445,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
 
         this.gotEOF = parser.gotEOF();
         this.nextSeekPosition = dis.getCount();
-        if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-          logger.trace(LogMarker.PERSIST_RECOVERY, "liveRecordCount={} totalRecordCount={}",
+        if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
+          logger.trace(LogMarker.PERSIST_RECOVERY_VERBOSE, "liveRecordCount={} totalRecordCount={}",
               this.ifLiveRecordCount, this.ifTotalRecordCount);
         }
       } finally {
@@ -462,9 +461,6 @@ public class DiskInitFile implements DiskInitFileInterpreter {
         if (drv.getMyPersistentID() != null || drv.getMyInitializingID() != null) {
           // Prepare each region we found in the init file for early recovery.
           if (drv.isBucket() || !getDiskStore().getOwnedByRegion()) {
-            if (drv.isBucket() && !drv.getActualLruAlgorithm().isNone()) {
-              drv.prlruStats = getDiskStore().getOrCreatePRLRUStats(drv);
-            }
             getDiskStore().getStats().incUncreatedRecoveredRegions(1);
             drv.setRecoveredEntryMap(RegionMapFactory.createVM(drv, getDiskStore(),
                 getDiskStore().getInternalRegionArguments()));
@@ -586,8 +582,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
       this.ifLiveRecordCount++;
       this.ifTotalRecordCount++;
     } else {
-      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-        logger.trace(LogMarker.PERSIST_RECOVERY, "bad disk region id!");
+      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
+        logger.trace(LogMarker.PERSIST_RECOVERY_VERBOSE, "bad disk region id!");
       } else {
         throw new IllegalStateException("bad disk region id");
       }
@@ -640,8 +636,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
       this.ifLiveRecordCount--;
       this.ifTotalRecordCount++;
     } else {
-      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-        logger.trace(LogMarker.PERSIST_RECOVERY, "bad disk region id!");
+      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
+        logger.trace(LogMarker.PERSIST_RECOVERY_VERBOSE, "bad disk region id!");
       } else {
         throw new IllegalStateException("bad disk region id");
       }
@@ -658,8 +654,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
       this.ifLiveRecordCount++;
       this.ifTotalRecordCount++;
     } else {
-      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-        logger.trace(LogMarker.PERSIST_RECOVERY, "bad disk region id!");
+      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
+        logger.trace(LogMarker.PERSIST_RECOVERY_VERBOSE, "bad disk region id!");
       } else {
         throw new IllegalStateException("bad disk region id");
       }
@@ -684,8 +680,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
       this.ifLiveRecordCount++;
       this.ifTotalRecordCount++;
     } else {
-      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-        logger.trace(LogMarker.PERSIST_RECOVERY, "bad disk region id!");
+      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
+        logger.trace(LogMarker.PERSIST_RECOVERY_VERBOSE, "bad disk region id!");
       } else {
         throw new IllegalStateException("bad disk region id");
       }
@@ -702,8 +698,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
       this.ifLiveRecordCount++;
       this.ifTotalRecordCount++;
     } else {
-      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-        logger.trace(LogMarker.PERSIST_RECOVERY, "bad disk region id!");
+      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
+        logger.trace(LogMarker.PERSIST_RECOVERY_VERBOSE, "bad disk region id!");
       } else {
         throw new IllegalStateException("bad disk region id");
       }
@@ -1149,8 +1145,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
       }
       this.ifTotalRecordCount++;
     } else {
-      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-        logger.trace(LogMarker.PERSIST_RECOVERY, "bad disk region id!");
+      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
+        logger.trace(LogMarker.PERSIST_RECOVERY_VERBOSE, "bad disk region id!");
       } else {
         throw new IllegalStateException("bad disk region id");
       }
@@ -1165,8 +1161,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
     if (dr != null) {
       dr.markInitialized();
     } else {
-      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-        logger.trace(LogMarker.PERSIST_RECOVERY, "bad disk region id!");
+      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
+        logger.trace(LogMarker.PERSIST_RECOVERY_VERBOSE, "bad disk region id!");
       } else {
         throw new IllegalStateException("bad disk region id");
       }
@@ -1179,8 +1175,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
     if (dr != null) {
       dr.markBeginDestroyRegion();
     } else {
-      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-        logger.trace(LogMarker.PERSIST_RECOVERY, "bad disk region id!");
+      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
+        logger.trace(LogMarker.PERSIST_RECOVERY_VERBOSE, "bad disk region id!");
       } else {
         throw new IllegalStateException("bad disk region id");
       }
@@ -1219,8 +1215,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
 
       dr.markEndDestroyRegion();
     } else {
-      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-        logger.trace(LogMarker.PERSIST_RECOVERY, "bad disk region id!");
+      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
+        logger.trace(LogMarker.PERSIST_RECOVERY_VERBOSE, "bad disk region id!");
       } else {
         throw new IllegalStateException("bad disk region id");
       }
@@ -1306,14 +1302,14 @@ public class DiskInitFile implements DiskInitFileInterpreter {
   /**
    * Returns the bytes used to represent a class in an oplog.
    */
-  static private byte[] classToBytes(Class c) {
+  private static byte[] classToBytes(Class c) {
     return classNameToBytes(c.getName());
   }
 
   /**
    * Returns the bytes used to represent a class in an oplog.
    */
-  static private byte[] classNameToBytes(String cn) {
+  private static byte[] classNameToBytes(String cn) {
     return cn.getBytes(); // use default encoder
   }
 
@@ -1378,18 +1374,13 @@ public class DiskInitFile implements DiskInitFileInterpreter {
 
   private void writeIFRecord(ByteBuffer bb, boolean doStats) throws IOException {
     assert lock.isHeldByCurrentThread();
-    // TODO soplog - this behavior isn't right.
-    // it should throw an exception or something.
     if (this.closed) {
       throw new DiskAccessException("The disk store is closed", parent);
     }
-    // if (this.closed) {
-    // throw new DiskAccessException("Init file is closed!", parent);
-    // }
 
     this.ifRAF.write(bb.array(), 0, bb.position());
-    if (logger.isTraceEnabled(LogMarker.PERSIST_WRITES)) {
-      logger.trace(LogMarker.PERSIST_WRITES, "DiskInitFile writeIFRecord bb[0] = {}",
+    if (logger.isTraceEnabled(LogMarker.PERSIST_WRITES_VERBOSE)) {
+      logger.trace(LogMarker.PERSIST_WRITES_VERBOSE, "DiskInitFile writeIFRecord bb[0] = {}",
           bb.array()[0]);
     }
     if (doStats) {
@@ -1405,8 +1396,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
       throw new DiskAccessException("The disk store is closed", parent);
     }
     hdos.sendTo(this.ifRAF);
-    if (logger.isTraceEnabled(LogMarker.PERSIST_WRITES)) {
-      logger.trace(LogMarker.PERSIST_WRITES, "DiskInitFile writeIFRecord HDOS");
+    if (logger.isTraceEnabled(LogMarker.PERSIST_WRITES_VERBOSE)) {
+      logger.trace(LogMarker.PERSIST_WRITES_VERBOSE, "DiskInitFile writeIFRecord HDOS");
     }
     if (doStats) {
       this.ifLiveRecordCount++;
@@ -2051,8 +2042,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
         cmnEndDestroyRegion(dr);
         writeIFRecord(IFREC_END_DESTROY_REGION_ID, dr);
         if (logger.isDebugEnabled()) {
-          logger.trace(LogMarker.PERSIST_WRITES, "DiskInitFile IFREC_END_DESTROY_REGION_ID drId={}",
-              dr.getId());
+          logger.trace(LogMarker.PERSIST_WRITES_VERBOSE,
+              "DiskInitFile IFREC_END_DESTROY_REGION_ID drId={}", dr.getId());
         }
       }
     } finally {
@@ -2387,7 +2378,7 @@ public class DiskInitFile implements DiskInitFileInterpreter {
 
   /**
    * Additional flags for a disk region that are persisted in its meta-data.
-   * 
+   *
    * @since GemFire 7.0
    */
   public enum DiskRegionFlag {
@@ -2434,8 +2425,8 @@ public class DiskInitFile implements DiskInitFileInterpreter {
 
   @Override
   public void cmnDiskStoreID(DiskStoreID diskStoreID) {
-    if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
-      logger.trace(LogMarker.PERSIST_RECOVERY, "diskStoreId={}", diskStoreID);
+    if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
+      logger.trace(LogMarker.PERSIST_RECOVERY_VERBOSE, "diskStoreId={}", diskStoreID);
     }
     this.parent.setDiskStoreID(diskStoreID);
   }
@@ -2453,7 +2444,7 @@ public class DiskInitFile implements DiskInitFileInterpreter {
   }
 
   public void dump() {
-    if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
+    if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
       System.out.println("expectedCrfs=" + Arrays.toString(this.crfIds.toArray()));
       System.out.println("expectedDrfs=" + Arrays.toString(this.drfIds.toArray()));
       System.out.println("dataSerializerIds=" + Arrays.toString(this.dsIds.toArray()));
@@ -2463,8 +2454,6 @@ public class DiskInitFile implements DiskInitFileInterpreter {
 
   /**
    * Returns a map of region_name->(pr_buckets|replicated_region)
-   * 
-   * @param regName
    */
   private Map<String, List<PlaceHolderDiskRegion>> getRegionsToDump(String regName) {
     if (regName == null) {
@@ -2518,7 +2507,7 @@ public class DiskInitFile implements DiskInitFileInterpreter {
         .entrySet()) {
       printStream.print("  ");
       List<PlaceHolderDiskRegion> regions = regionEntry.getValue();
-      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY)) {
+      if (logger.isTraceEnabled(LogMarker.PERSIST_RECOVERY_VERBOSE)) {
         for (PlaceHolderDiskRegion region : regions) {
           region.dump(printStream);
         }

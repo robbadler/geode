@@ -17,15 +17,15 @@ package org.apache.geode.test.junit.rules.serializable;
 import static org.apache.geode.test.junit.rules.serializable.FieldSerializationUtils.*;
 import static org.apache.geode.test.junit.rules.serializable.FieldsOfTestName.*;
 
-import org.junit.rules.TestName;
-import org.junit.runner.Description;
-
 import java.io.InvalidObjectException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
 
+import org.junit.rules.TestName;
+import org.junit.runner.Description;
+
 /**
- * Serializable subclass of {@link org.junit.rules.TestName TestName}. All instance variables of
+ * Serializable subclass of {@link TestName TestName}. All instance variables of
  * {@code TestName} are serialized by reflection.
  */
 public class SerializableTestName extends TestName implements SerializableTestRule {

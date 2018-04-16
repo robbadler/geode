@@ -14,16 +14,8 @@
  */
 package org.apache.geode.cache.query.dunit;
 
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
-import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-
 import static org.apache.geode.cache.query.Utils.createPortfoliosAndPositions;
+import static org.junit.Assert.*;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -31,6 +23,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
+import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.Cache;
@@ -60,9 +53,8 @@ import org.apache.geode.cache.query.functional.StructSetOrResultsSet;
 import org.apache.geode.cache.query.internal.DefaultQuery;
 import org.apache.geode.cache.query.internal.IndexTrackingQueryObserver;
 import org.apache.geode.cache.query.internal.QueryObserverHolder;
-import org.apache.geode.cache.query.partitioned.PRQueryDUnitHelper;
 import org.apache.geode.cache30.CacheSerializableRunnable;
-import org.apache.geode.cache30.CacheTestCase;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.internal.cache.LocalDataSet;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.execute.PRClientServerTestBase;
@@ -74,13 +66,16 @@ import org.apache.geode.test.dunit.LogWriterUtils;
 import org.apache.geode.test.dunit.NetworkUtils;
 import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
 /**
  * This tests the querying using a RegionFunctionContext which provides a filter (routing keys) to
  * run the query on subset of buckets "locally". If query includes buckets
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, OQLQueryTest.class})
 public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
 
   private static final int cnt = 0;
@@ -141,11 +136,17 @@ public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
   public static String[] queriesForRR =
       new String[] {"<trace> select * from /" + repRegionName + " where ID>=0"};
 
-  /**
-   * @param name
-   */
   public QueryUsingFunctionContextDUnitTest() {
     super();
+  }
+
+
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties properties = super.getDistributedSystemProperties();
+    properties.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.cache.query.dunit.**");
+    return properties;
   }
 
   @Override
@@ -289,9 +290,6 @@ public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
 
   }
 
-  /**
-   *
-   */
   @Test
   public void testQueriesWithFilterKeysOnPRLocalAndRemote() {
 
@@ -327,9 +325,6 @@ public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
     });
   }
 
-  /**
-  *
-  */
   @Test
   public void testQueriesWithFilterKeysOnPRLocalAndRemoteWithBucketDestroy() {
 
@@ -392,9 +387,6 @@ public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
 
   }
 
-  /**
-   *
-   */
   @Test
   public void testQueriesWithFilterKeysOnPRWithBucketDestroy() {
     IgnoredException.addIgnoredException("QueryInvocationTargetException");
@@ -609,7 +601,7 @@ public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
 
 
   // Helper classes and function
-  public class TestQueryFunction extends FunctionAdapter {
+  public static class TestQueryFunction extends FunctionAdapter {
 
     @Override
     public boolean hasResult() {
@@ -650,7 +642,7 @@ public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
     }
   }
 
-  public class TestServerQueryFunction extends FunctionAdapter {
+  public static class TestServerQueryFunction extends FunctionAdapter {
 
     @Override
     public boolean hasResult() {
@@ -740,7 +732,7 @@ public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
 
   private void createServersWithRegions() {
     // Create caches
-    Properties props = new Properties();
+    Properties props = getDistributedSystemProperties();
     server1.invoke(() -> PRClientServerTestBase.createCacheInVm(props));
     server2.invoke(() -> PRClientServerTestBase.createCacheInVm(props));
     server3.invoke(() -> PRClientServerTestBase.createCacheInVm(props));
@@ -854,8 +846,8 @@ public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
   private void createCacheClientWithoutReg(String host, Integer port1, Integer port2,
       Integer port3) {
     this.disconnectFromDS();
-    ClientCache cache = new ClientCacheFactory().addPoolServer(host, port1)
-        .addPoolServer(host, port2).addPoolServer(host, port3).create();
+    ClientCache cache = new ClientCacheFactory(getDistributedSystemProperties())
+        .addPoolServer(host, port1).addPoolServer(host, port2).addPoolServer(host, port3).create();
   }
 
   /**
@@ -911,10 +903,7 @@ public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Run query using a function executed by client on a region on server with filter.
-   * 
-   * @param function
-   * @param regionName
-   * @param filter
+   *
    * @return ArrayList of results
    */
   public static ArrayList runQueryOnClientUsingFunction(Function function, String regionName,
@@ -957,10 +946,7 @@ public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Runs a {@link LocalDataSet} query on a single server.
-   * 
-   * @param func
-   * @param filter
-   * @param query
+   *
    * @return results in a List
    */
   private ArrayList runLDSQueryOnClientUsingFunc(Function func, Set filter, String query) {
@@ -1009,10 +995,6 @@ public class QueryUsingFunctionContextDUnitTest extends JUnit4CacheTestCase {
   /**
    * This function puts portfolio objects into the created Region (PR or Local) *
    *
-   * @param regionName
-   * @param portfolio
-   * @param to
-   * @param from
    * @return cacheSerializable object
    */
   public CacheSerializableRunnable getCacheSerializableRunnableForPRPuts(final String regionName,

@@ -15,19 +15,18 @@
 
 package org.apache.geode.management.internal.cli.commands;
 
-import java.io.File;
 import java.util.Map;
 import java.util.Set;
 
 import org.springframework.shell.core.annotation.CliCommand;
 import org.springframework.shell.core.annotation.CliOption;
 
-import org.apache.geode.admin.BackupStatus;
-import org.apache.geode.admin.internal.AdminDistributedSystemImpl;
 import org.apache.geode.cache.persistence.PersistentID;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.backup.BackupUtil;
+import org.apache.geode.management.BackupStatus;
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
@@ -37,7 +36,7 @@ import org.apache.geode.management.internal.cli.result.TabularResultData;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
-public class BackupDiskStoreCommand implements GfshCommand {
+public class BackupDiskStoreCommand extends InternalGfshCommand {
   /**
    * Internally, we also verify the resource operation permissions CLUSTER:WRITE:DISK if the region
    * is persistent
@@ -52,19 +51,18 @@ public class BackupDiskStoreCommand implements GfshCommand {
       @CliOption(key = CliStrings.BACKUP_DISK_STORE__BASELINEDIR,
           help = CliStrings.BACKUP_DISK_STORE__BASELINEDIR__HELP) String baselineDir) {
 
-    getSecurityService().authorize(ResourcePermission.Resource.CLUSTER,
-        ResourcePermission.Operation.WRITE, ResourcePermission.Target.DISK);
+    authorize(ResourcePermission.Resource.CLUSTER, ResourcePermission.Operation.WRITE,
+        ResourcePermission.Target.DISK);
     Result result;
     try {
-      InternalCache cache = getCache();
-      DM dm = cache.getDistributionManager();
+      InternalCache cache = (InternalCache) getCache();
+      DistributionManager dm = cache.getDistributionManager();
       BackupStatus backupStatus;
 
       if (baselineDir != null && !baselineDir.isEmpty()) {
-        backupStatus = AdminDistributedSystemImpl.backupAllMembers(dm, new File(targetDir),
-            new File(baselineDir));
+        backupStatus = BackupUtil.backupAllMembers(dm, targetDir, baselineDir);
       } else {
-        backupStatus = AdminDistributedSystemImpl.backupAllMembers(dm, new File(targetDir), null);
+        backupStatus = BackupUtil.backupAllMembers(dm, targetDir, null);
       }
 
       Map<DistributedMember, Set<PersistentID>> backedupMemberDiskstoreMap =

@@ -16,8 +16,6 @@ package org.apache.geode.pdx;
 
 import java.util.Date;
 
-import org.apache.geode.cache.CacheFactory;
-
 /**
  * A PdxWriter will be passed to {@link PdxSerializable#toData(PdxWriter) toData} or
  * {@link PdxSerializer#toData(Object, PdxWriter) PdxSerializer toData} by GemFire when it is
@@ -30,7 +28,7 @@ import org.apache.geode.cache.CacheFactory;
  * Field names are case sensitive.
  * <p>
  * All methods on this interface return itself to allow method calls to be chained together.
- * 
+ *
  * @since GemFire 6.6
  */
 public interface PdxWriter {
@@ -40,140 +38,140 @@ public interface PdxWriter {
    * <code>char</code>.
    * <p>
    * Java char is mapped to .NET System.Char.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeChar(String fieldName, char value);
+  PdxWriter writeChar(String fieldName, char value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>boolean</code>.
    * <p>
    * Java boolean is mapped to .NET System.Boolean.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeBoolean(String fieldName, boolean value);
+  PdxWriter writeBoolean(String fieldName, boolean value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>byte</code>.
    * <p>
    * Java byte is mapped to .NET System.SByte.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeByte(String fieldName, byte value);
+  PdxWriter writeByte(String fieldName, byte value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>short</code>.
    * <p>
    * Java short is mapped to .NET System.Int16.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeShort(String fieldName, short value);
+  PdxWriter writeShort(String fieldName, short value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>int</code>.
    * <p>
    * Java int is mapped to .NET System.Int32.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeInt(String fieldName, int value);
+  PdxWriter writeInt(String fieldName, int value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>long</code>.
    * <p>
    * Java long is mapped to .NET System.Int64.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeLong(String fieldName, long value);
+  PdxWriter writeLong(String fieldName, long value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>float</code>.
    * <p>
    * Java float is mapped to .NET System.Float.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeFloat(String fieldName, float value);
+  PdxWriter writeFloat(String fieldName, float value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>double</code>.
    * <p>
    * Java double is mapped to .NET System.Double.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeDouble(String fieldName, double value);
+  PdxWriter writeDouble(String fieldName, double value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>Date</code>.
    * <p>
    * Java Date is mapped to .NET System.DateTime.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeDate(String fieldName, Date value);
+  PdxWriter writeDate(String fieldName, Date value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>String</code>.
    * <p>
    * Java String is mapped to .NET System.String.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeString(String fieldName, String value);
+  PdxWriter writeString(String fieldName, String value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
@@ -186,14 +184,14 @@ public interface PdxWriter {
    * Note that some Java objects serialized with this method may not be compatible with non-java
    * languages. To ensure that only portable objects are serialized use
    * {@link #writeObject(String, Object, boolean)}.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeObject(String fieldName, Object value);
+  PdxWriter writeObject(String fieldName, Object value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
@@ -239,7 +237,7 @@ public interface PdxWriter {
    * <li>java.util.HashSet: CacheableHashSet
    * <li>java.util.LinkedHashSet: CacheableLinkedHashSet
    * </ul>
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @param checkPortability if true then an exception is thrown if a non-portable object is
@@ -251,133 +249,133 @@ public interface PdxWriter {
    * @throws PdxSerializationException if serialization of the field fails.
    * @since GemFire 6.6.2
    */
-  public PdxWriter writeObject(String fieldName, Object value, boolean checkPortability);
+  PdxWriter writeObject(String fieldName, Object value, boolean checkPortability);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>boolean[]</code>.
    * <p>
    * Java boolean[] is mapped to .NET System.Boolean[].
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeBooleanArray(String fieldName, boolean[] value);
+  PdxWriter writeBooleanArray(String fieldName, boolean[] value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>char[]</code>.
    * <p>
    * Java char[] is mapped to .NET System.Char[].
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeCharArray(String fieldName, char[] value);
+  PdxWriter writeCharArray(String fieldName, char[] value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>byte[]</code>.
    * <p>
    * Java byte[] is mapped to .NET System.Byte[].
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeByteArray(String fieldName, byte[] value);
+  PdxWriter writeByteArray(String fieldName, byte[] value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>short[]</code>.
    * <p>
    * Java short[] is mapped to .NET System.Int16[].
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeShortArray(String fieldName, short[] value);
+  PdxWriter writeShortArray(String fieldName, short[] value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>int[]</code>.
    * <p>
    * Java int[] is mapped to .NET System.Int32[].
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeIntArray(String fieldName, int[] value);
+  PdxWriter writeIntArray(String fieldName, int[] value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>long[]</code>.
    * <p>
    * Java long[] is mapped to .NET System.Int64[].
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeLongArray(String fieldName, long[] value);
+  PdxWriter writeLongArray(String fieldName, long[] value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>float[]</code>.
    * <p>
    * Java float[] is mapped to .NET System.Float[].
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeFloatArray(String fieldName, float[] value);
+  PdxWriter writeFloatArray(String fieldName, float[] value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>double[]</code>.
    * <p>
    * Java double[] is mapped to .NET System.Double[].
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeDoubleArray(String fieldName, double[] value);
+  PdxWriter writeDoubleArray(String fieldName, double[] value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>String[]</code>.
    * <p>
    * Java String[] is mapped to .NET System.String[].
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeStringArray(String fieldName, String[] value);
+  PdxWriter writeStringArray(String fieldName, String[] value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
@@ -388,14 +386,14 @@ public interface PdxWriter {
    * Note that this call may serialize elements that are not compatible with non-java languages. To
    * ensure that only portable objects are serialized use
    * {@link #writeObjectArray(String, Object[], boolean)}.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeObjectArray(String fieldName, Object[] value);
+  PdxWriter writeObjectArray(String fieldName, Object[] value);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
@@ -406,7 +404,7 @@ public interface PdxWriter {
    * Note that this call may serialize elements that are not compatible with non-java languages. To
    * ensure that only portable objects are serialized use
    * {@link #writeObjectArray(String, Object[], boolean)}.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @param checkPortability if true then an exception is thrown if a non-portable object is
@@ -418,21 +416,21 @@ public interface PdxWriter {
    * @throws PdxSerializationException if serialization of the field fails.
    * @since GemFire 6.6.2
    */
-  public PdxWriter writeObjectArray(String fieldName, Object[] value, boolean checkPortability);
+  PdxWriter writeObjectArray(String fieldName, Object[] value, boolean checkPortability);
 
   /**
    * Writes the named field with the given value to the serialized form. The fields type is
    * <code>byte[][]</code>.
    * <p>
    * Java byte[][] is mapped to .NET System.Byte[][].
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param value the value of the field to write
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public PdxWriter writeArrayOfByteArrays(String fieldName, byte[][] value);
+  PdxWriter writeArrayOfByteArrays(String fieldName, byte[][] value);
 
   /**
    * Writes the named field with the given value and type to the serialized form. This method uses
@@ -468,7 +466,7 @@ public interface PdxWriter {
    * </ul>
    * Note that the object form of primitives, for example Integer.class and Long.class, map to
    * {@link #writeObject(String, Object) writeObject}.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param fieldValue the value of the field to write; this parameter's class must extend the
    *        <code>fieldType</code>
@@ -477,8 +475,7 @@ public interface PdxWriter {
    * @throws PdxFieldAlreadyExistsException if the named field has already been written
    * @throws PdxSerializationException if serialization of the field fails.
    */
-  public <CT, VT extends CT> PdxWriter writeField(String fieldName, VT fieldValue,
-      Class<CT> fieldType);
+  <CT, VT extends CT> PdxWriter writeField(String fieldName, VT fieldValue, Class<CT> fieldType);
 
   /**
    * Writes the named field with the given value and type to the serialized form. This method uses
@@ -514,7 +511,7 @@ public interface PdxWriter {
    * </ul>
    * Note that the object form of primitives, for example Integer.class and Long.class, map to
    * {@link #writeObject(String, Object, boolean) writeObject}.
-   * 
+   *
    * @param fieldName the name of the field to write
    * @param fieldValue the value of the field to write; this parameter's class must extend the
    *        <code>fieldType</code>
@@ -528,39 +525,39 @@ public interface PdxWriter {
    * @throws PdxSerializationException if serialization of the field fails.
    * @since GemFire 6.6.2
    */
-  public <CT, VT extends CT> PdxWriter writeField(String fieldName, VT fieldValue,
-      Class<CT> fieldType, boolean checkPortability);
+  <CT, VT extends CT> PdxWriter writeField(String fieldName, VT fieldValue, Class<CT> fieldType,
+      boolean checkPortability);
 
   /**
    * Writes the given unread fields to the serialized form. The unread fields are obtained by
    * calling {@link PdxReader#readUnreadFields() readUnreadFields}.
    * <p>
    * This method must be called first before any of the writeXXX methods is called.
-   * 
+   *
    * @param unread the object that was returned from {@link PdxReader#readUnreadFields()
    *        readUnreadFields}.
    * @return this PdxWriter
    * @throws PdxFieldAlreadyExistsException if one of the writeXXX methods has already been called.
    */
-  public PdxWriter writeUnreadFields(PdxUnreadFields unread);
+  PdxWriter writeUnreadFields(PdxUnreadFields unread);
 
   /**
    * Indicate that the named field should be included in hashCode and equals checks of this object
    * on a server that is accessing {@link PdxInstance} or when a client executes a query on a
    * server.
-   * 
+   *
    * The fields that are marked as identity fields are used to generate the hashCode and equals
    * methods of {@link PdxInstance}. Because of this, the identity fields should themselves either
    * be primitives, or implement hashCode and equals.
-   * 
+   *
    * If no fields are set as identity fields, then all fields will be used in hashCode and equals
    * checks.
-   * 
+   *
    * The identity fields should be marked after they are written using a write* method.
-   * 
+   *
    * @param fieldName the name of the field to mark as an identity field.
    * @return this PdxWriter
    * @throws PdxFieldDoesNotExistException if the named field has not already been written.
    */
-  public PdxWriter markIdentityField(String fieldName);
+  PdxWriter markIdentityField(String fieldName);
 }

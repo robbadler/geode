@@ -37,12 +37,14 @@ import org.junit.experimental.categories.Category;
 
 import org.apache.geode.security.SecurableCommunicationChannels;
 import org.apache.geode.security.SimpleTestSecurityManager;
-import org.apache.geode.test.dunit.rules.HttpClientRule;
-import org.apache.geode.test.dunit.rules.LocatorStarterRule;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.PulseTest;
+import org.apache.geode.test.junit.categories.SecurityTest;
+import org.apache.geode.test.junit.rules.HttpClientRule;
+import org.apache.geode.test.junit.rules.LocatorStarterRule;
 
 
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, SecurityTest.class, PulseTest.class})
 public class PulseSecurityWithSSLTest {
 
   private static File jks =
@@ -54,7 +56,7 @@ public class PulseSecurityWithSSLTest {
   @BeforeClass
   public static void beforeClass() throws Exception {
     Properties securityProps = new Properties();
-    securityProps.setProperty(SSL_ENABLED_COMPONENTS, SecurableCommunicationChannels.JMX);
+    securityProps.setProperty(SSL_ENABLED_COMPONENTS, SecurableCommunicationChannels.WEB);
     securityProps.setProperty(SSL_KEYSTORE, jks.getCanonicalPath());
     securityProps.setProperty(SSL_KEYSTORE_PASSWORD, "password");
     securityProps.setProperty(SSL_TRUSTSTORE, jks.getCanonicalPath());
@@ -67,7 +69,7 @@ public class PulseSecurityWithSSLTest {
   }
 
   @Rule
-  public HttpClientRule client = new HttpClientRule(locator::getHttpPort);
+  public HttpClientRule client = new HttpClientRule(locator::getHttpPort).withSSL();
 
 
   @Test

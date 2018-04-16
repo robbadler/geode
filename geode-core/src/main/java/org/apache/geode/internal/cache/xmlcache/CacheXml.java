@@ -14,16 +14,17 @@
  */
 package org.apache.geode.internal.cache.xmlcache;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ServiceLoader;
+
+import org.xml.sax.*;
+import org.xml.sax.ext.EntityResolver2;
+
 import org.apache.geode.cache.CacheXmlException;
 import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.i18n.LocalizedStrings;
-import org.xml.sax.*;
-import org.xml.sax.ext.EntityResolver2;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ServiceLoader;
 
 /**
  * The abstract superclass of classes that convert XML into a {@link org.apache.geode.cache.Cache}
@@ -65,28 +66,28 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
 
   /**
    * Namespace URI for {@link CacheXml} documents.
-   * 
+   *
    * @since GemFire 8.1
    */
   public static final String GEODE_NAMESPACE = "http://geode.apache.org/schema/cache";
 
   /**
    * Namespace prefix for {@link CacheXml} documents.
-   * 
+   *
    * @since GemFire 8.1
    */
   public static final String PREFIX = "cache";
 
   /**
    * Latest schema location for {@link #GEODE_NAMESPACE}.
-   * 
+   *
    * @since GemFire 8.1
    */
   public static final String LATEST_SCHEMA_LOCATION = CacheXml.SCHEMA_1_0_LOCATION;
 
   /**
    * Location of the latest DTD file for Gemfire
-   * 
+   *
    * @deprecated As of 8.1 use {@link #LATEST_SCHEMA_LOCATION}
    */
   @Deprecated
@@ -94,28 +95,28 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
 
   /**
    * Version string for GemFire 8.1
-   * 
+   *
    * @since GemFire 8.1
    */
   public static final String VERSION_8_1 = "8.1";
 
   /**
    * Version string for Geode 1.0
-   * 
+   *
    * @since Geode 1.0
    */
   public static final String VERSION_1_0 = "1.0";
 
   /**
    * The location of the GemFire 8.1 schema file.
-   * 
+   *
    * @since GemFire 8.1
    */
-  protected static final String SCHEMA_8_1_LOCATION =
+  public static final String SCHEMA_8_1_LOCATION =
       "http://schema.pivotal.io/gemfire/cache/cache-8.1.xsd";
   /**
    * The location of the Geode 1.0 schema file.
-   * 
+   *
    * @since Geode 1.0
    */
   protected static final String SCHEMA_1_0_LOCATION =
@@ -542,6 +543,11 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   /** The name of the index type attribute */
   protected static final String INDEX_TYPE = "type";
   /** The name of the <code>hash-index</code> index type attribute */
+  /**
+   * @deprecated Due to the overhead caused by rehashing while expanding the backing array, Hash
+   *             Index has been deprecated since Apache Geode 1.4.0. Use {@link CacheXml#FUNCTIONAL}
+   */
+  @Deprecated
   protected static final String HASH_INDEX_TYPE = "hash";
   /** The name of the <code>range-index</code> index type attribute */
   protected static final String RANGE_INDEX_TYPE = "range";
@@ -605,6 +611,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   public static final String POOL_NAME = "pool-name";
   public static final String SERVER = "server";
   public static final String LOCATOR = "locator";
+  public static final String SUBSCRIPTION_TIMEOUT_MULTIPLIER = "subscription-timeout-multiplier";
   public static final String SOCKET_CONNECT_TIMEOUT = "socket-connect-timeout";
   public static final String FREE_CONNECTION_TIMEOUT = "free-connection-timeout";
   public static final String LOAD_CONDITIONING_INTERVAL = "load-conditioning-interval";
@@ -746,7 +753,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   protected static final String COMPRESSOR = "compressor";
   /**
    * The name of the <code>off-heap</code> attribute
-   * 
+   *
    * @since Geode 1.0
    */
   protected static final String OFF_HEAP = "off-heap";
@@ -761,8 +768,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   /**
    * Given a public id, attempt to resolve it to a DTD. Returns an <code>InputSoure</code> for the
    * DTD.
-   * 
-   * @throws IOException
+   *
    */
   public InputSource resolveEntity(String name, String publicId, String baseURI, String systemId)
       throws SAXException, IOException {
@@ -834,7 +840,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.xml.sax.EntityResolver#resolveEntity(java.lang.String, java.lang.String)
    */
   @Override
@@ -845,7 +851,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.xml.sax.ext.EntityResolver2#getExternalSubset(java.lang.String, java.lang.String)
    */
   @Override
@@ -856,12 +862,8 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
 
   /**
    * Resolve entity using discovered {@link EntityResolver2}s.
-   * 
-   * @param publicId
-   * @param systemId
+   *
    * @return {@link InputSource} for resolved entity if found, otherwise null.
-   * @throws IOException
-   * @throws SAXException
    * @since GemFire 8.1
    */
   private InputSource resolveEntityByEntityResolvers(String name, String publicId, String baseURI,
@@ -900,9 +902,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   }
 
   /**
-   * 
-   * @param attributes
-   * @param name
+   *
    * @return String value for named attribute or null if attribute not defined.
    * @since GemFire 8.1
    */
@@ -911,10 +911,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   }
 
   /**
-   * 
-   * @param attributes
-   * @param name
-   * @param defaultValue
+   *
    * @return String value for named attribute or <code>defaultValue</code> if attribute not defined.
    * @since GemFire 8.1
    */
@@ -928,9 +925,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   }
 
   /**
-   * 
-   * @param attributes
-   * @param name
+   *
    * @return Integer value for named attribute or null if attribute not defined.
    * @since GemFire 8.1
    */
@@ -939,10 +934,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   }
 
   /**
-   * 
-   * @param attributes
-   * @param name
-   * @param defaultValue
+   *
    * @return Integer value for named attribute or <code>defaultValue</code> if attribute not
    *         defined.
    * @since GemFire 8.1
@@ -957,9 +949,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   }
 
   /**
-   * 
-   * @param attributes
-   * @param name
+   *
    * @return Boolean value for named attribute or null if attribute not defined.
    * @since GemFire 8.1
    */
@@ -968,10 +958,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   }
 
   /**
-   * 
-   * @param attributes
-   * @param name
-   * @param defaultValue
+   *
    * @return Boolean value for named attribute or <code>defaultValue</code> if attribute not
    *         defined.
    * @since GemFire 8.1
@@ -986,10 +973,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   }
 
   /**
-   * 
-   * @param attributes
-   * @param name
-   * @param clazz
+   *
    * @return Enum value for named attribute or null if attribute not defined.
    * @since GemFire 8.1
    */
@@ -999,11 +983,7 @@ public abstract class CacheXml implements EntityResolver2, ErrorHandler {
   }
 
   /**
-   * 
-   * @param attributes
-   * @param name
-   * @param clazz
-   * @param defaultValue
+   *
    * @return Enum value for named attribute or <code>defaultValue</code> if attribute not defined.
    * @since GemFire 8.1
    */

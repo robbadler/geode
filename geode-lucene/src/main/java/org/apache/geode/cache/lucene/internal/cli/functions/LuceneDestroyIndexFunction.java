@@ -14,30 +14,28 @@
  */
 package org.apache.geode.cache.lucene.internal.cli.functions;
 
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.execute.Function;
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.lucene.LuceneService;
 import org.apache.geode.cache.lucene.LuceneServiceProvider;
 import org.apache.geode.cache.lucene.internal.LuceneServiceImpl;
 import org.apache.geode.cache.lucene.internal.cli.LuceneDestroyIndexInfo;
 import org.apache.geode.cache.lucene.internal.xml.LuceneXmlConstants;
-import org.apache.geode.internal.InternalEntity;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.cache.xmlcache.CacheXml;
 import org.apache.geode.management.internal.cli.functions.CliFunctionResult;
 import org.apache.geode.management.internal.configuration.domain.XmlEntity;
 
-public class LuceneDestroyIndexFunction implements Function, InternalEntity {
-
+public class LuceneDestroyIndexFunction implements InternalFunction {
   public void execute(final FunctionContext context) {
-    CliFunctionResult result = null;
-    String memberId = getCache().getDistributedSystem().getDistributedMember().getId();
+    CliFunctionResult result;
+    String memberId = context.getCache().getDistributedSystem().getDistributedMember().getId();
     try {
       LuceneDestroyIndexInfo indexInfo = (LuceneDestroyIndexInfo) context.getArguments();
       String indexName = indexInfo.getIndexName();
       String regionPath = indexInfo.getRegionPath();
-      LuceneService service = LuceneServiceProvider.get(getCache());
+      LuceneService service = LuceneServiceProvider.get(context.getCache());
       if (indexName == null) {
         if (indexInfo.isDefinedDestroyOnly()) {
           ((LuceneServiceImpl) service).destroyDefinedIndexes(regionPath);
@@ -62,11 +60,8 @@ public class LuceneDestroyIndexFunction implements Function, InternalEntity {
   }
 
   protected XmlEntity getXmlEntity(String indexName, String regionPath) {
-    return new XmlEntity(CacheXml.REGION, "name", regionPath, LuceneXmlConstants.PREFIX,
+    String regionName = StringUtils.stripStart(regionPath, "/");
+    return new XmlEntity(CacheXml.REGION, "name", regionName, LuceneXmlConstants.PREFIX,
         LuceneXmlConstants.NAMESPACE, LuceneXmlConstants.INDEX, "name", indexName);
-  }
-
-  protected Cache getCache() {
-    return CacheFactory.getAnyInstance();
   }
 }

@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-import org.apache.geode.test.junit.categories.SerializationTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -42,8 +41,8 @@ import org.apache.geode.cache.client.ClientCacheFactory;
 import org.apache.geode.cache.client.ClientRegionShortcut;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionMessageObserver;
 import org.apache.geode.internal.AvailablePortHelper;
@@ -70,6 +69,7 @@ import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.SerializationTest;
 
 @Category({DistributedTest.class, SerializationTest.class})
 public class ClientsWithVersioningRetryDUnitTest extends JUnit4CacheTestCase {
@@ -215,8 +215,9 @@ public class ClientsWithVersioningRetryDUnitTest extends JUnit4CacheTestCase {
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
 
           @Override
-          public void beforeSendMessage(DistributionManager dm, DistributionMessage msg) {
-            if (msg instanceof DistributedPutAllOperation.PutAllMessage) {
+          public void beforeSendMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
+            if (message instanceof DistributedPutAllOperation.PutAllMessage) {
               DistributionMessageObserver.setInstance(null);
               disconnectFromDS(vm1);
             }
@@ -314,7 +315,7 @@ public class ClientsWithVersioningRetryDUnitTest extends JUnit4CacheTestCase {
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
 
           @Override
-          public void beforeProcessMessage(DistributionManager dm, DistributionMessage msg) {
+          public void beforeProcessMessage(ClusterDistributionManager dm, DistributionMessage msg) {
             if (msg instanceof DistributedPutAllOperation.PutAllMessage) {
               DistributionMessageObserver.setInstance(null);
               Wait.pause(5000); // give vm1 time to process the message that we're ignoring

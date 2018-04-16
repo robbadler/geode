@@ -66,8 +66,8 @@ import org.apache.geode.cache.query.CqException;
 import org.apache.geode.cache.query.internal.cq.CqService;
 import org.apache.geode.cache.query.internal.cq.InternalCqQuery;
 import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.i18n.StringId;
 import org.apache.geode.internal.SystemTimer;
@@ -241,7 +241,7 @@ public class CacheClientProxy implements ClientSession {
   private boolean isPrimary;
 
   /** @since GemFire 5.7 */
-  protected byte clientConflation = HandShake.CONFLATION_DEFAULT;
+  protected byte clientConflation = Handshake.CONFLATION_DEFAULT;
 
   /**
    * Flag to indicate whether to keep a durable client's queue alive
@@ -337,7 +337,7 @@ public class CacheClientProxy implements ClientSession {
   protected CacheClientProxy(CacheClientNotifier ccn, Socket socket,
       ClientProxyMembershipID proxyID, boolean isPrimary, byte clientConflation,
       Version clientVersion, long acceptorId, boolean notifyBySubscription,
-      SecurityService securityService) throws CacheException {
+      SecurityService securityService, Subject subject) throws CacheException {
 
     initializeTransientFields(socket, proxyID, isPrimary, clientConflation, clientVersion);
     this._cacheClientNotifier = ccn;
@@ -351,6 +351,7 @@ public class CacheClientProxy implements ClientSession {
     this._statistics =
         new CacheClientProxyStats(factory, "id_" + this.proxyID.getDistributedMember().getId()
             + "_at_" + this._remoteHostAddress + ":" + this._socket.getPort());
+    this.subject = subject;
 
     // Create the interest list
     this.cils[RegisterInterestTracker.interestListIndex] =
@@ -392,7 +393,7 @@ public class CacheClientProxy implements ClientSession {
     // TODO:hitesh synchronization
     synchronized (this.clientUserAuthsLock) {
       if (this.subject != null) {
-        subject.logout();
+        this.subject.logout();
       }
       this.subject = subject;
     }
@@ -518,7 +519,7 @@ public class CacheClientProxy implements ClientSession {
 
   /**
    * Mark the receiver as needing removal
-   * 
+   *
    * @return true if it was already marked for removal
    */
   protected boolean startRemoval() {
@@ -532,7 +533,7 @@ public class CacheClientProxy implements ClientSession {
 
   /**
    * Wait until the receiver's removal has completed before returning.
-   * 
+   *
    * @return true if the proxy was initially marked for removal
    */
   protected boolean waitRemoval() {
@@ -601,7 +602,7 @@ public class CacheClientProxy implements ClientSession {
 
   /**
    * Returns this proxy's <code>CacheClientNotifier</code>.
-   * 
+   *
    * @return this proxy's <code>CacheClientNotifier</code>
    */
   protected CacheClientNotifier getCacheClientNotifier() {
@@ -1150,7 +1151,8 @@ public class CacheClientProxy implements ClientSession {
     if (Version.GFE_701.compareTo(this.clientVersion) > 0
         && message.getKeyOfInterest() instanceof List) {
       for (Iterator i = ((List) message.getKeyOfInterest()).iterator(); i.hasNext();) {
-        this._messageDispatcher.enqueueMessage(new ClientInterestMessageImpl(message, i.next()));
+        this._messageDispatcher.enqueueMessage(
+            new ClientInterestMessageImpl(getCache().getDistributedSystem(), message, i.next()));
       }
     } else {
       this._messageDispatcher.enqueueMessage(message);
@@ -1291,7 +1293,7 @@ public class CacheClientProxy implements ClientSession {
         recips.addAll(advice.getEmpties());
         recips.addAll(advice.getPreloaded());
         recips.addAll(advice.getOthers());
-        sfo.flush(recips, target, DistributionManager.HIGH_PRIORITY_EXECUTOR, true);
+        sfo.flush(recips, target, ClusterDistributionManager.HIGH_PRIORITY_EXECUTOR, true);
       } catch (InterruptedException ie) {
         Thread.currentThread().interrupt();
         return;
@@ -1495,8 +1497,8 @@ public class CacheClientProxy implements ClientSession {
         // again need to check as there may be no CQ available
         if (!clientMessage.hasCqs(this.proxyID)) {
           this._statistics.incMessagesNotQueuedNotInterested();
-          if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER)) {
-            logger.debug(
+          if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER_VERBOSE)) {
+            logger.trace(LogMarker.BRIDGE_SERVER_VERBOSE,
                 "{}: Not adding message to queue. It is not interested in this region and key: {}",
                 clientMessage);
           }
@@ -1537,8 +1539,7 @@ public class CacheClientProxy implements ClientSession {
 
   /**
    * Delivers the message to the client representing this client proxy.
-   * 
-   * @param conflatable
+   *
    */
   protected void deliverMessage(Conflatable conflatable) {
     ThreadState state = this.securityService.bindSubject(this.subject);
@@ -1671,7 +1672,6 @@ public class CacheClientProxy implements ClientSession {
    * Initializes the message dispatcher thread. The <code>MessageDispatcher</code> processes the
    * message queue.
    *
-   * @throws CacheException
    */
   public void initializeMessageDispatcher() throws CacheException {
     this.messageDispatcherInit = true; // Initialization process.
@@ -1821,14 +1821,14 @@ public class CacheClientProxy implements ClientSession {
   }
 
   // private static int nextId = 0;
-  // static protected int getNextId() {
+  // protected static int getNextId() {
   // synchronized (CacheClientProxy.class) {
   // return ++nextId;
   // }
   // }
   /*
    * Return this client's HA region queue
-   * 
+   *
    * @returns - HARegionQueue of the client
    */
   public HARegionQueue getHARegionQueue() {
@@ -1841,7 +1841,7 @@ public class CacheClientProxy implements ClientSession {
 
   /**
    * Reinitialize a durable <code>CacheClientProxy</code> with a new client.
-   * 
+   *
    * @param socket The socket between the server and the client
    * @param ip whether this proxy represents the primary
    */
@@ -1957,7 +1957,7 @@ public class CacheClientProxy implements ClientSession {
    * Class <code>ClientInterestList</code> provides a convenient interface for manipulating client
    * interest information.
    */
-  static protected class ClientInterestList {
+  protected static class ClientInterestList {
 
     final CacheClientProxy ccp;
 
@@ -1966,12 +1966,12 @@ public class CacheClientProxy implements ClientSession {
     /**
      * An object used for synchronizing the interest lists
      */
-    final private Object interestListLock = new Object();
+    private final Object interestListLock = new Object();
 
     /**
      * Regions that this client is interested in
      */
-    final protected Set<String> regions = new HashSet<String>();
+    protected final Set<String> regions = new HashSet<String>();
 
     /**
      * Constructor.
@@ -2247,7 +2247,6 @@ public class CacheClientProxy implements ClientSession {
      * @param proxy The <code>CacheClientProxy</code> for which this dispatcher is processing
      *        messages
      * @param name thread name for this dispatcher
-     * @throws CacheException
      */
     protected MessageDispatcher(CacheClientProxy proxy, String name) throws CacheException {
       super(LoggingThreadGroup.createThreadGroup(name, logger), name);
@@ -2269,7 +2268,7 @@ public class CacheClientProxy implements ClientSession {
         boolean createDurableQueue = proxy.proxyID.isDurable();
         boolean canHandleDelta = (proxy.clientVersion.compareTo(Version.GFE_61) >= 0)
             && InternalDistributedSystem.getAnyInstance().getConfig().getDeltaPropagation()
-            && !(this._proxy.clientConflation == HandShake.CONFLATION_ON);
+            && !(this._proxy.clientConflation == Handshake.CONFLATION_ON);
         if ((createDurableQueue || canHandleDelta) && logger.isDebugEnabled()) {
           logger.debug("Creating a durable HA queue");
         }
@@ -2404,7 +2403,7 @@ public class CacheClientProxy implements ClientSession {
     /**
      * Returns the size of the queue calculated through stats This includes events that have
      * dispatched but have yet been removed
-     * 
+     *
      * @return the size of the queue
      */
     protected int getQueueSizeStat() {
@@ -2700,12 +2699,11 @@ public class CacheClientProxy implements ClientSession {
      *
      * @param clientMessage The <code>ClientMessage</code> to send to the client
      *
-     * @throws IOException
      */
     protected boolean dispatchMessage(ClientMessage clientMessage) throws IOException {
       boolean isDispatched = false;
-      if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER)) {
-        logger.trace(LogMarker.BRIDGE_SERVER, "Dispatching {}", clientMessage);
+      if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER_VERBOSE)) {
+        logger.trace(LogMarker.BRIDGE_SERVER_VERBOSE, "Dispatching {}", clientMessage);
       }
       Message message = null;
 
@@ -2736,36 +2734,8 @@ public class CacheClientProxy implements ClientSession {
         message = clientMessage.getMessage(getProxy(), true /* notify */);
       }
 
-      // //////////////////////////////
-      // TEST CODE BEGIN (Throws exception to test closing proxy)
-      // if (true) throw new IOException("test");
-      // TEST CODE END
-      // //////////////////////////////
-      // Message message = ((ClientUpdateMessageImpl)clientMessage).getMessage(getProxy().proxyID,
-      // latestValue);
-      // Message message = clientMessage.getMessage(); removed during merge.
-      // BugFix for BUG#38206 and BUG#37791
       if (!this._proxy.isPaused()) {
         sendMessage(message);
-
-        // //////////////////////////////
-        // TEST CODE BEGIN (Throws exception to test closing proxy)
-        // if (true) throw new IOException("test");
-        // TEST CODE END
-        // //////////////////////////////
-        // Message message = ((ClientUpdateMessageImpl)clientMessage).getMessage(getProxy().proxyID,
-        // latestValue);
-        // Message message = clientMessage.getMessage(); removed during merge.
-        // message.setComms(getSocket(), getCommBuffer(), getStatistics());
-        // message.send();
-
-        // //////////////////////////////
-        // TEST CODE BEGIN (Introduces random wait in client)
-        // Sleep a random number of ms
-        // java.util.Random rand = new java.util.Random();
-        // try {Thread.sleep(rand.nextInt(5));} catch (InterruptedException e) {}
-        // TEST CODE END
-        // //////////////////////////////
 
         if (logger.isTraceEnabled()) {
           logger.trace("{}: Dispatched {}", this, clientMessage);
@@ -2812,12 +2782,6 @@ public class CacheClientProxy implements ClientSession {
           if (logger.isDebugEnabled()) {
             logger.debug("{}: Queued message while Durable Client is away {}", this, clientMessage);
           }
-        } else {
-          // [bruce] we don't really know that it was added, so don't log this
-          // if (logger.isDebugEnabled() || BridgeServerImpl.VERBOSE) {
-          // logger.debug(LocalizedStrings.DEBUG, this + " added message to queue: " +
-          // clientMessage);
-          // }
         }
       } catch (CancelException e) {
         throw e;
@@ -2994,7 +2958,7 @@ public class CacheClientProxy implements ClientSession {
    *
    * @since GemFire 6.1
    */
-  public Map getRegionsWithEmptyDataPolicy() {
+  public Map<String, Integer> getRegionsWithEmptyDataPolicy() {
     return regionsWithEmptyDataPolicy;
   }
 
@@ -3009,7 +2973,7 @@ public class CacheClientProxy implements ClientSession {
 
   /**
    * Returns the number of seconds that have elapsed since the Client proxy created.
-   * 
+   *
    * @since GemFire 7.0
    */
   public long getUpTime() {
@@ -3017,7 +2981,7 @@ public class CacheClientProxy implements ClientSession {
   }
 
   public interface TestHook {
-    public void doTestHook(String spot);
+    void doTestHook(String spot);
   }
 
   public static TestHook testHook;

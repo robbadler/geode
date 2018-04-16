@@ -16,14 +16,15 @@ package org.apache.geode.management.internal.cli;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.apache.geode.test.junit.categories.UnitTest;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import org.apache.geode.test.junit.categories.UnitTest;
 
 /**
  * GfshParserJUnitTest - Includes tests to check the parsing and auto-completion capabilities of
@@ -81,6 +82,14 @@ public class GfshParserJUnitTest {
     assertThat(tokens.get(7)).isEqualTo("'-Dgemfire.http-service-port=8080'");
     assertThat(tokens.get(9))
         .isEqualTo("'-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=30000'");
+  }
+
+  @Test
+  public void splitWithWhiteSpacesExceptQuoted() {
+    input = "create region --cache-writer=\"my.abc{'k1' : 'v   1', 'k2' : 'v2'}\"";
+    tokens = GfshParser.splitUserInput(input);
+    assertThat(tokens.size()).isEqualTo(4);
+    assertThat(tokens.get(3)).isEqualTo("\"my.abc{'k1' : 'v   1', 'k2' : 'v2'}\"");
   }
 
   @Test
@@ -143,5 +152,14 @@ public class GfshParserJUnitTest {
     assertThat(GfshParser.getSimpleParserInputFromTokens(tokens))
         .isEqualTo("command --option 'test value' --J \"-Dkey=value"
             + GfshParser.J_ARGUMENT_DELIMITER + "-Dkey2=value2\"");
+  }
+
+  @Test
+  public void spaceOrEmptyStringIsParsedCorrectly() {
+    input = "alter region --name=/Person --cache-writer='' --cache-loader=' '";
+    tokens = GfshParser.splitUserInput(input);
+    assertThat(tokens.size()).isEqualTo(8);
+    assertThat(tokens.get(7)).isEqualTo("' '");
+    assertThat(tokens.get(5)).isEqualTo("''");
   }
 }

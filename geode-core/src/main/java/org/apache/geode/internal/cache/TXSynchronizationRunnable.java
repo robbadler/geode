@@ -15,6 +15,8 @@
 package org.apache.geode.internal.cache;
 
 import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.CancelCriterion;
 import org.apache.geode.internal.cache.tier.sockets.CommBufferPool;
 import org.apache.geode.internal.logging.LogService;
 
@@ -23,11 +25,14 @@ import org.apache.geode.internal.logging.LogService;
  * cache. The thread should be instantiated with a Runnable that invokes beforeCompletion behavior.
  * Then you must invoke runSecondRunnable() with another Runnable that invokes afterCompletion
  * behavior.
- * 
+ *
  * @since GemFire 6.6
  */
 public class TXSynchronizationRunnable implements Runnable {
   private static final Logger logger = LogService.getLogger();
+
+  private final CancelCriterion cancelCriterion;
+  private final CommBufferPool commBufferPool;
 
   private Runnable firstRunnable;
   private final Object firstRunnableSync = new Object();
@@ -38,13 +43,15 @@ public class TXSynchronizationRunnable implements Runnable {
   private boolean secondRunnableCompleted;
 
   private boolean abort;
-  private final CommBufferPool commBufferPool;
 
-  public TXSynchronizationRunnable(Runnable beforeCompletion, final CommBufferPool commBufferPool) {
-    this.firstRunnable = beforeCompletion;
+  public TXSynchronizationRunnable(final CancelCriterion cancelCriterion,
+      final CommBufferPool commBufferPool, final Runnable beforeCompletion) {
+    this.cancelCriterion = cancelCriterion;
     this.commBufferPool = commBufferPool;
+    this.firstRunnable = beforeCompletion;
   }
 
+  @Override
   public void run() {
     commBufferPool.setTLCommBuffer();
     try {
@@ -69,7 +76,7 @@ public class TXSynchronizationRunnable implements Runnable {
     }
     synchronized (this.secondRunnableSync) {
       // TODO there should be a transaction timeout that keeps this thread
-      // from sitting around forever in the event the client goes away
+      // from sitting around forever if the client goes away
       final boolean isTraceEnabled = logger.isTraceEnabled();
       while (this.secondRunnable == null && !this.abort) {
         try {
@@ -79,12 +86,6 @@ public class TXSynchronizationRunnable implements Runnable {
           this.secondRunnableSync.wait(1000);
         } catch (InterruptedException ignore) {
           // eat the interrupt and check for exit conditions
-        }
-        if (this.secondRunnable == null) {
-          InternalCache cache = GemFireCacheImpl.getInstance();
-          if (cache == null || cache.getCancelCriterion().isCancelInProgress()) {
-            return;
-          }
         }
       }
       if (isTraceEnabled) {
@@ -116,13 +117,7 @@ public class TXSynchronizationRunnable implements Runnable {
         } catch (InterruptedException ignore) {
           // eat the interrupt and check for exit conditions
         }
-        // we really need the Cache Server's cancel criterion here, not the cache's
-        // but who knows how to get it?
-        InternalCache cache = GemFireCacheImpl.getInstance();
-        if (cache == null) {
-          return;
-        }
-        cache.getCancelCriterion().checkCancelInProgress(null);
+        cancelCriterion.checkCancelInProgress(null);
       }
     }
   }
@@ -141,13 +136,7 @@ public class TXSynchronizationRunnable implements Runnable {
         } catch (InterruptedException ignore) {
           // eat the interrupt and check for exit conditions
         }
-        // we really need the Cache Server's cancel criterion here, not the cache's
-        // but who knows how to get it?
-        InternalCache cache = GemFireCacheImpl.getInstance();
-        if (cache == null) {
-          return;
-        }
-        cache.getCancelCriterion().checkCancelInProgress(null);
+        cancelCriterion.checkCancelInProgress(null);
       }
     }
   }

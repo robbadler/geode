@@ -22,7 +22,7 @@ import java.util.Set;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.cache.CacheException;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.ReplyProcessor21;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.PartitionedRegionDataStore;
@@ -33,7 +33,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
  * A message used for debugging purposes. For example if a test fails it can call
  * {@link PartitionedRegion#dumpAllBuckets(boolean)} which sends this message to all VMs that have
  * that PartitionedRegion defined.
- * 
+ *
  * @see org.apache.geode.internal.cache.PartitionedRegion#dumpAllBuckets(boolean)
  */
 public class DumpBucketsMessage extends PartitionMessage {
@@ -56,20 +56,19 @@ public class DumpBucketsMessage extends PartitionMessage {
     PartitionResponse p = new PartitionResponse(r.getSystem(), recipients);
     DumpBucketsMessage m =
         new DumpBucketsMessage(recipients, r.getPRId(), p, validateOnly, onlyBuckets);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
 
-    /* Set failures = */ r.getDistributionManager().putOutgoing(m);
-    // if (failures != null && failures.size() > 0) {
-    // throw new PartitionedRegionCommunicationException("Failed sending ", m);
-    // }
+    r.getDistributionManager().putOutgoing(m);
     return p;
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion pr,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion pr,
       long startTime) throws CacheException {
 
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.trace(LogMarker.DM, "DumpBucketsMessage operateOnRegion: {}", pr.getFullPath());
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace(LogMarker.DM_VERBOSE, "DumpBucketsMessage operateOnRegion: {}",
+          pr.getFullPath());
     }
 
     PartitionedRegionDataStore ds = pr.getDataStore();
@@ -79,8 +78,8 @@ public class DumpBucketsMessage extends PartitionMessage {
       } else {
         ds.dumpEntries(this.validateOnly);
       }
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} dumped buckets", getClass().getName());
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} dumped buckets", getClass().getName());
       }
     }
     return true;

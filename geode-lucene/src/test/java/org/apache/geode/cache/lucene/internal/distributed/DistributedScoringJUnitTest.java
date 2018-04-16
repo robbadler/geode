@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -32,18 +32,20 @@ import org.junit.experimental.categories.Category;
 import org.mockito.Mockito;
 
 import org.apache.geode.cache.Region;
+import org.apache.geode.cache.lucene.LuceneIndex;
 import org.apache.geode.cache.lucene.internal.LuceneIndexStats;
 import org.apache.geode.cache.lucene.internal.directory.RegionDirectory;
 import org.apache.geode.cache.lucene.internal.filesystem.FileSystemStats;
 import org.apache.geode.cache.lucene.internal.repository.IndexRepositoryImpl;
 import org.apache.geode.cache.lucene.internal.repository.serializer.HeterogeneousLuceneSerializer;
+import org.apache.geode.test.junit.categories.LuceneTest;
 import org.apache.geode.test.junit.categories.UnitTest;
 
-@Category(UnitTest.class)
+@Category({UnitTest.class, LuceneTest.class})
 public class DistributedScoringJUnitTest {
 
   private String[] indexedFields = new String[] {"txt"};
-  private HeterogeneousLuceneSerializer mapper = new HeterogeneousLuceneSerializer(indexedFields);
+  private HeterogeneousLuceneSerializer mapper = new HeterogeneousLuceneSerializer();
 
   private final StandardAnalyzer analyzer = new StandardAnalyzer();
   private Region<String, String> region;
@@ -135,8 +137,10 @@ public class DistributedScoringJUnitTest {
 
     IndexWriterConfig config = new IndexWriterConfig(analyzer);
     IndexWriter writer = new IndexWriter(dir, config);
+    LuceneIndex index = Mockito.mock(LuceneIndex.class);
+    Mockito.when(index.getFieldNames()).thenReturn(new String[] {"txt"});
 
-    return new IndexRepositoryImpl(region, writer, mapper, indexStats, null, null, "");
+    return new IndexRepositoryImpl(region, writer, mapper, indexStats, null, null, "", index);
   }
 
   private static class TestType {

@@ -15,7 +15,6 @@
 package org.apache.geode.internal.cache.xmlcache;
 
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,10 +24,7 @@ import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.cache.wan.GatewayReceiver;
 import org.apache.geode.cache.wan.GatewayTransportFilter;
-import org.apache.geode.internal.net.SocketCreator;
-import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
 public class GatewayReceiverCreation implements GatewayReceiver {
   private static final Logger logger = LogService.getLogger();
@@ -51,6 +47,8 @@ public class GatewayReceiverCreation implements GatewayReceiver {
 
   private String bindAddress;
 
+  private String hostnameForSenders;
+
   private boolean manualStart;
 
   private CacheServer receiver;
@@ -61,34 +59,12 @@ public class GatewayReceiverCreation implements GatewayReceiver {
       boolean manualStart) {
     this.cache = cache;
 
-    /*
-     * If user has set hostNameForSenders then it should take precedence over bindAddress. If user
-     * hasn't set either hostNameForSenders or bindAddress then getLocalHost().getHostName() should
-     * be used.
-     */
-    if (hostnameForSenders == null || hostnameForSenders.isEmpty()) {
-      if (bindAdd == null || bindAdd.isEmpty()) {
-        try {
-          logger
-              .warn(LocalizedMessage.create(LocalizedStrings.GatewayReceiverImpl_USING_LOCAL_HOST));
-          this.host = SocketCreator.getLocalHost().getHostName();
-        } catch (UnknownHostException e) {
-          throw new IllegalStateException(
-              LocalizedStrings.GatewayReceiverImpl_COULD_NOT_GET_HOST_NAME.toLocalizedString(), e);
-        }
-      } else {
-        this.host = bindAdd;
-      }
-    } else {
-      this.host = hostnameForSenders;
-    }
-
-
     this.startPort = startPort;
     this.endPort = endPort;
     this.maxTimeBetweenPings = timeBetPings;
     this.socketBufferSize = buffSize;
     this.bindAddress = bindAdd;
+    this.hostnameForSenders = hostnameForSenders;
     this.transFilter = filters;
     this.manualStart = manualStart;
   }
@@ -129,8 +105,12 @@ public class GatewayReceiverCreation implements GatewayReceiver {
     this.socketBufferSize = socketBufferSize;
   }
 
+  public String getHostnameForSenders() {
+    return this.hostnameForSenders;
+  }
+
   public String getHost() {
-    return this.host;
+    throw new IllegalStateException("getHost should not be invoked on GatewayReceiverCreation");
   }
 
   public String getBindAddress() {
@@ -153,6 +133,10 @@ public class GatewayReceiverCreation implements GatewayReceiver {
 
   }
 
+  public void destroy() {
+
+  }
+
   public boolean isRunning() {
     return false;
   }
@@ -163,7 +147,7 @@ public class GatewayReceiverCreation implements GatewayReceiver {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.wan.GatewayReceiver#getStartPort()
    */
   public int getStartPort() {
@@ -172,7 +156,7 @@ public class GatewayReceiverCreation implements GatewayReceiver {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.wan.GatewayReceiver#getEndPort()
    */
   public int getEndPort() {

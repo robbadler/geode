@@ -14,39 +14,41 @@
  */
 package org.apache.geode.management.internal.cli.functions;
 
+import java.util.HashSet;
 import java.util.Set;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.AttributesMutator;
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.CacheListener;
 import org.apache.geode.cache.CacheLoader;
 import org.apache.geode.cache.CacheWriter;
-import org.apache.geode.cache.ExpirationAction;
-import org.apache.geode.cache.ExpirationAttributes;
+import org.apache.geode.cache.CustomExpiry;
 import org.apache.geode.cache.Region;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.ResultSender;
 import org.apache.geode.internal.ClassPathLoader;
-import org.apache.geode.internal.InternalEntity;
 import org.apache.geode.internal.cache.AbstractRegion;
+import org.apache.geode.internal.cache.PartitionedRegion;
+import org.apache.geode.internal.cache.execute.InternalFunction;
+import org.apache.geode.internal.cache.partitioned.PRLocallyDestroyedException;
 import org.apache.geode.internal.cache.xmlcache.CacheXml;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.management.internal.cli.CliUtil;
+import org.apache.geode.management.internal.cli.domain.ClassName;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.management.internal.cli.util.RegionPath;
 import org.apache.geode.management.internal.configuration.domain.XmlEntity;
 
 /**
  * Function used by the 'alter region' gfsh command to alter a region on each member.
- * 
+ *
  * @since GemFire 8.0
  */
-public class RegionAlterFunction extends FunctionAdapter implements InternalEntity {
+public class RegionAlterFunction implements InternalFunction {
   private static final Logger logger = LogService.getLogger();
 
   private static final long serialVersionUID = -4846425364943216425L;
@@ -60,7 +62,7 @@ public class RegionAlterFunction extends FunctionAdapter implements InternalEnti
   public void execute(FunctionContext context) {
     ResultSender<Object> resultSender = context.getResultSender();
 
-    Cache cache = CacheFactory.getAnyInstance();
+    Cache cache = context.getCache();
     String memberNameOrId =
         CliUtil.getMemberNameOrId(cache.getDistributedSystem().getDistributedMember());
 
@@ -90,7 +92,7 @@ public class RegionAlterFunction extends FunctionAdapter implements InternalEnti
 
       String exceptionMsg = th.getMessage();
       if (exceptionMsg == null) {
-        exceptionMsg = CliUtil.stackTraceAsString(th);
+        exceptionMsg = ExceptionUtils.getStackTrace(th);
       }
       resultSender.lastResult(new CliFunctionResult(memberNameOrId, false, exceptionMsg));
     }
@@ -125,9 +127,9 @@ public class RegionAlterFunction extends FunctionAdapter implements InternalEnti
     // Alter expiration attributes
     final RegionFunctionArgs.ExpirationAttrs newEntryExpirationIdleTime =
         regionAlterArgs.getEntryExpirationIdleTime();
-    if (newEntryExpirationIdleTime != null) {
+    if (newEntryExpirationIdleTime.isTimeOrActionSet()) {
       mutator.setEntryIdleTimeout(
-          parseExpirationAttributes(newEntryExpirationIdleTime, region.getEntryIdleTimeout()));
+          newEntryExpirationIdleTime.getExpirationAttributes(region.getEntryIdleTimeout()));
       if (logger.isDebugEnabled()) {
         logger.debug("Region successfully altered - entry idle timeout");
       }
@@ -135,19 +137,38 @@ public class RegionAlterFunction extends FunctionAdapter implements InternalEnti
 
     final RegionFunctionArgs.ExpirationAttrs newEntryExpirationTTL =
         regionAlterArgs.getEntryExpirationTTL();
-    if (newEntryExpirationTTL != null) {
+    if (newEntryExpirationTTL.isTimeOrActionSet()) {
       mutator.setEntryTimeToLive(
-          parseExpirationAttributes(newEntryExpirationTTL, region.getEntryTimeToLive()));
+          newEntryExpirationTTL.getExpirationAttributes(region.getEntryTimeToLive()));
       if (logger.isDebugEnabled()) {
         logger.debug("Region successfully altered - entry TTL");
       }
     }
 
+    final ClassName<CustomExpiry> entryIdleCustomExpiry =
+        regionAlterArgs.getEntryIdleTimeCustomExpiry();
+    if (entryIdleCustomExpiry != null) {
+      if (entryIdleCustomExpiry.equals(ClassName.EMPTY)) {
+        mutator.setCustomEntryIdleTimeout(null);
+      } else {
+        mutator.setCustomEntryIdleTimeout(entryIdleCustomExpiry.newInstance(cache));
+      }
+    }
+
+    final ClassName<CustomExpiry> entryTTLCustomExpiry = regionAlterArgs.getEntryTTLCustomExpiry();
+    if (entryTTLCustomExpiry != null) {
+      if (entryTTLCustomExpiry.equals(ClassName.EMPTY)) {
+        mutator.setCustomEntryTimeToLive(null);
+      } else {
+        mutator.setCustomEntryTimeToLive(entryTTLCustomExpiry.newInstance(cache));
+      }
+    }
+
     final RegionFunctionArgs.ExpirationAttrs newRegionExpirationIdleTime =
         regionAlterArgs.getRegionExpirationIdleTime();
-    if (newRegionExpirationIdleTime != null) {
+    if (newRegionExpirationIdleTime.isTimeOrActionSet()) {
       mutator.setRegionIdleTimeout(
-          parseExpirationAttributes(newRegionExpirationIdleTime, region.getRegionIdleTimeout()));
+          newRegionExpirationIdleTime.getExpirationAttributes(region.getRegionIdleTimeout()));
       if (logger.isDebugEnabled()) {
         logger.debug("Region successfully altered - region idle timeout");
       }
@@ -155,18 +176,37 @@ public class RegionAlterFunction extends FunctionAdapter implements InternalEnti
 
     final RegionFunctionArgs.ExpirationAttrs newRegionExpirationTTL =
         regionAlterArgs.getRegionExpirationTTL();
-    if (newRegionExpirationTTL != null) {
+    if (newRegionExpirationTTL.isTimeOrActionSet()) {
       mutator.setRegionTimeToLive(
-          parseExpirationAttributes(newRegionExpirationTTL, region.getRegionTimeToLive()));
+          newRegionExpirationTTL.getExpirationAttributes(region.getRegionTimeToLive()));
       if (logger.isDebugEnabled()) {
         logger.debug("Region successfully altered - region TTL");
       }
     }
 
-    // Alter Gateway Sender Ids
     final Set<String> newGatewaySenderIds = regionAlterArgs.getGatewaySenderIds();
-    if (newGatewaySenderIds != null) {
+    final Set<String> newAsyncEventQueueIds = regionAlterArgs.getAsyncEventQueueIds();
 
+
+    if (region instanceof PartitionedRegion) {
+      Set<String> senderIds = new HashSet<>();
+      if (newGatewaySenderIds != null) {
+        validateParallelGatewaySenderIDs((PartitionedRegion) region, newGatewaySenderIds);
+        senderIds.addAll(newGatewaySenderIds);
+      } else if (region.getGatewaySenderIds() != null) {
+        senderIds.addAll(region.getAllGatewaySenderIds());
+      }
+      if (newAsyncEventQueueIds != null) {
+        validateParallelGatewaySenderIDs((PartitionedRegion) region, newAsyncEventQueueIds);
+        senderIds.addAll(newAsyncEventQueueIds);
+      } else if (region.getAsyncEventQueueIds() != null) {
+        senderIds.addAll(region.getAsyncEventQueueIds());
+      }
+      ((PartitionedRegion) region).updatePRConfigWithNewSetOfGatewaySenders(senderIds);
+    }
+
+    // Alter Gateway Sender Ids
+    if (newGatewaySenderIds != null) {
       // Remove old gateway sender ids that aren't in the new list
       Set<String> oldGatewaySenderIds = region.getGatewaySenderIds();
       if (!oldGatewaySenderIds.isEmpty()) {
@@ -190,7 +230,6 @@ public class RegionAlterFunction extends FunctionAdapter implements InternalEnti
     }
 
     // Alter Async Queue Ids
-    final Set<String> newAsyncEventQueueIds = regionAlterArgs.getAsyncEventQueueIds();
     if (newAsyncEventQueueIds != null) {
 
       // Remove old async event queue ids that aren't in the new list
@@ -216,51 +255,34 @@ public class RegionAlterFunction extends FunctionAdapter implements InternalEnti
     }
 
     // Alter Cache Listeners
-    final Set<String> newCacheListenerNames = regionAlterArgs.getCacheListeners();
-    if (newCacheListenerNames != null) {
+    final Set<ClassName<CacheListener>> newCacheListeners = regionAlterArgs.getCacheListeners();
 
-      // Remove old cache listeners that aren't in the new list
+    // user specified a new set of cache listeners
+    if (newCacheListeners != null) {
+      // remove the old ones, even if the new set includes the same class name, the init properties
+      // might be different
       CacheListener[] oldCacheListeners = region.getCacheListeners();
       for (CacheListener oldCacheListener : oldCacheListeners) {
-        if (!newCacheListenerNames.contains(oldCacheListener.getClass().getName())) {
-          mutator.removeCacheListener(oldCacheListener);
-        }
+        mutator.removeCacheListener(oldCacheListener);
       }
 
-      // Add new cache listeners that don't already exist
-      for (String newCacheListenerName : newCacheListenerNames) {
-        if (newCacheListenerName.isEmpty()) {
-          continue;
-        }
-        boolean nameFound = false;
-        for (CacheListener oldCacheListener : oldCacheListeners) {
-          if (oldCacheListener.getClass().getName().equals(newCacheListenerName)) {
-            nameFound = true;
-            break;
-          }
-        }
-
-        if (!nameFound) {
-          Class<CacheListener<K, V>> cacheListenerKlass =
-              forName(newCacheListenerName, CliStrings.ALTER_REGION__CACHELISTENER);
-          mutator.addCacheListener(
-              newInstance(cacheListenerKlass, CliStrings.ALTER_REGION__CACHELISTENER));
+      // Add new cache listeners
+      for (ClassName<CacheListener> newCacheListener : newCacheListeners) {
+        if (!newCacheListener.equals(ClassName.EMPTY)) {
+          mutator.addCacheListener(newCacheListener.newInstance(cache));
         }
       }
-
       if (logger.isDebugEnabled()) {
         logger.debug("Region successfully altered - cache listeners");
       }
     }
 
-    final String cacheLoader = regionAlterArgs.getCacheLoader();
+    final ClassName<CacheLoader> cacheLoader = regionAlterArgs.getCacheLoader();
     if (cacheLoader != null) {
-      if (cacheLoader.isEmpty()) {
+      if (cacheLoader.equals(ClassName.EMPTY)) {
         mutator.setCacheLoader(null);
       } else {
-        Class<CacheLoader<K, V>> cacheLoaderKlass =
-            forName(cacheLoader, CliStrings.ALTER_REGION__CACHELOADER);
-        mutator.setCacheLoader(newInstance(cacheLoaderKlass, CliStrings.ALTER_REGION__CACHELOADER));
+        mutator.setCacheLoader(cacheLoader.newInstance(cache));
       }
 
       if (logger.isDebugEnabled()) {
@@ -268,14 +290,12 @@ public class RegionAlterFunction extends FunctionAdapter implements InternalEnti
       }
     }
 
-    final String cacheWriter = regionAlterArgs.getCacheWriter();
+    final ClassName<CacheWriter> cacheWriter = regionAlterArgs.getCacheWriter();
     if (cacheWriter != null) {
-      if (cacheWriter.isEmpty()) {
+      if (cacheWriter.equals(ClassName.EMPTY)) {
         mutator.setCacheWriter(null);
       } else {
-        Class<CacheWriter<K, V>> cacheWriterKlass =
-            forName(cacheWriter, CliStrings.ALTER_REGION__CACHEWRITER);
-        mutator.setCacheWriter(newInstance(cacheWriterKlass, CliStrings.ALTER_REGION__CACHEWRITER));
+        mutator.setCacheWriter(cacheWriter.newInstance(cache));
       }
 
       if (logger.isDebugEnabled()) {
@@ -286,31 +306,14 @@ public class RegionAlterFunction extends FunctionAdapter implements InternalEnti
     return region;
   }
 
-  /**
-   * Converts the expiration attributes passed as arguments from the command to the function into a
-   * type suitable for applying to a Region.
-   * 
-   * @param newExpirationAttrs Attributes supplied by the command
-   * @param oldExpirationAttributes Attributes currently applied to the Region.
-   * 
-   * @return A new pair of expiration attributes taken from the command if it was given or the
-   *         current value from the Region if it was not.
-   */
-  private ExpirationAttributes parseExpirationAttributes(
-      RegionFunctionArgs.ExpirationAttrs newExpirationAttrs,
-      ExpirationAttributes oldExpirationAttributes) {
-
-    ExpirationAction action = oldExpirationAttributes.getAction();
-    int timeout = oldExpirationAttributes.getTimeout();
-
-    if (newExpirationAttrs.getTime() != null) {
-      timeout = newExpirationAttrs.getTime();
+  private void validateParallelGatewaySenderIDs(PartitionedRegion region,
+      Set<String> newGatewaySenderIds) {
+    try {
+      Set<String> parallelSenders = region.filterOutNonParallelGatewaySenders(newGatewaySenderIds);
+      region.validateParallelGatewaySenderIds(parallelSenders);
+    } catch (PRLocallyDestroyedException e) {
+      throw new IllegalStateException("Partitioned Region not found registered", e);
     }
-    if (newExpirationAttrs.getAction() != null) {
-      action = newExpirationAttrs.getAction();
-    }
-
-    return new ExpirationAttributes(timeout, action);
   }
 
   @SuppressWarnings("unchecked")

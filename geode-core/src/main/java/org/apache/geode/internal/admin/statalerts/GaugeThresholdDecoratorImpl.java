@@ -14,8 +14,8 @@
  */
 package org.apache.geode.internal.admin.statalerts;
 
-import java.io.DataOutput;
 import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.geode.DataSerializer;
@@ -27,7 +27,7 @@ import org.apache.geode.internal.admin.StatAlertDefinition;
 
 /**
  * Implementation of {@link StatAlertDefinition}, represents threshold as data range
- * 
+ *
  */
 public class GaugeThresholdDecoratorImpl extends BaseDecoratorImpl
     implements DataSerializableFixedID {
@@ -40,9 +40,6 @@ public class GaugeThresholdDecoratorImpl extends BaseDecoratorImpl
 
   public GaugeThresholdDecoratorImpl() {}
 
-  /**
-   * @param definition
-   */
   public GaugeThresholdDecoratorImpl(StatAlertDefinition definition, Number lowerLimit,
       Number upperLimit) {
     super(definition);

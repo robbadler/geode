@@ -25,6 +25,7 @@ import org.apache.geode.cache.query.Query;
 import org.apache.geode.cache.query.QueryExecutionLowMemoryException;
 import org.apache.geode.cache.query.QueryExecutionTimeoutException;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
@@ -33,17 +34,19 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
  * QueryMonitor class, monitors the query execution time. Instantiated based on the system property
  * MAX_QUERY_EXECUTION_TIME. At most there will be one query monitor-thread that cancels the long
  * running queries.
- * 
+ *
  * The queries to be monitored is added into the ordered queue, ordered based on its start/arrival
  * time. The first one in the Queue is the older query that will be canceled first.
- * 
+ *
  * The QueryMonitor cancels a query-execution thread if its taking more than the max time.
- * 
+ *
  * @since GemFire 6.0
  */
 public class QueryMonitor implements Runnable {
   private static final Logger logger = LogService.getLogger();
 
+  private final InternalCache cache;
+  private boolean testingQueryMonitor = false;
   /**
    * Holds the query execution status for the thread executing the query. FALSE if the query is not
    * canceled due to max query execution timeout. TRUE it the query is canceled due to max query
@@ -64,17 +67,18 @@ public class QueryMonitor implements Runnable {
   private ConcurrentMap queryMonitorTasks = null;
 
   // Variables for cancelling queries due to low memory
-  private volatile static Boolean LOW_MEMORY = Boolean.FALSE;
+  private static volatile Boolean LOW_MEMORY = Boolean.FALSE;
 
-  private volatile static long LOW_MEMORY_USED_BYTES = 0;
+  private static volatile long LOW_MEMORY_USED_BYTES = 0;
 
-  public QueryMonitor(long maxQueryExecutionTime) {
+  public QueryMonitor(InternalCache cache, long maxQueryExecutionTime) {
+    this.cache = cache;
     this.maxQueryExecutionTime = maxQueryExecutionTime;
   }
 
   /**
    * Add query to be monitored.
-   * 
+   *
    * @param queryThread Thread executing the query.
    * @param query Query.
    */
@@ -98,8 +102,7 @@ public class QueryMonitor implements Runnable {
     }
 
     // For dunit test purpose
-    if (GemFireCacheImpl.getInstance() != null
-        && GemFireCacheImpl.getInstance().testMaxQueryExecutionTime > 0) {
+    if (cache != null && testingQueryMonitor) {
       if (this.queryMonitorTasks == null) {
         this.queryMonitorTasks = new ConcurrentHashMap();
       }
@@ -118,29 +121,6 @@ public class QueryMonitor implements Runnable {
 
     synchronized (queryCompleted) {
       queryExecutionStatus.get().getAndSet(Boolean.FALSE);
-
-      // START - DUnit Test purpose.
-      if (GemFireCacheImpl.getInstance() != null
-          && GemFireCacheImpl.getInstance().testMaxQueryExecutionTime > 0) {
-        long maxTimeSet = GemFireCacheImpl.getInstance().testMaxQueryExecutionTime;
-        QueryThreadTask queryTask = (QueryThreadTask) queryThreads.peek();
-
-        long currentTime = System.currentTimeMillis();
-
-        // This is to check if the QueryMonitoring thread slept longer than the expected time.
-        // Its seen that in some cases based on OS thread scheduling the thread can sleep much
-        // longer than the specified time.
-        if (queryTask != null) {
-          if (currentTime - queryTask.StartTime > maxTimeSet) {
-            // The sleep() is unpredictable.
-            testException = new QueryExecutionTimeoutException(
-                "The QueryMonitor thread may be sleeping longer than"
-                    + " the set sleep time. This will happen as the sleep is based on OS thread scheduling,"
-                    + " verify the time spent by the executor thread.");
-          }
-        }
-      }
-      // END - DUnit Test purpose.
 
       defaultQuery.setQueryCompletedForMonitoring(true);
       // Remove the query task from the queue.
@@ -162,7 +142,7 @@ public class QueryMonitor implements Runnable {
    * This method is called to check if the query execution is canceled. The QueryMonitor cancels the
    * query execution if it takes more than the max query execution time set or in low memory
    * situations where critical heap percentage has been set on the resource manager
-   * 
+   *
    * The max query execution time is set using the system property
    * gemfire.Cache.MAX_QUERY_EXECUTION_TIME
    */
@@ -272,9 +252,8 @@ public class QueryMonitor implements Runnable {
     return LOW_MEMORY_USED_BYTES;
   }
 
-  public static void setLowMemory(boolean lowMemory, long usedBytes) {
-    if (GemFireCacheImpl.getInstance() != null
-        && !GemFireCacheImpl.getInstance().isQueryMonitorDisabledForLowMemory()) {
+  public void setLowMemory(boolean lowMemory, long usedBytes) {
+    if (cache != null && !cache.isQueryMonitorDisabledForLowMemory()) {
       QueryMonitor.LOW_MEMORY_USED_BYTES = usedBytes;
       QueryMonitor.LOW_MEMORY = lowMemory;
     }

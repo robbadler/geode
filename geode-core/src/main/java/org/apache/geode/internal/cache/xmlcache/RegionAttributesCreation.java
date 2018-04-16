@@ -116,7 +116,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
   private int[] diskSizes;
   /**
    * disk store name of the region
-   * 
+   *
    * @since GemFire prPersistPrint2
    */
   private String diskStoreName;
@@ -172,21 +172,21 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
 
   /**
    * The client to server Connection Pool
-   * 
+   *
    * @since GemFire 5.7
    */
   private String poolName;
 
   /**
    * The region compressor.
-   * 
+   *
    * @since GemFire 8.0
    */
   private Compressor compressor;
 
   /**
    * True if usage of off-heap memory is enabled for this region.
-   * 
+   *
    * @since Geode 1.0
    */
   private boolean offHeap;
@@ -219,7 +219,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
    * Currently attrs will not be an instance of RegionAttributesCreation. If it could be then this
    * code should be changed to use attrs' hasXXX methods to initialize the has booleans when
    * defaults is false.
-   * 
+   *
    * @param attrs the attributes to initialize this guy with.
    * @param defaults true if <code>attrs</code> are defaults; false if they are not
    */
@@ -307,9 +307,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
 
   /**
    * returns true if two long[] are equal
-   * 
-   * @param array1
-   * @param array2
+   *
    * @return true if equal
    */
   private boolean equal(long[] array1, long[] array2) {
@@ -327,9 +325,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
 
   /**
    * returns true if two int[] are equal
-   * 
-   * @param array1
-   * @param array2
+   *
    * @return true if equal
    */
   private boolean equal(int[] array1, int[] array2) {
@@ -1009,8 +1005,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
 
   /**
    * Checks if directories exist
-   * 
-   * @param diskDirs
+   *
    */
   private void checkIfDirectoriesExist(File[] diskDirs) {
     for (int i = 0; i < diskDirs.length; i++) {

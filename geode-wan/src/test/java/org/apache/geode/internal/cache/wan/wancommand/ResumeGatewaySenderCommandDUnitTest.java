@@ -12,18 +12,25 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-
 package org.apache.geode.internal.cache.wan.wancommand;
 
-import static org.apache.geode.test.dunit.LogWriterUtils.getLogWriter;
-import static org.apache.geode.test.dunit.Wait.pause;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.apache.geode.distributed.ConfigurationProperties.DISTRIBUTED_SYSTEM_ID;
+import static org.apache.geode.distributed.ConfigurationProperties.GROUPS;
+import static org.apache.geode.distributed.ConfigurationProperties.REMOTE_LOCATORS;
+import static org.apache.geode.internal.cache.wan.wancommand.WANCommandUtils.createSender;
+import static org.apache.geode.internal.cache.wan.wancommand.WANCommandUtils.getMember;
+import static org.apache.geode.internal.cache.wan.wancommand.WANCommandUtils.pauseSender;
+import static org.apache.geode.internal.cache.wan.wancommand.WANCommandUtils.startSender;
+import static org.apache.geode.internal.cache.wan.wancommand.WANCommandUtils.validateGatewaySenderMXBeanProxy;
+import static org.apache.geode.internal.cache.wan.wancommand.WANCommandUtils.verifySenderState;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.Serializable;
 import java.util.List;
+import java.util.Properties;
 
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -32,168 +39,218 @@ import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.management.internal.cli.result.CommandResult;
 import org.apache.geode.management.internal.cli.result.TabularResultData;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
+import org.apache.geode.test.dunit.rules.MemberVM;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.WanTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 
-@Category(DistributedTest.class)
-public class ResumeGatewaySenderCommandDUnitTest extends WANCommandTestBase {
-  @Test
-  public void testResumeGatewaySender_ErrorConditions() {
-    Integer dsIdPort = vm1.invoke(() -> createFirstLocatorWithDSId(1));
-    propsSetUp(dsIdPort);
-    vm2.invoke(() -> createFirstRemoteLocator(2, dsIdPort));
+@Category({DistributedTest.class, WanTest.class})
+@SuppressWarnings("serial")
+public class ResumeGatewaySenderCommandDUnitTest implements Serializable {
 
-    vm3.invoke(() -> createCache(dsIdPort));
-    vm3.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+  @Rule
+  public ClusterStartupRule clusterStartupRule = new ClusterStartupRule(8);
 
-    final DistributedMember vm1Member = vm3.invoke(this::getMember);
-    String command = CliStrings.RESUME_GATEWAYSENDER + " --" + CliStrings.RESUME_GATEWAYSENDER__ID
-        + "=ln --" + CliStrings.MEMBER + "=" + vm1Member.getId() + " --" + CliStrings.GROUP
-        + "=SenderGroup1";
-    CommandResult cmdResult = executeCommand(command);
+  @Rule
+  public transient GfshCommandRule gfsh = new GfshCommandRule();
 
-    if (cmdResult != null) {
-      String strCmdResult = commandResultToString(cmdResult);
-      getLogWriter()
-          .info("testResumeGatewaySender_ErrorConditions stringResult : " + strCmdResult + ">>>>");
-      assertEquals(Result.Status.ERROR, cmdResult.getStatus());
-      assertTrue(strCmdResult.contains(CliStrings.PROVIDE_EITHER_MEMBER_OR_GROUP_MESSAGE));
-    } else {
-      fail("testPauseGatewaySender failed as did not get CommandResult");
-    }
+  private MemberVM locatorSite1;
+  private MemberVM locatorSite2;
+  private MemberVM server1;
+  private MemberVM server2;
+  private MemberVM server3;
+  private MemberVM server4;
+  private MemberVM server5;
+
+  @Before
+  public void before() throws Exception {
+    Properties props = new Properties();
+    props.setProperty(DISTRIBUTED_SYSTEM_ID, "" + 1);
+    locatorSite1 = clusterStartupRule.startLocatorVM(1, props);
+
+    props.setProperty(DISTRIBUTED_SYSTEM_ID, "" + 2);
+    props.setProperty(REMOTE_LOCATORS, "localhost[" + locatorSite1.getPort() + "]");
+    locatorSite2 = clusterStartupRule.startLocatorVM(2, props);
+
+    // Connect Gfsh to locator.
+    gfsh.connectAndVerify(locatorSite1);
   }
 
   @Test
-  public void testResumeGatewaySender() {
-    Integer dsIdPort = vm1.invoke(() -> createFirstLocatorWithDSId(1));
-    propsSetUp(dsIdPort);
-    vm2.invoke(() -> createFirstRemoteLocator(2, dsIdPort));
+  public void testResumeGatewaySender_ErrorConditions() throws Exception {
+    Integer locator1Port = locatorSite1.getPort();
 
-    vm3.invoke(() -> createCache(dsIdPort));
-    vm3.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
-    vm4.invoke(() -> createCache(dsIdPort));
-    vm4.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
-    vm5.invoke(() -> createCache(dsIdPort));
-    vm5.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
-    vm3.invoke(() -> startSender("ln"));
-    vm4.invoke(() -> startSender("ln"));
-    vm5.invoke(() -> startSender("ln"));
-    vm3.invoke(() -> verifySenderState("ln", true, false));
-    vm4.invoke(() -> verifySenderState("ln", true, false));
-    vm5.invoke(() -> verifySenderState("ln", true, false));
-    vm3.invoke(() -> pauseSender("ln"));
-    vm4.invoke(() -> pauseSender("ln"));
-    vm5.invoke(() -> pauseSender("ln"));
-    vm3.invoke(() -> verifySenderState("ln", true, true));
-    vm4.invoke(() -> verifySenderState("ln", true, true));
-    vm5.invoke(() -> verifySenderState("ln", true, true));
+    // setup servers in Site #1
+    server1 = clusterStartupRule.startServerVM(3, locator1Port);
 
-    pause(10000);
+    server1.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+
+    DistributedMember vm1Member = getMember(server1.getVM());
+    String command = CliStrings.RESUME_GATEWAYSENDER + " --" + CliStrings.RESUME_GATEWAYSENDER__ID
+        + "=ln --" + CliStrings.MEMBER + "=" + vm1Member.getId() + " --" + CliStrings.GROUP
+        + "=SenderGroup1";
+    gfsh.executeAndAssertThat(command).statusIsError()
+        .containsOutput(CliStrings.PROVIDE_EITHER_MEMBER_OR_GROUP_MESSAGE);
+  }
+
+  @Test
+  public void testResumeGatewaySender() throws Exception {
+    Integer locator1Port = locatorSite1.getPort();
+
+    // setup servers in Site #1
+    server1 = clusterStartupRule.startServerVM(3, locator1Port);
+    server2 = clusterStartupRule.startServerVM(4, locator1Port);
+    server3 = clusterStartupRule.startServerVM(5, locator1Port);
+
+    server1.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+    server2.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+    server3.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+
+    server1.invoke(() -> startSender("ln"));
+    server2.invoke(() -> startSender("ln"));
+    server3.invoke(() -> startSender("ln"));
+
+    server1.invoke(() -> verifySenderState("ln", true, false));
+    server2.invoke(() -> verifySenderState("ln", true, false));
+    server3.invoke(() -> verifySenderState("ln", true, false));
+
+    server1.invoke(() -> pauseSender("ln"));
+    server2.invoke(() -> pauseSender("ln"));
+    server3.invoke(() -> pauseSender("ln"));
+
+    server1.invoke(() -> verifySenderState("ln", true, true));
+    server2.invoke(() -> verifySenderState("ln", true, true));
+    server3.invoke(() -> verifySenderState("ln", true, true));
+
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server1.getVM()), "ln", true, true));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server2.getVM()), "ln", true, true));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server3.getVM()), "ln", true, true));
+
     String command =
         CliStrings.RESUME_GATEWAYSENDER + " --" + CliStrings.RESUME_GATEWAYSENDER__ID + "=ln";
-    CommandResult cmdResult = executeCommand(command);
+    CommandResult cmdResult = gfsh.executeCommand(command);
+    assertThat(cmdResult).isNotNull();
+    assertThat(cmdResult.getStatus()).isSameAs(Result.Status.OK);
 
-    if (cmdResult != null) {
-      String strCmdResult = commandResultToString(cmdResult);
-      getLogWriter().info("testResumeGatewaySender stringResult : " + strCmdResult + ">>>>");
-      assertEquals(Result.Status.OK, cmdResult.getStatus());
-      TabularResultData resultData = (TabularResultData) cmdResult.getResultData();
-      List<String> status = resultData.retrieveAllValues("Result");
-      assertEquals(5, status.size());
-      assertTrue(status.contains("Error"));
-      assertTrue(status.contains("OK"));
-    } else {
-      fail("testResumeGatewaySender failed as did not get CommandResult");
-    }
-    vm3.invoke(() -> verifySenderState("ln", true, false));
-    vm4.invoke(() -> verifySenderState("ln", true, false));
-    vm5.invoke(() -> verifySenderState("ln", true, false));
+    TabularResultData resultData = (TabularResultData) cmdResult.getResultData();
+    List<String> status = resultData.retrieveAllValues("Result");
+    assertThat(status).hasSize(3);
+    assertThat(status).contains("OK");
+
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server1.getVM()), "ln", true, false));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server2.getVM()), "ln", true, false));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server3.getVM()), "ln", true, false));
+
+    server1.invoke(() -> verifySenderState("ln", true, false));
+    server2.invoke(() -> verifySenderState("ln", true, false));
+    server3.invoke(() -> verifySenderState("ln", true, false));
   }
 
   /**
    * test to validate that the start gateway sender starts the gateway sender on a member
    */
   @Test
-  public void testResumeGatewaySender_onMember() {
-    Integer dsIdPort = vm1.invoke(() -> createFirstLocatorWithDSId(1));
-    propsSetUp(dsIdPort);
-    vm2.invoke(() -> createFirstRemoteLocator(2, dsIdPort));
+  public void testResumeGatewaySender_onMember() throws Exception {
+    Integer locator1Port = locatorSite1.getPort();
 
-    vm3.invoke(() -> createCache(dsIdPort));
-    vm3.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
-    vm3.invoke(() -> startSender("ln"));
-    vm3.invoke(() -> verifySenderState("ln", true, false));
-    vm3.invoke(() -> pauseSender("ln"));
-    vm3.invoke(() -> verifySenderState("ln", true, true));
+    // setup servers in Site #1
+    server1 = clusterStartupRule.startServerVM(3, locator1Port);
+    server2 = clusterStartupRule.startServerVM(4, locator1Port);
+    server3 = clusterStartupRule.startServerVM(5, locator1Port);
 
-    final DistributedMember vm1Member = vm3.invoke(this::getMember);
-    pause(10000);
+    server1.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+    server1.invoke(() -> startSender("ln"));
+    server1.invoke(() -> verifySenderState("ln", true, false));
+    server1.invoke(() -> pauseSender("ln"));
+    server1.invoke(() -> verifySenderState("ln", true, true));
+
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server1.getVM()), "ln", true, true));
+
+    DistributedMember vm1Member = getMember(server1.getVM());
     String command = CliStrings.RESUME_GATEWAYSENDER + " --" + CliStrings.RESUME_GATEWAYSENDER__ID
         + "=ln --" + CliStrings.MEMBER + "=" + vm1Member.getId();
-    CommandResult cmdResult = executeCommand(command);
-    if (cmdResult != null) {
-      String strCmdResult = commandResultToString(cmdResult);
-      getLogWriter().info("testResumeGatewaySender stringResult : " + strCmdResult + ">>>>");
-      assertEquals(Result.Status.OK, cmdResult.getStatus());
-      assertTrue(strCmdResult.contains("is resumed on member"));
-    } else {
-      fail("testResumeGatewaySender failed as did not get CommandResult");
-    }
-    vm3.invoke(() -> verifySenderState("ln", true, false));
+    CommandResult cmdResult = gfsh.executeCommand(command);
+    assertThat(cmdResult).isNotNull();
+
+    String strCmdResult = cmdResult.toString();
+    assertThat(cmdResult.getStatus()).isSameAs(Result.Status.OK);
+    assertThat(strCmdResult).contains("is resumed on member");
+
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server1.getVM()), "ln", true, false));
+
+    server1.invoke(() -> verifySenderState("ln", true, false));
   }
 
   /**
    * test to validate that the start gateway sender starts the gateway sender on a group of members
    */
   @Test
-  public void testResumeGatewaySender_Group() {
-    Integer dsIdPort = vm1.invoke(() -> createFirstLocatorWithDSId(1));
-    propsSetUp(dsIdPort);
-    vm2.invoke(() -> createFirstRemoteLocator(2, dsIdPort));
+  public void testResumeGatewaySender_Group() throws Exception {
+    Integer locator1Port = locatorSite1.getPort();
 
-    vm3.invoke(() -> createCacheWithGroups(dsIdPort, "SenderGroup1"));
-    vm3.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
-    vm4.invoke(() -> createCacheWithGroups(dsIdPort, "SenderGroup1"));
-    vm4.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
-    vm5.invoke(() -> createCacheWithGroups(dsIdPort, "SenderGroup1"));
-    vm5.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+    // setup servers in Site #1
+    server1 = startServerWithGroups(3, "SenderGroup1", locator1Port);
+    server2 = startServerWithGroups(4, "SenderGroup1", locator1Port);
+    server3 = startServerWithGroups(5, "SenderGroup1", locator1Port);
 
-    vm3.invoke(() -> startSender("ln"));
-    vm4.invoke(() -> startSender("ln"));
-    vm5.invoke(() -> startSender("ln"));
+    server1.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+    server2.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+    server3.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
 
-    vm3.invoke(() -> verifySenderState("ln", true, false));
-    vm4.invoke(() -> verifySenderState("ln", true, false));
-    vm5.invoke(() -> verifySenderState("ln", true, false));
+    server1.invoke(() -> startSender("ln"));
+    server2.invoke(() -> startSender("ln"));
+    server3.invoke(() -> startSender("ln"));
 
-    vm3.invoke(() -> pauseSender("ln"));
-    vm4.invoke(() -> pauseSender("ln"));
-    vm5.invoke(() -> pauseSender("ln"));
+    server1.invoke(() -> verifySenderState("ln", true, false));
+    server2.invoke(() -> verifySenderState("ln", true, false));
+    server3.invoke(() -> verifySenderState("ln", true, false));
 
-    vm3.invoke(() -> verifySenderState("ln", true, true));
-    vm4.invoke(() -> verifySenderState("ln", true, true));
-    vm5.invoke(() -> verifySenderState("ln", true, true));
+    server1.invoke(() -> pauseSender("ln"));
+    server2.invoke(() -> pauseSender("ln"));
+    server3.invoke(() -> pauseSender("ln"));
 
-    pause(10000);
+    server1.invoke(() -> verifySenderState("ln", true, true));
+    server2.invoke(() -> verifySenderState("ln", true, true));
+    server3.invoke(() -> verifySenderState("ln", true, true));
+
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server1.getVM()), "ln", true, true));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server2.getVM()), "ln", true, true));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server3.getVM()), "ln", true, true));
+
     String command = CliStrings.RESUME_GATEWAYSENDER + " --" + CliStrings.RESUME_GATEWAYSENDER__ID
         + "=ln --" + CliStrings.GROUP + "=SenderGroup1";
-    CommandResult cmdResult = executeCommand(command);
+    CommandResult cmdResult = gfsh.executeCommand(command);
+    assertThat(cmdResult).isNotNull();
+    assertThat(cmdResult.getStatus()).isSameAs(Result.Status.OK);
 
-    if (cmdResult != null) {
-      String strCmdResult = commandResultToString(cmdResult);
-      getLogWriter().info("testResumeGatewaySender stringResult : " + strCmdResult + ">>>>");
-      assertEquals(Result.Status.OK, cmdResult.getStatus());
+    TabularResultData resultData = (TabularResultData) cmdResult.getResultData();
+    List<String> status = resultData.retrieveAllValues("Result");
+    assertThat(status).hasSize(3);
+    assertThat(status).doesNotContain("Error");
+    assertThat(status).contains("OK");
 
-      TabularResultData resultData = (TabularResultData) cmdResult.getResultData();
-      List<String> status = resultData.retrieveAllValues("Result");
-      assertEquals(3, status.size());
-      assertFalse(status.contains("Error"));
-      assertTrue(status.contains("OK"));
-    } else {
-      fail("testResumeGatewaySender failed as did not get CommandResult");
-    }
-    vm3.invoke(() -> verifySenderState("ln", true, false));
-    vm4.invoke(() -> verifySenderState("ln", true, false));
-    vm5.invoke(() -> verifySenderState("ln", true, false));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server1.getVM()), "ln", true, false));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server2.getVM()), "ln", true, false));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server3.getVM()), "ln", true, false));
+
+    server1.invoke(() -> verifySenderState("ln", true, false));
+    server2.invoke(() -> verifySenderState("ln", true, false));
+    server3.invoke(() -> verifySenderState("ln", true, false));
   }
 
   /**
@@ -201,63 +258,89 @@ public class ResumeGatewaySenderCommandDUnitTest extends WANCommandTestBase {
    * to multiple groups
    */
   @Test
-  public void testResumeGatewaySender_MultipleGroup() {
-    Integer dsIdPort = vm1.invoke(() -> createFirstLocatorWithDSId(1));
-    propsSetUp(dsIdPort);
-    vm2.invoke(() -> createFirstRemoteLocator(2, dsIdPort));
+  public void testResumeGatewaySender_MultipleGroup() throws Exception {
+    Integer locator1Port = locatorSite1.getPort();
 
-    vm3.invoke(() -> createCacheWithGroups(dsIdPort, "SenderGroup1"));
-    vm3.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
-    vm4.invoke(() -> createCacheWithGroups(dsIdPort, "SenderGroup1"));
-    vm4.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
-    vm5.invoke(() -> createCacheWithGroups(dsIdPort, "SenderGroup1, SenderGroup2"));
-    vm5.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
-    vm6.invoke(() -> createCacheWithGroups(dsIdPort, "SenderGroup2"));
-    vm6.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
-    vm7.invoke(() -> createCacheWithGroups(dsIdPort, "SenderGroup3"));
-    vm7.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
-    vm3.invoke(() -> startSender("ln"));
-    vm4.invoke(() -> startSender("ln"));
-    vm5.invoke(() -> startSender("ln"));
-    vm6.invoke(() -> startSender("ln"));
-    vm7.invoke(() -> startSender("ln"));
-    vm3.invoke(() -> verifySenderState("ln", true, false));
-    vm4.invoke(() -> verifySenderState("ln", true, false));
-    vm5.invoke(() -> verifySenderState("ln", true, false));
-    vm6.invoke(() -> verifySenderState("ln", true, false));
-    vm7.invoke(() -> verifySenderState("ln", true, false));
-    vm3.invoke(() -> pauseSender("ln"));
-    vm4.invoke(() -> pauseSender("ln"));
-    vm5.invoke(() -> pauseSender("ln"));
-    vm6.invoke(() -> pauseSender("ln"));
-    vm7.invoke(() -> pauseSender("ln"));
-    vm3.invoke(() -> verifySenderState("ln", true, true));
-    vm4.invoke(() -> verifySenderState("ln", true, true));
-    vm5.invoke(() -> verifySenderState("ln", true, true));
-    vm6.invoke(() -> verifySenderState("ln", true, true));
-    vm7.invoke(() -> verifySenderState("ln", true, true));
+    server1 = startServerWithGroups(3, "SenderGroup1", locator1Port);
+    server2 = startServerWithGroups(4, "SenderGroup1", locator1Port);
+    server3 = startServerWithGroups(5, "SenderGroup1, SenderGroup2", locator1Port);
+    server4 = startServerWithGroups(6, "SenderGroup2", locator1Port);
+    server5 = startServerWithGroups(7, "SenderGroup3", locator1Port);
 
-    pause(10000);
+    server1.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+    server2.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+    server3.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+    server4.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+    server5.invoke(() -> createSender("ln", 2, false, 100, 400, false, false, null, true));
+
+    server1.invoke(() -> startSender("ln"));
+    server2.invoke(() -> startSender("ln"));
+    server3.invoke(() -> startSender("ln"));
+    server4.invoke(() -> startSender("ln"));
+    server5.invoke(() -> startSender("ln"));
+
+    server1.invoke(() -> verifySenderState("ln", true, false));
+    server2.invoke(() -> verifySenderState("ln", true, false));
+    server3.invoke(() -> verifySenderState("ln", true, false));
+    server4.invoke(() -> verifySenderState("ln", true, false));
+    server5.invoke(() -> verifySenderState("ln", true, false));
+
+    server1.invoke(() -> pauseSender("ln"));
+    server2.invoke(() -> pauseSender("ln"));
+    server3.invoke(() -> pauseSender("ln"));
+    server4.invoke(() -> pauseSender("ln"));
+    server5.invoke(() -> pauseSender("ln"));
+
+    server1.invoke(() -> verifySenderState("ln", true, true));
+    server2.invoke(() -> verifySenderState("ln", true, true));
+    server3.invoke(() -> verifySenderState("ln", true, true));
+    server4.invoke(() -> verifySenderState("ln", true, true));
+    server5.invoke(() -> verifySenderState("ln", true, true));
+
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server1.getVM()), "ln", true, true));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server2.getVM()), "ln", true, true));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server3.getVM()), "ln", true, true));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server4.getVM()), "ln", true, true));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server5.getVM()), "ln", true, true));
+
     String command = CliStrings.RESUME_GATEWAYSENDER + " --" + CliStrings.RESUME_GATEWAYSENDER__ID
         + "=ln --" + CliStrings.GROUP + "=SenderGroup1,SenderGroup2";
-    CommandResult cmdResult = executeCommand(command);
+    CommandResult cmdResult = gfsh.executeCommand(command);
+    assertThat(cmdResult).isNotNull();
+    assertThat(cmdResult.getStatus()).isSameAs(Result.Status.OK);
 
-    if (cmdResult != null) {
-      String strCmdResult = commandResultToString(cmdResult);
-      getLogWriter().info("testResumeGatewaySender stringResult : " + strCmdResult + ">>>>");
-      assertEquals(Result.Status.OK, cmdResult.getStatus());
-      TabularResultData resultData = (TabularResultData) cmdResult.getResultData();
-      List<String> status = resultData.retrieveAllValues("Result");
-      assertEquals(4, status.size());
-      assertFalse(status.contains("Error"));
-      assertTrue(status.contains("OK"));
-    } else {
-      fail("testResumeGatewaySender failed as did not get CommandResult");
-    }
-    vm3.invoke(() -> verifySenderState("ln", true, false));
-    vm4.invoke(() -> verifySenderState("ln", true, false));
-    vm5.invoke(() -> verifySenderState("ln", true, false));
-    vm6.invoke(() -> verifySenderState("ln", true, false));
-    vm7.invoke(() -> verifySenderState("ln", true, true));
+    TabularResultData resultData = (TabularResultData) cmdResult.getResultData();
+    List<String> status = resultData.retrieveAllValues("Result");
+    assertThat(status).hasSize(4);
+    assertThat(status).doesNotContain("Error");
+    assertThat(status).contains("OK");
+
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server1.getVM()), "ln", true, false));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server2.getVM()), "ln", true, false));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server3.getVM()), "ln", true, false));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server4.getVM()), "ln", true, false));
+    locatorSite1.invoke(
+        () -> validateGatewaySenderMXBeanProxy(getMember(server5.getVM()), "ln", true, true));
+
+    server1.invoke(() -> verifySenderState("ln", true, false));
+    server2.invoke(() -> verifySenderState("ln", true, false));
+    server3.invoke(() -> verifySenderState("ln", true, false));
+    server4.invoke(() -> verifySenderState("ln", true, false));
+    server5.invoke(() -> verifySenderState("ln", true, true));
+  }
+
+  private MemberVM startServerWithGroups(int index, String groups, int locPort) throws Exception {
+    Properties props = new Properties();
+    props.setProperty(GROUPS, groups);
+    return clusterStartupRule.startServerVM(index, props, locPort);
   }
 }

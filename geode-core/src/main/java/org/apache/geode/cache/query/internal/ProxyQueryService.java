@@ -22,7 +22,6 @@ import java.util.List;
 
 import org.apache.logging.log4j.Logger;
 
-import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.client.internal.ProxyCache;
 import org.apache.geode.cache.client.internal.UserAttributes;
@@ -49,7 +48,7 @@ import org.apache.geode.internal.logging.LogService;
 /**
  * A wrapper class over an actual QueryService instance. This is used when the
  * multiuser-authentication attribute is set to true.
- * 
+ *
  * @see ProxyCache
  * @since GemFire 6.5
  */
@@ -416,7 +415,7 @@ public class ProxyQueryService implements QueryService {
 
   private void preOp(boolean setTL) {
     if (this.proxyCache.isClosed()) {
-      throw new CacheClosedException("Cache is closed for this user.");
+      throw proxyCache.getCacheClosedException("Cache is closed for this user.");
     }
     if (setTL) {
       UserAttributes.userAttributes.set(this.proxyCache.getUserAttributes());

@@ -105,7 +105,7 @@ import org.apache.geode.redis.GeodeRedisServer;
  * <p>
  * Note that if you add a property to this interface, should should update the
  * {@link #DistributionConfigImpl(DistributionConfig) copy constructor}.
- * 
+ *
  * @see InternalDistributedSystem
  * @since GemFire 2.1
  */
@@ -176,7 +176,7 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
 
   /**
    * The level at which log messages are logged
-   * 
+   *
    * @see org.apache.geode.internal.logging.LogWriterImpl#levelNameToCode(String)
    */
   protected int logLevel = DEFAULT_LOG_LEVEL;
@@ -376,7 +376,7 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
 
   /**
    * The level at which security related log messages are logged
-   * 
+   *
    * @see org.apache.geode.internal.logging.LogWriterImpl#levelNameToCode(String)
    */
   protected int securityLogLevel = DEFAULT_LOG_LEVEL;
@@ -627,6 +627,9 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
 
   protected String userCommandPackages = DEFAULT_USER_COMMAND_PACKAGES;
 
+  private boolean validateSerializableObjects = DEFAULT_VALIDATE_SERIALIZABLE_OBJECTS;
+  private String serializableObjectFilter = DEFAULT_SERIALIZABLE_OBJECT_FILTER;
+
   /**
    * "off-heap-memory-size" with value of "" or "<size>[g|m]"
    */
@@ -841,7 +844,8 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
     this.sslDefaultAlias = other.getSSLDefaultAlias();
     this.sslWebServiceRequireAuthentication = other.getSSLWebRequireAuthentication();
 
-
+    this.validateSerializableObjects = other.getValidateSerializableObjects();
+    this.serializableObjectFilter = other.getSerializableObjectFilter();
   }
 
   /**
@@ -867,7 +871,7 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
    * Creates a new <code>DistributionConfigImpl</code> with the given non-default configuration
    * properties. See {@link org.apache.geode.distributed.DistributedSystem#connect} for a list of
    * exceptions that may be thrown.
-   * 
+   *
    * @param nonDefault The configuration properties specified by the caller
    */
   public DistributionConfigImpl(Properties nonDefault) {
@@ -878,7 +882,7 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
    * Creates a new <code>DistributionConfigImpl</code> with the given non-default configuration
    * properties. See {@link org.apache.geode.distributed.DistributedSystem#connect} for a list of
    * exceptions that may be thrown.
-   * 
+   *
    * @param nonDefault The configuration properties specified by the caller
    * @param ignoreGemFirePropsFile whether to skip loading distributed system properties from
    *        gemfire.properties file
@@ -894,7 +898,7 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
    * Creates a new <code>DistributionConfigImpl</code> with the given non-default configuration
    * properties. See {@link org.apache.geode.distributed.DistributedSystem#connect} for a list of
    * exceptions that may be thrown.
-   * 
+   *
    * @param nonDefault The configuration properties specified by the caller
    * @param ignoreGemFirePropsFile whether to skip loading distributed system properties from
    *        gemfire.properties file
@@ -936,23 +940,18 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
       attNameSet.add(GEMFIRE_PREFIX + attNames[index]);
     }
 
-    /* clone() is a synchronized method for Properties (actually in Hashtable) */
-    Properties sysProps = (Properties) System.getProperties().clone();
-    Iterator<?> sysPropsIter = sysProps.entrySet().iterator();
-    while (sysPropsIter.hasNext()) {
-      Map.Entry sysEntry = (Map.Entry) sysPropsIter.next();
-      String sysName = (String) sysEntry.getKey();
-      if (attNameSet.contains(sysName) || sysName.startsWith(GEMFIRE_PREFIX + SECURITY_PREFIX_NAME)
-          || sysName.startsWith(GEMFIRE_PREFIX + SSL_SYSTEM_PROPS_NAME)) {
-        String sysValue = (String) sysEntry.getValue();
+    // Ensure that we're also iterating over the default properties - see GEODE-4690.
+    for (String key : System.getProperties().stringPropertyNames()) {
+      if (attNameSet.contains(key) || key.startsWith(GEMFIRE_PREFIX + SECURITY_PREFIX_NAME)
+          || key.startsWith(GEMFIRE_PREFIX + SSL_SYSTEM_PROPS_NAME)) {
+        String sysValue = System.getProperty(key);
         if (sysValue != null) {
-          String attName = sysName.substring(GEMFIRE_PREFIX.length());
+          String attName = key.substring(GEMFIRE_PREFIX.length());
           props.put(attName, sysValue);
           this.sourceMap.put(attName, ConfigSource.sysprop());
         }
       }
     }
-    sysProps.clear(); // clearing cloned SysProps
 
     final Properties overriddenDefaults = ProcessLauncherContext.getOverriddenDefaults();
     if (!overriddenDefaults.isEmpty()) {
@@ -977,12 +976,6 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
           securityPeerAuthenticator);
     }
 
-    Iterator iter = security.entrySet().iterator();
-    while (iter.hasNext()) {
-      Map.Entry entry = (Map.Entry) iter.next();
-      System.setProperty(SECURITY_SYSTEM_PREFIX + (String) entry.getKey(),
-          (String) entry.getValue());
-    }
     if (!isConnected) {
       copySSLPropsToServerSSLProps();
       copySSLPropsToJMXSSLProps();
@@ -1095,8 +1088,7 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
   /**
    * Here we will validate the correctness of the set properties as per the CheckAttributeChecker
    * annotations defined in #AbstractDistributionConfig
-   * 
-   * @param props
+   *
    */
   private void validateConfigurationProperties(final HashMap props) {
     for (Object o : props.keySet()) {
@@ -1539,7 +1531,7 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
   /**
    * Loads the properties from gemfire.properties & gfsecurity.properties files into given
    * Properties object.
-   * 
+   *
    * @param p the Properties to fill in
    *
    * @throws GemFireIOException when error occurs while reading properties file
@@ -1552,7 +1544,7 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
    * Loads the properties from gemfire.properties & gfsecurity.properties files into given
    * Properties object. if <code>ignoreGemFirePropsFile</code> is <code>true</code>, properties are
    * not read from gemfire.properties.
-   * 
+   *
    * @param p the Properties to fill in
    * @param ignoreGemFirePropsFile whether to ignore properties from gemfire.properties
    *
@@ -2853,6 +2845,26 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
     this.sslWebServiceRequireAuthentication = requiresAuthenatication;
   }
 
+  @Override
+  public boolean getValidateSerializableObjects() {
+    return validateSerializableObjects;
+  }
+
+  @Override
+  public void setValidateSerializableObjects(boolean value) {
+    this.validateSerializableObjects = value;
+  }
+
+  @Override
+  public String getSerializableObjectFilter() {
+    return serializableObjectFilter;
+  }
+
+  @Override
+  public void setSerializableObjectFilter(String value) {
+    this.serializableObjectFilter = value;
+  }
+
   /////////////////////// Utility Methods ///////////////////////
 
 
@@ -3107,7 +3119,7 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.distributed.internal.DistributionConfig#getMembershipPortRange()
    */
   public int[] getMembershipPortRange() {
@@ -3116,7 +3128,7 @@ public class DistributionConfigImpl extends AbstractDistributionConfig implement
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.distributed.internal.DistributionConfig#setMembershipPortRange(int[])
    */
   public void setMembershipPortRange(int[] range) {

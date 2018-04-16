@@ -24,6 +24,7 @@ import org.springframework.shell.core.annotation.CliOption;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.InternalClusterConfigurationService;
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.ConverterHint;
 import org.apache.geode.management.cli.Result;
@@ -36,7 +37,7 @@ import org.apache.geode.management.internal.cli.result.TabularResultData;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
-public class UndeployCommand implements GfshCommand {
+public class UndeployCommand extends InternalGfshCommand {
   private final UndeployFunction undeployFunction = new UndeployFunction();
 
   /**
@@ -49,7 +50,7 @@ public class UndeployCommand implements GfshCommand {
   @CliCommand(value = {CliStrings.UNDEPLOY}, help = CliStrings.UNDEPLOY__HELP)
   @CliMetaData(relatedTopic = {CliStrings.TOPIC_GEODE_CONFIG})
   @ResourceOperation(resource = ResourcePermission.Resource.CLUSTER,
-      operation = ResourcePermission.Operation.MANAGE, target = ResourcePermission.Target.JAR)
+      operation = ResourcePermission.Operation.MANAGE, target = ResourcePermission.Target.DEPLOY)
   public Result undeploy(
       @CliOption(key = {CliStrings.GROUP, CliStrings.GROUPS},
           help = CliStrings.UNDEPLOY__GROUP__HELP,
@@ -61,7 +62,7 @@ public class UndeployCommand implements GfshCommand {
       TabularResultData tabularData = ResultBuilder.createTabularResultData();
       boolean accumulatedData = false;
 
-      Set<DistributedMember> targetMembers = CliUtil.findMembers(groups, null);
+      Set<DistributedMember> targetMembers = findMembers(groups, null);
 
       if (targetMembers.isEmpty()) {
         return ResultBuilder.createUserErrorResult(CliStrings.NO_MEMBERS_FOUND_MESSAGE);
@@ -99,7 +100,8 @@ public class UndeployCommand implements GfshCommand {
       Result result = ResultBuilder.buildResult(tabularData);
       if (tabularData.getStatus().equals(Result.Status.OK)) {
         persistClusterConfiguration(result,
-            () -> getSharedConfiguration().removeJars(jars, groups));
+            () -> ((InternalClusterConfigurationService) getConfigurationService()).removeJars(jars,
+                groups));
       }
       return result;
     } catch (VirtualMachineError e) {

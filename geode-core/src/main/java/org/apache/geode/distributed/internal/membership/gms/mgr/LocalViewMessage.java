@@ -18,7 +18,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.SerialDistributionMessage;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.distributed.internal.membership.NetView;
@@ -28,7 +28,7 @@ import org.apache.geode.distributed.internal.membership.NetView;
  * LocalViewMessage is used to pass a new membership view to the GemFire cache in an orderly manner.
  * It is intended to be queued with serially executed messages so that the view takes effect at the
  * proper time.
- * 
+ *
  */
 
 public class LocalViewMessage extends SerialDistributionMessage {
@@ -48,12 +48,12 @@ public class LocalViewMessage extends SerialDistributionMessage {
 
   @Override
   public int getProcessorType() {
-    return DistributionManager.VIEW_EXECUTOR;
+    return ClusterDistributionManager.VIEW_EXECUTOR;
   }
 
 
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     // dm.getLogger().info("view message processed", new Exception());
     manager.processView(viewId, view);
   }

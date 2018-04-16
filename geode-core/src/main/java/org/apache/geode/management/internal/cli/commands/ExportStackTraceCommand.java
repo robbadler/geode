@@ -38,7 +38,6 @@ import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.ConverterHint;
 import org.apache.geode.management.cli.Result;
-import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.internal.cli.domain.StackTracesPerMember;
 import org.apache.geode.management.internal.cli.functions.GetStackTracesFunction;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
@@ -47,11 +46,13 @@ import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
-public class ExportStackTraceCommand implements GfshCommand {
+public class ExportStackTraceCommand extends InternalGfshCommand {
+  public static final String STACK_TRACE_FOR_MEMBER = "*** Stack-trace for member ";
   private final GetStackTracesFunction getStackTracesFunction = new GetStackTracesFunction();
 
   /**
-   * Current implementation supports writing it to a file and returning the location of the file
+   * Current implementation supports writing it to a locator/server side file and returning the
+   * location of the file
    */
   @CliCommand(value = CliStrings.EXPORT_STACKTRACE, help = CliStrings.EXPORT_STACKTRACE__HELP)
   @CliMetaData(relatedTopic = {CliStrings.TOPIC_GEODE_DEBUG_UTIL})
@@ -68,55 +69,43 @@ public class ExportStackTraceCommand implements GfshCommand {
           help = CliStrings.EXPORT_STACKTRACE__FILE__HELP) String fileName,
 
       @CliOption(key = CliStrings.EXPORT_STACKTRACE__FAIL__IF__FILE__PRESENT,
-          unspecifiedDefaultValue = "false",
-          help = CliStrings.EXPORT_STACKTRACE__FAIL__IF__FILE__PRESENT__HELP) boolean failIfFilePresent) {
-
-    Result result;
-    StringBuilder filePrefix = new StringBuilder("stacktrace");
+          unspecifiedDefaultValue = "false", specifiedDefaultValue = "true",
+          help = CliStrings.EXPORT_STACKTRACE__FAIL__IF__FILE__PRESENT__HELP) boolean failIfFilePresent)
+      throws IOException {
 
     if (fileName == null) {
+      StringBuilder filePrefix = new StringBuilder("stacktrace");
       fileName = filePrefix.append("_").append(System.currentTimeMillis()).toString();
     }
     final File outFile = new File(fileName);
-    try {
-      if (outFile.exists() && failIfFilePresent) {
-        return ResultBuilder.createShellClientErrorResult(CliStrings.format(
-            CliStrings.EXPORT_STACKTRACE__ERROR__FILE__PRESENT, outFile.getCanonicalPath()));
-      }
 
-
-      InternalCache cache = getCache();
-      InternalDistributedSystem ads = cache.getInternalDistributedSystem();
-
-      InfoResultData resultData = ResultBuilder.createInfoResultData();
-
-      Map<String, byte[]> dumps = new HashMap<>();
-      Set<DistributedMember> targetMembers = CliUtil.findMembers(group, memberNameOrId);
-      if (targetMembers.isEmpty()) {
-        return ResultBuilder.createUserErrorResult(CliStrings.NO_MEMBERS_FOUND_MESSAGE);
-      }
-
-      ResultCollector<?, ?> rc =
-          CliUtil.executeFunction(getStackTracesFunction, null, targetMembers);
-      ArrayList<Object> resultList = (ArrayList<Object>) rc.getResult();
-
-      for (Object resultObj : resultList) {
-        if (resultObj instanceof StackTracesPerMember) {
-          StackTracesPerMember stackTracePerMember = (StackTracesPerMember) resultObj;
-          dumps.put(stackTracePerMember.getMemberNameOrId(), stackTracePerMember.getStackTraces());
-        }
-      }
-
-      String filePath = writeStacksToFile(dumps, fileName);
-      resultData.addLine(CliStrings.format(CliStrings.EXPORT_STACKTRACE__SUCCESS, filePath));
-      resultData.addLine(CliStrings.EXPORT_STACKTRACE__HOST + ads.getDistributedMember().getHost());
-
-      result = ResultBuilder.buildResult(resultData);
-    } catch (IOException ex) {
-      result = ResultBuilder
-          .createGemFireErrorResult(CliStrings.EXPORT_STACKTRACE__ERROR + ex.getMessage());
+    if (outFile.exists() && failIfFilePresent) {
+      return ResultBuilder.createUserErrorResult(CliStrings
+          .format(CliStrings.EXPORT_STACKTRACE__ERROR__FILE__PRESENT, outFile.getCanonicalPath()));
     }
-    return result;
+
+    Map<String, byte[]> dumps = new HashMap<>();
+    Set<DistributedMember> targetMembers = getMembers(group, memberNameOrId);
+
+    InfoResultData resultData = ResultBuilder.createInfoResultData();
+
+    ResultCollector<?, ?> rc = executeFunction(getStackTracesFunction, null, targetMembers);
+    ArrayList<Object> resultList = (ArrayList<Object>) rc.getResult();
+
+    for (Object resultObj : resultList) {
+      if (resultObj instanceof StackTracesPerMember) {
+        StackTracesPerMember stackTracePerMember = (StackTracesPerMember) resultObj;
+        dumps.put(stackTracePerMember.getMemberNameOrId(), stackTracePerMember.getStackTraces());
+      }
+    }
+
+    InternalDistributedSystem ads = ((InternalCache) getCache()).getInternalDistributedSystem();
+    String filePath = writeStacksToFile(dumps, fileName);
+    resultData.addLine(CliStrings.format(CliStrings.EXPORT_STACKTRACE__SUCCESS, filePath));
+    resultData.addLine(CliStrings.EXPORT_STACKTRACE__HOST + ads.getDistributedMember().getHost());
+
+    return ResultBuilder.buildResult(resultData);
+
   }
 
   /***
@@ -125,9 +114,8 @@ public class ExportStackTraceCommand implements GfshCommand {
    * @param dumps - Map containing key : member , value : zipped stack traces
    * @param fileName - Name of the file to which the stack-traces are written to
    * @return Canonical path of the file which contains the stack-traces
-   * @throws IOException
    */
-  private String writeStacksToFile(Map<String, byte[]> dumps, String fileName) throws IOException {
+  public String writeStacksToFile(Map<String, byte[]> dumps, String fileName) throws IOException {
     String filePath;
     PrintWriter ps;
     File outputFile;
@@ -137,7 +125,8 @@ public class ExportStackTraceCommand implements GfshCommand {
       ps = new PrintWriter(os);
 
       for (Map.Entry<String, byte[]> entry : dumps.entrySet()) {
-        ps.append("*** Stack-trace for member ").append(entry.getKey()).append(" ***");
+        ps.append(STACK_TRACE_FOR_MEMBER).append(entry.getKey()).append(" ***")
+            .append(System.lineSeparator());
         ps.flush();
         GZIPInputStream zipIn = new GZIPInputStream(new ByteArrayInputStream(entry.getValue()));
         BufferedInputStream bin = new BufferedInputStream(zipIn);

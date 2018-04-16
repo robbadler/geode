@@ -19,8 +19,6 @@ import static org.junit.Assert.assertEquals;
 import java.io.IOException;
 import java.net.URISyntaxException;
 
-import org.apache.geode.modules.session.functions.GetMaxInactiveInterval;
-import org.apache.geode.modules.session.functions.GetSessionCount;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -28,6 +26,7 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
 
+import org.apache.geode.modules.session.functions.GetMaxInactiveInterval;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
@@ -68,6 +67,7 @@ public abstract class CargoTestBase extends JUnit4CacheTestCase {
    */
   @After
   public void stop() throws IOException {
+    manager.dumpLogs();
     manager.stopAllActiveContainers();
     manager.cleanUp();
   }

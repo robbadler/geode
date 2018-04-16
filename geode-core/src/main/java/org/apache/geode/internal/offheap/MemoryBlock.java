@@ -18,12 +18,12 @@ package org.apache.geode.internal.offheap;
 /**
  * Basic size and usage information about an off-heap memory block under inspection. For test
  * validation only.
- * 
+ *
  * @since Geode 1.0
  */
 public interface MemoryBlock {
 
-  public enum State {
+  enum State {
     /** Unused fragment (not used and not in a free list) */
     UNUSED,
     /** Allocated chunk currently in use */
@@ -32,40 +32,40 @@ public interface MemoryBlock {
     DEALLOCATED
   }
 
-  public State getState();
+  State getState();
 
   /**
    * Returns the unsafe memory address of the first byte of this block.
    */
-  public long getAddress();
+  long getAddress();
 
   /**
    * Returns the size of this memory block in bytes.
    */
-  public int getBlockSize();
+  int getBlockSize();
 
   /**
    * Returns the next memory block immediately after this one.
    */
-  public MemoryBlock getNextBlock();
+  MemoryBlock getNextBlock();
 
   /**
    * Returns the identifier of which slab contains this block.
    */
-  public int getSlabId();
+  int getSlabId();
 
   /**
    * Returns the identifier of which free list contains this block.
    */
-  public int getFreeListId();
+  int getFreeListId();
 
-  public int getRefCount();
+  int getRefCount();
 
-  public String getDataType();
+  String getDataType();
 
-  public boolean isSerialized();
+  boolean isSerialized();
 
-  public boolean isCompressed();
+  boolean isCompressed();
 
-  public Object getDataValue();
+  Object getDataValue();
 }

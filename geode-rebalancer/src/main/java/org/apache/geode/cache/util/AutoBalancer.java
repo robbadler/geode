@@ -26,11 +26,12 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.geode.annotations.Experimental;
 import org.apache.logging.log4j.Logger;
 import org.springframework.scheduling.support.CronSequenceGenerator;
 
 import org.apache.geode.GemFireConfigException;
+import org.apache.geode.annotations.Experimental;
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.Declarable;
 import org.apache.geode.cache.GemFireCache;
@@ -39,7 +40,6 @@ import org.apache.geode.cache.control.RebalanceResults;
 import org.apache.geode.cache.partition.PartitionMemberInfo;
 import org.apache.geode.distributed.DistributedLockService;
 import org.apache.geode.distributed.internal.locks.DLockService;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.partitioned.InternalPRInfo;
@@ -51,16 +51,16 @@ import org.apache.geode.internal.logging.LogService;
  * most cases, the decision to re-balance is based on the size of the member and a few other
  * statistics. {@link AutoBalancer} monitors these statistics and if necessary, triggers a
  * re-balancing request. Auto-Balancing is expected to prevent failures and data loss.
- * 
+ *
  * <P>
  * This implementation is based on {@code ConfigInitialization} implementation. By default
  * auto-balancing is disabled. A user needs to configure {@link AutoBalancer} during cache
  * initialization {@link GemFireCache#getInitializer()}
- * 
+ *
  * <P>
  * In a cluster only one member owns auto-balancing responsibility. This is achieved by grabbing a
  * distributed lock. In case of a failure a new member will grab the lock and manage auto balancing.
- * 
+ *
  * <P>
  * {@link AutoBalancer} can be controlled using the following configurations
  * <OL>
@@ -81,7 +81,7 @@ public class AutoBalancer implements Declarable {
    * <LI>Month
    * <LI>Day-of-Week
    * <LI>Year (optional field)
-   * 
+   *
    * <P>
    * For. e.g. {@code 0 0 * * * ?} for auditing the system every hour
    */
@@ -132,6 +132,8 @@ public class AutoBalancer implements Declarable {
   private final TimeProvider clock;
   private final CacheOperationFacade cacheFacade;
 
+  private boolean initialized;
+
   private static final Logger logger = LogService.getLogger();
 
   public AutoBalancer() {
@@ -147,7 +149,29 @@ public class AutoBalancer implements Declarable {
   }
 
   @Override
+  public void initialize(Cache cache, Properties props) {
+    this.cacheFacade.setCache(cache);
+    internalInitialize(props);
+  }
+
+  /**
+   * @deprecated as of Geode 1.5 use initialize instead.
+   */
   public void init(Properties props) {
+    internalInitialize(props);
+  }
+
+  private void internalInitialize(Properties props) {
+    if (this.initialized) {
+      // For backwards compatibility we need to keep the external
+      // init method. But the product will call both initialize and
+      // init. So if we are already initialized subsequent calls
+      // are a noop. Once the deprecated init method is removed, this
+      // boolean check can also be removed.
+      return;
+    }
+    this.initialized = true;
+
     if (logger.isDebugEnabled()) {
       logger.debug("Initializing " + this.getClass().getSimpleName() + " with " + props);
     }
@@ -443,21 +467,14 @@ public class AutoBalancer implements Declarable {
     }
 
     InternalCache getCache() {
-      // TODO: delete this double-checking
-      if (cache == null) {
-        synchronized (this) {
-          if (cache == null) {
-            cache = GemFireCacheImpl.getInstance();
-            if (cache == null) {
-              throw new IllegalStateException("Missing cache instance.");
-            }
-          }
-        }
+      InternalCache result = cache;
+      if (result == null) {
+        throw new IllegalStateException("Missing cache instance.");
       }
-      if (cache.isClosed()) {
+      if (result.isClosed()) {
         throw new CacheClosedException();
       }
-      return cache;
+      return result;
     }
 
     @Override
@@ -501,6 +518,11 @@ public class AutoBalancer implements Declarable {
 
       return dls;
     }
+
+    @Override
+    public void setCache(Cache cache) {
+      this.cache = (InternalCache) cache;
+    }
   }
 
   private static class SystemClockTimeProvider implements TimeProvider {
@@ -528,6 +550,8 @@ public class AutoBalancer implements Declarable {
 
   interface CacheOperationFacade {
     boolean acquireAutoBalanceLock();
+
+    void setCache(Cache cache);
 
     DistributedLockService getDLS();
 

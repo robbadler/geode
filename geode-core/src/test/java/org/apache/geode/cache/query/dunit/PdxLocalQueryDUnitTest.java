@@ -48,8 +48,9 @@ import org.apache.geode.test.dunit.SerializableCallable;
 import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, OQLQueryTest.class})
 public class PdxLocalQueryDUnitTest extends PDXQueryTestBase {
 
   @Test
@@ -154,7 +155,7 @@ public class PdxLocalQueryDUnitTest extends PDXQueryTestBase {
     server2.invoke(new SerializableCallable("Create Server2") {
       @Override
       public Object call() throws Exception {
-        ((GemFireCacheImpl) getCache()).setReadSerialized(true);
+        ((GemFireCacheImpl) getCache()).setReadSerializedForTest(true);
         Region r1 = getCache().createRegionFactory(RegionShortcut.REPLICATE).create(regionName);
 
         QueryService qs = null;
@@ -168,7 +169,7 @@ public class PdxLocalQueryDUnitTest extends PDXQueryTestBase {
 
         PositionPdx pos = new PositionPdx("IBM", 100);
         PdxInstanceFactory out = PdxInstanceFactoryImpl
-            .newCreator("org.apache.geode.cache.query.data.PositionPdx", false);
+            .newCreator("org.apache.geode.cache.query.data.PositionPdx", false, getCache());
         out.writeLong("avg20DaysVol", 0);
         out.writeString("bondRating", "");
         out.writeDouble("convRatio", 0);
@@ -365,10 +366,10 @@ public class PdxLocalQueryDUnitTest extends PDXQueryTestBase {
         assertEquals(numberOfEntries * 6 + 1 + extra, PortfolioPdx.numInstance);
 
         // set readserealized and query
-        ((GemFireCacheImpl) getCache()).setReadSerialized(true);
+        ((GemFireCacheImpl) getCache()).setReadSerializedForTest(true);
 
         PdxInstanceFactory out = PdxInstanceFactoryImpl
-            .newCreator("org.apache.geode.cache.query.data.PositionPdx", false);
+            .newCreator("org.apache.geode.cache.query.data.PositionPdx", false, getCache());
         out.writeLong("avg20DaysVol", 0);
         out.writeString("bondRating", "");
         out.writeDouble("convRatio", 0);
@@ -421,7 +422,7 @@ public class PdxLocalQueryDUnitTest extends PDXQueryTestBase {
         }
 
         // reset readserealized and query
-        ((GemFireCacheImpl) getCache()).setReadSerialized(false);
+        ((GemFireCacheImpl) getCache()).setReadSerializedForTest(false);
         return null;
       }
     });

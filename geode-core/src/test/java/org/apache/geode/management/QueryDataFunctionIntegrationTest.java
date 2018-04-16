@@ -43,6 +43,7 @@ import org.apache.geode.cache.query.data.Position;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.management.internal.ManagementConstants;
 import org.apache.geode.management.internal.beans.QueryDataFunction;
 import org.apache.geode.management.internal.cli.json.TypedJson;
@@ -53,6 +54,7 @@ import org.apache.geode.management.model.SubOrder;
 import org.apache.geode.pdx.PdxInstance;
 import org.apache.geode.pdx.PdxInstanceFactory;
 import org.apache.geode.pdx.internal.PdxInstanceFactoryImpl;
+import org.apache.geode.test.junit.categories.GfshTest;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 
 /**
@@ -62,7 +64,7 @@ import org.apache.geode.test.junit.categories.IntegrationTest;
  *
  * @since GemFire 8.1
  */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, GfshTest.class})
 public class QueryDataFunctionIntegrationTest {
 
   private static final String REPLICATED_REGION = "exampleRegion";
@@ -82,6 +84,7 @@ public class QueryDataFunctionIntegrationTest {
   private InternalDistributedSystem system;
   private Region<Object, Object> replicatedRegion;
   private DistributedMember member;
+  private Cache cache;
 
   @Before
   public void setUp() throws Exception {
@@ -109,8 +112,11 @@ public class QueryDataFunctionIntegrationTest {
   }
 
   /**
-   * #Issue 51048 Tests a model where Objects have a circular reference with object reference. e.g.
-   * Order1-- Has--> Items each Item --Has --> OrderN where (OrderN == Order1)
+   * Tests a model where Objects have a circular reference with object reference. e.g. Order1--
+   * Has--> Items each Item --Has --> OrderN where (OrderN == Order1)
+   * <p>
+   *
+   * RegressionTest for TRAC #51048: Disk Read/ Write shows negative at cluster level JMX
    */
   @Test
   public void testCyclicWithNestedObjectReference() throws Exception {
@@ -261,7 +267,8 @@ public class QueryDataFunctionIntegrationTest {
 
   @Test
   public void testNestedPDXObject() throws Exception {
-    PdxInstanceFactory factory = PdxInstanceFactoryImpl.newCreator("Portfolio", false);
+    PdxInstanceFactory factory = PdxInstanceFactoryImpl.newCreator("Portfolio", false,
+        (InternalCache) replicatedRegion.getCache());
 
     factory.writeInt("ID", 111);
     factory.writeString("status", "active");
@@ -316,5 +323,4 @@ public class QueryDataFunctionIntegrationTest {
     }
     return portfolios;
   }
-
 }

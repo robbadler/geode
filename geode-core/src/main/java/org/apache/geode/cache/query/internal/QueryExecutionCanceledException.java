@@ -16,14 +16,13 @@
 package org.apache.geode.cache.query.internal;
 
 import org.apache.geode.cache.CacheRuntimeException;
-import org.apache.geode.cache.control.ResourceManager;
 
 /**
  * Internal exception thrown when a query has been canceled and
  * QueryMonitor.isQueryExecutionCanceled() is called Due to various threads using the method, access
  * to the query object may not be available for certain threads This exception is generically used
  * and caught by DefaultQuery, which will then throw the appropriate exception
- * 
+ *
  * @since GemFire 7.0
  */
 public class QueryExecutionCanceledException extends CacheRuntimeException {
@@ -37,7 +36,7 @@ public class QueryExecutionCanceledException extends CacheRuntimeException {
   /**
    * Constructs an instance of <code>QueryExecutionCanceledException</code> with the specified
    * detail message.
-   * 
+   *
    * @param msg the detail message.
    */
   public QueryExecutionCanceledException(String msg) {
@@ -47,7 +46,7 @@ public class QueryExecutionCanceledException extends CacheRuntimeException {
   /**
    * Constructs an instance of <code>QueryExecutionCanceledException</code> with the specified
    * detail message and cause.
-   * 
+   *
    * @param msg the detail message
    * @param cause the causal Throwable
    */
@@ -58,7 +57,7 @@ public class QueryExecutionCanceledException extends CacheRuntimeException {
   /**
    * Constructs an instance of <code>QueryExecutionCanceledException</code> with the specified
    * cause.
-   * 
+   *
    * @param cause the causal Throwable
    */
   public QueryExecutionCanceledException(Throwable cause) {

@@ -23,7 +23,6 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.stream.IntStream;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -58,10 +57,9 @@ public class MemoryIndexStoreJUnitTest {
     subclassPreSetup();
     region = createRegion();
     cache = mock(GemFireCacheImpl.class);
-    actualInstance = GemFireCacheImpl.setInstanceForTests(cache);
     mockStats = mock(AbstractIndex.InternalIndexStatistics.class);
 
-    store = new MemoryIndexStore(region, mockStats);
+    store = new MemoryIndexStore(region, mockStats, cache);
     store.setIndexOnValues(true);
     mockEntries = new RegionEntry[numMockEntries];
     IntStream.range(0, numMockEntries).forEach(i -> {
@@ -69,9 +67,9 @@ public class MemoryIndexStoreJUnitTest {
     });
   }
 
-  @After
-  public void teardown() {
-    GemFireCacheImpl.setInstanceForTests(actualInstance);
+  @Test
+  public void createIteratorWhenCacheNulledWhenShuttingDownShouldNotThrowNPE() {
+    store.get("T");
   }
 
   @Test

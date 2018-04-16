@@ -14,8 +14,10 @@
  */
 package parReg.query.unittest;
 
-import java.util.*;
 import java.io.Serializable;
+import java.util.*;
+
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.Declarable;
 
 /**
@@ -39,7 +41,8 @@ public class Position implements Declarable, Serializable, Comparable {
   private final int NUM_OF_SECURITIES = 200;
   private final int MAX_PRICE = 100;
 
-  public void init(Properties props) {
+  @Override
+  public void initialize(Cache cache, Properties props) {
     this.secId = props.getProperty("secId");
     this.qty = Double.parseDouble(props.getProperty("qty"));
     this.mktValue = Double.parseDouble(props.getProperty("mktValue"));
@@ -155,5 +158,3 @@ public class Position implements Declarable, Serializable, Comparable {
     }
   }
 }
-
-

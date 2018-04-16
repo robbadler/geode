@@ -14,13 +14,13 @@
  */
 package org.apache.geode.cache.query;
 
-import it.unimi.dsi.fastutil.floats.FloatArrayList;
-
 import java.text.DateFormat;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
+
+import it.unimi.dsi.fastutil.floats.FloatArrayList;
 
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
@@ -34,9 +34,6 @@ import org.apache.geode.cache.query.internal.ResultsSet;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.internal.NanoTimer;
 
-/**
- *
- */
 public class PerfQuery {
   private static int NUM_ITERATIONS = 20000;
 

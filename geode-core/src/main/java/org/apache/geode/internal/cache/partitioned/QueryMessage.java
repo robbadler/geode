@@ -30,6 +30,7 @@ import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.query.QueryException;
 import org.apache.geode.cache.query.QueryExecutionLowMemoryException;
+import org.apache.geode.cache.query.Struct;
 import org.apache.geode.cache.query.internal.DefaultQuery;
 import org.apache.geode.cache.query.internal.IndexTrackingQueryObserver;
 import org.apache.geode.cache.query.internal.PRQueryTraceInfo;
@@ -37,7 +38,7 @@ import org.apache.geode.cache.query.internal.QueryMonitor;
 import org.apache.geode.cache.query.internal.QueryObserver;
 import org.apache.geode.cache.query.internal.types.ObjectTypeImpl;
 import org.apache.geode.cache.query.types.ObjectType;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.distributed.internal.ReplyProcessor21;
@@ -52,7 +53,6 @@ import org.apache.geode.internal.cache.Token;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LogMarker;
-import org.apache.geode.cache.query.Struct;
 
 public class QueryMessage extends StreamingPartitionOperation.StreamingPartitionMessage {
   private static final Logger logger = LogService.getLogger();
@@ -139,7 +139,7 @@ public class QueryMessage extends StreamingPartitionOperation.StreamingPartition
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion pr,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion pr,
       long startTime)
       throws CacheException, QueryException, ForceReattemptException, InterruptedException {
     // calculate trace start time if trace is on this is because the start time is only set if
@@ -152,8 +152,8 @@ public class QueryMessage extends StreamingPartitionOperation.StreamingPartition
     if (Thread.interrupted()) {
       throw new InterruptedException();
     }
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.trace(LogMarker.DM, "QueryMessage operateOnPartitionedRegion: {} buckets {}",
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace(LogMarker.DM_VERBOSE, "QueryMessage operateOnPartitionedRegion: {} buckets {}",
           pr.getFullPath(), this.buckets);
     }
 
@@ -169,7 +169,8 @@ public class QueryMessage extends StreamingPartitionOperation.StreamingPartition
 
     DefaultQuery query = new DefaultQuery(this.queryString, pr.getCache(), false);
     // Remote query, use the PDX types in serialized form.
-    DefaultQuery.setPdxReadSerialized(pr.getCache(), true);
+    Boolean initialPdxReadSerialized = pr.getCache().getPdxReadSerializedOverride();
+    pr.getCache().setPdxReadSerializedOverride(true);
     // In case of "select *" queries we can keep the results in serialized form and send
     query.setRemoteQuery(true);
     QueryObserver indexObserver = query.startTrace();
@@ -242,6 +243,8 @@ public class QueryMessage extends StreamingPartitionOperation.StreamingPartition
         String reason = LocalizedStrings.QueryMonitor_LOW_MEMORY_CANCELED_QUERY
             .toLocalizedString(QueryMonitor.getMemoryUsedDuringLowMemory());
         throw new QueryExecutionLowMemoryException(reason);
+      } else if (query.isCanceled()) {
+        throw query.getQueryCanceledException();
       }
       super.operateOnPartitionedRegion(dm, pr, startTime);
     } finally {
@@ -249,7 +252,7 @@ public class QueryMessage extends StreamingPartitionOperation.StreamingPartition
       if (isQueryTraced) {
         this.resultCollector.remove(queryTraceList);
       }
-      DefaultQuery.setPdxReadSerialized(pr.getCache(), false);
+      pr.getCache().setPdxReadSerializedOverride(initialPdxReadSerialized);
       query.setRemoteQuery(false);
       query.endTrace(indexObserver, traceStartTime, this.resultCollector);
     }
@@ -272,12 +275,12 @@ public class QueryMessage extends StreamingPartitionOperation.StreamingPartition
   /**
    * send a reply message. This is in a method so that subclasses can override the reply message
    * type
-   * 
+   *
    * @see PutMessage#sendReply
    */
   @Override
-  protected void sendReply(InternalDistributedMember member, int procId, DM dm, ReplyException ex,
-      PartitionedRegion pr, long startTime) {
+  protected void sendReply(InternalDistributedMember member, int procId, DistributionManager dm,
+      ReplyException ex, PartitionedRegion pr, long startTime) {
     // if there was an exception, then throw out any data
     if (ex != null) {
       this.outStream = null;

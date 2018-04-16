@@ -16,17 +16,18 @@ package org.apache.geode.cache.lucene.internal.filesystem;
 
 import static org.mockito.Mockito.*;
 
-import org.apache.geode.Statistics;
-import org.apache.geode.StatisticsFactory;
-import org.apache.geode.StatisticsType;
-import org.apache.geode.test.junit.categories.UnitTest;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.ArgumentCaptor;
 
-@Category(UnitTest.class)
+import org.apache.geode.Statistics;
+import org.apache.geode.StatisticsFactory;
+import org.apache.geode.StatisticsType;
+import org.apache.geode.test.junit.categories.LuceneTest;
+import org.apache.geode.test.junit.categories.UnitTest;
+
+@Category({UnitTest.class, LuceneTest.class})
 public class FileSystemStatsJUnitTest {
 
   private Statistics statistics;

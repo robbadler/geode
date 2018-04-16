@@ -27,7 +27,7 @@ import org.apache.shiro.subject.Subject;
 import org.springframework.shell.core.annotation.CliCommand;
 import org.springframework.shell.core.annotation.CliOption;
 
-import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.cache.query.QueryInvalidException;
@@ -39,6 +39,7 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.ConverterHint;
 import org.apache.geode.management.cli.Result;
+import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.internal.cli.domain.DataCommandRequest;
 import org.apache.geode.management.internal.cli.domain.DataCommandResult;
 import org.apache.geode.management.internal.cli.functions.DataCommandFunction;
@@ -49,7 +50,7 @@ import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.security.ResourcePermission.Operation;
 import org.apache.geode.security.ResourcePermission.Resource;
 
-public class QueryCommand implements GfshCommand {
+public class QueryCommand extends InternalGfshCommand {
   private static final Logger logger = LogService.getLogger();
 
   @CliCommand(value = "query", help = CliStrings.QUERY__HELP)
@@ -67,7 +68,7 @@ public class QueryCommand implements GfshCommand {
   }
 
   private DataCommandResult select(String query) {
-    InternalCache cache = (InternalCache) CacheFactory.getAnyInstance();
+    Cache cache = getCache();
     DataCommandResult dataResult;
 
     if (StringUtils.isEmpty(query)) {
@@ -94,19 +95,19 @@ public class QueryCommand implements GfshCommand {
 
       // authorize data read on these regions
       for (String region : regions) {
-        cache.getSecurityService().authorize(Resource.DATA, Operation.READ, region);
+        authorize(Resource.DATA, Operation.READ, region);
       }
 
       regionsInQuery = Collections.unmodifiableSet(regions);
       if (regionsInQuery.size() > 0) {
         Set<DistributedMember> members =
-            DataCommandsUtils.getQueryRegionsAssociatedMembers(regionsInQuery, cache, false);
+            CliUtil.getQueryRegionsAssociatedMembers(regionsInQuery, (InternalCache) cache, false);
         if (members != null && members.size() > 0) {
           DataCommandFunction function = new DataCommandFunction();
           DataCommandRequest request = new DataCommandRequest();
           request.setCommand(CliStrings.QUERY);
           request.setQuery(query);
-          Subject subject = cache.getSecurityService().getSubject();
+          Subject subject = getSubject();
           if (subject != null) {
             request.setPrincipal(subject.getPrincipal());
           }

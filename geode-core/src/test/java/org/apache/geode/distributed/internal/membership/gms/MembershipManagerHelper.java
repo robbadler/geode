@@ -15,10 +15,9 @@
 package org.apache.geode.distributed.internal.membership.gms;
 
 import org.apache.geode.CancelException;
-import org.apache.geode.ForcedDisconnectException;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.distributed.internal.membership.MembershipManager;
@@ -29,7 +28,7 @@ import org.apache.geode.test.dunit.WaitCriterion;
 
 /**
  * This helper class provides access to membership manager information that is not otherwise public
- * 
+ *
  * @since GemFire 5.5
  */
 public class MembershipManagerHelper {
@@ -37,7 +36,7 @@ public class MembershipManagerHelper {
   /** returns the JGroupMembershipManager for the given distributed system */
   public static MembershipManager getMembershipManager(DistributedSystem sys) {
     InternalDistributedSystem isys = (InternalDistributedSystem) sys;
-    DistributionManager dm = (DistributionManager) isys.getDM();
+    ClusterDistributionManager dm = (ClusterDistributionManager) isys.getDM();
     MembershipManager mgr = dm.getMembershipManager();
     return mgr;
   }
@@ -48,8 +47,7 @@ public class MembershipManagerHelper {
    * <p>
    * Note that part of beSickMember's processing is to interrupt and stop any reader threads. A slow
    * listener in a reader thread should eat this interrupt.
-   * 
-   * @param sys
+   *
    */
   public static void beSickMember(DistributedSystem sys) {
     ((Manager) getMembershipManager(sys)).beSick();

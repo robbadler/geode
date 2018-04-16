@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -29,11 +29,13 @@ import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.asyncqueue.AsyncEventQueue;
 import org.apache.geode.cache.asyncqueue.internal.AsyncEventQueueFactoryImpl;
 import org.apache.geode.cache.asyncqueue.internal.AsyncEventQueueImpl;
+import org.apache.geode.cache.lucene.LuceneSerializer;
 import org.apache.geode.cache.lucene.internal.repository.RepositoryManager;
 import org.apache.geode.cache.lucene.internal.xml.LuceneIndexCreation;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.InternalRegionArguments;
 import org.apache.geode.internal.cache.LocalRegion;
+import org.apache.geode.internal.cache.RegionListener;
 import org.apache.geode.internal.cache.extension.Extension;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
@@ -46,12 +48,11 @@ public abstract class LuceneIndexImpl implements InternalLuceneIndex {
   protected final InternalCache cache;
   protected final LuceneIndexStats indexStats;
 
-  protected boolean hasInitialized = false;
-  protected boolean hasInitializedAEQ = false;
   protected Map<String, Analyzer> fieldAnalyzers;
   protected String[] searchableFieldNames;
   protected RepositoryManager repositoryManager;
   protected Analyzer analyzer;
+  protected LuceneSerializer luceneSerializer;
   protected LocalRegion dataRegion;
 
   protected LuceneIndexImpl(String indexName, String regionPath, InternalCache cache) {
@@ -73,8 +74,12 @@ public abstract class LuceneIndexImpl implements InternalLuceneIndex {
     return this.regionPath;
   }
 
-  protected LocalRegion getDataRegion() {
+  protected LocalRegion assignDataRegion() {
     return (LocalRegion) cache.getRegion(regionPath);
+  }
+
+  protected LocalRegion getDataRegion() {
+    return dataRegion;
   }
 
   protected boolean withPersistence() {
@@ -114,6 +119,14 @@ public abstract class LuceneIndexImpl implements InternalLuceneIndex {
     return this.analyzer;
   }
 
+  public LuceneSerializer getLuceneSerializer() {
+    return this.luceneSerializer;
+  }
+
+  public void setLuceneSerializer(LuceneSerializer serializer) {
+    this.luceneSerializer = serializer;
+  }
+
   public Cache getCache() {
     return this.cache;
   }
@@ -127,32 +140,21 @@ public abstract class LuceneIndexImpl implements InternalLuceneIndex {
     return indexStats;
   }
 
-  protected void initialize() {
-    if (!hasInitialized) {
-      /* create index region */
-      dataRegion = getDataRegion();
-      createLuceneListenersAndFileChunkRegions(
-          (AbstractPartitionedRepositoryManager) repositoryManager);
-      addExtension(dataRegion);
-      hasInitialized = true;
-    }
+  public void initialize() {
+    /* create index region */
+    dataRegion = assignDataRegion();
+    createLuceneListenersAndFileChunkRegions((PartitionedRepositoryManager) repositoryManager);
+    addExtension(dataRegion);
   }
 
-  protected void setupAEQ(RegionAttributes attributes, String aeqId) {
-    if (!hasInitializedAEQ) {
-      createAEQ(attributes, aeqId);
-      hasInitializedAEQ = true;
-    }
+  protected void setupRepositoryManager(LuceneSerializer luceneSerializer) {
+    repositoryManager = createRepositoryManager(luceneSerializer);
   }
 
-  protected void setupRepositoryManager() {
-    repositoryManager = createRepositoryManager();
-  }
-
-  protected abstract RepositoryManager createRepositoryManager();
+  protected abstract RepositoryManager createRepositoryManager(LuceneSerializer luceneSerializer);
 
   protected abstract void createLuceneListenersAndFileChunkRegions(
-      AbstractPartitionedRepositoryManager partitionedRepositoryManager);
+      PartitionedRepositoryManager partitionedRepositoryManager);
 
   protected AsyncEventQueue createAEQ(Region dataRegion) {
     String aeqId = LuceneServiceImpl.getUniqueIndexName(getName(), regionPath);
@@ -160,18 +162,26 @@ public abstract class LuceneIndexImpl implements InternalLuceneIndex {
   }
 
   protected AsyncEventQueue createAEQ(RegionAttributes attributes, String aeqId) {
+    if (attributes.getPartitionAttributes() != null) {
+      if (attributes.getPartitionAttributes().getLocalMaxMemory() == 0) {
+        // accessor will not create AEQ
+        return null;
+      }
+    }
     return createAEQ(createAEQFactory(attributes), aeqId);
+  }
+
+  private AsyncEventQueue createAEQ(AsyncEventQueueFactoryImpl factory, String aeqId) {
+    LuceneEventListener listener = new LuceneEventListener(cache, repositoryManager);
+    factory.setGatewayEventSubstitutionListener(new LuceneEventSubstitutionFilter());
+    AsyncEventQueue indexQueue = factory.create(aeqId, listener);
+    return indexQueue;
   }
 
   private AsyncEventQueueFactoryImpl createAEQFactory(final RegionAttributes attributes) {
     AsyncEventQueueFactoryImpl factory =
         (AsyncEventQueueFactoryImpl) cache.createAsyncEventQueueFactory();
     if (attributes.getPartitionAttributes() != null) {
-
-      if (attributes.getPartitionAttributes().getLocalMaxMemory() == 0) {
-        // accessor will not create AEQ
-        return null;
-      }
       factory.setParallel(true); // parallel AEQ for PR
     } else {
       factory.setParallel(false); // TODO: not sure if serial AEQ working or not
@@ -189,16 +199,6 @@ public abstract class LuceneIndexImpl implements InternalLuceneIndex {
     return factory;
   }
 
-  private AsyncEventQueue createAEQ(AsyncEventQueueFactoryImpl factory, String aeqId) {
-    if (factory == null) {
-      return null;
-    }
-    LuceneEventListener listener = new LuceneEventListener(repositoryManager);
-    factory.setGatewayEventSubstitutionListener(new LuceneEventSubstitutionFilter());
-    AsyncEventQueue indexQueue = factory.create(aeqId, listener);
-    return indexQueue;
-  }
-
   /**
    * Register an extension with the region so that xml will be generated for this index.
    */
@@ -208,6 +208,7 @@ public abstract class LuceneIndexImpl implements InternalLuceneIndex {
     creation.addFieldNames(this.getFieldNames());
     creation.setRegion(dataRegion);
     creation.setFieldAnalyzers(this.getFieldAnalyzers());
+    creation.setLuceneSerializer(this.getLuceneSerializer());
     dataRegion.getExtensionPoint().addExtension(creation);
   }
 
@@ -230,6 +231,26 @@ public abstract class LuceneIndexImpl implements InternalLuceneIndex {
 
     // Close the repository manager
     repositoryManager.close();
+
+    RegionListener listenerToRemove = getRegionListener();
+    if (listenerToRemove != null) {
+      cache.removeRegionListener(listenerToRemove);
+    }
+
+  }
+
+  private RegionListener getRegionListener() {
+    RegionListener rl = null;
+    for (RegionListener listener : cache.getRegionListeners()) {
+      if (listener instanceof LuceneRegionListener) {
+        LuceneRegionListener lrl = (LuceneRegionListener) listener;
+        if (lrl.getRegionPath().equals(regionPath) && lrl.getIndexName().equals(indexName)) {
+          rl = lrl;
+          break;
+        }
+      }
+    }
+    return rl;
   }
 
   protected <K, V> Region<K, V> createRegion(final String regionName,

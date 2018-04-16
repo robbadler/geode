@@ -12,17 +12,14 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.execute.data;
-
-import org.apache.geode.DataSerializable;
-import org.apache.geode.DataSerializer;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+
+import org.apache.geode.DataSerializable;
+import org.apache.geode.DataSerializer;
 
 public class ShipmentId implements DataSerializable {
   Integer shipmentId;

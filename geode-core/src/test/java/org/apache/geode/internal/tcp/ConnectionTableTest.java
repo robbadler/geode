@@ -15,20 +15,21 @@
 
 package org.apache.geode.internal.tcp;
 
-import org.apache.geode.CancelCriterion;
-import org.apache.geode.distributed.internal.DM;
-import org.apache.geode.distributed.internal.DMStats;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
-import org.apache.geode.test.junit.categories.UnitTest;
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.net.Socket;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.net.Socket;
-
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import org.apache.geode.CancelCriterion;
+import org.apache.geode.distributed.internal.DMStats;
+import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.test.junit.categories.UnitTest;
 
 
 @Category(UnitTest.class)
@@ -43,7 +44,7 @@ public class ConnectionTableTest {
     InternalDistributedSystem system = mock(InternalDistributedSystem.class);
     when(system.isShareSockets()).thenReturn(false);
 
-    DM dm = mock(DM.class);
+    DistributionManager dm = mock(DistributionManager.class);
     when(dm.getSystem()).thenReturn(system);
 
     CancelCriterion cancelCriterion = mock(CancelCriterion.class);

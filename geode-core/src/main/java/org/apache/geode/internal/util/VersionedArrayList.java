@@ -33,9 +33,9 @@ import org.apache.geode.internal.cache.Node;
  * Versioned ArrayList which maintains the version everytime the list gets modified. This is
  * thread-safe in terms of add and remove operations and also list is an unmodifiable list to avoid
  * ConcurrentModificationException.
- * 
+ *
  * @see java.util.ConcurrentModificationException
- * 
+ *
  */
 public class VersionedArrayList implements DataSerializable, Versionable, Iterable<Node> {
   private static final long serialVersionUID = -1455442285961593385L;
@@ -57,8 +57,7 @@ public class VersionedArrayList implements DataSerializable, Versionable, Iterab
 
   /**
    * Constructor.
-   * 
-   * @param size
+   *
    */
   public VersionedArrayList(int size) {
     this.list = new ArrayList<Node>(size);
@@ -74,9 +73,8 @@ public class VersionedArrayList implements DataSerializable, Versionable, Iterab
    * Adds obj to the list. Addition is done by making a copy of the existing list and then adding
    * the obj to the new list and assigning the old list to the new unmodifiable list. This is to
    * ensure that the iterator of the list doesn't get ConcurrentModificationException.
-   * 
+   *
    * @see java.util.ConcurrentModificationException
-   * @param obj
    */
   public synchronized void add(Node obj) {
 
@@ -92,10 +90,10 @@ public class VersionedArrayList implements DataSerializable, Versionable, Iterab
    * removing the obj from the new list. If the object was removed, the list is assigning to the new
    * unmodifiable list. This is to ensure that the iterator of the list doesn't get
    * ConcurrentModificationException.
-   * 
+   *
    * @return true if the element was removed and the version was changed, otherwise version and list
    *         are left unmodified.
-   * 
+   *
    * @see java.util.ConcurrentModificationException
    * @param obj the object to remove from the list
    */
@@ -112,7 +110,7 @@ public class VersionedArrayList implements DataSerializable, Versionable, Iterab
 
   /**
    * Returns the iterator.
-   * 
+   *
    * @return a list Iterator
    */
   public synchronized Iterator<Node> iterator() {
@@ -121,8 +119,7 @@ public class VersionedArrayList implements DataSerializable, Versionable, Iterab
 
   /**
    * Returns the size of the list.
-   * 
-   * @return int
+   *
    */
   public synchronized int size() {
     return this.list.size();
@@ -130,8 +127,7 @@ public class VersionedArrayList implements DataSerializable, Versionable, Iterab
 
   /**
    * Returns true if obj is present in the list otherwise false.
-   * 
-   * @param obj
+   *
    * @return true if obj is present in the list
    */
   public boolean contains(Node obj) {
@@ -146,9 +142,7 @@ public class VersionedArrayList implements DataSerializable, Versionable, Iterab
 
   /**
    * Returns Object at index i.
-   * 
-   * @param i
-   * @return Object
+   *
    */
   public Object get(int i) {
     final List<Node> l;
@@ -160,9 +154,7 @@ public class VersionedArrayList implements DataSerializable, Versionable, Iterab
 
   /**
    * Returns the index of Object if present, else -1.
-   * 
-   * @param obj
-   * @return int
+   *
    */
   public int indexOf(Object obj) {
     final List<Node> l;
@@ -174,8 +166,7 @@ public class VersionedArrayList implements DataSerializable, Versionable, Iterab
 
   /**
    * Returns a copy of the arraylist contained.
-   * 
-   * @return ArrayList
+   *
    */
   public Set<Node> getListCopy() {
     final List<Node> l;
@@ -187,7 +178,7 @@ public class VersionedArrayList implements DataSerializable, Versionable, Iterab
 
   /**
    * Prints the version and elements of the list.
-   * 
+   *
    * @return String with version and elements of the list.
    */
   @Override
@@ -258,7 +249,7 @@ public class VersionedArrayList implements DataSerializable, Versionable, Iterab
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.util.Versionable#getVersion()
    */
   public synchronized Comparable getVersion() {

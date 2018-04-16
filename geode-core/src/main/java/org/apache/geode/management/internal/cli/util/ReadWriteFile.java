@@ -32,15 +32,12 @@ import org.apache.geode.internal.logging.log4j.LogLevel;
 import org.apache.geode.management.internal.cli.GfshParser;
 
 /**
- * 
- * 
+ *
+ *
  * @since GemFire 7.0
  */
 public class ReadWriteFile {
 
-  /**
-   * @param args
-   */
   public static void main(String[] args) {
     if (args.length < 6 || args.length > 6) {
       throw new IllegalArgumentException(

@@ -24,6 +24,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Properties;
 import java.util.stream.IntStream;
 
 import junitparams.JUnitParamsRunner;
@@ -33,10 +34,12 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 
 import org.apache.geode.cache.Region;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.test.dunit.SerializableRunnableIF;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.LuceneTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, LuceneTest.class})
 @RunWith(JUnitParamsRunner.class)
 public class MixedObjectIndexDUnitTest extends LuceneQueriesAccessorBase {
 
@@ -46,6 +49,17 @@ public class MixedObjectIndexDUnitTest extends LuceneQueriesAccessorBase {
         RegionTestableType.PARTITION_REDUNDANT_PERSISTENT};
 
   }
+
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties result = super.getDistributedSystemProperties();
+    String filter = (String) result.get(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER);
+    filter +=
+        ";org.apache.geode.cache.lucene.MixedObjectIndexDUnitTest*;org.apache.geode.cache.lucene.test.LuceneTestUtilities*";
+    result.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER, filter);
+    return result;
+  }
+
 
   @Test
   @Parameters(method = "getPartitionRegionTypes")

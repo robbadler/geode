@@ -15,6 +15,7 @@
 package org.apache.geode.pdx.internal;
 
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.geode.cache.wan.GatewaySender;
 import org.apache.geode.internal.cache.InternalCache;
@@ -100,7 +101,7 @@ public class LonerTypeRegistration implements TypeRegistration {
   /**
    * Check to see if the current member is a loner and we can't tell if the user wants a peer or a
    * client type registry.
-   * 
+   *
    * @return true if this member is a loner and we can't determine what type of registry they want.
    */
   public static boolean isIndeterminateLoner(InternalCache cache) {
@@ -144,6 +145,11 @@ public class LonerTypeRegistration implements TypeRegistration {
   @Override
   public PdxType getPdxTypeForField(String fieldName, String className) {
     return delegate.getPdxTypeForField(fieldName, className);
+  }
+
+  @Override
+  public Set<PdxType> getPdxTypesForClassName(String className) {
+    return delegate.getPdxTypesForClassName(className);
   }
 
   @Override

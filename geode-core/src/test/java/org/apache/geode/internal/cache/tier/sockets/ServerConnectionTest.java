@@ -25,14 +25,11 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import org.apache.geode.i18n.StringId;
-import org.apache.geode.internal.Version;
-import org.apache.geode.internal.cache.InternalCache;
-import org.apache.geode.internal.cache.tier.CommunicationMode;
-import org.apache.geode.internal.security.SecurityService;
-import org.apache.geode.security.AuthenticationRequiredException;
-import org.apache.geode.test.junit.categories.UnitTest;
-import org.apache.geode.test.junit.rules.RestoreLocaleRule;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.util.Locale;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -41,10 +38,16 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.util.Locale;
+import org.apache.geode.i18n.StringId;
+import org.apache.geode.internal.Version;
+import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.tier.CommunicationMode;
+import org.apache.geode.internal.cache.tier.Encryptor;
+import org.apache.geode.internal.cache.tier.ServerSideHandshake;
+import org.apache.geode.internal.security.SecurityService;
+import org.apache.geode.security.AuthenticationRequiredException;
+import org.apache.geode.test.junit.categories.UnitTest;
+import org.apache.geode.test.junit.rules.RestoreLocaleRule;
 
 @Category(UnitTest.class)
 public class ServerConnectionTest {
@@ -61,30 +64,39 @@ public class ServerConnectionTest {
   private Message requestMsg;
 
   @Mock
-  private HandShake handshake;
-
-  @Mock
   private MessageIdExtractor messageIdExtractor;
 
   @InjectMocks
   private ServerConnection serverConnection;
 
+  private AcceptorImpl acceptor;
+  private Socket socket;
+  private ServerSideHandshake handshake;
+  private InternalCache cache;
+  private SecurityService securityService;
+  private CacheServerStats stats;
+
   @Before
   public void setUp() throws IOException {
-    AcceptorImpl acceptor = mock(AcceptorImpl.class);
+    acceptor = mock(AcceptorImpl.class);
 
     InetAddress inetAddress = mock(InetAddress.class);
     when(inetAddress.getHostAddress()).thenReturn("localhost");
 
-    Socket socket = mock(Socket.class);
+    socket = mock(Socket.class);
     when(socket.getInetAddress()).thenReturn(inetAddress);
 
-    InternalCache cache = mock(InternalCache.class);
-    SecurityService securityService = mock(SecurityService.class);
+    cache = mock(InternalCache.class);
+    securityService = mock(SecurityService.class);
 
-    serverConnection = new ServerConnectionFactory().makeServerConnection(socket, cache, null, null,
-        0, 0, null, CommunicationMode.PrimaryServerToClient.getModeNumber(), acceptor,
-        securityService, InetAddress.getLocalHost());
+    stats = mock(CacheServerStats.class);
+
+    handshake = mock(ServerSideHandshake.class);
+    when(handshake.getEncryptor()).thenReturn(mock(Encryptor.class));
+
+    serverConnection =
+        new ServerConnectionFactory().makeServerConnection(socket, cache, null, stats, 0, 0, null,
+            CommunicationMode.PrimaryServerToClient.getModeNumber(), acceptor, securityService);
     MockitoAnnotations.initMocks(this);
   }
 
@@ -121,7 +133,7 @@ public class ServerConnectionTest {
     assertThat(serverConnection.getRequestMessage()).isSameAs(requestMsg);
     when(requestMsg.isSecureMode()).thenReturn(true);
 
-    when(messageIdExtractor.getUniqueIdFromMessage(any(Message.class), any(HandShake.class),
+    when(messageIdExtractor.getUniqueIdFromMessage(any(Message.class), any(Encryptor.class),
         anyLong())).thenReturn(uniqueIdFromMessage);
     serverConnection.setMessageIdExtractor(messageIdExtractor);
 
@@ -137,5 +149,4 @@ public class ServerConnectionTest {
         .isExactlyInstanceOf(AuthenticationRequiredException.class)
         .hasMessage(HandShake_NO_SECURITY_CREDENTIALS_ARE_PROVIDED.getRawText());
   }
-
 }

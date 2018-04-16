@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.cache.query.internal;
 
 import static org.junit.Assert.assertEquals;
@@ -45,11 +42,9 @@ import org.apache.geode.cache.query.internal.index.CompactRangeIndex;
 import org.apache.geode.cache.query.internal.index.IndexProtocol;
 import org.apache.geode.cache.query.internal.index.PartitionedIndex;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-/**
- *
- */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class QueryTraceJUnitTest {
 
   static QueryService qs;
@@ -74,8 +69,7 @@ public class QueryTraceJUnitTest {
 
   /**
    * Tests tracing on queries with <TRACE> or <trace> tag.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testTraceOnPartitionedRegionWithTracePrefix() throws Exception {
@@ -153,8 +147,7 @@ public class QueryTraceJUnitTest {
 
   /**
    * negative testing: if <TRACE> is in comments not tracing is done.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testNegTraceOnPartitionedRegionWithTracePrefix() throws Exception {
@@ -195,8 +188,7 @@ public class QueryTraceJUnitTest {
 
   /**
    * negative testing: if <TRACE> is in comments not tracing is done.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testNegTraceOnLocalRegionWithTracePrefix() throws Exception {
@@ -235,8 +227,7 @@ public class QueryTraceJUnitTest {
 
   /**
    * No Query comments
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testTraceOnPartitionedRegionWithTracePrefixNoComments() throws Exception {

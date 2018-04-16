@@ -23,7 +23,7 @@ import java.util.Set;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.cache.CacheException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionStats;
@@ -42,7 +42,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 
 /**
  * A message used to determine the number of bytes a Bucket consumes.
- * 
+ *
  * @since GemFire 5.0
  */
 
@@ -67,12 +67,12 @@ public class BucketSizeMessage extends PartitionMessage {
 
   @Override
   public int getProcessorType() {
-    return DistributionManager.STANDARD_EXECUTOR;
+    return ClusterDistributionManager.STANDARD_EXECUTOR;
   }
 
   /**
    * Sends a BucketSize message to determine the number of bytes the bucket consumes
-   * 
+   *
    * @param recipient the member that the contains keys/value message is sent to
    * @param r the PartitionedRegion that contains the bucket
    * @param bucketId the identity of the bucket whose size should be returned.
@@ -84,6 +84,7 @@ public class BucketSizeMessage extends PartitionMessage {
     Assert.assertTrue(recipient != null, "BucketSizeMessage NULL reply message");
     BucketSizeResponse p = new BucketSizeResponse(r.getSystem(), Collections.singleton(recipient));
     BucketSizeMessage m = new BucketSizeMessage(recipient, r.getPRId(), p, bucketId);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
     Set failures = r.getDistributionManager().putOutgoing(m);
     if (failures != null && failures.size() > 0) {
       throw new ForceReattemptException(
@@ -94,7 +95,7 @@ public class BucketSizeMessage extends PartitionMessage {
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion r,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion r,
       long startTime) throws CacheException, ForceReattemptException {
 
     PartitionedRegionDataStore ds = r.getDataStore();
@@ -153,8 +154,8 @@ public class BucketSizeMessage extends PartitionMessage {
     }
 
     /** Send an ack */
-    public static void send(InternalDistributedMember recipient, int processorId, DM dm,
-        long size) {
+    public static void send(InternalDistributedMember recipient, int processorId,
+        DistributionManager dm, long size) {
       Assert.assertTrue(recipient != null, "PRDistribuedGetReplyMessage NULL reply message");
       BucketSizeReplyMessage m = new BucketSizeReplyMessage(processorId, size);
       m.setRecipient(recipient);
@@ -163,14 +164,14 @@ public class BucketSizeMessage extends PartitionMessage {
 
     /**
      * Processes this message. This method is invoked by the receiver of the message.
-     * 
+     *
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    protected void process(final DistributionManager dm) {
+    protected void process(final ClusterDistributionManager dm) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "PRDistributedBucketSizeReplyMessage process invoking reply processor with processorId: {}",
             this.processorId);
       }
@@ -178,15 +179,15 @@ public class BucketSizeMessage extends PartitionMessage {
       ReplyProcessor21 processor = ReplyProcessor21.getProcessor(this.processorId);
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
           logger.debug("PRDistributedBucketSizeReplyMessage processor not found");
         }
         return;
       }
       processor.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} Processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} Processed {}", processor, this);
       }
       dm.getStats().incReplyMessageTime(DistributionStats.getStatTime() - startTime);
     }
@@ -225,7 +226,7 @@ public class BucketSizeMessage extends PartitionMessage {
   /**
    * A processor to capture the value returned by
    * {@link org.apache.geode.internal.cache.partitioned.GetMessage.GetReplyMessage}
-   * 
+   *
    * @since GemFire 5.0
    */
   public static class BucketSizeResponse extends ReplyProcessor21 {
@@ -241,8 +242,9 @@ public class BucketSizeMessage extends PartitionMessage {
         if (msg instanceof BucketSizeReplyMessage) {
           BucketSizeReplyMessage reply = (BucketSizeReplyMessage) msg;
           this.returnValue = reply.getSize();
-          if (logger.isTraceEnabled(LogMarker.DM)) {
-            logger.trace(LogMarker.DM, "BucketSizeResponse return value is {}", this.returnValue);
+          if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+            logger.trace(LogMarker.DM_VERBOSE, "BucketSizeResponse return value is {}",
+                this.returnValue);
           }
         }
       } finally {
@@ -275,7 +277,7 @@ public class BucketSizeMessage extends PartitionMessage {
                   .toLocalizedString(),
               t);
         }
-        e.handleAsUnexpected();
+        e.handleCause();
       }
       return this.returnValue;
     }

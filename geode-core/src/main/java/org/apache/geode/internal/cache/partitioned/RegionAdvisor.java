@@ -15,9 +15,30 @@
 
 package org.apache.geode.internal.cache.partitioned;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.AbstractSet;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Queue;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.DataSerializable;
 import org.apache.geode.DataSerializer;
-import org.apache.geode.InternalGemFireException;
 import org.apache.geode.cache.InterestPolicy;
 import org.apache.geode.cache.LowMemoryException;
 import org.apache.geode.cache.Region;
@@ -27,10 +48,21 @@ import org.apache.geode.distributed.internal.ProfileListener;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.InternalDataSerializer;
-import org.apache.geode.internal.cache.*;
+import org.apache.geode.internal.cache.BucketAdvisor;
 import org.apache.geode.internal.cache.BucketAdvisor.BucketProfile;
 import org.apache.geode.internal.cache.BucketAdvisor.ServerBucketProfile;
+import org.apache.geode.internal.cache.BucketPersistenceAdvisor;
+import org.apache.geode.internal.cache.BucketRegion;
+import org.apache.geode.internal.cache.BucketServerLocation66;
+import org.apache.geode.internal.cache.CacheDistributionAdvisor;
+import org.apache.geode.internal.cache.EntryEventImpl;
+import org.apache.geode.internal.cache.FixedPartitionAttributesImpl;
+import org.apache.geode.internal.cache.InternalRegionArguments;
+import org.apache.geode.internal.cache.Node;
 import org.apache.geode.internal.cache.PRHARedundancyProvider.DataStoreBuckets;
+import org.apache.geode.internal.cache.PartitionedRegion;
+import org.apache.geode.internal.cache.PartitionedRegionStats;
+import org.apache.geode.internal.cache.ProxyBucketRegion;
 import org.apache.geode.internal.cache.control.MemoryThresholds;
 import org.apache.geode.internal.cache.control.ResourceAdvisor;
 import org.apache.geode.internal.cache.persistence.PersistenceAdvisor;
@@ -39,16 +71,6 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.logging.log4j.LogMarker;
-import org.apache.logging.log4j.Logger;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class RegionAdvisor extends CacheDistributionAdvisor {
   private static final Logger logger = LogService.getLogger();
@@ -131,9 +153,9 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
           Object o = pi.next();
           QueuedBucketProfile qbp = (QueuedBucketProfile) o;
           if (!qbp.isRemoval) {
-            if (logger.isTraceEnabled(LogMarker.DA)) {
-              logger.trace(LogMarker.DA, "applying queued profile addition for bucket {}",
-                  qbp.bucketId);
+            if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+              logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
+                  "applying queued profile addition for bucket {}", qbp.bucketId);
             }
             getBucket(qbp.bucketId).getBucketAdvisor().putProfile(qbp.bucketProfile);
           } else if (qbp.memberDeparted
@@ -145,18 +167,18 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
               // TODO not necessarily accurate, but how important is this?
               crashed = !stillInView(qbp.memberId);
             }
-            if (logger.isTraceEnabled(LogMarker.DA)) {
-              logger.trace(LogMarker.DA, "applying queued member departure for all buckets for {}",
-                  qbp.memberId);
+            if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+              logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
+                  "applying queued member departure for all buckets for {}", qbp.memberId);
             }
             for (int i = 0; i < this.buckets.length; i++) {
               BucketAdvisor ba = this.buckets[i].getBucketAdvisor();
               ba.removeId(qbp.memberId, crashed, qbp.destroyed, qbp.fromMembershipListener);
             } // for
           } else { // apply removal for member still in the view
-            if (logger.isTraceEnabled(LogMarker.DA)) {
-              logger.trace(LogMarker.DA, "applying queued profile removal for all buckets for {}",
-                  qbp.memberId);
+            if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+              logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
+                  "applying queued profile removal for all buckets for {}", qbp.memberId);
             }
             for (int i = 0; i < this.buckets.length; i++) {
               BucketAdvisor ba = this.buckets[i].getBucketAdvisor();
@@ -188,7 +210,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Returns the {@link #volunteeringQueue} used to queue primary volunteering tasks by this PR's
    * BucketAdvisors.
-   * 
+   *
    * @return the volunteering queue for use by this PR's BucketAdvisors
    */
   public Queue getVolunteeringQueue() {
@@ -198,7 +220,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Returns the {@link #volunteeringSemaphore} for controlling the number of threads that this PR's
    * BucketAdvisors are allowed to use for volunteering to be primary.
-   * 
+   *
    * @return the semaphore for controlling number of volunteering threads
    */
   public Semaphore getVolunteeringSemaphore() {
@@ -291,7 +313,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
   /**
    * Close the bucket advisors, releasing any locks for primary buckets
-   * 
+   *
    * @return returns a list of primary bucket IDs
    *
    */
@@ -367,8 +389,8 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
     boolean removedId = false;
     removedId = super.removeId(memberId, crashed, regionDestroyed, fromMembershipListener);
-    if (logger.isTraceEnabled(LogMarker.DA)) {
-      logger.trace(LogMarker.DA,
+    if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
           "RegionAdvisor#removeId: removing member from region {}: {}; removed = {}; crashed = {}",
           this.getPartitionedRegion().getName(), memberId, removedId, crashed);
     }
@@ -380,15 +402,15 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
    * Clear the knowledge of given member from this advisor. In particular, clear the knowledge of
    * remote Bucket locations so that we avoid sending partition messages to buckets that will soon
    * be destroyed.
-   * 
+   *
    * @param memberId member that has closed the region
    * @param prSerial serial number of this partitioned region
    * @param serials serial numbers of buckets that need to be removed
    */
   public void removeIdAndBuckets(InternalDistributedMember memberId, int prSerial, int serials[],
       boolean regionDestroyed) {
-    if (logger.isTraceEnabled(LogMarker.DA)) {
-      logger.trace(LogMarker.DA,
+    if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
           "RegionAdvisor#removeIdAndBuckets: removing member from region {}: {}; buckets = ({}) serials",
           this.getPartitionedRegion().getName(), memberId,
           (serials == null ? "null" : serials.length));
@@ -405,15 +427,15 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
     // OK, apply the update NOW
     if (this.buckets != null) {
-      if (logger.isTraceEnabled(LogMarker.DA)) {
-        logger.trace(LogMarker.DA,
+      if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+        logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
             "RegionAdvisor#removeIdAndBuckets: removing buckets for member{};{}", memberId, this);
       }
       for (int i = 0; i < this.buckets.length; i++) {
         int s = serials[i];
         if (s != ILLEGAL_SERIAL) {
-          if (logger.isTraceEnabled(LogMarker.DA)) {
-            logger.trace(LogMarker.DA,
+          if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+            logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
                 "RegionAdvisor#removeIdAndBuckets: removing bucket #{} serial {}", i, s);
           }
           this.buckets[i].getBucketAdvisor().removeIdWithSerial(memberId, s, regionDestroyed);
@@ -421,14 +443,12 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
       } // for
 
       super.removeIdWithSerial(memberId, prSerial, regionDestroyed);
-      // super.removeId(memberId);
     }
   }
 
   /**
    * Iterates over all buckets and marks them sick if the given member hosts the bucket.
-   * 
-   * @param member
+   *
    * @param sick true if the bucket should be marked sick, false if healthy
    */
   public void markBucketsOnMember(DistributedMember member, boolean sick) {
@@ -452,7 +472,6 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
     if (profileRemoved) {
       this.buckets[bucketId].setBucketSick(member, false);
 
-      // getClientBucketProfiles(bucketId).remove();
     } else {
       ResourceAdvisor advisor = getPartitionedRegion().getCache().getResourceAdvisor();
       boolean sick = advisor.adviseCritialMembers().contains(member);
@@ -467,10 +486,8 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * throws LowMemoryException if the given bucket is hosted on a member which has crossed the
    * ResourceManager threshold.
-   * 
-   * @param bucketId
+   *
    * @param key for bucketId used in exception
-   * @throws LowMemoryException
    */
   public void checkIfBucketSick(final int bucketId, final Object key) throws LowMemoryException {
     if (MemoryThresholds.isLowMemoryExceptionDisabled()) {
@@ -514,7 +531,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
     /**
      * requiresNotification determines whether a member needs to be notified of cache operations so
      * that cache listeners and other hooks can be engaged
-     * 
+     *
      * @since GemFire 5.1
      */
     public boolean requiresNotification = false;
@@ -694,7 +711,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
   /**
    * Return a real Set if set to true, which can be modified
-   * 
+   *
    * @param realHashSet true if a real set is needed
    * @return depending on the realHashSet value may be a HashSet
    */
@@ -716,15 +733,16 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
       }
     }
 
-    if (logger.isTraceEnabled(LogMarker.DA)) {
-      logger.trace(LogMarker.DA, "adviseDataStore returning {} from {}", s, toStringWithProfiles());
+    if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE, "adviseDataStore returning {} from {}",
+          s, toStringWithProfiles());
     }
     return s;
   }
 
   /**
    * return the set of the distributed members on which the given partition name is defined.
-   * 
+   *
    */
 
   public Set<InternalDistributedMember> adviseFixedPartitionDataStores(final String partitionName) {
@@ -750,16 +768,16 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
       s = new HashSet<InternalDistributedMember>();
     }
 
-    if (logger.isTraceEnabled(LogMarker.DA)) {
-      logger.trace(LogMarker.DA, "adviseFixedPartitionDataStore returning {} from {}", s,
-          toStringWithProfiles());
+    if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
+          "adviseFixedPartitionDataStore returning {} from {}", s, toStringWithProfiles());
     }
     return s;
   }
 
   /**
    * return a distributed members on which the primary partition for given bucket is defined
-   * 
+   *
    */
   public InternalDistributedMember adviseFixedPrimaryPartitionDataStore(final int bucketId) {
     final List<InternalDistributedMember> fixedPartitionDataStore =
@@ -781,9 +799,10 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
       }
     });
 
-    if (logger.isTraceEnabled(LogMarker.DA)) {
-      logger.trace(LogMarker.DA, "adviseFixedPartitionDataStore returning {} from {}",
-          fixedPartitionDataStore, toStringWithProfiles());
+    if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
+          "adviseFixedPartitionDataStore returning {} from {}", fixedPartitionDataStore,
+          toStringWithProfiles());
     }
     if (fixedPartitionDataStore.isEmpty()) {
       return null;
@@ -794,7 +813,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Returns the list of all remote FixedPartitionAttributes defined across all members for the
    * given partitioned region
-   * 
+   *
    * @return list of all partitions(primary as well as secondary) defined on remote nodes
    */
   public List<FixedPartitionAttributesImpl> adviseAllFixedPartitionAttributes() {
@@ -818,8 +837,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Returns the list of all FixedPartitionAttributes defined across all members of given
    * partitioned region for a given FixedPartitionAttributes
-   * 
-   * @param fpa
+   *
    * @return the list of same partitions defined on other nodes(can be primary or secondary)
    */
   public List<FixedPartitionAttributesImpl> adviseSameFPAs(final FixedPartitionAttributesImpl fpa) {
@@ -848,7 +866,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Returns the list of all remote primary FixedPartitionAttributes defined across members for the
    * given partitioned region
-   * 
+   *
    * @return list of all primary partitions defined on remote nodes
    */
   public List<FixedPartitionAttributesImpl> adviseRemotePrimaryFPAs() {
@@ -877,8 +895,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
   /**
    * TODO remove this when Primary Bucket impl. is permanently in place
-   * 
-   * @param limitNodeList
+   *
    * @return the node??
    */
   public Node adviseSmallestDataStore(final List limitNodeList) {
@@ -1010,7 +1027,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
   /**
    * return the set of all members who must receive operation notifications
-   * 
+   *
    * @since GemFire 5.1
    */
   public Set adviseRequiresNotification(final EntryEventImpl event) {
@@ -1037,7 +1054,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   }
 
   @Override
-  synchronized public boolean putProfile(Profile p) {
+  public synchronized boolean putProfile(Profile p) {
     assert p instanceof CacheProfile;
     CacheProfile profile = (CacheProfile) p;
     PartitionedRegion pr = getPartitionedRegion();
@@ -1068,7 +1085,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Returns true if the bucket is currently being hosted locally. Note that as soon as this call
    * returns, this datastore may begin to host the bucket, thus two calls in a row may be different.
-   * 
+   *
    * @param bucketId the index of the bucket to check
    * @return true if the bucket is currently being hosted locally
    */
@@ -1087,7 +1104,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
    * Returns the real BucketRegion if it's currently locally hosted. Otherwise the ProxyBucketRegion
    * is returned. Note that this member may be in the process of hosting the real bucket. Until that
    * has completed, getBucket will continue to return the ProxyBucketRegion.
-   * 
+   *
    * @param bucketId the index of the bucket to retrieve
    * @return the bucket identified by bucketId
    */
@@ -1104,7 +1121,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
   /**
    * Returns the BucketAdvisor for the specified bucket.
-   * 
+   *
    * @param bucketId the index of the bucket to retrieve the advisor for
    * @return the bucket advisor identified by bucketId
    */
@@ -1133,7 +1150,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   }
 
   /**
-   * 
+   *
    * @return array of serial numbers for buckets created locally
    */
   public int[] getBucketSerials() {
@@ -1157,7 +1174,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Returns the bucket identified by bucketId after waiting for initialization to finish processing
    * queued profiles. Call synchronizes and waits on {@link #preInitQueueMonitor}.
-   * 
+   *
    * @param bucketId the bucket identifier
    * @return the bucket identified by bucketId
    * @throws org.apache.geode.distributed.DistributedSystemDisconnectedException if interrupted for
@@ -1187,8 +1204,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Get the most recent primary node for the bucketId. Returns null if no primary can be found
    * within {@link DistributionConfig#getMemberTimeout}.
-   * 
-   * @param bucketId
+   *
    * @return the Node managing the primary copy of the bucket
    */
   public InternalDistributedMember getPrimaryMemberForBucket(int bucketId) {
@@ -1199,7 +1215,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
   /**
    * Return the node favored for reading for the given bucket
-   * 
+   *
    * @param bucketId the bucket we want to read
    * @return the member, possibly null if no member is available
    */
@@ -1236,7 +1252,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
   /**
    * Get the redundancy of the this bucket, taking into account the local bucket, if any.
-   * 
+   *
    * @return number of redundant copies for a given bucket, or -1 if there are no instances of the
    *         bucket.
    */
@@ -1248,7 +1264,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Return the set of all members who currently own the bucket, including the local owner, if
    * applicable
-   * 
+   *
    * @return a set of {@link InternalDistributedMember}s that own the bucket
    */
   public Set<InternalDistributedMember> getBucketOwners(int bucketId) {
@@ -1258,7 +1274,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
   /**
    * Return the set of buckets which have storage assigned
-   * 
+   *
    * @return set of Integer bucketIds
    */
   public Set<Integer> getBucketSet() {
@@ -1415,7 +1431,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Obtain the ordered {@link ArrayList} of data stores limited to those specified in the provided
    * memberFilter.
-   * 
+   *
    * @param memberFilter the set of members allowed to be in the list.
    * @return a list of DataStoreBuckets
    */
@@ -1481,7 +1497,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
   /**
    * Dumps out all profiles in this advisor AND all buckets. Callers should check for debug enabled.
-   * 
+   *
    * @param infoMsg prefix message to log
    */
   @Override
@@ -1515,7 +1531,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
   /**
    * Find the set of members which own primary buckets, including the local member
-   * 
+   *
    * @return set of InternalDistributedMember ids
    */
   public Set advisePrimaryOwners() {
@@ -1537,7 +1553,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
    * A visitor interface for the buckets of this region used by
    * {@link RegionAdvisor#accept(BucketVisitor, Object)}.
    */
-  public static interface BucketVisitor<T> {
+  public interface BucketVisitor<T> {
 
     /**
      * Visit a given {@link ProxyBucketRegion} accumulating the results in the given aggregate.
@@ -1549,14 +1565,14 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Invoke the given {@link BucketVisitor} on all the {@link ProxyBucketRegion} s exiting when the
    * {@link BucketVisitor#visit} method returns false.
-   * 
+   *
    * @param <T> the type of object used for aggregation of results
    * @param visitor the {@link BucketVisitor} to use for the visit
    * @param aggregate an aggregate object that will be used to for aggregation of results by the
    *        {@link BucketVisitor#visit} method; this allows the {@link BucketVisitor} to not
    *        maintain any state so that in most situations a global static object encapsulating the
    *        required behaviour will work
-   * 
+   *
    * @return true when the full visit completed, and false if it was terminated due to
    *         {@link BucketVisitor#visit} returning false
    */
@@ -1580,7 +1596,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
    * return the profile will be enqueued for processing during initialization, otherwise the profile
    * will be immediately processed. This architecture limits the blockage of threads during
    * initialization.
-   * 
+   *
    * @param bucketId the unique identifier of the bucket
    * @param profile the bucket meta-data from a particular member with the bucket
    */
@@ -1623,7 +1639,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
     /**
      * Queue up an addition
-     * 
+     *
      * @param bId the bucket being added
      * @param p the profile to add
      */
@@ -1641,7 +1657,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
     /**
      * Queue up a removal due to member leaving the view
-     * 
+     *
      * @param mbr the member being removed
      */
     public QueuedBucketProfile(InternalDistributedMember mbr, boolean crashed, boolean destroyed,
@@ -1659,7 +1675,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
     /**
      * Queue up a removal due to region destroy
-     * 
+     *
      * @param mbr the member being removed
      * @param serials the serials it had
      */
@@ -1731,7 +1747,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Returns the total number of buckets created anywhere in the distributed system for this
    * partitioned region.
-   * 
+   *
    * @return the total number of buckets created anywhere for this PR
    */
   public int getCreatedBucketsCount() {
@@ -1751,7 +1767,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
   /**
    * Returns a possibly null list of this advisor's real bucket profiles. A real bucket profile is
    * one that for a bucket that actually has storage in this vm.
-   * 
+   *
    * @return a list of BucketProfileAndId instances; may be null
    * @since GemFire 5.5
    */
@@ -1778,7 +1794,7 @@ public class RegionAdvisor extends CacheDistributionAdvisor {
 
   /**
    * Takes a list of BucketProfileAndId and adds them to thsi advisors proxy buckets.
-   * 
+   *
    * @since GemFire 5.5
    */
   public void putBucketRegionProfiles(ArrayList l) {

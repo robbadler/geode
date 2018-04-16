@@ -16,6 +16,9 @@ package org.apache.geode.cache30;
 
 import static org.apache.geode.test.dunit.Assert.*;
 
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.DataPolicy;
@@ -23,14 +26,10 @@ import org.apache.geode.cache.InterestPolicy;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.Scope;
 import org.apache.geode.cache.SubscriptionAttributes;
-import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
 /**
  * Make sure that create are distributed and done in remote regions that are CACHED_ALL_EVENTS*.
@@ -45,16 +44,6 @@ public class CachedAllEventsDUnitTest extends JUnit4CacheTestCase {
     return host.getVM(0);
   }
 
-  private void initOtherId() {
-    VM vm = getOtherVm();
-    vm.invoke(new CacheSerializableRunnable("Connect") {
-      public void run2() throws CacheException {
-        getCache();
-      }
-    });
-    vm.invoke(() -> CachedAllEventsDUnitTest.getVMDistributedMember());
-  }
-
   private void doCreateOtherVm() {
     VM vm = getOtherVm();
     vm.invoke(new CacheSerializableRunnable("create root") {
@@ -67,18 +56,13 @@ public class CachedAllEventsDUnitTest extends JUnit4CacheTestCase {
     });
   }
 
-  public static DistributedMember getVMDistributedMember() {
-    return InternalDistributedSystem.getAnyInstance().getDistributedMember();
-  }
-
   /**
    * make sure a remote create will be done in a NORMAL+ALL region
-   * 
+   *
    * @param rmtCreate is true if create should happen in remote region
    */
   private void remoteCreate(DataPolicy dp, InterestPolicy ip, boolean rmtCreate)
       throws CacheException {
-    initOtherId();
     AttributesFactory af = new AttributesFactory();
     af.setDataPolicy(dp);
     af.setSubscriptionAttributes(new SubscriptionAttributes(ip));

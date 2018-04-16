@@ -27,7 +27,7 @@ import java.util.Set;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.MessageWithReply;
@@ -61,7 +61,7 @@ public class ElderInitProcessor extends ReplyProcessor21 {
    * Initializes ElderState map by recovering all existing grantors and crashed grantors in the
    * current ds.
    */
-  static void init(DM dm, HashMap map) {
+  static void init(DistributionManager dm, HashMap map) {
     HashSet crashedGrantors = new HashSet();
     if (!dm.isAdam()) {
       Set others = dm.getOtherDistributionManagerIds();
@@ -71,7 +71,7 @@ public class ElderInitProcessor extends ReplyProcessor21 {
         try {
           processor.waitForRepliesUninterruptibly();
         } catch (ReplyException e) {
-          e.handleAsUnexpected();
+          e.handleCause();
         }
       }
     }
@@ -90,7 +90,8 @@ public class ElderInitProcessor extends ReplyProcessor21 {
   /**
    * Creates a new instance of ElderInitProcessor
    */
-  private ElderInitProcessor(DM dm, Set others, HashMap grantors, HashSet crashedGrantors) {
+  private ElderInitProcessor(DistributionManager dm, Set others, HashMap grantors,
+      HashSet crashedGrantors) {
     super(dm/* fix bug 33297 */, others);
     this.grantors = grantors;
     this.crashedGrantors = crashedGrantors;
@@ -147,12 +148,12 @@ public class ElderInitProcessor extends ReplyProcessor21 {
       implements MessageWithReply {
     private int processorId;
 
-    protected static void send(Set others, DM dm, ReplyProcessor21 proc) {
+    protected static void send(Set others, DistributionManager dm, ReplyProcessor21 proc) {
       ElderInitMessage msg = new ElderInitMessage();
       msg.processorId = proc.getProcessorId();
       msg.setRecipients(others);
-      if (logger.isTraceEnabled(LogMarker.DLS)) {
-        logger.trace(LogMarker.DLS, "ElderInitMessage sending {} to {}", msg, others);
+      if (logger.isTraceEnabled(LogMarker.DLS_VERBOSE)) {
+        logger.trace(LogMarker.DLS_VERBOSE, "ElderInitMessage sending {} to {}", msg, others);
       }
       dm.putOutgoing(msg);
     }
@@ -162,14 +163,14 @@ public class ElderInitProcessor extends ReplyProcessor21 {
       return this.processorId;
     }
 
-    private void reply(DM dm, ArrayList grantors, ArrayList grantorVersions,
+    private void reply(DistributionManager dm, ArrayList grantors, ArrayList grantorVersions,
         ArrayList grantorSerialNumbers, ArrayList nonGrantors) {
       ElderInitReplyMessage.send(this, dm, grantors, grantorVersions, grantorSerialNumbers,
           nonGrantors);
     }
 
     @Override
-    protected void process(DistributionManager dm) {
+    protected void process(ClusterDistributionManager dm) {
       ArrayList grantors = new ArrayList(); // svc names grantor for
       ArrayList grantorVersions = new ArrayList(); // grantor versions
       ArrayList grantorSerialNumbers = new ArrayList(); // serial numbers of grantor svcs
@@ -178,22 +179,18 @@ public class ElderInitProcessor extends ReplyProcessor21 {
         GrantorRequestProcessor.readyForElderRecovery(dm.getSystem(), this.getSender(), null);
         DLockService.recoverRmtElder(grantors, grantorVersions, grantorSerialNumbers, nonGrantors);
         reply(dm, grantors, grantorVersions, grantorSerialNumbers, nonGrantors);
-      } else if (dm.getOtherNormalDistributionManagerIds().isEmpty()) { // bug 38690
-                                                                        // Either we're alone (and
-                                                                        // received a message from
-                                                                        // an unknown member)
-                                                                        // or else we haven't yet
-                                                                        // processed a view, In
-                                                                        // either case, we clearly
-                                                                        // don't have any grantors,
-                                                                        // so we return empty lists.
-        logger.info(LogMarker.DLS,
+      } else if (dm.getOtherNormalDistributionManagerIds().isEmpty()) {
+        // Either we're alone (and received a message from an unknown member) or else we haven't
+        // yet processed a view. In either case, we clearly don't have any grantors,
+        // so we return empty lists.
+
+        logger.info(LogMarker.DLS_MARKER,
             LocalizedMessage.create(
                 LocalizedStrings.ElderInitProcessor__0_RETURNING_EMPTY_LISTS_BECAUSE_I_KNOW_OF_NO_OTHER_MEMBERS,
                 this));
         reply(dm, grantors, grantorVersions, grantorSerialNumbers, nonGrantors);
-      } else { // TODO make this fine level?
-        logger.info(LogMarker.DLS, LocalizedMessage.create(
+      } else {
+        logger.info(LogMarker.DLS_MARKER, LocalizedMessage.create(
             LocalizedStrings.ElderInitProcessor_0_DISREGARDING_REQUEST_FROM_DEPARTED_MEMBER, this));
       }
     }
@@ -228,7 +225,7 @@ public class ElderInitProcessor extends ReplyProcessor21 {
     private ArrayList grantorSerialNumbers; // grantor dls serial number ints
     private ArrayList nonGrantors; // svc names
 
-    public static void send(MessageWithReply reqMsg, DM dm, ArrayList grantors,
+    public static void send(MessageWithReply reqMsg, DistributionManager dm, ArrayList grantors,
         ArrayList grantorVersions, ArrayList grantorSerialNumbers, ArrayList nonGrantors) {
       ElderInitReplyMessage m = new ElderInitReplyMessage();
       m.grantors = grantors;
@@ -291,4 +288,3 @@ public class ElderInitProcessor extends ReplyProcessor21 {
     }
   }
 }
-

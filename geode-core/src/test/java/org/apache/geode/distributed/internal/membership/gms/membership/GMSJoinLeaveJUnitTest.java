@@ -29,9 +29,29 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.apache.geode.distributed.internal.DistributionManager;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Properties;
+import java.util.Set;
+import java.util.Timer;
+import java.util.concurrent.TimeUnit;
+
 import org.awaitility.Awaitility;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.mockito.internal.verification.Times;
+import org.mockito.verification.Timeout;
+
 import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.distributed.internal.membership.NetView;
@@ -59,29 +79,8 @@ import org.apache.geode.distributed.internal.membership.gms.messages.RemoveMembe
 import org.apache.geode.distributed.internal.membership.gms.messages.ViewAckMessage;
 import org.apache.geode.internal.Version;
 import org.apache.geode.security.AuthenticationFailedException;
-import org.apache.geode.test.junit.categories.FlakyTest;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 import org.apache.geode.test.junit.categories.MembershipTest;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.mockito.internal.verification.Times;
-import org.mockito.verification.Timeout;
-
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Properties;
-import java.util.Set;
-import java.util.Timer;
-import java.util.concurrent.TimeUnit;
 
 @Category({IntegrationTest.class, MembershipTest.class})
 public class GMSJoinLeaveJUnitTest {
@@ -102,19 +101,17 @@ public class GMSJoinLeaveJUnitTest {
   private InternalDistributedMember removeMember = null;
   private InternalDistributedMember leaveMember = null;
 
-  public void initMocks() throws IOException {
+  public void initMocks() {
     initMocks(false);
   }
 
-  public void initMocks(boolean enableNetworkPartition) throws UnknownHostException {
+  public void initMocks(boolean enableNetworkPartition) {
     initMocks(enableNetworkPartition, false);
   }
 
-  public void initMocks(boolean enableNetworkPartition, boolean useTestGMSJoinLeave)
-      throws UnknownHostException {
+  public void initMocks(boolean enableNetworkPartition, boolean useTestGMSJoinLeave) {
     mockDistConfig = mock(DistributionConfig.class);
     when(mockDistConfig.getEnableNetworkPartitionDetection()).thenReturn(enableNetworkPartition);
-    when(mockDistConfig.getLocators()).thenReturn("localhost[8888]");
     when(mockDistConfig.getSecurityUDPDHAlgo()).thenReturn("");
     mockConfig = mock(ServiceConfig.class);
     when(mockDistConfig.getStartLocator()).thenReturn("localhost[12345]");
@@ -290,7 +287,7 @@ public class GMSJoinLeaveJUnitTest {
     verify(messenger).send(isA(JoinResponseMessage.class));
   }
 
-  // This test does not test the actual join process but rather that the join response gets loggedß
+  // This test does not test the actual join process but rather that the join response gets logged
   @Test
   public void testProcessJoinResponseIsRecorded() throws IOException {
     initMocks();
@@ -321,8 +318,7 @@ public class GMSJoinLeaveJUnitTest {
 
   /**
    * prepares and install a view
-   * 
-   * @throws IOException
+   *
    */
   private void prepareAndInstallView(InternalDistributedMember coordinator,
       List<InternalDistributedMember> members) throws IOException {
@@ -332,6 +328,9 @@ public class GMSJoinLeaveJUnitTest {
 
     // prepare the view
     NetView netView = new NetView(coordinator, viewId, members);
+    for (InternalDistributedMember member : netView.getMembers()) {
+      netView.setPublicKey(member, member.toString());
+    }
     InstallViewMessage installViewMessage = getInstallViewMessage(netView, credentials, true);
     gmsJoinLeave.processMessage(installViewMessage);
     verify(messenger).send(isA(ViewAckMessage.class));
@@ -865,15 +864,14 @@ public class GMSJoinLeaveJUnitTest {
   /**
    * If a locator is started and sends out a view to take control of the cluster another member that
    * is also in the process of sending out a view should relinquish control to the new locator.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testCoordinatorGetsConflictingViewFromLocator() throws Exception {
     // create the GMSJoinLeave instance we'll be testing
     initMocks(false);
     InternalDistributedMember otherMember = mockMembers[0];
-    gmsJoinLeaveMemberId.setVmKind(DistributionManager.NORMAL_DM_TYPE);
+    gmsJoinLeaveMemberId.setVmKind(ClusterDistributionManager.NORMAL_DM_TYPE);
     List<InternalDistributedMember> members = createMemberList(gmsJoinLeaveMemberId, otherMember);
     prepareAndInstallView(gmsJoinLeaveMemberId, members);
     NetView installedView = gmsJoinLeave.getView();
@@ -883,7 +881,7 @@ public class GMSJoinLeaveJUnitTest {
     // create a view coming from the locator that conflicts with the installed view
     InternalDistributedMember locatorMemberId = new InternalDistributedMember("localhost",
         mockMembers[mockMembers.length - 1].getPort() + 1);
-    locatorMemberId.setVmKind(DistributionManager.LOCATOR_DM_TYPE);
+    locatorMemberId.setVmKind(ClusterDistributionManager.LOCATOR_DM_TYPE);
     List<InternalDistributedMember> newMemberList = new ArrayList<>(members);
     newMemberList.add(locatorMemberId);
     NetView locatorView =
@@ -1204,6 +1202,53 @@ public class GMSJoinLeaveJUnitTest {
     assertTrue(newView.getViewId() > preparedView.getViewId());
   }
 
+  @Test
+  public void testPublicKeyForNewMemberFromPreparedViewIsInstalledInNewView() throws Exception {
+    initMocks(false);
+    InternalDistributedMember newMember = mockMembers[1];
+
+    prepareAndInstallView(gmsJoinLeaveMemberId,
+        createMemberList(gmsJoinLeaveMemberId, mockMembers[0]));
+    // a new member is joining
+    NetView preparedView =
+        new NetView(gmsJoinLeave.getView(), gmsJoinLeave.getView().getViewId() + 5);
+    for (InternalDistributedMember member : preparedView.getMembers()) {
+      preparedView.setPublicKey(member, member.toString());
+    }
+    newMember.setVmViewId(preparedView.getViewId());
+    preparedView.add(newMember);
+    preparedView.setPublicKey(newMember, newMember.toString());
+
+    InstallViewMessage msg = getInstallViewMessage(preparedView, null, true);
+    gmsJoinLeave.processMessage(msg);
+
+    GMSJoinLeaveTestHelper.becomeCoordinatorForTest(gmsJoinLeave);
+
+    Thread.sleep(2000);
+    ViewCreator vc = gmsJoinLeave.getViewCreator();
+    int viewId = 0;
+    if (gmsJoinLeave.getPreparedView() == null) {
+      viewId = gmsJoinLeave.getView().getViewId();
+    } else {
+      viewId = gmsJoinLeave.getPreparedView().getViewId();
+    }
+    ViewAckMessage vack = new ViewAckMessage(gmsJoinLeaveMemberId, viewId, true);
+    vack.setSender(mockMembers[0]);
+    gmsJoinLeave.processMessage(vack);
+    vack = new ViewAckMessage(gmsJoinLeaveMemberId, viewId, true);
+    vack.setSender(newMember);
+    gmsJoinLeave.processMessage(vack);
+    vack = new ViewAckMessage(gmsJoinLeaveMemberId, viewId, true);
+    vack.setSender(gmsJoinLeaveMemberId);
+    gmsJoinLeave.processMessage(vack);
+
+    Awaitility.await("view creator finishes").atMost(30, SECONDS).until(() -> vc.waiting);
+    NetView newView = gmsJoinLeave.getView();
+    System.out.println("new view is " + newView);
+    assertTrue(newView.contains(newMember));
+    assertNotNull(newView.getPublicKey(newMember));
+  }
+
   private NetView createView() {
     List<InternalDistributedMember> mbrs = new LinkedList<>();
     Set<InternalDistributedMember> shutdowns = new HashSet<>();
@@ -1280,7 +1325,7 @@ public class GMSJoinLeaveJUnitTest {
   }
 
   class GMSJoinLeaveTest extends GMSJoinLeave {
-    public GMSJoinLeaveTest() {
+    GMSJoinLeaveTest() {
       super();
     }
 
@@ -1292,7 +1337,7 @@ public class GMSJoinLeaveJUnitTest {
             GMSJoinLeaveJUnitTest.this.processRemoveMessage(fmbr);
             Thread.sleep(1000000);
           }
-        } catch (InterruptedException e) {
+        } catch (InterruptedException ignore) {
         }
         return true;
       } else if (leaveMember != null) {
@@ -1301,7 +1346,7 @@ public class GMSJoinLeaveJUnitTest {
             GMSJoinLeaveJUnitTest.this.processLeaveMessage(fmbr);
             Thread.sleep(1000000);
           }
-        } catch (InterruptedException e) {
+        } catch (InterruptedException ignore) {
         }
         return true;
       } else {
@@ -1330,7 +1375,7 @@ public class GMSJoinLeaveJUnitTest {
     this.removeMember = null;
 
     assertTrue("testFlagForRemovalRequest should be true",
-        gmsJoinLeave.getViewCreator().getTestFlageForRemovalRequest());
+        gmsJoinLeave.getViewCreator().getTestFlagForRemovalRequest());
   }
 
   @Test
@@ -1353,7 +1398,7 @@ public class GMSJoinLeaveJUnitTest {
     this.leaveMember = null;
 
     assertTrue("testFlagForRemovalRequest should be true",
-        gmsJoinLeave.getViewCreator().getTestFlageForRemovalRequest());
+        gmsJoinLeave.getViewCreator().getTestFlagForRemovalRequest());
   }
 
   private void installView() throws Exception {
@@ -1395,4 +1440,3 @@ public class GMSJoinLeaveJUnitTest {
     gmsJoinLeave.processMessage(msg);
   }
 }
-

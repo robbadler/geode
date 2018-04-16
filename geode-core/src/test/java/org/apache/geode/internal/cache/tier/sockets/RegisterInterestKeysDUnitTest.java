@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
-import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -45,6 +44,7 @@ import org.apache.geode.test.dunit.NetworkUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
@@ -162,8 +162,8 @@ public class RegisterInterestKeysDUnitTest extends JUnit4DistributedTestCase {
     Pool p;
     try {
       p = PoolManager.createFactory().addServer(host, PORT1).addServer(host, PORT2)
-          .setSubscriptionEnabled(true).setSubscriptionRedundancy(-1).setReadTimeout(2000)
-          .setSocketBufferSize(1000).setMinConnections(4)
+          .setSubscriptionEnabled(true).setSubscriptionRedundancy(-1).setSocketBufferSize(1000)
+          .setMinConnections(4)
           // retryAttempts 2
           // retryInterval 250
           .create("RegisterInterestKeysDUnitTestPool");
@@ -200,9 +200,6 @@ public class RegisterInterestKeysDUnitTest extends JUnit4DistributedTestCase {
   }
 
 
-  /**
-   *
-   */
   public static void registerKeysK1() {
     try {
       Region r = cache.getRegion(Region.SEPARATOR + REGION_NAME);

@@ -25,22 +25,23 @@ import java.util.Properties;
 
 import org.apache.http.HttpResponse;
 import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import org.apache.geode.test.dunit.rules.EmbeddedPulseRule;
-import org.apache.geode.test.dunit.rules.HttpClientRule;
-import org.apache.geode.test.dunit.rules.LocatorStarterRule;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.PulseTest;
+import org.apache.geode.test.junit.rules.EmbeddedPulseRule;
+import org.apache.geode.test.junit.rules.HttpClientRule;
+import org.apache.geode.test.junit.rules.LocatorStarterRule;
+import org.apache.geode.test.junit.runners.CategoryWithParameterizedRunnerFactory;
 import org.apache.geode.tools.pulse.internal.data.Cluster;
 
+@Category({IntegrationTest.class, PulseTest.class})
 @RunWith(Parameterized.class)
-@Category(IntegrationTest.class)
+@Parameterized.UseParametersRunnerFactory(CategoryWithParameterizedRunnerFactory.class)
 public class PulseConnectivityTest {
   @Rule
   public LocatorStarterRule locator = new LocatorStarterRule().withJMXManager();

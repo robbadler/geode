@@ -23,11 +23,10 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.cache.persistence.RevokeFailedException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.internal.InternalDataSerializer;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.persistence.PersistentMemberManager;
 import org.apache.geode.internal.cache.persistence.PersistentMemberPattern;
@@ -56,15 +55,16 @@ public class PrepareRevokePersistentIDRequest extends CliLegacyMessage {
     this.cancel = cancel;
   }
 
-  public static void cancel(DM dm, PersistentMemberPattern pattern) {
+  public static void cancel(DistributionManager dm, PersistentMemberPattern pattern) {
     send(dm, pattern, true);
   }
 
-  public static void send(DM dm, PersistentMemberPattern pattern) {
+  public static void send(DistributionManager dm, PersistentMemberPattern pattern) {
     send(dm, pattern, false);
   }
 
-  private static void send(DM dm, PersistentMemberPattern pattern, boolean cancel) {
+  private static void send(DistributionManager dm, PersistentMemberPattern pattern,
+      boolean cancel) {
     Set recipients = dm.getOtherDistributionManagerIds();
     recipients.remove(dm.getId());
     PrepareRevokePersistentIDRequest request =
@@ -86,7 +86,7 @@ public class PrepareRevokePersistentIDRequest extends CliLegacyMessage {
       logger.warn(e);
     }
     request.setSender(dm.getId());
-    request.createResponse((DistributionManager) dm);
+    request.createResponse((ClusterDistributionManager) dm);
   }
 
   @Override

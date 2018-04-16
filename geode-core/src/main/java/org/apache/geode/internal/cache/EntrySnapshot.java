@@ -31,7 +31,7 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 
 /**
  * A Region.Entry implementation for remote entries and all PR entries
- * 
+ *
  * @since GemFire 5.1
  */
 public class EntrySnapshot implements Region.Entry, DataSerializable {
@@ -43,16 +43,16 @@ public class EntrySnapshot implements Region.Entry, DataSerializable {
   private boolean startedLocal;
   /** whether this entry has been destroyed */
   private boolean entryDestroyed;
-  public transient LocalRegion region = null;
+  private transient LocalRegion region = null;
   /**
    * the internal entry for this Entry's key
    */
-  public transient NonLocalRegionEntry regionEntry; // would be final except for serialization
-                                                    // needing default constructor
+  private transient NonLocalRegionEntry regionEntry; // would be final except for serialization
+                                                     // needing default constructor
 
   /**
    * creates a new Entry that wraps the given RegionEntry object for the given storage Region
-   * 
+   *
    * @param allowTombstones TODO
    */
   public EntrySnapshot(RegionEntry regionEntry, LocalRegion dataRegion, LocalRegion region,
@@ -77,7 +77,7 @@ public class EntrySnapshot implements Region.Entry, DataSerializable {
   /**
    * Used by unit tests. Only available on PR. If, at the time this entry was created, it was
    * initialized from a local data store then this method returns true.
-   * 
+   *
    * @since GemFire 6.0
    */
   public boolean wasInitiallyLocal() {
@@ -132,7 +132,7 @@ public class EntrySnapshot implements Region.Entry, DataSerializable {
 
   /**
    * Makes a copy, if copy-on-get is enabled, of the specified object.
-   * 
+   *
    * @since GemFire 4.0
    */
   private Object conditionalCopy(Object o) {
@@ -206,7 +206,7 @@ public class EntrySnapshot implements Region.Entry, DataSerializable {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.Region.Entry#isLocal()
    */
   public boolean isLocal() {
@@ -228,7 +228,7 @@ public class EntrySnapshot implements Region.Entry, DataSerializable {
   /**
    * get the underlying RegionEntry object, which will not be fully functional if isLocal() returns
    * false
-   * 
+   *
    * @return the underlying RegionEntry for this Entry
    */
   public RegionEntry getRegionEntry() {
@@ -264,8 +264,7 @@ public class EntrySnapshot implements Region.Entry, DataSerializable {
   }
 
   // when externalized, we write the state of a non-local RegionEntry so it
-  // can
-  // be reconstituted anywhere
+  // can be reconstituted anywhere
   public void toData(DataOutput out) throws IOException {
     out.writeBoolean(this.regionEntry instanceof NonLocalRegionEntryWithStats);
     this.regionEntry.toData(out);

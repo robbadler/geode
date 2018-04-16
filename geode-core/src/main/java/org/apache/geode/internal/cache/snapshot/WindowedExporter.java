@@ -14,21 +14,7 @@
  */
 package org.apache.geode.internal.cache.snapshot;
 
-import org.apache.geode.cache.EntryDestroyedException;
-import org.apache.geode.cache.Region;
-import org.apache.geode.cache.execute.*;
-import org.apache.geode.cache.partition.PartitionRegionHelper;
-import org.apache.geode.cache.snapshot.SnapshotOptions;
-import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.distributed.internal.ReplyProcessor21;
-import org.apache.geode.internal.cache.LocalRegion;
-import org.apache.geode.internal.cache.execute.InternalExecution;
-import org.apache.geode.internal.cache.execute.LocalResultCollector;
-import org.apache.geode.internal.cache.snapshot.FlowController.Window;
-import org.apache.geode.internal.cache.snapshot.RegionSnapshotServiceImpl.ExportSink;
-import org.apache.geode.internal.cache.snapshot.RegionSnapshotServiceImpl.Exporter;
-import org.apache.geode.internal.cache.snapshot.SnapshotPacket.SnapshotRecord;
+import static org.apache.geode.distributed.internal.InternalDistributedSystem.getLoggerI18n;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -44,14 +30,34 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.apache.geode.distributed.internal.InternalDistributedSystem.getLoggerI18n;
+import org.apache.geode.cache.EntryDestroyedException;
+import org.apache.geode.cache.Region;
+import org.apache.geode.cache.execute.FunctionContext;
+import org.apache.geode.cache.execute.FunctionException;
+import org.apache.geode.cache.execute.FunctionService;
+import org.apache.geode.cache.execute.RegionFunctionContext;
+import org.apache.geode.cache.execute.ResultCollector;
+import org.apache.geode.cache.execute.ResultSender;
+import org.apache.geode.cache.partition.PartitionRegionHelper;
+import org.apache.geode.cache.snapshot.SnapshotOptions;
+import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.ReplyProcessor21;
+import org.apache.geode.internal.cache.LocalRegion;
+import org.apache.geode.internal.cache.execute.InternalExecution;
+import org.apache.geode.internal.cache.execute.InternalFunction;
+import org.apache.geode.internal.cache.execute.LocalResultCollector;
+import org.apache.geode.internal.cache.snapshot.FlowController.Window;
+import org.apache.geode.internal.cache.snapshot.RegionSnapshotServiceImpl.ExportSink;
+import org.apache.geode.internal.cache.snapshot.RegionSnapshotServiceImpl.Exporter;
+import org.apache.geode.internal.cache.snapshot.SnapshotPacket.SnapshotRecord;
 
 /**
  * Exports snapshot data using a sliding window to prevent the nodes in a partitioned region from
  * overrunning the exporter. When a {@link SnapshotPacket} is written to the {@link ExportSink}, an
  * ACK is sent back to the source node. The source node will continue to send data until it runs out
  * of permits; it must then wait for ACK's to resume.
- * 
+ *
  *
  * @param <K> the key type
  * @param <V> the value type
@@ -144,13 +150,13 @@ public class WindowedExporter<K, V> implements Exporter<K, V> {
    * Gathers the local data on the region and sends it back to the {@link ResultCollector} in
    * serialized form as {@link SnapshotPacket}s. Uses a sliding window provided by the
    * {@link FlowController} to avoid over-running the exporting member.
-   * 
+   *
    * @param <K> the key type
    * @param <V> the value type
-   * 
+   *
    * @see FlowController
    */
-  private static class WindowedExportFunction<K, V> implements Function {
+  private static class WindowedExportFunction<K, V> implements InternalFunction {
     private static final long serialVersionUID = 1L;
 
     // We must keep a ref here since the ProcessorKeeper only has a weak ref. If
@@ -287,7 +293,7 @@ public class WindowedExporter<K, V> implements Exporter<K, V> {
 
     /**
      * Returns an exception that occurred during function exception.
-     * 
+     *
      * @return the exception, or null
      */
     public FunctionException getException() {

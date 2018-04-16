@@ -20,14 +20,11 @@
 
 package org.apache.geode.cache.query.data;
 
-import java.util.Set;
+import java.io.*;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.io.*;
+import java.util.Set;
 
-/**
- *
- */
 public class State implements Serializable {
   public String name;
   public String zone;

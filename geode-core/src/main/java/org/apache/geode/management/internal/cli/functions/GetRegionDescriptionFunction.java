@@ -16,15 +16,12 @@ package org.apache.geode.management.internal.cli.functions;
 
 
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheClosedException;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.Region;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
-import org.apache.geode.internal.InternalEntity;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.management.internal.cli.domain.RegionDescriptionPerMember;
 
-public class GetRegionDescriptionFunction extends FunctionAdapter implements InternalEntity {
+public class GetRegionDescriptionFunction implements InternalFunction {
 
 
   private static final long serialVersionUID = 1L;
@@ -33,7 +30,7 @@ public class GetRegionDescriptionFunction extends FunctionAdapter implements Int
   public void execute(FunctionContext context) {
     String regionPath = (String) context.getArguments();
     try {
-      Cache cache = CacheFactory.getAnyInstance();
+      Cache cache = context.getCache();
       Region<?, ?> region = cache.getRegion(regionPath);
 
       if (region != null) {
@@ -44,17 +41,8 @@ public class GetRegionDescriptionFunction extends FunctionAdapter implements Int
       } else {
         context.getResultSender().lastResult(null);
       }
-    } catch (CacheClosedException e) {
-      context.getResultSender().sendException(e);
     } catch (Exception e) {
       context.getResultSender().sendException(e);
     }
   }
-
-  @Override
-  public String getId() {
-    // TODO Auto-generated method stub
-    return GetRegionDescriptionFunction.class.toString();
-  }
-
 }

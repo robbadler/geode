@@ -34,7 +34,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.CacheException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionStats;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -60,7 +60,7 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 
 /**
- * 
+ *
  * @since GemFire 8.0
  */
 public class FetchBulkEntriesMessage extends PartitionMessage {
@@ -100,12 +100,11 @@ public class FetchBulkEntriesMessage extends PartitionMessage {
 
   /**
    * Sends a PartitionedRegion message to fetch all the entries for a bucketId
-   * 
+   *
    * @param recipient the member that the fetch keys message is sent to
    * @param r the PartitionedRegion that contains the bucket
    * @param bucketIds the identity of the buckets that contain the entries to be returned
    * @param regex the regular expression to be evaluated for selecting keys
-   * @param allowTombstones
    * @return the processor used to read the returned entries
    * @throws ForceReattemptException if the peer is no longer available
    */
@@ -116,6 +115,7 @@ public class FetchBulkEntriesMessage extends PartitionMessage {
     FetchBulkEntriesResponse p = new FetchBulkEntriesResponse(r.getSystem(), r, recipient);
     FetchBulkEntriesMessage m = new FetchBulkEntriesMessage(recipient, r.getPRId(), p, bucketKeys,
         bucketIds, regex, allowTombstones);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
 
     Set failures = r.getDistributionManager().putOutgoing(m);
     if (failures != null && failures.size() > 0) {
@@ -126,10 +126,11 @@ public class FetchBulkEntriesMessage extends PartitionMessage {
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion pr,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion pr,
       long startTime) throws CacheException, ForceReattemptException {
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.debug("FetchBulkEntriesMessage operateOnRegion: {}", pr.getFullPath());
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace(LogMarker.DM_VERBOSE, "FetchBulkEntriesMessage operateOnRegion: {}",
+          pr.getFullPath());
     }
 
     FetchBulkEntriesReplyMessage.sendReply(pr, getSender(), getProcessorId(), dm, this.bucketKeys,
@@ -207,9 +208,9 @@ public class FetchBulkEntriesMessage extends PartitionMessage {
     }
 
     public static void sendReply(PartitionedRegion pr, final InternalDistributedMember recipient,
-        final int processorId, final DM dm, final HashMap<Integer, HashSet> bucketKeys,
-        final HashSet<Integer> bucketIds, String regex, boolean allowTombstones, long startTime)
-        throws ForceReattemptException {
+        final int processorId, final DistributionManager dm,
+        final HashMap<Integer, HashSet> bucketKeys, final HashSet<Integer> bucketIds, String regex,
+        boolean allowTombstones, long startTime) throws ForceReattemptException {
 
       PartitionedRegionDataStore ds = pr.getDataStore();
       if (ds == null) {
@@ -400,24 +401,24 @@ public class FetchBulkEntriesMessage extends PartitionMessage {
 
     /**
      * Processes this message. This method is invoked by the receiver of the message.
-     * 
+     *
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    public void process(final DM dm, final ReplyProcessor21 p) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 p) {
       final long startTime = getTimestamp();
       FetchBulkEntriesResponse processor = (FetchBulkEntriesResponse) p;
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "FetchBulkEntriesReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "FetchBulkEntriesReplyMessage processor not found");
         }
         return;
       }
       processor.processChunkResponse(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} processed {}", processor, this);
       }
 
       dm.getStats().incReplyMessageTime(DistributionStats.getStatTime() - startTime);
@@ -470,7 +471,7 @@ public class FetchBulkEntriesMessage extends PartitionMessage {
   /**
    * A processor to capture the value returned by
    * {@link org.apache.geode.internal.cache.partitioned.FetchBulkEntriesMessage}
-   * 
+   *
    * @since GemFire 8.0
    */
   public static class FetchBulkEntriesResponse extends ReplyProcessor21 {
@@ -520,7 +521,7 @@ public class FetchBulkEntriesMessage extends PartitionMessage {
           Object key;
           int currentId;
 
-          final boolean isDebugEnabled = logger.isTraceEnabled(LogMarker.DM);
+          final boolean isDebugEnabled = logger.isTraceEnabled(LogMarker.DM_VERBOSE);
           while (in.available() > 0) {
             currentId = DataSerializer.readPrimitiveInt(in);
             if (currentId == -1) {
@@ -587,8 +588,9 @@ public class FetchBulkEntriesMessage extends PartitionMessage {
             }
 
             if (isDebugEnabled) {
-              logger.trace(LogMarker.DM, "{} chunksProcessed={}, lastChunkReceived={},done={}",
-                  this, this.chunksProcessed, this.lastChunkReceived, doneProcessing);
+              logger.trace(LogMarker.DM_VERBOSE,
+                  "{} chunksProcessed={}, lastChunkReceived={},done={}", this, this.chunksProcessed,
+                  this.lastChunkReceived, doneProcessing);
             }
           }
         } catch (Exception e) {
@@ -633,7 +635,7 @@ public class FetchBulkEntriesMessage extends PartitionMessage {
           throw new ForceReattemptException(
               LocalizedStrings.FetchEntriesMessage_PEER_REQUESTS_REATTEMPT.toLocalizedString(), t);
         }
-        e.handleAsUnexpected();
+        e.handleCause();
       }
       if (!this.lastChunkReceived) {
         throw new ForceReattemptException(

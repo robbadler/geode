@@ -30,12 +30,11 @@ import org.apache.geode.CancelException;
 import org.apache.geode.cache.DiskStore;
 import org.apache.geode.cache.persistence.PersistentID;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.internal.cache.DiskStoreImpl;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.util.ArrayUtils;
@@ -50,7 +49,7 @@ public class CompactRequest extends CliLegacyMessage {
     // do nothing
   }
 
-  public static Map<DistributedMember, Set<PersistentID>> send(DM dm) {
+  public static Map<DistributedMember, Set<PersistentID>> send(DistributionManager dm) {
     Set recipients = dm.getOtherDistributionManagerIds();
     CompactRequest request = new CompactRequest();
     request.setRecipients(recipients);
@@ -60,7 +59,7 @@ public class CompactRequest extends CliLegacyMessage {
     dm.putOutgoing(request);
 
     request.setSender(dm.getDistributionManagerId());
-    request.process((DistributionManager) dm);
+    request.process((ClusterDistributionManager) dm);
 
     try {
       replyProcessor.waitForReplies();
@@ -76,7 +75,7 @@ public class CompactRequest extends CliLegacyMessage {
   }
 
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     super.process(dm);
   }
 
@@ -120,7 +119,7 @@ public class CompactRequest extends CliLegacyMessage {
     Map<DistributedMember, Set<PersistentID>> results =
         Collections.synchronizedMap(new HashMap<DistributedMember, Set<PersistentID>>());
 
-    CompactReplyProcessor(DM dm, Collection initMembers) {
+    CompactReplyProcessor(DistributionManager dm, Collection initMembers) {
       super(dm, initMembers);
     }
 
@@ -135,14 +134,14 @@ public class CompactRequest extends CliLegacyMessage {
     }
 
     @Override
-    protected void process(DistributionMessage msg, boolean warn) {
-      if (msg instanceof CompactResponse) {
-        final Set<PersistentID> persistentIds = ((CompactResponse) msg).getPersistentIds();
+    protected void process(DistributionMessage message, boolean warn) {
+      if (message instanceof CompactResponse) {
+        final Set<PersistentID> persistentIds = ((CompactResponse) message).getPersistentIds();
         if (persistentIds != null && !persistentIds.isEmpty()) {
-          this.results.put(msg.getSender(), persistentIds);
+          this.results.put(message.getSender(), persistentIds);
         }
       }
-      super.process(msg, warn);
+      super.process(message, warn);
     }
   }
 }

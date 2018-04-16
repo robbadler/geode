@@ -14,16 +14,12 @@
  */
 package org.apache.geode.cache.query.dunit;
 
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-
 import java.util.Properties;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheException;
@@ -53,12 +49,16 @@ import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
 /**
  * This tests the data inconsistency during update on an index and querying the same UNLOCKED index.
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, OQLIndexTest.class})
 public class QueryDataInconsistencyDUnitTest extends JUnit4CacheTestCase {
 
   private static final int cnt = 0;
@@ -542,11 +542,7 @@ public class QueryDataInconsistencyDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * This function puts portfolio objects into the created Region (PR or Local) *
-   * 
-   * @param regionName
-   * @param portfolio
-   * @param to
-   * @param from
+   *
    * @return cacheSerializable object
    */
   public CacheSerializableRunnable getCacheSerializableRunnableForPRPuts(final String regionName,

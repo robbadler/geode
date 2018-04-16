@@ -40,9 +40,7 @@ public class ProxyInfo {
 
   /**
    * public constructor
-   * 
-   * @param proxyInstance
-   * @param objectName
+   *
    */
   public ProxyInfo(Class proxyInterface, Object proxyInstance, ObjectName objectName) {
     this.proxyInstance = proxyInstance;
@@ -53,8 +51,7 @@ public class ProxyInfo {
 
   /**
    * get the proxy instance
-   * 
-   * @return proxyInstance
+   *
    */
   public Object getProxyInstance() {
     return proxyInstance;
@@ -63,8 +60,7 @@ public class ProxyInfo {
 
   /**
    * get MBean name
-   * 
-   * @return ObjectName
+   *
    */
   public ObjectName getObjectName() {
     return objectName;

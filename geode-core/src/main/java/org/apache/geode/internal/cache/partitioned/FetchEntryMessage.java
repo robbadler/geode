@@ -28,7 +28,7 @@ import org.apache.geode.admin.OperationCancelledException;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.TransactionException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -54,7 +54,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
  * This message is used as the request for a
  * {@link org.apache.geode.cache.Region#getEntry(Object)}operation. The reply is sent in a
  * {@link org.apache.geode.internal.cache.partitioned.FetchEntryMessage.FetchEntryReplyMessage}.
- * 
+ *
  * @since GemFire 5.1
  */
 public class FetchEntryMessage extends PartitionMessage {
@@ -80,7 +80,7 @@ public class FetchEntryMessage extends PartitionMessage {
 
   /**
    * Sends a PartitionedRegion {@link org.apache.geode.cache.Region#getEntry(Object)} message
-   * 
+   *
    * @param recipient the member that the getEntry message is sent to
    * @param r the PartitionedRegion for which getEntry was performed upon
    * @param key the object to which the value should be feteched
@@ -93,6 +93,7 @@ public class FetchEntryMessage extends PartitionMessage {
     FetchEntryResponse p =
         new FetchEntryResponse(r.getSystem(), Collections.singleton(recipient), r, key);
     FetchEntryMessage m = new FetchEntryMessage(recipient, r.getPRId(), p, key, access);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
 
     Set failures = r.getDistributionManager().putOutgoing(m);
     if (failures != null && failures.size() > 0) {
@@ -114,7 +115,7 @@ public class FetchEntryMessage extends PartitionMessage {
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion r,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion r,
       long startTime) throws ForceReattemptException {
     // FetchEntryMessage is used in refreshing client caches during interest list recovery,
     // so don't be too verbose or hydra tasks may time out
@@ -208,7 +209,7 @@ public class FetchEntryMessage extends PartitionMessage {
 
   /**
    * This message is used for the reply to a {@link FetchEntryMessage}.
-   * 
+   *
    * @since GemFire 5.0
    */
   public static class FetchEntryReplyMessage extends ReplyMessage {
@@ -232,7 +233,7 @@ public class FetchEntryMessage extends PartitionMessage {
 
     /** Send an ack */
     public static void send(InternalDistributedMember recipient, int processorId,
-        EntrySnapshot value, DM dm, ReplyException re) {
+        EntrySnapshot value, DistributionManager dm, ReplyException re) {
       Assert.assertTrue(recipient != null, "FetchEntryReplyMessage NULL recipient");
       FetchEntryReplyMessage m = new FetchEntryReplyMessage(processorId, value, re);
       m.setRecipient(recipient);
@@ -241,28 +242,28 @@ public class FetchEntryMessage extends PartitionMessage {
 
     /**
      * Processes this message. This method is invoked by the receiver of the message.
-     * 
+     *
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    public void process(final DM dm, final ReplyProcessor21 processor) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 processor) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "FetchEntryReplyMessage process invoking reply processor with processorId: {}",
             this.processorId);
       }
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "FetchEntryReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "FetchEntryReplyMessage processor not found");
         }
         return;
       }
       processor.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.debug("{} processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} processed {}", processor, this);
       }
       dm.getStats().incReplyMessageTime(NanoTimer.getTime() - startTime);
     }
@@ -336,8 +337,9 @@ public class FetchEntryMessage extends PartitionMessage {
         if (msg instanceof FetchEntryReplyMessage) {
           FetchEntryReplyMessage reply = (FetchEntryReplyMessage) msg;
           this.returnValue = reply.getValue();
-          if (logger.isTraceEnabled(LogMarker.DM)) {
-            logger.trace(LogMarker.DM, "FetchEntryResponse return value is {}", this.returnValue);
+          if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+            logger.trace(LogMarker.DM_VERBOSE, "FetchEntryResponse return value is {}",
+                this.returnValue);
           }
         }
       } finally {
@@ -357,9 +359,7 @@ public class FetchEntryMessage extends PartitionMessage {
         final String msg = "FetchEntryResponse got remote ForceReattemptException; rethrowing";
         logger.debug(msg, e);
         throw e;
-      } catch (EntryNotFoundException e) {
-        throw e;
-      } catch (TransactionException e) {
+      } catch (EntryNotFoundException | TransactionException e) {
         throw e;
       } catch (CacheException ce) {
         logger.debug("FetchEntryResponse got remote CacheException; forcing reattempt.", ce);

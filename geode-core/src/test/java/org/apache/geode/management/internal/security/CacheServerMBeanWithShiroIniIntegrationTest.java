@@ -24,11 +24,11 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.management.CacheServerMXBean;
-import org.apache.geode.test.dunit.rules.ConnectionConfiguration;
-import org.apache.geode.test.dunit.rules.MBeanServerConnectionRule;
-import org.apache.geode.test.dunit.rules.ServerStarterRule;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 import org.apache.geode.test.junit.categories.SecurityTest;
+import org.apache.geode.test.junit.rules.ConnectionConfiguration;
+import org.apache.geode.test.junit.rules.MBeanServerConnectionRule;
+import org.apache.geode.test.junit.rules.ServerStarterRule;
 
 @Category({IntegrationTest.class, SecurityTest.class})
 public class CacheServerMBeanWithShiroIniIntegrationTest {
@@ -44,7 +44,7 @@ public class CacheServerMBeanWithShiroIniIntegrationTest {
 
   @Before
   public void setUp() throws Exception {
-    bean = connectionRule.getProxyMBean(CacheServerMXBean.class);
+    bean = connectionRule.getProxyMXBean(CacheServerMXBean.class);
   }
 
   @Test
@@ -64,46 +64,46 @@ public class CacheServerMBeanWithShiroIniIntegrationTest {
   @ConnectionConfiguration(user = "guest", password = "guest")
   public void testNoAccess() throws Exception {
     assertThatThrownBy(() -> bean.removeIndex("foo"))
-        .hasMessageContaining(TestCommand.dataManage.toString());
+        .hasMessageContaining(ResourcePermissions.DATA_MANAGE.toString());
     assertThatThrownBy(() -> bean.executeContinuousQuery("bar"))
-        .hasMessageContaining(TestCommand.dataRead.toString());
+        .hasMessageContaining(ResourcePermissions.DATA_READ.toString());
     assertThatThrownBy(() -> bean.fetchLoadProbe())
-        .hasMessageContaining(TestCommand.clusterRead.toString());
+        .hasMessageContaining(ResourcePermissions.CLUSTER_READ.toString());
     assertThatThrownBy(() -> bean.getActiveCQCount())
-        .hasMessageContaining(TestCommand.clusterRead.toString());
+        .hasMessageContaining(ResourcePermissions.CLUSTER_READ.toString());
     assertThatThrownBy(() -> bean.stopContinuousQuery("bar"))
         .hasMessageContaining(TestCommand.clusterManageQuery.toString());
     assertThatThrownBy(() -> bean.closeAllContinuousQuery("bar"))
         .hasMessageContaining(TestCommand.clusterManageQuery.toString());
     assertThatThrownBy(() -> bean.isRunning())
-        .hasMessageContaining(TestCommand.clusterRead.toString());
+        .hasMessageContaining(ResourcePermissions.CLUSTER_READ.toString());
     assertThatThrownBy(() -> bean.showClientQueueDetails("bar"))
-        .hasMessageContaining(TestCommand.clusterRead.toString());
+        .hasMessageContaining(ResourcePermissions.CLUSTER_READ.toString());
   }
 
   @Test
   @ConnectionConfiguration(user = "regionAReader", password = "password")
   public void testRegionAccess() throws Exception {
     assertThatThrownBy(() -> bean.removeIndex("foo"))
-        .hasMessageContaining(TestCommand.dataManage.toString());
+        .hasMessageContaining(ResourcePermissions.DATA_MANAGE.toString());
     assertThatThrownBy(() -> bean.fetchLoadProbe())
-        .hasMessageContaining(TestCommand.clusterRead.toString());
+        .hasMessageContaining(ResourcePermissions.CLUSTER_READ.toString());
     assertThatThrownBy(() -> bean.getActiveCQCount())
-        .hasMessageContaining(TestCommand.clusterRead.toString());
+        .hasMessageContaining(ResourcePermissions.CLUSTER_READ.toString());
 
     assertThatThrownBy(() -> bean.executeContinuousQuery("bar"))
-        .hasMessageContaining(TestCommand.dataRead.toString());
+        .hasMessageContaining(ResourcePermissions.DATA_READ.toString());
   }
 
   @Test
   @ConnectionConfiguration(user = "dataReader", password = "12345")
   public void testDataRead() throws Exception {
     assertThatThrownBy(() -> bean.removeIndex("foo"))
-        .hasMessageContaining(TestCommand.dataManage.toString());
+        .hasMessageContaining(ResourcePermissions.DATA_MANAGE.toString());
     assertThatThrownBy(() -> bean.fetchLoadProbe())
-        .hasMessageContaining(TestCommand.clusterRead.toString());
+        .hasMessageContaining(ResourcePermissions.CLUSTER_READ.toString());
     assertThatThrownBy(() -> bean.getActiveCQCount())
-        .hasMessageContaining(TestCommand.clusterRead.toString());
+        .hasMessageContaining(ResourcePermissions.CLUSTER_READ.toString());
 
     bean.executeContinuousQuery("bar");
   }

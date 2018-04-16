@@ -12,13 +12,11 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
+import java.io.IOException;
+
 import org.apache.geode.cache.client.internal.PutOp;
-import org.apache.geode.internal.Version;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.MessageType;
@@ -26,14 +24,9 @@ import org.apache.geode.internal.cache.tier.sockets.Message;
 import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
 import org.apache.geode.internal.cache.versions.VersionTag;
 
-import java.io.IOException;
-
-/**
- *
- */
 public class Put70 extends Put65 {
 
-  private final static Put70 singleton = new Put70();
+  private static final Put70 singleton = new Put70();
 
   public static Command getCommand() {
     return singleton;

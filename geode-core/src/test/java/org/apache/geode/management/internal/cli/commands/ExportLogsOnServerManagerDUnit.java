@@ -27,28 +27,26 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
 import org.apache.geode.test.dunit.rules.MemberVM;
-import org.apache.geode.test.dunit.rules.Server;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 
 
 @Category(DistributedTest.class)
 public class ExportLogsOnServerManagerDUnit {
 
   @Rule
-  public LocatorServerStartupRule lsRule =
-      new LocatorServerStartupRule().withTempWorkingDir().withLogFile();
+  public ClusterStartupRule lsRule = new ClusterStartupRule().withLogFile();
 
   @Rule
-  public GfshShellConnectionRule gfshConnector = new GfshShellConnectionRule();
+  public GfshCommandRule gfshConnector = new GfshCommandRule();
 
   @Test
   public void testExportWithOneServer() throws Exception {
-    MemberVM server0 = lsRule.startServerAsJmxManager(0);
-    gfshConnector.connect(server0.getJmxPort(), GfshShellConnectionRule.PortType.jmxManger);
-    gfshConnector.executeAndVerifyCommand("export logs");
+    MemberVM server0 = lsRule.startServerVM(0, x -> x.withJMXManager());
+    gfshConnector.connect(server0.getJmxPort(), GfshCommandRule.PortType.jmxManager);
+    gfshConnector.executeAndAssertThat("export logs").statusIsSuccess();
 
     String message = gfshConnector.getGfshOutput();
     assertThat(message).contains(server0.getWorkingDir().getAbsolutePath());
@@ -58,16 +56,15 @@ public class ExportLogsOnServerManagerDUnit {
     Set<String> expectedZipEntries = Sets.newHashSet("server-0/server-0.log");
     Set<String> actualZipEnries =
         new ZipFile(zipPath).stream().map(ZipEntry::getName).collect(Collectors.toSet());
-    assertThat(actualZipEnries).isEqualTo(expectedZipEntries);
+    assertThat(actualZipEnries).containsAll(expectedZipEntries);
   }
 
   @Test
   public void testExportWithPeerLocator() throws Exception {
-    MemberVM<Server> server0 = lsRule.startServerAsEmbededLocator(0);
-    lsRule.startServerVM(1, server0.getMember().getEmbeddedLocatorPort());
-    gfshConnector.connect(server0.getMember().getEmbeddedLocatorPort(),
-        GfshShellConnectionRule.PortType.locator);
-    gfshConnector.executeAndVerifyCommand("export logs");
+    MemberVM server0 = lsRule.startServerVM(0, x -> x.withEmbeddedLocator().withJMXManager());
+    lsRule.startServerVM(1, server0.getEmbeddedLocatorPort());
+    gfshConnector.connect(server0.getEmbeddedLocatorPort(), GfshCommandRule.PortType.locator);
+    gfshConnector.executeAndAssertThat("export logs").statusIsSuccess();
 
     String message = gfshConnector.getGfshOutput();
     assertThat(message).contains(server0.getWorkingDir().getAbsolutePath());
@@ -78,8 +75,7 @@ public class ExportLogsOnServerManagerDUnit {
         Sets.newHashSet("server-0/server-0.log", "server-1/server-1.log");
     Set<String> actualZipEnries =
         new ZipFile(zipPath).stream().map(ZipEntry::getName).collect(Collectors.toSet());
-    assertThat(actualZipEnries).isEqualTo(expectedZipEntries);
-
+    assertThat(actualZipEnries).containsAll(expectedZipEntries);
   }
 
   private String getZipPathFromCommandResult(String message) {

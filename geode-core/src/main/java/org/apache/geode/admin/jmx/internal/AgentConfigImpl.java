@@ -14,8 +14,19 @@
  */
 package org.apache.geode.admin.jmx.internal;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.apache.geode.distributed.internal.DistributionConfig.*;
+import static org.apache.geode.distributed.ConfigurationProperties.BIND_ADDRESS;
+import static org.apache.geode.distributed.ConfigurationProperties.CLUSTER_SSL_CIPHERS;
+import static org.apache.geode.distributed.ConfigurationProperties.CLUSTER_SSL_ENABLED;
+import static org.apache.geode.distributed.ConfigurationProperties.CLUSTER_SSL_PROTOCOLS;
+import static org.apache.geode.distributed.ConfigurationProperties.CLUSTER_SSL_REQUIRE_AUTHENTICATION;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_ADDRESS;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.apache.geode.distributed.ConfigurationProperties.TCP_PORT;
+import static org.apache.geode.distributed.internal.DistributionConfig.DEFAULT_SSL_CIPHERS;
+import static org.apache.geode.distributed.internal.DistributionConfig.DEFAULT_SSL_ENABLED;
+import static org.apache.geode.distributed.internal.DistributionConfig.DEFAULT_SSL_PROTOCOLS;
+import static org.apache.geode.distributed.internal.DistributionConfig.DEFAULT_SSL_REQUIRE_AUTHENTICATION;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -50,7 +61,7 @@ import org.apache.geode.internal.util.IOUtils;
  * properties for further information.
  * <p>
  * Extends and implements DistributedSystemConfig.
- * 
+ *
  * @since GemFire 3.5 (in which it was named AgentConfig)
  */
 public class AgentConfigImpl extends DistributedSystemConfigImpl implements AgentConfig {
@@ -184,7 +195,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Returns default values for all valid agent properties as a Properties object.
-   * 
+   *
    * @return default values for all valid agent properties
    */
   static Properties getDefaultValuesForAllProperties() {
@@ -441,7 +452,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
   /**
    * Constructs new instance of AgentConfig. Supplied command-line arguments are used to create a
    * set of non-default properties for initializing this AgentConfig.
-   * 
+   *
    * @param args array of non-default configuration arguments
    */
   public AgentConfigImpl(String[] args) {
@@ -451,7 +462,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Creates a new <code>AgentConfig</code> with the given non-default configuration properties.
-   * 
+   *
    * @param props overriding non-default configuration properties
    */
   public AgentConfigImpl(Properties props) {
@@ -467,7 +478,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Constructs new instance of AgentConfig using the specified property file.
-   * 
+   *
    * @param propFile the file to load configuration properties from
    */
   public AgentConfigImpl(File propFile) {
@@ -505,7 +516,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
   /**
    * Checks to see if this config object is "read only". If it is, then an
    * {@link IllegalStateException} is thrown.
-   * 
+   *
    * @since GemFire 4.0
    */
   @Override
@@ -560,7 +571,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Converts the contents of this config to a property instance and Stringifies it
-   * 
+   *
    * @return contents of this config as String
    */
   public String toPropertiesAsString() {
@@ -582,7 +593,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Converts the contents of this config to a property instance.
-   * 
+   *
    * @return contents of this config as java.util.Properties
    */
   public Properties toProperties() {
@@ -591,7 +602,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Converts the contents of this config to a property instance.
-   * 
+   *
    * @param includeDSProperties Should distributed system properties be included in the
    *        <code>Properties</code> object? See bug 32682.
    *
@@ -688,16 +699,12 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
             toString(LOCATOR_REMOTE_COMMAND, locator.getRemoteCommand()));
         props.setProperty(LOCATOR_BIND_ADDRESS + i,
             toString(LOCATOR_BIND_ADDRESS, locator.getBindAddress()));
-        // props.setProperty(LOCATOR_DS_PROPERTIES + i,
-        // getdsPropertiesString(locator));
       }
     }
 
     if (includeDSProperties) {
       props.setProperty(ENTITY_CONFIG_XML_FILE_NAME,
           toString(ENTITY_CONFIG_XML_FILE_NAME, getEntityConfigXMLFile()));
-      // This could be different each time agent is started
-      // props.setProperty(SYSTEM_ID_NAME, toString(getSystemId()));
       props.setProperty(MCAST_PORT, toString(MCAST_PORT, getMcastPort()));
       props.setProperty(MCAST_ADDRESS, toString(MCAST_ADDRESS, getMcastAddress()));
       props.setProperty(LOCATORS, toString(LOCATORS, getLocators()));
@@ -877,7 +884,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
    * Returns the port of the RMI Connector Server.
    * <p>
    * See <a href="#rmi-server-port">description</a> above.
-   * 
+   *
    * @return the value set for rmi-server-port
    *
    * @since GemFire 6.5
@@ -888,7 +895,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Sets the port of the RMI Connector Server.
-   * 
+   *
    * @param port rmi-server-port to set.
    *
    * @since GemFire 6.5
@@ -951,7 +958,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Initialize the values of this AgentConfig.
-   * 
+   *
    * @param props the configuration values to use
    */
   private void initialize(Properties props) {
@@ -1067,7 +1074,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
   /**
    * Filter all agent configuration attributes out of the given <code>Properties</code> object.
    * <p/>
-   * 
+   *
    * @param props the <code>Properties</code> object of filter agent configuration attributes out
    *        of.
    *
@@ -1094,7 +1101,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
    * Appends the log-file property to the Properties object if set of properties does not already
    * define the log-file property or the gemfire.agent.log-file property.
    * <p/>
-   * 
+   *
    * @param props the <code>Properties</code> to append the log-file property to if the property
    *        does not exist.
    */
@@ -1109,7 +1116,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
    * Appends any additional property-file specified properties to the supplied Properties. If the
    * supplied property overrides the property in the property-file, then property-file value is
    * ignored. System Properties always override the supplied properties
-   * 
+   *
    * @return appendedProps Properties appened to from the property-file if any
    */
   private static Properties appendOptionalPropertyFileProperties(final Properties props) {
@@ -1160,7 +1167,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Returns a description of the given agent config property
-   * 
+   *
    * @throws IllegalArgumentException If <code>prop</code> is not a recognized agent configuration
    *         property
    */
@@ -1196,8 +1203,6 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
     } else if (prop.equals(MEMBERSHIP_PORT_RANGE_NAME)) {
       return LocalizedStrings.AgentConfigImpl_ALLOWED_RANGE_OF_UDP_PORTS_TO_FORM_UNIQUE_MEMBERSHIP_ID
           .toLocalizedString();
-      // } else if (prop.equals(SYSTEM_ID_NAME)) {
-      // return "The id of the distributed system";
     } else if (prop.equals(ENTITY_CONFIG_XML_FILE_NAME)) {
       return LocalizedStrings.AgentConfigImpl_XML_CONFIGURATION_FILE_FOR_MANAGED_ENTITIES
           .toLocalizedString();
@@ -1239,10 +1244,6 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
     if (prop.equals(AUTO_CONNECT_NAME)) {
       return LocalizedStrings.AgentConfigImpl_WILL_THE_AGENT_AUTOMATICALLY_CONNECT_TO_THE_DISTRIBUTED_SYSTEM
           .toLocalizedString();
-
-      // } else if (prop.equals(SYSTEM_NAME_NAME)) {
-      // return "The logical name of the distributed system";
-
     } else if (prop.equals(HTTP_ENABLED_NAME)) {
       return LocalizedStrings.AgentConfigImpl_WILL_THE_AGENT_START_THE_HTTP_JMX_ADAPTER
           .toLocalizedString();
@@ -1377,7 +1378,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Parses the array of command-line arguments (format: key=value) into an instance of Properties.
-   * 
+   *
    * @param args the command-line arguments to convert into a Properties
    */
   private static Properties toProperties(String[] args) {
@@ -1422,7 +1423,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Makes sure that the mcast port and locators are correct and consistent.
-   * 
+   *
    * @throws IllegalArgumentException If configuration is not valid
    */
   @Override
@@ -1554,29 +1555,10 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
     }
   }
 
-  // /**
-  // * Validates that snmpBindAddress is not null and then returns the string form of it.
-  // */
-  // private String validateSnmpBindAddress(InetAddress snmpBindAddress) {
-  // if (snmpBindAddress == null) {
-  // throw new IllegalArgumentException("SnmpBindAddress must not be null");
-  // }
-  // return toString(snmpBindAddress);
-  // }
-
   /**
    * SnmpDirectory must be specified if SNMP is enabled. This directory must also exist.
    */
   private String validateSnmpDirectory(String snmpDir) {
-    /*
-     * if (isSnmpEnabled() && isEmpty(snmpDir)) { throw new
-     * IllegalArgumentException(LocalizedStrings.
-     * AgentConfigImpl_SNMPDIRECTORY_MUST_BE_SPECIFIED_BECAUSE_SNMP_IS_ENABLED.toLocalizedString());
-     * } File root new File(snmpDir); if (!root.exists()) throw new
-     * IllegalArgumentException(LocalizedStrings.AgentConfigImpl_SNMPDIRECTORY_DOES_NOT_EXIST.
-     * toLocalizedString());
-     */
-
     return snmpDir;
   }
 
@@ -1649,15 +1631,6 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
       return value;
     }
   }
-  // /**
-  // * Validates that rmiBindAddress is not null and then returns the string form of it.
-  // */
-  // private String validateRmiBindAddress(InetAddress rmiBindAddress) {
-  // if (rmiBindAddress == null) {
-  // throw new IllegalArgumentException("RmiBindAddress must not be null");
-  // }
-  // return toString(rmiBindAddress);
-  // }
 
   /**
    * Validates working directory is not null or empty.
@@ -1686,7 +1659,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
    * <li>the class path
    * </ol>
    * Only the first file found will be used.
-   * 
+   *
    * @return a <code>URL</code> that names the property file; otherwise Null if no property file was
    *         found.
    */
@@ -1745,7 +1718,7 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
 
   /**
    * Returns string representation of the specified object with special handling for InetAddress.
-   * 
+   *
    * @param obj the object to convert to string
    *
    * @return string representation of the specified object
@@ -1912,4 +1885,3 @@ public class AgentConfigImpl extends DistributedSystemConfigImpl implements Agen
     return super.clone();
   }
 }
-

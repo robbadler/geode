@@ -14,7 +14,6 @@
  */
 package org.apache.geode.pdx;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -106,4 +105,3 @@ public class NestedPdx implements PdxSerializable {
         + ", myString2=" + myString2 + ", myFloat=" + myFloat + "]";
   }
 }
-

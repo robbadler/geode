@@ -28,7 +28,7 @@ import org.apache.geode.internal.logging.log4j.LogWriterLogger;
 
 /**
  * Creates LogWriterLogger instances.
- * 
+ *
  */
 public class LogWriterFactory {
 
@@ -40,7 +40,7 @@ public class LogWriterFactory {
   /**
    * Creates the log writer for a distributed system based on the system's parsed configuration. The
    * initial banner and messages are also entered into the log by this method.
-   * 
+   *
    * @param isLoner Whether the distributed system is a loner or not
    * @param isSecure Whether a logger for security related messages has to be created
    * @param config The DistributionConfig for the target distributed system
@@ -84,16 +84,14 @@ public class LogWriterFactory {
                                                                        // during auto-reconnect
         && !isSecure // && !isLoner /* do this on a loner to fix bug 35602 */
         && logConfig) {
-      // LOG:CONFIG:
-      logger.info(LogMarker.CONFIG, Banner.getString(null));
+      logger.info(LogMarker.CONFIG_MARKER, Banner.getString(null));
     } else {
       logger.debug("skipping banner - " + InternalLocator.INHIBIT_DM_BANNER + " is set to true");
     }
 
     // log the config
     if (logConfig && !isLoner) {
-      // LOG:CONFIG: changed from config to info
-      logger.info(LogMarker.CONFIG,
+      logger.info(LogMarker.CONFIG_MARKER,
           LocalizedMessage.create(
               LocalizedStrings.InternalDistributedSystem_STARTUP_CONFIGURATION_0,
               config.toLoggerString()));

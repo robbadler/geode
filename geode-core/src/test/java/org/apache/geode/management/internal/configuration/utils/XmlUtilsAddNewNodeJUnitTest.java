@@ -14,14 +14,16 @@
  */
 package org.apache.geode.management.internal.configuration.utils;
 
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.distributed.internal.ClusterConfigurationService;
-import org.apache.geode.internal.cache.extension.Extension;
-import org.apache.geode.internal.cache.xmlcache.CacheXml;
-import org.apache.geode.management.internal.configuration.domain.XmlEntity;
-import org.apache.geode.management.internal.configuration.utils.XmlUtils.XPathContext;
-import org.apache.geode.test.junit.categories.IntegrationTest;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.assertEquals;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.xml.parsers.ParserConfigurationException;
+
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -33,22 +35,22 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.xpath.XPathExpressionException;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
-import static org.junit.Assert.assertEquals;
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.distributed.internal.InternalClusterConfigurationService;
+import org.apache.geode.internal.cache.extension.Extension;
+import org.apache.geode.internal.cache.xmlcache.CacheXml;
+import org.apache.geode.management.internal.configuration.domain.XmlEntity;
+import org.apache.geode.management.internal.configuration.utils.XmlUtils.XPathContext;
+import org.apache.geode.test.junit.categories.IntegrationTest;
 
 /**
  * Unit tests for {@link XmlUtils#addNewNode(Document, XmlEntity)} and
  * {@link XmlUtils#deleteNode(Document, XmlEntity)}. Simulates the
- * {@link ClusterConfigurationService} method of extracting {@link XmlEntity} from the new config
+ * {@link InternalClusterConfigurationService} method of extracting {@link XmlEntity} from the new
+ * config
  * and applying it to the current shared config.
- * 
+ *
  *
  * @since GemFire 8.1
  */
@@ -87,9 +89,7 @@ public class XmlUtilsAddNewNodeJUnitTest {
    * Tests {@link XmlUtils#addNewNode(Document, XmlEntity)} with {@link CacheXml} element with a
    * <code>name</code> attribute, <code>region</code>. It should be added after other
    * <code>region</code> elements.
-   * 
-   * @throws Exception
-   * @throws XPathExpressionException
+   *
    * @since GemFire 8.1
    */
   @Test
@@ -140,8 +140,7 @@ public class XmlUtilsAddNewNodeJUnitTest {
    * Tests {@link XmlUtils#addNewNode(Document, XmlEntity)} with {@link CacheXml} element that does
    * not have a name or id attribute, <code>jndi-bindings</code>. It should be added between
    * <code>pdx</code> and <code>region</code> elements.
-   * 
-   * @throws Exception
+   *
    * @since GemFire 8.1
    */
   @Test
@@ -177,8 +176,7 @@ public class XmlUtilsAddNewNodeJUnitTest {
    * have a name or id attribute. It should be added to the end of the config xml. Attempts a name
    * collision with test:region, it should not collide with the similarly named cache:region
    * element.
-   * 
-   * @throws Exception
+   *
    * @since GemFire 8.1
    */
   @Test
@@ -217,8 +215,7 @@ public class XmlUtilsAddNewNodeJUnitTest {
    * Tests {@link XmlUtils#addNewNode(Document, XmlEntity)} with {@link CacheXml} element with a
    * <code>name</code> attribute, <code>region</code>. It should replace existing
    * <code>region</code> element with same <code>name</code>.
-   * 
-   * @throws Exception
+   *
    * @since GemFire 8.1
    */
   @Test
@@ -252,8 +249,7 @@ public class XmlUtilsAddNewNodeJUnitTest {
   /**
    * Tests {@link XmlUtils#addNewNode(Document, XmlEntity)} with {@link CacheXml} element that does
    * not have a name or id attribute, <code>pdx</code>. It should replace <code>pdx</code> element.
-   * 
-   * @throws Exception
+   *
    * @since GemFire 8.1
    */
   @Test
@@ -287,8 +283,7 @@ public class XmlUtilsAddNewNodeJUnitTest {
    * Tests {@link XmlUtils#addNewNode(Document, XmlEntity)} with an {@link Extension} that does not
    * have a name or id attribute, <code>test:cache</code>. It should replace the existing
    * <code>test:cache</code> element.
-   * 
-   * @throws Exception
+   *
    * @since GemFire 8.1
    */
   @Test
@@ -324,8 +319,7 @@ public class XmlUtilsAddNewNodeJUnitTest {
    * Tests {@link XmlUtils#deleteNode(Document, XmlEntity)} with {@link CacheXml} element with a
    * <code>name</code> attribute, <code>region</code>. It should remove existing <code>region</code>
    * element with same <code>name</code>.
-   * 
-   * @throws Exception
+   *
    * @since GemFire 8.1
    */
   @Test
@@ -354,8 +348,7 @@ public class XmlUtilsAddNewNodeJUnitTest {
    * Tests {@link XmlUtils#addNewNode(Document, XmlEntity)} with {@link CacheXml} element that does
    * not have a name or id attribute, <code>pdx</code>. It should remove the existing
    * <code>pdx</code> element.
-   * 
-   * @throws Exception
+   *
    * @since GemFire 8.1
    */
   @Test
@@ -383,8 +376,7 @@ public class XmlUtilsAddNewNodeJUnitTest {
    * Tests {@link XmlUtils#addNewNode(Document, XmlEntity)} with an {@link Extension} that does not
    * have a name or id attribute, <code>test:cache</code>. It should remove the existing
    * <code>test:cache</code> element.
-   * 
-   * @throws Exception
+   *
    * @since GemFire 8.1
    */
   @Test

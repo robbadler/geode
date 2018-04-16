@@ -34,7 +34,6 @@ import org.apache.geode.DataSerializer;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.CacheRuntimeException;
 import org.apache.geode.cache.CommitDistributionException;
 import org.apache.geode.cache.CommitIncompleteException;
@@ -45,7 +44,7 @@ import org.apache.geode.cache.RegionDistributionException;
 import org.apache.geode.cache.TransactionId;
 import org.apache.geode.cache.TransactionListener;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.MembershipListener;
@@ -94,7 +93,7 @@ public class TXCommitMessage extends PooledDistributionMessage
   protected TXLockIdImpl lockId;
   protected HashSet farSiders;
 
-  protected transient DM dm; // Used on the sending side of this message
+  protected transient DistributionManager dm; // Used on the sending side of this message
   private transient int sequenceNum = 0;
 
   // Maps receiver Serializables to RegionCommitList instances
@@ -145,8 +144,12 @@ public class TXCommitMessage extends PooledDistributionMessage
    * transaction
    */
   public static final TXCommitMessage EXCEPTION_MSG = new TXCommitMessage();
+  /**
+   * A token to be put in TXManagerImpl#failoverMap to represent a rolled back transaction
+   */
+  public static final TXCommitMessage ROLLBACK_MSG = new TXCommitMessage();
 
-  public TXCommitMessage(TXId txIdent, DM dm, TXState txState) {
+  public TXCommitMessage(TXId txIdent, DistributionManager dm, TXState txState) {
     this.dm = dm;
     this.txIdent = txIdent;
     this.lockId = null;
@@ -169,7 +172,7 @@ public class TXCommitMessage extends PooledDistributionMessage
 
   /**
    * Create and return an eventId given its offset.
-   * 
+   *
    * @since GemFire 5.7
    */
   protected EventID getEventId(int eventOffset) {
@@ -181,7 +184,7 @@ public class TXCommitMessage extends PooledDistributionMessage
    * Return the TXCommitMessage we have already received that is associated with id. Note because of
    * bug 37657 we may need to wait for it to show up.
    */
-  public static TXCommitMessage waitForMessage(Object id, DM dm) {
+  public static TXCommitMessage waitForMessage(Object id, DistributionManager dm) {
     TXFarSideCMTracker map = getTracker();
     return map.waitForMessage(id, dm);
   }
@@ -525,7 +528,7 @@ public class TXCommitMessage extends PooledDistributionMessage
   }
 
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     this.dm = dm;
     // Remove this node from the set of recipients
     if (this.farSiders != null) {
@@ -533,7 +536,7 @@ public class TXCommitMessage extends PooledDistributionMessage
     }
 
     if (this.processorId != 0) {
-      TXLockService.createDTLS(); // fix bug 38843; no-op if already created
+      TXLockService.createDTLS(this.dm.getSystem()); // fix bug 38843; no-op if already created
       synchronized (this) {
         // Handle potential origin departure
         this.dm.addMembershipListener(this);
@@ -546,7 +549,7 @@ public class TXCommitMessage extends PooledDistributionMessage
         txTracker.add(this);
       }
       if (!this.dm.getDistributionManagerIds().contains(getSender())) {
-        memberDeparted(getSender(), false /* don't care */);
+        memberDeparted(this.dm, getSender(), false /* don't care */);
       }
 
     } else {
@@ -569,11 +572,11 @@ public class TXCommitMessage extends PooledDistributionMessage
     this.processingExceptions.add(e);
   }
 
-  public void setDM(DM dm) {
+  public void setDM(DistributionManager dm) {
     this.dm = dm;
   }
 
-  public DM getDM() {
+  public DistributionManager getDM() {
     if (this.dm == null) {
       InternalCache cache = GemFireCacheImpl.getExisting("Applying TXCommit");
       this.dm = cache.getDistributionManager();
@@ -582,7 +585,7 @@ public class TXCommitMessage extends PooledDistributionMessage
   }
 
   public void basicProcess() {
-    final DM dm = this.dm;
+    final DistributionManager dm = this.dm;
 
     synchronized (this) {
       if (isProcessing()) {
@@ -598,14 +601,13 @@ public class TXCommitMessage extends PooledDistributionMessage
     if (logger.isDebugEnabled()) {
       logger.debug("begin processing TXCommitMessage for {}", this.txIdent);
     }
-    // do this before CacheFactory.getInstance for bug 33471
     final int oldLevel =
         LocalRegion.setThreadInitLevelRequirement(LocalRegion.BEFORE_INITIAL_IMAGE);
     boolean forceListener = false; // this gets flipped if we need to fire tx listener
     // it needs to default to false because we don't want to fire listeners on pr replicates
     try {
       TXRmtEvent txEvent = null;
-      final Cache cache = CacheFactory.getInstance(dm.getSystem());
+      final Cache cache = dm.getExistingCache();
       if (cache == null) {
         addProcessingException(new CacheClosedException());
         // return ... this cache is closed so we can't do anything.
@@ -690,7 +692,7 @@ public class TXCommitMessage extends PooledDistributionMessage
       if (isAckRequired()) {
         ack();
       }
-      if (!GemFireCacheImpl.getExisting("Applying TXCommitMessage").isClient()) {
+      if (!dm.getExistingCache().isClient()) {
         getTracker().saveTXForClientFailover(txIdent, this);
       }
       if (logger.isDebugEnabled()) {
@@ -781,12 +783,12 @@ public class TXCommitMessage extends PooledDistributionMessage
    *
    * private boolean shouldSend701Message() { if (this.clientVersion == null &&
    * this.getDM().getMembersWithOlderVersion("7.0.1").isEmpty()) { return true; } return false; }
-   * 
+   *
    * public boolean shouldReadShadowKey() { return this.shouldReadShadowKey; }
-   * 
+   *
    * public void setShouldReadShadowKey(boolean shouldReadShadowKey) { this.shouldReadShadowKey =
    * shouldReadShadowKey; }
-   * 
+   *
    * public boolean shouldWriteShadowKey() { return this.shouldWriteShadowKey; }
    */
 
@@ -836,7 +838,7 @@ public class TXCommitMessage extends PooledDistributionMessage
   /**
    * Return true if a distributed ack message is required. On the client side of a transaction, this
    * returns false, while returning true elsewhere.
-   * 
+   *
    * @return requires ack message or not
    */
   private boolean isAckRequired() {
@@ -846,7 +848,7 @@ public class TXCommitMessage extends PooledDistributionMessage
 
   /**
    * Indicate whether an ack is required. Defaults to true.
-   * 
+   *
    * @param a true if we require an ack. false if not. false on clients.
    */
   public void setAckRequired(boolean a) {
@@ -945,7 +947,7 @@ public class TXCommitMessage extends PooledDistributionMessage
    * Combines a set of small TXCommitMessages that belong to one transaction into a txCommitMessage
    * that represents an entire transaction. At commit time the txCommitMessage sent to each node can
    * be a subset of the transaction, this method will combine those subsets into a complete message.
-   * 
+   *
    * @return the complete txCommitMessage
    */
   public static TXCommitMessage combine(Set<TXCommitMessage> msgSet) {
@@ -1129,11 +1131,11 @@ public class TXCommitMessage extends PooledDistributionMessage
 
     /**
      * Called to setup a region commit so its entryOps can be processed
-     * 
+     *
      * @return true if region should be processed; false if it can be ignored
      * @throws CacheClosedException if the cache has been closed
      */
-    boolean beginProcess(DM dm, TransactionId txIdent, TXRmtEvent txEvent)
+    boolean beginProcess(DistributionManager dm, TransactionId txIdent, TXRmtEvent txEvent)
         throws CacheClosedException {
       if (logger.isDebugEnabled()) {
         logger.debug("begin processing TXCommitMessage {} for region {}", txIdent, this.regionPath);
@@ -1173,10 +1175,10 @@ public class TXCommitMessage extends PooledDistributionMessage
       return this.r != null;
     }
 
-    private boolean hookupRegion(DM dm) {
-      this.r = LocalRegion.getRegionFromPath(dm.getSystem(), this.regionPath);
+    private boolean hookupRegion(DistributionManager dm) {
+      this.r = getRegionByPath(dm, regionPath);
       if (this.r == null && this.parentRegionPath != null) {
-        this.r = LocalRegion.getRegionFromPath(dm.getSystem(), this.parentRegionPath);
+        this.r = getRegionByPath(dm, this.parentRegionPath);
         this.regionPath = this.parentRegionPath;
       }
       if (this.r == null && dm.getSystem().isLoner()) {
@@ -1186,6 +1188,11 @@ public class TXCommitMessage extends PooledDistributionMessage
         return false;
       }
       return true;
+    }
+
+    LocalRegion getRegionByPath(DistributionManager dm, String regionPath) {
+      InternalCache cache = dm.getCache();
+      return cache == null ? null : (LocalRegion) cache.getRegionByPath(regionPath);
     }
 
     /**
@@ -1209,7 +1216,7 @@ public class TXCommitMessage extends PooledDistributionMessage
 
     /**
      * Returns the eventId to use for the give farside entry op.
-     * 
+     *
      * @since GemFire 5.7
      */
     private EventID getEventId(FarSideEntryOp entryOp) {
@@ -1300,8 +1307,7 @@ public class TXCommitMessage extends PooledDistributionMessage
         PartitionedRegion pr = (PartitionedRegion) r;
         BucketRegion br = pr.getBucketRegion(entryOp.key);
         Set bucketOwners = br.getBucketOwners();
-        InternalDistributedMember thisMember =
-            GemFireCacheImpl.getExisting().getDistributionManager().getId();
+        InternalDistributedMember thisMember = this.r.getDistributionManager().getId();
         if (bucketOwners.contains(thisMember)) {
           return;
         }
@@ -1357,8 +1363,8 @@ public class TXCommitMessage extends PooledDistributionMessage
     }
 
 
-    public boolean isForceFireEvent(DM dm) {
-      LocalRegion r = LocalRegion.getRegionFromPath(dm.getSystem(), this.regionPath);
+    public boolean isForceFireEvent(DistributionManager dm) {
+      LocalRegion r = getRegionByPath(dm, regionPath);
       if (r instanceof PartitionedRegion || (r != null && r.isUsedForPartitionedRegionBucket())) {
         return false;
       }
@@ -1378,7 +1384,7 @@ public class TXCommitMessage extends PooledDistributionMessage
         for (int i = 0; i < size; i++) {
           FarSideEntryOp entryOp = new FarSideEntryOp();
           // shadowkey is not being sent to clients
-          entryOp.fromData(in, largeModCount, !this.msg.getDM().isLoner());
+          entryOp.fromData(in, largeModCount, hasShadowKey(regionPath, parentRegionPath));
           if (entryOp.versionTag != null && this.memberId != null) {
             entryOp.versionTag.setMemberID(this.memberId);
           }
@@ -1387,6 +1393,20 @@ public class TXCommitMessage extends PooledDistributionMessage
           this.opEntries.add(entryOp);
         }
       }
+    }
+
+    private boolean hasShadowKey(String regionPath, String parentRegionPath) {
+      // in bucket region, regionPath is bucket name, use parentRegionPath
+      String path = parentRegionPath != null ? parentRegionPath : regionPath;
+      LocalRegion region = getRegionByPath(msg.getDM(), path);
+
+      // default value is whether loner or not, region is null if destroyRegion executed
+      boolean readShadowKey = !msg.getDM().isLoner();
+      if (region != null) {
+        // shadowkey is not being sent to clients
+        readShadowKey = region.getPoolName() == null;
+      }
+      return readShadowKey;
     }
 
     @Override
@@ -1475,7 +1495,7 @@ public class TXCommitMessage extends PooledDistributionMessage
 
     /**
      * Holds data that describes a tx entry op on the far side.
-     * 
+     *
      * @since GemFire 5.0
      */
     public class FarSideEntryOp implements Comparable {
@@ -1499,7 +1519,7 @@ public class TXCommitMessage extends PooledDistributionMessage
       /**
        * Creates and returns a new instance of a tx entry op on the far side. The "toData" that this
        * should match is {@link TXEntryState#toFarSideData}.
-       * 
+       *
        * @param in the data input that is used to read the data for this entry op
        * @param largeModCount true if the mod count is a int instead of a byte.
        * @param readShadowKey true if a long shadowKey should be read
@@ -1523,11 +1543,14 @@ public class TXCommitMessage extends PooledDistributionMessage
         if (!this.op.isDestroy()) {
           this.didDestroy = in.readBoolean();
           if (!this.op.isInvalidate()) {
-            boolean isToken = in.readBoolean();
-            if (isToken) {
+            boolean isTokenOrByteArray = in.readBoolean();
+            if (isTokenOrByteArray) {
+              // token or byte[]
               this.value = DataSerializer.readObject(in);
             } else {
-              this.value = CachedDeserializableFactory.create(DataSerializer.readByteArray(in));
+              // CachedDeserializable, Object, or PDX
+              this.value = CachedDeserializableFactory.create(DataSerializer.readByteArray(in),
+                  GemFireCacheImpl.getInstance());
             }
           }
         }
@@ -1668,7 +1691,7 @@ public class TXCommitMessage extends PooledDistributionMessage
     }
 
     @Override
-    protected void process(DistributionManager dm) {
+    protected void process(ClusterDistributionManager dm) {
       final TXCommitMessage mess = waitForMessage(this.lockId, dm);
       Assert.assertTrue(mess != null, "Commit data for TXLockId: " + this.lockId + " not found");
       basicProcess(mess, dm);
@@ -1720,7 +1743,7 @@ public class TXCommitMessage extends PooledDistributionMessage
     }
 
     @Override
-    protected void process(DistributionManager dm) {
+    protected void process(ClusterDistributionManager dm) {
       final TXCommitMessage mess = waitForMessage(this.txId, dm);
       Assert.assertTrue(mess != null, "Commit data for TXId: " + this.txId + " not found");
       basicProcess(mess, dm);
@@ -1752,7 +1775,7 @@ public class TXCommitMessage extends PooledDistributionMessage
   }
 
   public abstract static class CommitProcessMessage extends PooledDistributionMessage {
-    protected void basicProcess(final TXCommitMessage mess, final DistributionManager dm) {
+    protected void basicProcess(final TXCommitMessage mess, final ClusterDistributionManager dm) {
       dm.removeMembershipListener(mess);
       synchronized (mess) {
         if (mess.dontProcess()) {
@@ -1772,7 +1795,7 @@ public class TXCommitMessage extends PooledDistributionMessage
    * the origin of the CommitProcess messages departed from the distributed system. The sender of
    * this message is attempting to query other potential fellow FarSiders (aka recipients) who may
    * have received the CommitProcess message.
-   * 
+   *
    * Since the occurance of this message will be rare (hopefully), it was decided to be general
    * about the the tracker key - opting not to have specific messages for each type like
    * CommitProcessFor<Lock/TX>Id - and take the performance penalty of an extra call to
@@ -1792,7 +1815,7 @@ public class TXCommitMessage extends PooledDistributionMessage
     }
 
     @Override
-    protected void process(DistributionManager dm) {
+    protected void process(ClusterDistributionManager dm) {
       final boolean processMsgReceived = txTracker.commitProcessReceived(this.trackerKey, dm);
       if (!processMsgReceived) {
         if (logger.isDebugEnabled()) {
@@ -1882,7 +1905,7 @@ public class TXCommitMessage extends PooledDistributionMessage
   public static class CommitProcessQueryReplyProcessor extends ReplyProcessor21 {
     public boolean receivedOnePositive;
 
-    CommitProcessQueryReplyProcessor(DM dm, Set members) {
+    CommitProcessQueryReplyProcessor(DistributionManager dm, Set members) {
       super(dm, members);
       this.receivedOnePositive = false;
     }
@@ -1907,17 +1930,22 @@ public class TXCommitMessage extends PooledDistributionMessage
   }
 
   /********************* MembershipListener Implementation ***************************************/
-  public void memberJoined(InternalDistributedMember id) {
+  @Override
+  public void memberJoined(DistributionManager distributionManager, InternalDistributedMember id) {
     // do nothing
   }
 
-  public void memberSuspect(InternalDistributedMember id, InternalDistributedMember whoSuspected,
-      String reason) {}
+  @Override
+  public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
+      InternalDistributedMember whoSuspected, String reason) {}
 
-  public void quorumLost(Set<InternalDistributedMember> failures,
-      List<InternalDistributedMember> remaining) {}
+  @Override
+  public void quorumLost(DistributionManager distributionManager,
+      Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
-  public void memberDeparted(final InternalDistributedMember id, boolean crashed) {
+  @Override
+  public void memberDeparted(DistributionManager distributionManager,
+      final InternalDistributedMember id, boolean crashed) {
     if (!getSender().equals(id)) {
       return;
     }
@@ -1974,7 +2002,7 @@ public class TXCommitMessage extends PooledDistributionMessage
           try {
             replProc.waitForRepliesUninterruptibly();
           } catch (ReplyException e) {
-            e.handleAsUnexpected();
+            e.handleCause();
           }
           if (replProc.receivedACommitProcessMessage()) {
             if (logger.isDebugEnabled()) {
@@ -2051,26 +2079,27 @@ public class TXCommitMessage extends PooledDistributionMessage
    * been applied to committed state. This was added as the solution to bug 32999 and the recovery
    * when the TXLock Lessor (the sending VM) crashes/departs before or while sending the
    * TXCommitMessage.
-   * 
+   *
    * @see TXState#commit()
    * @see org.apache.geode.internal.cache.locks.TXLockBatch#getBatchId()
    */
   private void updateLockMembers() {
     if (this.lockNeedsUpdate && this.lockId != null) {
-      TXLockService.createDTLS().updateParticipants(this.lockId, this.msgMap.keySet());
+      TXLockService.createDTLS(this.dm.getSystem()).updateParticipants(this.lockId,
+          this.msgMap.keySet());
     }
   }
 
   /**
    * Reply processor which collects all CommitReplyExceptions and emits a detailed failure exception
    * if problems occur
-   * 
+   *
    * @since GemFire 5.7
    */
   private class CommitReplyProcessor extends ReliableReplyProcessor21 {
     private HashMap msgMap;
 
-    public CommitReplyProcessor(DM dm, Set initMembers, HashMap msgMap) {
+    public CommitReplyProcessor(DistributionManager dm, Set initMembers, HashMap msgMap) {
       super(dm, initMembers);
       this.msgMap = msgMap;
     }
@@ -2131,7 +2160,7 @@ public class TXCommitMessage extends PooledDistributionMessage
 
   /**
    * An Exception that collects many remote CommitExceptions
-   * 
+   *
    * @since GemFire 5.7
    */
   public static class CommitExceptionCollectingException extends ReplyException {
@@ -2288,7 +2317,7 @@ public class TXCommitMessage extends PooledDistributionMessage
     }
   }
 
-  public void hookupRegions(DM dm) {
+  public void hookupRegions(DistributionManager dm) {
     if (regions != null) {
       Iterator it = regions.iterator();
       while (it.hasNext()) {
@@ -2302,7 +2331,7 @@ public class TXCommitMessage extends PooledDistributionMessage
 
   /**
    * Disable firing of TX Listeners. Currently on used on clients.
-   * 
+   *
    * @param b disable the listeners
    */
   public void setDisableListeners(boolean b) {

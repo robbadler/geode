@@ -18,15 +18,14 @@ import static org.apache.geode.distributed.ConfigurationProperties.USER_COMMAND_
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
-import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
-import java.util.StringTokenizer;
 
+import org.springframework.shell.converters.EnumConverter;
 import org.springframework.shell.converters.SimpleFileConverter;
 import org.springframework.shell.core.CommandMarker;
 import org.springframework.shell.core.Converter;
@@ -37,7 +36,10 @@ import org.springframework.shell.core.annotation.CliCommand;
 import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.internal.ClassPathLoader;
-import org.apache.geode.management.internal.cli.commands.GfshCommand;
+import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.management.cli.Disabled;
+import org.apache.geode.management.cli.GfshCommand;
+import org.apache.geode.management.internal.cli.commands.InternalGfshCommand;
 import org.apache.geode.management.internal.cli.help.Helper;
 import org.apache.geode.management.internal.cli.shell.Gfsh;
 import org.apache.geode.management.internal.cli.util.ClasspathScanLoadHelper;
@@ -45,14 +47,14 @@ import org.apache.geode.management.internal.cli.util.ClasspathScanLoadHelper;
 /**
  *
  * this only takes care of loading all available command markers and converters from the application
- * 
+ *
  * @since GemFire 7.0
  */
 public class CommandManager {
+
   public static final String USER_CMD_PACKAGES_PROPERTY =
       DistributionConfig.GEMFIRE_PREFIX + USER_COMMAND_PACKAGES;
   public static final String USER_CMD_PACKAGES_ENV_VARIABLE = "GEMFIRE_USER_COMMAND_PACKAGES";
-  private static final Object INSTANCE_LOCK = new Object();
 
   private final Helper helper = new Helper();
 
@@ -61,24 +63,26 @@ public class CommandManager {
 
   private Properties cacheProperties;
   private LogWrapper logWrapper;
+  private InternalCache cache;
 
   /**
    * this constructor is used from Gfsh VM. We are getting the user-command-package from system
    * environment. used by Gfsh.
    */
   public CommandManager() {
-    this(null);
+    this(null, null);
   }
 
   /**
    * this is used when getting the instance in a cache server. We are getting the
    * user-command-package from distribution properties. used by OnlineCommandProcessor.
    */
-  public CommandManager(final Properties cacheProperties) {
+  public CommandManager(final Properties cacheProperties, InternalCache cache) {
     if (cacheProperties != null) {
       this.cacheProperties = cacheProperties;
     }
-    logWrapper = LogWrapper.getInstance();
+    this.cache = cache;
+    logWrapper = LogWrapper.getInstance(cache);
     loadCommands();
   }
 
@@ -93,22 +97,15 @@ public class CommandManager {
   private void loadUserCommands() {
     final Set<String> userCommandPackages = new HashSet<String>();
 
+    List<String> userCommandSources = new ArrayList<>();
     // Find by packages specified by the system property
     if (System.getProperty(USER_CMD_PACKAGES_PROPERTY) != null) {
-      StringTokenizer tokenizer =
-          new StringTokenizer(System.getProperty(USER_CMD_PACKAGES_PROPERTY), ",");
-      while (tokenizer.hasMoreTokens()) {
-        userCommandPackages.add(tokenizer.nextToken());
-      }
+      userCommandSources.add(System.getProperty(USER_CMD_PACKAGES_PROPERTY));
     }
 
     // Find by packages specified by the environment variable
     if (System.getenv().containsKey(USER_CMD_PACKAGES_ENV_VARIABLE)) {
-      StringTokenizer tokenizer =
-          new StringTokenizer(System.getenv().get(USER_CMD_PACKAGES_ENV_VARIABLE), ",");
-      while (tokenizer.hasMoreTokens()) {
-        userCommandPackages.add(tokenizer.nextToken());
-      }
+      userCommandSources.add(System.getenv().get(USER_CMD_PACKAGES_ENV_VARIABLE));
     }
 
     // Find by packages specified in the distribution config
@@ -116,18 +113,19 @@ public class CommandManager {
       String cacheUserCmdPackages =
           this.cacheProperties.getProperty(ConfigurationProperties.USER_COMMAND_PACKAGES);
       if (cacheUserCmdPackages != null && !cacheUserCmdPackages.isEmpty()) {
-        StringTokenizer tokenizer = new StringTokenizer(cacheUserCmdPackages, ",");
-        while (tokenizer.hasMoreTokens()) {
-          userCommandPackages.add(tokenizer.nextToken());
-        }
+        userCommandSources.add(cacheUserCmdPackages);
       }
+    }
+
+    for (String source : userCommandSources) {
+      Arrays.stream(source.split(",")).forEach(userCommandPackages::add);
     }
 
     // Load commands found in all of the packages
     for (String userCommandPackage : userCommandPackages) {
       try {
-        Set<Class<?>> foundClasses = ClasspathScanLoadHelper
-            .scanPackageForClassesImplementing(userCommandPackage, CommandMarker.class);
+        Set<Class<?>> foundClasses = ClasspathScanLoadHelper.scanPackagesForClassesImplementing(
+            CommandMarker.class, userCommandPackage, GfshCommand.class.getPackage().getName());
         for (Class<?> klass : foundClasses) {
           try {
             add((CommandMarker) klass.newInstance());
@@ -150,20 +148,19 @@ public class CommandManager {
    * @since GemFire 8.1
    */
   private void loadPluginCommands() {
-    final Iterator<CommandMarker> iterator = ServiceLoader
-        .load(CommandMarker.class, ClassPathLoader.getLatest().asClassLoader()).iterator();
-    while (iterator.hasNext()) {
-      try {
-        final CommandMarker commandMarker = iterator.next();
+    ServiceLoader<CommandMarker> loader =
+        ServiceLoader.load(CommandMarker.class, ClassPathLoader.getLatest().asClassLoader());
+    try {
+      loader.forEach(commandMarker -> {
         try {
           add(commandMarker);
         } catch (Exception e) {
           logWrapper.warning("Could not load Command from: " + commandMarker.getClass() + " due to "
               + e.getLocalizedMessage(), e); // continue
         }
-      } catch (ServiceConfigurationError e) {
-        logWrapper.severe("Could not load Command: " + e.getLocalizedMessage(), e); // continue
-      }
+      });
+    } catch (Throwable th) {
+      logWrapper.severe("Could not load plugin commands in the latest classLoader.", th);
     }
   }
 
@@ -180,8 +177,8 @@ public class CommandManager {
     Set<Class<?>> foundClasses;
     // Converters
     try {
-      foundClasses = ClasspathScanLoadHelper.scanPackageForClassesImplementing(
-          "org.apache.geode.management.internal.cli.converters", Converter.class);
+      foundClasses = ClasspathScanLoadHelper.scanPackagesForClassesImplementing(Converter.class,
+          "org.apache.geode.management.internal.cli.converters");
       for (Class<?> klass : foundClasses) {
         try {
           Converter<?> object = (Converter<?>) klass.newInstance();
@@ -195,8 +192,8 @@ public class CommandManager {
       raiseExceptionIfEmpty(foundClasses, "Converters");
 
       // Spring shell's converters
-      foundClasses = ClasspathScanLoadHelper.scanPackageForClassesImplementing(
-          "org.springframework.shell.converters", Converter.class);
+      foundClasses = ClasspathScanLoadHelper.scanPackagesForClassesImplementing(Converter.class,
+          "org.springframework.shell.converters");
       for (Class<?> klass : foundClasses) {
         if (!SHL_CONVERTERS_TOSKIP.contains(klass)) {
           try {
@@ -219,8 +216,9 @@ public class CommandManager {
     Set<Class<?>> foundClasses;
     try {
       // geode's commands
-      foundClasses = ClasspathScanLoadHelper.scanPackageForClassesImplementing(
-          GfshCommand.class.getPackage().getName(), CommandMarker.class);
+      foundClasses = ClasspathScanLoadHelper.scanPackagesForClassesImplementing(CommandMarker.class,
+          GfshCommand.class.getPackage().getName(),
+          InternalGfshCommand.class.getPackage().getName());
 
       for (Class<?> klass : foundClasses) {
         try {
@@ -245,6 +243,8 @@ public class CommandManager {
   static {
     // skip springs SimpleFileConverter to use our own FilePathConverter
     SHL_CONVERTERS_TOSKIP.add(SimpleFileConverter.class);
+    // skip spring's EnumConverter to use our own EnumConverter
+    SHL_CONVERTERS_TOSKIP.add(EnumConverter.class);
   }
 
   public List<Converter<?>> getConverters() {
@@ -257,8 +257,6 @@ public class CommandManager {
 
   /**
    * Method to add new Converter
-   *
-   * @param converter
    */
   void add(Converter<?> converter) {
     if (CommandManagerAware.class.isAssignableFrom(converter.getClass())) {
@@ -269,10 +267,20 @@ public class CommandManager {
 
   /**
    * Method to add new Commands to the parser
-   *
-   * @param commandMarker
    */
   void add(CommandMarker commandMarker) {
+    Disabled classDisabled = commandMarker.getClass().getAnnotation(Disabled.class);
+    if (classDisabled != null && (classDisabled.unlessPropertyIsSet().isEmpty()
+        || System.getProperty(classDisabled.unlessPropertyIsSet()) == null)) {
+      return;
+    }
+
+    // inject the cache into the commands
+    if (GfshCommand.class.isAssignableFrom(commandMarker.getClass())) {
+      ((GfshCommand) commandMarker).setCache(cache);
+    }
+
+    // inject the commandManager into the commands
     if (CommandManagerAware.class.isAssignableFrom(commandMarker.getClass())) {
       ((CommandManagerAware) commandMarker).setCommandManager(this);
     }

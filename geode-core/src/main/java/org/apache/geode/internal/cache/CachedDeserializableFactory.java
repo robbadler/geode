@@ -15,21 +15,21 @@
 
 package org.apache.geode.internal.cache;
 
+import java.io.IOException;
+
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.util.ObjectSizer;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.internal.DSCODE;
 import org.apache.geode.internal.HeapDataOutputStream;
 import org.apache.geode.internal.NullDataOutputStream;
-import org.apache.geode.internal.cache.lru.Sizeable;
 import org.apache.geode.internal.i18n.LocalizedStrings;
+import org.apache.geode.internal.size.Sizeable;
 import org.apache.geode.pdx.PdxInstance;
-
-import java.io.IOException;
 
 /**
  * Produces instances that implement CachedDeserializable.
- * 
+ *
  * @since GemFire 5.0.2
  *
  */
@@ -42,11 +42,11 @@ public class CachedDeserializableFactory {
   /**
    * Creates and returns an instance of CachedDeserializable that contains the specified byte array.
    */
-  public static CachedDeserializable create(byte[] v) {
+  public static CachedDeserializable create(byte[] v, InternalCache cache) {
     if (STORE_ALL_VALUE_FORMS) {
       return new StoreAllCachedDeserializable(v);
     } else if (PREFER_DESERIALIZED) {
-      if (isPdxEncoded(v) && cachePrefersPdx()) {
+      if (isPdxEncoded(v) && cachePrefersPdx(cache)) {
         return new PreferBytesCachedDeserializable(v);
       } else {
         return new VMCachedDeserializable(v);
@@ -59,7 +59,7 @@ public class CachedDeserializableFactory {
   private static boolean isPdxEncoded(byte[] v) {
     // assert v != null;
     if (v.length > 0) {
-      return v[0] == DSCODE.PDX;
+      return v[0] == DSCODE.PDX.toByte();
     }
     return false;
   }
@@ -68,11 +68,12 @@ public class CachedDeserializableFactory {
    * Creates and returns an instance of CachedDeserializable that contains the specified object
    * (that is not a byte[]).
    */
-  public static CachedDeserializable create(Object object, int serializedSize) {
+  public static CachedDeserializable create(Object object, int serializedSize,
+      InternalCache cache) {
     if (STORE_ALL_VALUE_FORMS) {
       return new StoreAllCachedDeserializable(object);
     } else if (PREFER_DESERIALIZED) {
-      if (object instanceof PdxInstance && cachePrefersPdx()) {
+      if (object instanceof PdxInstance && cachePrefersPdx(cache)) {
         return new PreferBytesCachedDeserializable(object);
 
       } else {
@@ -83,8 +84,8 @@ public class CachedDeserializableFactory {
     }
   }
 
-  private static boolean cachePrefersPdx() {
-    InternalCache internalCache = GemFireCacheImpl.getInstance();
+  private static boolean cachePrefersPdx(InternalCache internalCache) {
+    // InternalCache internalCache = GemFireCacheImpl.getInstance();
     return internalCache != null && internalCache.getPdxReadSerialized();
   }
 
@@ -258,7 +259,7 @@ public class CachedDeserializableFactory {
 
   /**
    * Return how much memory this object will consume if it is in serialized form
-   * 
+   *
    * @since GemFire 6.1.2.9
    */
   public static int calcSerializedMemSize(Object o) {

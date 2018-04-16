@@ -14,11 +14,10 @@
  */
 package org.apache.geode.management.internal.cli;
 
-import java.net.URI;
+import java.io.File;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-
-import org.springframework.web.util.UriComponentsBuilder;
 
 import org.apache.geode.annotations.TestingOnly;
 import org.apache.geode.management.cli.CliMetaData;
@@ -27,17 +26,13 @@ import org.apache.geode.management.cli.CliMetaData;
  * The CommandRequest class encapsulates information pertaining to the command the user entered in
  * Gfsh.
  * <p/>
- * 
+ *
  * @see org.apache.geode.management.internal.cli.GfshParseResult
  * @since GemFire 8.0
  */
 @SuppressWarnings("unused")
 public class CommandRequest {
-  protected static final String CMD_QUERY_PARAMETER = "cmd";
-  protected static final String REST_API_MANAGEMENT_COMMANDS_URI = "/management/commands";
-  protected static final String OPTION_SPECIFIER = "--";
-
-  private final byte[][] fileData;
+  private final List<File> fileList;
   private final GfshParseResult parseResult;
   private final Map<String, String> env;
   private final boolean downloadFile;
@@ -46,24 +41,24 @@ public class CommandRequest {
   @TestingOnly
   public CommandRequest(final Map<String, String> env) {
     this.env = env;
-    this.fileData = null;
+    this.fileList = null;
     this.parseResult = null;
     downloadFile = false;
   }
 
-  public CommandRequest(final Map<String, String> env, final byte[][] fileData) {
+  public CommandRequest(final Map<String, String> env, final List<File> fileList) {
     this.env = env;
-    this.fileData = fileData;
+    this.fileList = fileList;
     this.parseResult = null;
     downloadFile = false;
   }
 
   public CommandRequest(final GfshParseResult parseResult, final Map<String, String> env,
-      final byte[][] fileData) {
+      final List<File> fileList) {
     assert parseResult != null : "The Gfsh ParseResult cannot be null!";
     assert env != null : "The reference to the Gfsh CLI environment cannot be null!";
     this.env = env;
-    this.fileData = fileData;
+    this.fileList = fileList;
     this.parseResult = parseResult;
 
     CliMetaData metaData = parseResult.getMethod().getDeclaredAnnotation(CliMetaData.class);
@@ -80,12 +75,12 @@ public class CommandRequest {
     return Collections.unmodifiableMap(env);
   }
 
-  public byte[][] getFileData() {
-    return fileData;
+  public List<File> getFileList() {
+    return fileList;
   }
 
-  public boolean hasFileData() {
-    return (getFileData() != null);
+  public boolean hasFileList() {
+    return (getFileList() != null);
   }
 
   protected GfshParseResult getParseResult() {
@@ -95,15 +90,4 @@ public class CommandRequest {
   public String getUserInput() {
     return getParseResult().getUserInput();
   }
-
-  @TestingOnly
-  public Map<String, String> getParameters() {
-    return getParseResult().getParamValueStrings();
-  }
-
-  public URI getHttpRequestUrl(String baseUrl) {
-    return UriComponentsBuilder.fromHttpUrl(baseUrl).path(REST_API_MANAGEMENT_COMMANDS_URI)
-        .queryParam(CMD_QUERY_PARAMETER, getUserInput()).build().encode().toUri();
-  }
-
 }

@@ -23,9 +23,8 @@ import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.RegionDestroyedException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.MessageWithReply;
 import org.apache.geode.distributed.internal.PooledDistributionMessage;
@@ -38,9 +37,6 @@ import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.ProxyBucketRegion;
 
-/**
- *
- */
 public class MembershipFlushRequest extends PooledDistributionMessage implements MessageWithReply {
 
   private String regionPath;
@@ -53,8 +49,8 @@ public class MembershipFlushRequest extends PooledDistributionMessage implements
     this.processorId = processorId;
   }
 
-  public static void send(Set<InternalDistributedMember> recipients, DM dm, String regionPath)
-      throws ReplyException {
+  public static void send(Set<InternalDistributedMember> recipients, DistributionManager dm,
+      String regionPath) throws ReplyException {
     ReplyProcessor21 processor = new ReplyProcessor21(dm, recipients);
     MembershipFlushRequest msg = new MembershipFlushRequest(regionPath, processor.getProcessorId());
     msg.setRecipients(recipients);
@@ -64,7 +60,7 @@ public class MembershipFlushRequest extends PooledDistributionMessage implements
 
 
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     int initLevel = LocalRegion.ANY_INIT;
     int oldLevel = LocalRegion.setThreadInitLevelRequirement(initLevel);
 
@@ -73,7 +69,7 @@ public class MembershipFlushRequest extends PooledDistributionMessage implements
       // get the region from the path, but do NOT wait on initialization,
       // otherwise we could have a distributed deadlock
 
-      Cache cache = CacheFactory.getInstance(dm.getSystem());
+      Cache cache = dm.getExistingCache();
       PartitionedRegion region = (PartitionedRegion) cache.getRegion(this.regionPath);
       if (region != null && region.getRegionAdvisor().isInitialized()) {
         ProxyBucketRegion[] proxyBuckets = region.getRegionAdvisor().getProxyBucketArray();

@@ -31,7 +31,7 @@ import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.operations.ExecuteFunctionOperationContext;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Version;
@@ -51,9 +51,9 @@ import org.apache.geode.internal.cache.execute.ServerToClientFunctionResultSende
 import org.apache.geode.internal.cache.execute.ServerToClientFunctionResultSender65;
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.MessageType;
+import org.apache.geode.internal.cache.tier.ServerSideHandshake;
 import org.apache.geode.internal.cache.tier.sockets.BaseCommand;
 import org.apache.geode.internal.cache.tier.sockets.ChunkedMessage;
-import org.apache.geode.internal.cache.tier.sockets.HandShake;
 import org.apache.geode.internal.cache.tier.sockets.Message;
 import org.apache.geode.internal.cache.tier.sockets.Part;
 import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
@@ -61,15 +61,13 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.security.AuthorizeRequest;
 import org.apache.geode.internal.security.SecurityService;
-import org.apache.geode.security.ResourcePermission.Operation;
-import org.apache.geode.security.ResourcePermission.Resource;
 
 /**
  * @since GemFire 6.6
  */
 public class ExecuteFunction66 extends BaseCommand {
 
-  private final static ExecuteFunction66 singleton = new ExecuteFunction66();
+  private static final ExecuteFunction66 singleton = new ExecuteFunction66();
 
   protected static volatile boolean ASYNC_TX_WARNING_ISSUED = false;
 
@@ -163,7 +161,7 @@ public class ExecuteFunction66 extends BaseCommand {
 
     // Execute function on the cache
     try {
-      Function functionObject = null;
+      Function<?> functionObject = null;
       if (function instanceof String) {
         functionObject = FunctionService.getFunction((String) function);
         if (functionObject == null) {
@@ -194,15 +192,16 @@ public class ExecuteFunction66 extends BaseCommand {
 
       FunctionStats stats = FunctionStats.getFunctionStats(functionObject.getId());
 
-      securityService.authorize(Resource.DATA, Operation.WRITE);
-
       // check if the caller is authorized to do this operation on server
+      functionObject.getRequiredPermissions(null).forEach(securityService::authorize);
+
       AuthorizeRequest authzRequest = serverConnection.getAuthzRequest();
       ExecuteFunctionOperationContext executeContext = null;
       if (authzRequest != null) {
         executeContext = authzRequest.executeFunctionAuthorize(functionObject.getId(), null, null,
             args, functionObject.optimizeForWrite());
       }
+
       ChunkedMessage m = serverConnection.getFunctionResponseMessage();
       m.setTransactionId(clientMessage.getTransactionId());
       ServerToClientFunctionResultSender resultSender = new ServerToClientFunctionResultSender65(m,
@@ -220,9 +219,10 @@ public class ExecuteFunction66 extends BaseCommand {
         context =
             new FunctionContextImpl(cache, functionObject.getId(), args, resultSender, isReexecute);
       }
-      HandShake handShake = (HandShake) serverConnection.getHandshake();
-      int earlierClientReadTimeout = handShake.getClientReadTimeout();
-      handShake.setClientReadTimeout(functionTimeout);
+
+      ServerSideHandshake handshake = serverConnection.getHandshake();
+      int earlierClientReadTimeout = handshake.getClientReadTimeout();
+      handshake.setClientReadTimeout(functionTimeout);
       try {
         if (logger.isDebugEnabled()) {
           logger.debug("Executing Function on Server: {} with context: {}", serverConnection,
@@ -246,7 +246,7 @@ public class ExecuteFunction66 extends BaseCommand {
          * if cache is null, then either cache has not yet been created on this node or it is a
          * shutdown scenario.
          */
-        DM dm = null;
+        DistributionManager dm = null;
         if (cache != null) {
           dm = cache.getDistributionManager();
         }
@@ -268,7 +268,7 @@ public class ExecuteFunction66 extends BaseCommand {
         stats.endFunctionExecutionWithException(functionObject.hasResult());
         throw new FunctionException(exception);
       } finally {
-        handShake.setClientReadTimeout(earlierClientReadTimeout);
+        handshake.setClientReadTimeout(earlierClientReadTimeout);
       }
     } catch (IOException ioException) {
       logger.warn(LocalizedMessage.create(
@@ -323,8 +323,8 @@ public class ExecuteFunction66 extends BaseCommand {
   }
 
   private void executeFunctionaLocally(final Function fn, final FunctionContext cx,
-      final ServerToClientFunctionResultSender65 sender, DM dm, final FunctionStats stats)
-      throws IOException {
+      final ServerToClientFunctionResultSender65 sender, DistributionManager dm,
+      final FunctionStats stats) throws IOException {
     long startExecution = stats.startTime();
     stats.startFunctionExecution(fn.hasResult());
 
@@ -396,8 +396,8 @@ public class ExecuteFunction66 extends BaseCommand {
          */
         execService.execute(functionExecution);
       } else {
-        final DistributionManager newDM = (DistributionManager) dm;
-        newDM.getFunctionExcecutor().execute(functionExecution);
+        final ClusterDistributionManager newDM = (ClusterDistributionManager) dm;
+        newDM.getFunctionExecutor().execute(functionExecution);
       }
     }
     stats.endFunctionExecution(startExecution, fn.hasResult());

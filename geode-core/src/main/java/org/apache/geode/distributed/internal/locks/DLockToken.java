@@ -20,7 +20,7 @@ import java.util.WeakHashMap;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.distributed.LeaseExpiredException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
@@ -46,9 +46,9 @@ public class DLockToken {
 
   /**
    * DistributionManager using this lock token. Reference is used to identify local member identity
-   * and to {@link DLockService#getLockTimeStamp(DM)}.
+   * and to {@link DLockService#getLockTimeStamp(DistributionManager)}.
    */
-  private final DM dm;
+  private final DistributionManager dm;
 
   /**
    * The reply processor id is used to identify the distinct lease which a thread has used to lease
@@ -108,11 +108,11 @@ public class DLockToken {
 
   /**
    * Instantiates a new DLockToken for use by {@link DLockService}.
-   * 
+   *
    * @param dm the DistributionManager for this member
    * @param name the identifying name of this lock
    */
-  public DLockToken(DM dm, Object name) {
+  public DLockToken(DistributionManager dm, Object name) {
     this.dm = dm;
     this.name = name;
   }
@@ -126,7 +126,7 @@ public class DLockToken {
    * Caller must synchronize on this lock token.
    * <p>
    * Public because {@link org.apache.geode.internal.admin.remote.RemoteDLockInfo} is a caller.
-   * 
+   *
    * @return the lock re-entry recursion of the current lease or -1 if none
    */
   public int getRecursion() {
@@ -138,7 +138,7 @@ public class DLockToken {
    * Caller must synchronize on this lock token.
    * <p>
    * Public because {@link org.apache.geode.internal.admin.remote.RemoteDLockInfo} is a caller.
-   * 
+   *
    * @return the name of the actual local thread leasing this lock or null
    */
   public String getThreadName() {
@@ -157,7 +157,7 @@ public class DLockToken {
    * Caller must synchronize on this lock token.
    * <p>
    * Public because {@link org.apache.geode.internal.admin.remote.RemoteDLockInfo} is a caller.
-   * 
+   *
    * @return the absolute time at which the current lease will expire or -1
    */
   public long getLeaseExpireTime() {
@@ -175,7 +175,7 @@ public class DLockToken {
   /**
    * Returns the identifying name of this lock. Caller must synchronize on this lock token if
    * instance was deserialized.
-   * 
+   *
    * @return the identifying name of this lock
    */
   Object getName() {
@@ -185,7 +185,7 @@ public class DLockToken {
   /**
    * Returns the lease id currently used to hold a lease on this lock or -1 if no thread currently
    * holds this lock. Caller must synchronize on this token.
-   * 
+   *
    * @return the id of the current lease on this lock or -1 if none
    */
   int getLeaseId() {
@@ -195,7 +195,7 @@ public class DLockToken {
   /**
    * Returns the remotable identity of the thread currently leasing this lock or null if no thread
    * currently holds this lock. Caller must synchronize on this lock token.
-   * 
+   *
    * @return identity of the thread holding the current lease or null if none
    */
   RemoteThread getLesseeThread() {
@@ -219,7 +219,7 @@ public class DLockToken {
   /**
    * Returns true if the usage count for this lock token is greater than zero. Caller must
    * synchronize on this lock token.
-   * 
+   *
    * @return true if the usage count for this lock token is greater than zero
    */
   boolean isBeingUsed() {
@@ -239,7 +239,7 @@ public class DLockToken {
 
   /**
    * Returns the current time in absolute milliseconds for use calculating lease expiration times.
-   * 
+   *
    * @return the current time in absolute milliseconds
    */
   long getCurrentTime() {
@@ -252,7 +252,7 @@ public class DLockToken {
    * Throws LeaseExpiredException if the calling thread's lease on this lock previously expired. The
    * expired lease will no longer be tracked after throwing LeaseExpiredException. Caller must
    * synchronize on this lock token.
-   * 
+   *
    * @throws LeaseExpiredException if calling thread's lease expired
    */
   void throwIfCurrentThreadHadExpiredLease() throws LeaseExpiredException {
@@ -269,7 +269,7 @@ public class DLockToken {
   /**
    * Checks the current lease for expiration and returns true if it has been marked as expired.
    * Caller must synchronize on this lock token.
-   * 
+   *
    * @return true if the current lease has been marked as expired
    */
   boolean checkForExpiration() {
@@ -280,9 +280,9 @@ public class DLockToken {
 
       long currentTime = getCurrentTime();
       if (currentTime > this.leaseExpireTime) {
-        if (logger.isTraceEnabled(LogMarker.DLS)) {
-          logger.trace(LogMarker.DLS, "[checkForExpiration] Expiring token at {}: {}", currentTime,
-              this);
+        if (logger.isTraceEnabled(LogMarker.DLS_VERBOSE)) {
+          logger.trace(LogMarker.DLS_VERBOSE, "[checkForExpiration] Expiring token at {}: {}",
+              currentTime, this);
         }
         noteExpiredLease();
         basicReleaseLock();
@@ -295,7 +295,7 @@ public class DLockToken {
 
   /**
    * Grants new lease to calling thread for this lock token. Synchronizes on this lock token.
-   * 
+   *
    * @param newLeaseExpireTime absolute expiration in millis or Long.MAX_VALUE
    * @param newLeaseId uniquely identifies the lease for this thread
    * @param newRecursion recursion count if lock has been re-entered
@@ -318,14 +318,14 @@ public class DLockToken {
     this.recursion = newRecursion;
     this.thread = Thread.currentThread();
 
-    if (logger.isTraceEnabled(LogMarker.DLS)) {
-      logger.trace(LogMarker.DLS, "[DLockToken.grantLock.client] granted {}", this);
+    if (logger.isTraceEnabled(LogMarker.DLS_VERBOSE)) {
+      logger.trace(LogMarker.DLS_VERBOSE, "[DLockToken.grantLock.client] granted {}", this);
     }
   }
 
   /**
    * Returns true if there's currently a lease on this lock token. Synchronizes on this lock token.
-   * 
+   *
    * @return true if there's currently a lease on this lock token
    */
   synchronized boolean isLeaseHeld() {
@@ -335,7 +335,7 @@ public class DLockToken {
   /**
    * Returns true if lease on this lock token is held by calling thread or the specified remote
    * thread. Caller must synchronize on this lock token.
-   * 
+   *
    * @param remoteThread remotable identity of thread to check for
    * @return true if lease is held by calling thread or remote thread
    */
@@ -351,7 +351,7 @@ public class DLockToken {
   /**
    * Returns true if lease on this lock token is held by calling thread. Caller must synchronize on
    * this lock token.
-   * 
+   *
    * @return true if lease is held by calling thread
    */
   boolean isLeaseHeldByCurrentThread() {
@@ -361,7 +361,7 @@ public class DLockToken {
   /**
    * Returns true if this lock token should be ignored for grantor recovery. Caller must synchronize
    * on this lock token.
-   * 
+   *
    * @return true if this lock token should be ignored for grantor recovery
    */
   synchronized boolean ignoreForRecovery() {
@@ -371,7 +371,7 @@ public class DLockToken {
   /**
    * Sets whether or not this lock token should be ignored for grantor recovery. Caller must
    * synchronize on this lock token.
-   * 
+   *
    * @param value true if this lock token should be ignored for grantor recovery
    */
   void setIgnoreForRecovery(boolean value) {
@@ -380,7 +380,7 @@ public class DLockToken {
 
   /**
    * Releases the current lease on this lock token. Synchronizes on this lock token.
-   * 
+   *
    * @param leaseIdToRelease lease id to release
    * @param remoteThread identity of thread holding lease
    * @return true if lock was successfully released
@@ -391,7 +391,7 @@ public class DLockToken {
 
   /**
    * Releases the current lease on this lock token. Synchronizes on this lock token.
-   * 
+   *
    * @param leaseIdToRelease lease id to release
    * @param remoteThread identity of thread holding lease
    * @param decRecursion true if recursion should be decremented
@@ -415,8 +415,9 @@ public class DLockToken {
     else if (decRecursion && getRecursion() > 0) {
       incRecursion(-1);
       decUsage();
-      if (logger.isTraceEnabled(LogMarker.DLS)) {
-        logger.trace(LogMarker.DLS, "[DLockToken.releaseLock] decremented recursion: {}", this);
+      if (logger.isTraceEnabled(LogMarker.DLS_VERBOSE)) {
+        logger.trace(LogMarker.DLS_VERBOSE, "[DLockToken.releaseLock] decremented recursion: {}",
+            this);
       }
       return true;
     }
@@ -433,8 +434,9 @@ public class DLockToken {
    * token.
    */
   private void basicReleaseLock() {
-    if (logger.isTraceEnabled(LogMarker.DLS)) {
-      logger.trace(LogMarker.DLS, "[DLockToken.basicReleaseLock] releasing ownership: {}", this);
+    if (logger.isTraceEnabled(LogMarker.DLS_VERBOSE)) {
+      logger.trace(LogMarker.DLS_VERBOSE, "[DLockToken.basicReleaseLock] releasing ownership: {}",
+          this);
     }
 
     this.leaseId = -1;
@@ -454,7 +456,7 @@ public class DLockToken {
   /**
    * Returns true if lease is held using specified lease id. Caller must synchronize on this lock
    * token.
-   * 
+   *
    * @param memberLeaseId lease id used by member
    * @return true if lease is held using specified lease id
    */
@@ -465,7 +467,7 @@ public class DLockToken {
   /**
    * Increments or decrements usage count by the specified amount. Caller must synchronize on this
    * lock token.
-   * 
+   *
    * @param amount the amount to inc or dec usage count by
    */
   private void incUsage(int amount) {
@@ -479,7 +481,7 @@ public class DLockToken {
   /**
    * Increments or decrements recursion by the specified amount. Caller must synchronize on this
    * lock token.
-   * 
+   *
    * @param amount the amount to inc or dec recursion by
    */
   private void incRecursion(int amount) {
@@ -493,7 +495,7 @@ public class DLockToken {
   /**
    * Throws IllegalStateException if this lock token has been destroyed. Caller must synchronize on
    * this lock token.
-   * 
+   *
    * @throws IllegalStateException if this lock token has been destroyed
    */
   private void checkDestroyed() {
@@ -510,8 +512,8 @@ public class DLockToken {
    * lock token.
    */
   private void noteExpiredLease() {
-    if (logger.isTraceEnabled(LogMarker.DLS)) {
-      logger.trace(LogMarker.DLS, "[noteExpiredLease] {}", this.thread);
+    if (logger.isTraceEnabled(LogMarker.DLS_VERBOSE)) {
+      logger.trace(LogMarker.DLS_VERBOSE, "[noteExpiredLease] {}", this.thread);
     }
     if (this.expiredLeases == null) {
       this.expiredLeases = new WeakHashMap();

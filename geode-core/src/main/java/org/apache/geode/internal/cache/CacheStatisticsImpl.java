@@ -17,19 +17,12 @@ package org.apache.geode.internal.cache;
 
 import org.apache.geode.cache.*;
 import org.apache.geode.internal.InternalStatisticsDisabledException;
-// import org.apache.geode.InternalGemFireException;
-// import org.apache.geode.internal.util.Callable;
-// import org.apache.geode.util.concurrent.locks.Lock;
 
-/**
- *
- *
- */
 class CacheStatisticsImpl implements CacheStatistics {
-  private final LocalRegion region;
+  private final InternalRegion region;
   private final RegionEntry regionEntry;
 
-  CacheStatisticsImpl(RegionEntry regionEntry, LocalRegion region) {
+  CacheStatisticsImpl(RegionEntry regionEntry, InternalRegion region) {
     this.region = region;
     // entry stats are all on commited state so ok to ignore tx state
     this.regionEntry = regionEntry;

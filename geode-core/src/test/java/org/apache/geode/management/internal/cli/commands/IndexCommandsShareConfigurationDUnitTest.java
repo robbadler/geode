@@ -39,8 +39,9 @@ import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionFactory;
 import org.apache.geode.cache.query.Index;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.distributed.Locator;
-import org.apache.geode.distributed.internal.ClusterConfigurationService;
+import org.apache.geode.distributed.internal.InternalClusterConfigurationService;
 import org.apache.geode.distributed.internal.InternalLocator;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.cache.InternalCache;
@@ -48,19 +49,20 @@ import org.apache.geode.management.internal.cli.domain.Stock;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
 import org.apache.geode.test.dunit.Assert;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
 import org.apache.geode.test.dunit.rules.MemberVM;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.GfshTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, GfshTest.class})
 public class IndexCommandsShareConfigurationDUnitTest {
 
   @Rule
-  public GfshShellConnectionRule gfsh = new GfshShellConnectionRule();
+  public GfshCommandRule gfsh = new GfshCommandRule();
 
   @Rule
-  public LocatorServerStartupRule startupRule = new LocatorServerStartupRule();
+  public ClusterStartupRule startupRule = new ClusterStartupRule();
   private static String partitionedRegionName = "partitionedRegion";
   private static String indexName = "index1";
   private static String groupName = "group1";
@@ -84,15 +86,17 @@ public class IndexCommandsShareConfigurationDUnitTest {
     locatorProps.setProperty(JMX_MANAGER_PORT, String.valueOf(jmxPort));
     locatorProps.setProperty(HTTP_SERVICE_PORT, String.valueOf(httpPort));
 
-    locator = startupRule.startLocatorVM(0, locatorProps);
+    locator = startupRule.startLocatorVM(0, x -> x.withProperties(locatorProps));
 
-    gfsh.connectAndVerify(locator.getJmxPort(), GfshShellConnectionRule.PortType.jmxManger);
+    gfsh.connectAndVerify(locator.getJmxPort(), GfshCommandRule.PortType.jmxManager);
 
     Properties props = new Properties();
     props.setProperty(GROUPS, groupName);
+    props.setProperty(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.management.internal.cli.domain.Stock");
     serverVM = startupRule.startServerVM(1, props, locator.getPort());
     serverVM.invoke(() -> {
-      InternalCache cache = LocatorServerStartupRule.serverStarter.getCache();
+      InternalCache cache = ClusterStartupRule.getCache();
       Region parReg =
           createPartitionedRegion(partitionedRegionName, cache, String.class, Stock.class);
       parReg.put("VMW", new Stock("VMW", 98));
@@ -106,12 +110,12 @@ public class IndexCommandsShareConfigurationDUnitTest {
     createStringBuilder.addOption(CliStrings.CREATE_INDEX__EXPRESSION, "key");
     createStringBuilder.addOption(CliStrings.GROUP, groupName);
     createStringBuilder.addOption(CliStrings.CREATE_INDEX__REGION, "/" + partitionedRegionName);
-    gfsh.executeAndVerifyCommand(createStringBuilder.toString());
+    gfsh.executeAndAssertThat(createStringBuilder.toString()).statusIsSuccess();
 
     assertTrue(indexIsListed());
 
     locator.invoke(() -> {
-      ClusterConfigurationService sharedConfig =
+      InternalClusterConfigurationService sharedConfig =
           ((InternalLocator) Locator.getLocator()).getSharedConfiguration();
       String xmlFromConfig;
       try {
@@ -126,10 +130,10 @@ public class IndexCommandsShareConfigurationDUnitTest {
     createStringBuilder.addOption(CliStrings.DESTROY_INDEX__NAME, indexName);
     createStringBuilder.addOption(CliStrings.GROUP, groupName);
     createStringBuilder.addOption(CliStrings.DESTROY_INDEX__REGION, "/" + partitionedRegionName);
-    gfsh.executeAndVerifyCommand(createStringBuilder.toString());
+    gfsh.executeAndAssertThat(createStringBuilder.toString()).statusIsSuccess();
 
     locator.invoke(() -> {
-      ClusterConfigurationService sharedConfig =
+      InternalClusterConfigurationService sharedConfig =
           ((InternalLocator) Locator.getLocator()).getSharedConfiguration();
       String xmlFromConfig;
       try {
@@ -142,13 +146,10 @@ public class IndexCommandsShareConfigurationDUnitTest {
 
     // Restart the data member cache to make sure that the index is destroyed.
     startupRule.stopVM(1);
-
-    Properties props = new Properties();
-    props.setProperty(GROUPS, groupName);
-    serverVM = startupRule.startServerVM(1, props, locator.getPort());
+    serverVM = startupRule.startServerVM(1, groupName, locator.getPort());
 
     serverVM.invoke(() -> {
-      InternalCache restartedCache = LocatorServerStartupRule.serverStarter.getCache();
+      InternalCache restartedCache = ClusterStartupRule.getCache();
       assertNotNull(restartedCache);
       Region region = restartedCache.getRegion(partitionedRegionName);
       assertNotNull(region);
@@ -167,8 +168,7 @@ public class IndexCommandsShareConfigurationDUnitTest {
   }
 
   private boolean indexIsListed() throws Exception {
-    gfsh.executeAndVerifyCommand(CliStrings.LIST_INDEX);
+    gfsh.executeAndAssertThat(CliStrings.LIST_INDEX).statusIsSuccess();
     return gfsh.getGfshOutput().contains(indexName);
   }
 }
-

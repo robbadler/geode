@@ -21,11 +21,10 @@ import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
 
-import org.apache.geode.test.junit.categories.MembershipTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.distributed.internal.membership.InternalRole;
@@ -33,6 +32,7 @@ import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.MembershipTest;
 
 /**
  * Tests the setting of Roles in a DistributedSystem
@@ -62,7 +62,7 @@ public class RoleDUnitTest extends JUnit4DistributedTestCase {
 
     InternalDistributedSystem system = getSystem(distributionProperties);
     try {
-      DM dm = system.getDistributionManager();
+      DistributionManager dm = system.getDistributionManager();
       Set allRoles = dm.getAllRoles();
       assertEquals(rolesArray.length, allRoles.size());
 
@@ -114,7 +114,7 @@ public class RoleDUnitTest extends JUnit4DistributedTestCase {
       Host.getHost(0).getVM(vm).invoke(new SerializableRunnable("verify roles") {
         public void run() {
           InternalDistributedSystem sys = getSystem();
-          DM dm = sys.getDistributionManager();
+          DistributionManager dm = sys.getDistributionManager();
 
           Set allRoles = dm.getAllRoles();
           assertEquals(
@@ -156,7 +156,7 @@ public class RoleDUnitTest extends JUnit4DistributedTestCase {
 
     InternalDistributedSystem system = getSystem();
     try {
-      DM dm = system.getDistributionManager();
+      DistributionManager dm = system.getDistributionManager();
       InternalDistributedMember member = dm.getDistributionManagerId();
 
       Set roles = member.getRoles();
@@ -171,4 +171,3 @@ public class RoleDUnitTest extends JUnit4DistributedTestCase {
   }
 
 }
-

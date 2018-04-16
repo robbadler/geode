@@ -14,17 +14,7 @@
  */
 package org.apache.geode.internal.cache.wan.serial;
 
-import org.apache.geode.DataSerializable;
-import org.apache.geode.DataSerializer;
-import org.apache.geode.Instantiator;
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -33,6 +23,12 @@ import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.DataSerializable;
+import org.apache.geode.DataSerializer;
+import org.apache.geode.Instantiator;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.client.internal.locator.QueueConnectionRequest;
 import org.apache.geode.cache.client.internal.locator.QueueConnectionResponse;
@@ -51,11 +47,11 @@ import org.apache.geode.test.dunit.LogWriterUtils;
 import org.apache.geode.test.dunit.RMIException;
 import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
-/**
- * 
- */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class SerialGatewaySenderOperationsDUnitTest extends WANTestBase {
 
   private static final long serialVersionUID = 1L;
@@ -268,6 +264,54 @@ public class SerialGatewaySenderOperationsDUnitTest extends WANTestBase {
     vm5.invoke(() -> WANTestBase.validateQueueSizeStat("ln", 0));
   }
 
+  @Category({FlakyTest.class, WanTest.class}) // GEODE-5056
+  @Test
+  public void testRestartSerialGatewaySendersWhilePutting() throws Throwable {
+    Integer lnPort = (Integer) vm0.invoke(() -> WANTestBase.createFirstLocatorWithDSId(1));
+    Integer nyPort = (Integer) vm1.invoke(() -> WANTestBase.createFirstRemoteLocator(2, lnPort));
+
+    createCacheInVMs(nyPort, vm2, vm3);
+    createReceiverInVMs(vm2, vm3);
+
+    createSenderCaches(lnPort);
+
+    createSenderVM4();
+    createSenderVM5();
+
+    createReceiverRegions();
+
+    createSenderRegions();
+
+    vm7.invoke(() -> WANTestBase.doPuts(getTestMethodName() + "_RR", 20));
+
+    startSenderInVMs("ln", vm4, vm5);
+
+    vm7.invoke(() -> WANTestBase.doPuts(getTestMethodName() + "_RR", 20));
+
+    vm2.invoke(() -> WANTestBase.validateRegionSize(getTestMethodName() + "_RR", 20));
+    vm3.invoke(() -> WANTestBase.validateRegionSize(getTestMethodName() + "_RR", 20));
+
+    vm4.invoke(() -> WANTestBase.stopSender("ln"));
+    vm5.invoke(() -> WANTestBase.stopSender("ln"));
+
+    vm4.invoke(() -> SerialGatewaySenderOperationsDUnitTest.verifySenderStoppedState("ln"));
+    vm5.invoke(() -> SerialGatewaySenderOperationsDUnitTest.verifySenderStoppedState("ln"));
+
+    vm4.invoke(() -> WANTestBase.validateQueueSizeStat("ln", 0));
+    vm5.invoke(() -> WANTestBase.validateQueueSizeStat("ln", 0));
+
+    // do a lot of puts while senders are restarting
+    AsyncInvocation async = vm7.invokeAsync(() -> doPuts(getTestMethodName() + "_RR", 5000));
+
+    startSenderInVMsAsync("ln", vm4, vm5);
+    async.join();
+
+    vm4.invoke(() -> WANTestBase.validateQueueSizeStat("ln", 0));
+    vm5.invoke(() -> WANTestBase.validateQueueSizeStat("ln", 0));
+    vm4.invoke(() -> WANTestBase.validateSecondaryQueueSizeStat("ln", 0));
+    vm5.invoke(() -> WANTestBase.validateSecondaryQueueSizeStat("ln", 0));
+  }
+
   @Test
   public void testStopOneSerialGatewaySenderBothPrimary() throws Throwable {
     Integer lnPort = (Integer) vm0.invoke(() -> WANTestBase.createFirstLocatorWithDSId(1));
@@ -298,7 +342,7 @@ public class SerialGatewaySenderOperationsDUnitTest extends WANTestBase {
     vm2.invoke(() -> WANTestBase.validateRegionSize(getTestMethodName() + "_RR", 200));
     vm3.invoke(() -> WANTestBase.validateRegionSize(getTestMethodName() + "_RR", 200));
 
-    // Do some puts while restarting a sender
+    // Do some puts from both vm4 and vm5 while restarting a sender
     AsyncInvocation asyncPuts =
         vm4.invokeAsync(() -> WANTestBase.doPuts(getTestMethodName() + "_RR", 300));
 

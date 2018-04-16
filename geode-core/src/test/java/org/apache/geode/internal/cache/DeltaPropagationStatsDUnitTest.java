@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache;
 
 import static org.apache.geode.distributed.ConfigurationProperties.*;
@@ -119,8 +116,7 @@ public class DeltaPropagationStatsDUnitTest extends JUnit4DistributedTestCase {
 
   /**
    * No error or resending of delta.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testS2CDeltaPropagationCleanStats() throws Exception {
@@ -146,8 +142,7 @@ public class DeltaPropagationStatsDUnitTest extends JUnit4DistributedTestCase {
 
   /**
    * Simulates error in fromDelta() and toDelta()
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testS2CDeltaPropagationFailedStats1() throws Exception {
@@ -176,8 +171,7 @@ public class DeltaPropagationStatsDUnitTest extends JUnit4DistributedTestCase {
 
   /**
    * Simulates old value null, entry null, InvalidDeltaExeption
-   * 
-   * @throws Exception
+   *
    */
   @Ignore("TODO")
   @Test
@@ -185,8 +179,7 @@ public class DeltaPropagationStatsDUnitTest extends JUnit4DistributedTestCase {
 
   /**
    * No error or resending of delta.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testP2PDeltaPropagationCleanStats() throws Exception {
@@ -215,8 +208,7 @@ public class DeltaPropagationStatsDUnitTest extends JUnit4DistributedTestCase {
 
   /**
    * Simulates error in fromDelta()
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testP2PDeltaPropagationFailedStats1() throws Exception {
@@ -251,8 +243,7 @@ public class DeltaPropagationStatsDUnitTest extends JUnit4DistributedTestCase {
 
   /**
    * Simulates old value null, entry null
-   * 
-   * @throws Exception
+   *
    */
   @Ignore("TODO")
   @Test
@@ -260,8 +251,7 @@ public class DeltaPropagationStatsDUnitTest extends JUnit4DistributedTestCase {
 
   /**
    * No error or resending of delta.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testC2SDeltaPropagationCleanStats() throws Exception {
@@ -292,8 +282,7 @@ public class DeltaPropagationStatsDUnitTest extends JUnit4DistributedTestCase {
 
   /**
    * Simulates error in fromDelta() and toDelta()
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testC2SDeltaPropagationFailedStats1() throws Exception {
@@ -323,8 +312,7 @@ public class DeltaPropagationStatsDUnitTest extends JUnit4DistributedTestCase {
 
   /**
    * Simulates old value null, entry null
-   * 
-   * @throws Exception
+   *
    */
   @Ignore("TODO")
   @Test

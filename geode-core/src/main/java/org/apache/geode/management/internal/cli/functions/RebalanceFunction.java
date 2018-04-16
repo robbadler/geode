@@ -21,20 +21,17 @@ import java.util.concurrent.CancellationException;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.control.RebalanceFactory;
 import org.apache.geode.cache.control.RebalanceOperation;
 import org.apache.geode.cache.control.RebalanceResults;
 import org.apache.geode.cache.control.ResourceManager;
-import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.partition.PartitionRebalanceInfo;
-import org.apache.geode.internal.InternalEntity;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.logging.LogService;
 
 
-
-public class RebalanceFunction implements Function, InternalEntity {
+public class RebalanceFunction implements InternalFunction {
   private static final Logger logger = LogService.getLogger();
 
   public static final String ID = RebalanceFunction.class.getName();
@@ -48,7 +45,7 @@ public class RebalanceFunction implements Function, InternalEntity {
     RebalanceOperation op = null;
     String[] str = new String[0];
 
-    Cache cache = CacheFactory.getAnyInstance();
+    Cache cache = context.getCache();
     ResourceManager manager = cache.getResourceManager();
     Object[] args = (Object[]) context.getArguments();
     String simulate = ((String) args[0]);

@@ -15,290 +15,496 @@
 
 package org.apache.geode.management.internal.cli.commands;
 
-import static org.apache.geode.test.dunit.LogWriterUtils.getLogWriter;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.io.Serializable;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestName;
 
-import org.apache.geode.cache.PartitionAttributes;
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.PartitionResolver;
 import org.apache.geode.cache.Region;
+import org.apache.geode.cache.util.CacheListenerAdapter;
 import org.apache.geode.compression.SnappyCompressor;
-import org.apache.geode.internal.ClassBuilder;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.RegionEntryContext;
-import org.apache.geode.management.cli.Result;
-import org.apache.geode.management.internal.cli.i18n.CliStrings;
-import org.apache.geode.management.internal.cli.result.CommandResult;
-import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
-import org.apache.geode.test.dunit.Host;
-import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.compiler.JarBuilder;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
+import org.apache.geode.test.dunit.rules.MemberVM;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.GfshTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
+import org.apache.geode.test.junit.rules.serializable.SerializableTestName;
 
-@Category({DistributedTest.class, FlakyTest.class}) // GEODE-973 GEODE-3530
-@SuppressWarnings("serial")
-public class CreateRegionCommandDUnitTest extends CliCommandTestBase {
+@Category({DistributedTest.class, GfshTest.class})
+public class CreateRegionCommandDUnitTest {
 
-  private final List<String> filesToBeDeleted = new CopyOnWriteArrayList<>();
+  private static MemberVM locator, server1, server2;
 
-  /**
-   * Asserts that the "compressor" option for the "create region" command succeeds for a recognized
-   * compressor.
-   */
-  @Test
-  public void testCreateRegionWithGoodCompressor() {
-    setUpJmxManagerOnVm0ThenConnect(null);
-    VM vm = Host.getHost(0).getVM(1);
-
-    // Create a cache in vm 1
-    vm.invoke(() -> assertNotNull(getCache()));
-
-    // Run create region command with compression
-    CommandStringBuilder commandStringBuilder = new CommandStringBuilder(CliStrings.CREATE_REGION);
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGION, "compressedRegion");
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGIONSHORTCUT, "REPLICATE");
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__COMPRESSOR,
-        RegionEntryContext.DEFAULT_COMPRESSION_PROVIDER);
-    CommandResult cmdResult = executeCommand(commandStringBuilder.toString());
-    assertEquals(Result.Status.OK, cmdResult.getStatus());
-
-    // Make sure our region exists with compression enabled
-    vm.invoke(() -> {
-      Region region = getCache().getRegion("compressedRegion");
-      assertNotNull(region);
-      assertTrue(
-          SnappyCompressor.getDefaultInstance().equals(region.getAttributes().getCompressor()));
-    });
-
-    // cleanup
-    commandStringBuilder = new CommandStringBuilder(CliStrings.DESTROY_REGION);
-    commandStringBuilder.addOption(CliStrings.DESTROY_REGION__REGION, "compressedRegion");
-    cmdResult = executeCommand(commandStringBuilder.toString());
-    assertEquals(Result.Status.OK, cmdResult.getStatus());
+  public static class TestCacheListener extends CacheListenerAdapter implements Serializable {
   }
 
-  /**
-   * Asserts that the "compressor" option for the "create region" command fails for an unrecognized
-   * compressorc.
-   */
+  public static class AnotherTestCacheListener extends CacheListenerAdapter
+      implements Serializable {
+  }
+
+  @ClassRule
+  public static ClusterStartupRule lsRule = new ClusterStartupRule();
+
+  @ClassRule
+  public static GfshCommandRule gfsh = new GfshCommandRule();
+
+  @Rule
+  public TestName testName = new SerializableTestName();
+
+  @Rule
+  public TemporaryFolder tmpDir = new TemporaryFolder();
+
+  @BeforeClass
+  public static void before() throws Exception {
+    locator = lsRule.startLocatorVM(0);
+    server1 = lsRule.startServerVM(1, "group1", locator.getPort());
+    server2 = lsRule.startServerVM(2, "group2", locator.getPort());
+
+    gfsh.connectAndVerify(locator);
+  }
+
   @Test
-  public void testCreateRegionWithBadCompressor() {
-    setUpJmxManagerOnVm0ThenConnect(null);
+  public void testCreateRegionWithGoodCompressor() throws Exception {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat("create region --name=" + regionName
+        + " --type=REPLICATE --compressor=" + RegionEntryContext.DEFAULT_COMPRESSION_PROVIDER)
+        .statusIsSuccess();
 
-    VM vm = Host.getHost(0).getVM(1);
-
-    // Create a cache in vm 1
-    vm.invoke(() -> assertNotNull(getCache()));
-
-    // Create a region with an unrecognized compressor
-    CommandStringBuilder commandStringBuilder = new CommandStringBuilder(CliStrings.CREATE_REGION);
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGION, "compressedRegion");
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGIONSHORTCUT, "REPLICATE");
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__COMPRESSOR, "BAD_COMPRESSOR");
-    CommandResult cmdResult = executeCommand(commandStringBuilder.toString());
-    assertEquals(Result.Status.ERROR, cmdResult.getStatus());
-
-    // Assert that our region was not created
-    vm.invoke(() -> {
-      Region region = getCache().getRegion("compressedRegion");
-      assertNull(region);
+    server1.invoke(() -> {
+      Cache cache = ClusterStartupRule.getCache();
+      Region region = cache.getRegion(regionName);
+      assertThat(region).isNotNull();
+      assertThat(region.getAttributes().getCompressor())
+          .isEqualTo(SnappyCompressor.getDefaultInstance());
     });
   }
 
-  /**
-   * Asserts that a missing "compressor" option for the "create region" command results in a region
-   * with no compression.
-   */
   @Test
-  public void testCreateRegionWithNoCompressor() {
-    setUpJmxManagerOnVm0ThenConnect(null);
+  public void testCreateRegionWithBadCompressor() throws Exception {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat(
+        "create region --name=" + regionName + " --type=REPLICATE --compressor=BAD_COMPRESSOR")
+        .statusIsError();
 
-    VM vm = Host.getHost(0).getVM(1);
-
-    // Create a cache in vm 1
-    vm.invoke(() -> assertNotNull(getCache()));
-
-    // Create a region with no compression
-    CommandStringBuilder commandStringBuilder = new CommandStringBuilder(CliStrings.CREATE_REGION);
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGION, "testRegion");
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGIONSHORTCUT, "REPLICATE");
-    CommandResult cmdResult = executeCommand(commandStringBuilder.toString());
-    assertEquals(Result.Status.OK, cmdResult.getStatus());
-
-    // Assert that our newly created region has no compression
-    vm.invoke(() -> {
-      Region region = getCache().getRegion("testRegion");
-      assertNotNull(region);
-      assertNull(region.getAttributes().getCompressor());
+    server1.invoke(() -> {
+      Cache cache = ClusterStartupRule.getCache();
+      Region region = cache.getRegion(regionName);
+      assertThat(region).isNull();
     });
-
-    // Cleanup
-    commandStringBuilder = new CommandStringBuilder(CliStrings.DESTROY_REGION);
-    commandStringBuilder.addOption(CliStrings.DESTROY_REGION__REGION, "testRegion");
-    cmdResult = executeCommand(commandStringBuilder.toString());
-    assertEquals(Result.Status.OK, cmdResult.getStatus());
   }
 
-  @Test // FlakyTest: GEODE-973
-  public void testCreateRegion46391() throws IOException {
-    setUpJmxManagerOnVm0ThenConnect(null); // GEODE-973: getRandomAvailablePort
-    String region46391 = "region46391";
-    String command = CliStrings.CREATE_REGION + " --" + CliStrings.CREATE_REGION__REGION + "="
-        + region46391 + " --" + CliStrings.CREATE_REGION__REGIONSHORTCUT + "=REPLICATE";
-
-    getLogWriter().info("testCreateRegion46391 create region command=" + command);
-
-    CommandResult cmdResult = executeCommand(command);
-    assertEquals(Result.Status.OK, cmdResult.getStatus());
-
-    command = CliStrings.PUT + " --" + CliStrings.PUT__KEY + "=k1" + " --" + CliStrings.PUT__VALUE
-        + "=k1" + " --" + CliStrings.PUT__REGIONNAME + "=" + region46391;
-
-    getLogWriter().info("testCreateRegion46391 put command=" + command);
-
-    CommandResult cmdResult2 = executeCommand(command);
-    assertEquals(Result.Status.OK, cmdResult2.getStatus());
-
-    getLogWriter().info("testCreateRegion46391  cmdResult2=" + commandResultToString(cmdResult2));
-    String str1 = "Result      : true";
-    String str2 = "Key         : k1";
-    String str3 = "Key Class   : java.lang.String";
-    String str4 = "Value Class : java.lang.String";
-    String str5 = "Old Value   : <NULL>";
-
-    assertTrue(
-        commandResultToString(cmdResult).contains("Region \"/" + region46391 + "\" created on"));
-
-    assertTrue(commandResultToString(cmdResult2).contains(str1));
-    assertTrue(commandResultToString(cmdResult2).contains(str2));
-    assertTrue(commandResultToString(cmdResult2).contains(str3));
-    assertTrue(commandResultToString(cmdResult2).contains(str4));
-    assertTrue(commandResultToString(cmdResult2).contains(str5));
-  }
-
-  /**
-   * Test Description 1. Deploy a JAR with Custom Partition Resolver 2. Create Region with Partition
-   * Resolver 3. Region should get created with no Errors 4. Verify Region Partition Attributes for
-   * Partition Resolver
-   */
   @Test
-  public void testCreateRegionWithPartitionResolver() throws IOException {
-    setUpJmxManagerOnVm0ThenConnect(null);
-    VM vm = Host.getHost(0).getVM(1);
-    // Create a cache in vm 1
-    vm.invoke(() -> assertNotNull(getCache()));
+  public void testCreateRegionWithNoCompressor() throws Exception {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat("create region --name=" + regionName + " --type=REPLICATE")
+        .statusIsSuccess();
 
-    ClassBuilder classBuilder = new ClassBuilder();
-    // classBuilder.addToClassPath(".");
-    final File prJarFile = new File(temporaryFolder.getRoot().getCanonicalPath() + File.separator,
-        "myPartitionResolver.jar");
-    this.filesToBeDeleted.add(prJarFile.getAbsolutePath());
-    String PR_STRING = " package com.cadrdunit;"
-        + " public class TestPartitionResolver implements org.apache.geode.cache.PartitionResolver { "
+    server1.invoke(() -> {
+      Cache cache = ClusterStartupRule.getCache();
+      Region region = cache.getRegion(regionName);
+      assertThat(region).isNotNull();
+      assertThat(region.getAttributes().getCompressor()).isNull();
+    });
+  }
+
+  @Test
+  public void testCreateRegionWithPartitionResolver() throws Exception {
+    String regionName = testName.getMethodName();
+    String PR_STRING = "package io.pivotal; "
+        + "public class TestPartitionResolver implements org.apache.geode.cache.PartitionResolver { "
         + "   @Override" + "   public void close() {" + "   }" + "   @Override"
         + "   public Object getRoutingObject(org.apache.geode.cache.EntryOperation opDetails) { "
         + "    return null; " + "   }" + "   @Override" + "   public String getName() { "
         + "    return \"TestPartitionResolver\";" + "   }" + " }";
-    byte[] jarBytes =
-        classBuilder.createJarFromClassContent("com/cadrdunit/TestPartitionResolver", PR_STRING);
-    writeJarBytesToFile(prJarFile, jarBytes);
+    final File prJarFile = new File(tmpDir.getRoot(), "myPartitionResolver.jar");
+    new JarBuilder().buildJar(prJarFile, PR_STRING);
 
-    CommandResult cmdResult = executeCommand("deploy --jar=" + prJarFile.getAbsolutePath());
-    assertEquals(Result.Status.OK, cmdResult.getStatus());
+    gfsh.executeAndAssertThat("deploy --jar=" + prJarFile.getAbsolutePath()).statusIsSuccess();
 
+    gfsh.executeAndAssertThat("create region --name=" + regionName
+        + " --type=PARTITION --partition-resolver=io.pivotal.TestPartitionResolver")
+        .statusIsSuccess();
 
-    // Create a region with an unrecognized compressor
-    CommandStringBuilder commandStringBuilder = new CommandStringBuilder(CliStrings.CREATE_REGION);
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGION, "regionWithPartitionResolver");
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGIONSHORTCUT, "PARTITION");
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__PARTITION_RESOLVER,
-        "com.cadrdunit.TestPartitionResolver");
-    CommandResult cmdResult1 = executeCommand(commandStringBuilder.toString());
-    assertEquals(Result.Status.OK, cmdResult1.getStatus());
-
-    // Assert that our region was not created
-    vm.invoke(() -> {
-      Region region = getCache().getRegion("regionWithPartitionResolver");
-      assertNotNull(region);
-
-      PartitionedRegion pr = (PartitionedRegion) region;
-      PartitionAttributes partitionAttributes = pr.getPartitionAttributes();
-      assertNotNull(partitionAttributes);
-      PartitionResolver partitionResolver = partitionAttributes.getPartitionResolver();
-      assertNotNull(partitionResolver);
-      assertEquals("TestPartitionResolver", partitionResolver.getName());
+    server1.invoke(() -> {
+      Cache cache = ClusterStartupRule.getCache();
+      PartitionedRegion region = (PartitionedRegion) cache.getRegion(regionName);
+      PartitionResolver resolver = region.getPartitionAttributes().getPartitionResolver();
+      assertThat(resolver).isNotNull();
+      assertThat(resolver.getName()).isEqualTo("TestPartitionResolver");
     });
-
-    vm.invoke(() -> getCache().getRegion("regionWithPartitionResolver").destroyRegion());
   }
 
   @Test
-  public void testCreateRegionWithInvalidPartitionResolver() {
-    setUpJmxManagerOnVm0ThenConnect(null);
-    VM vm = Host.getHost(0).getVM(1);
-    // Create a cache in vm 1
-    vm.invoke(() -> assertNotNull(getCache()));
-
-    // Create a region with an unrecognized compressor
-    CommandStringBuilder commandStringBuilder = new CommandStringBuilder(CliStrings.CREATE_REGION);
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGION,
-        "testCreateRegionWithInvalidPartitionResolver");
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGIONSHORTCUT, "PARTITION");
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__PARTITION_RESOLVER, "a.b.c.d");
-    CommandResult cmdResult = executeCommand(commandStringBuilder.toString());
-    assertEquals(Result.Status.ERROR, cmdResult.getStatus());
-
-    // Assert that our region was not created
-    vm.invoke(() -> {
-      Region region = getCache().getRegion("testCreateRegionWithInvalidPartitionResolver");
-      assertNull(region);
-    });
+  public void testCreateRegionWithInvalidPartitionResolver() throws Exception {
+    gfsh.executeAndAssertThat("create region --name=" + testName.getMethodName()
+        + " --type=PARTITION --partition-resolver=InvalidPartitionResolver").statusIsError();
   }
 
-  /**
-   * Test Description Try creating region of type REPLICATED and specify partition resolver Region
-   * Creation should fail.
-   */
   @Test
-  public void testCreateRegionForReplicatedRegionWithParitionResolver() {
-    setUpJmxManagerOnVm0ThenConnect(null);
-    VM vm = Host.getHost(0).getVM(1);
-    // Create a cache in vm 1
-    vm.invoke(() -> assertNotNull(getCache()));
+  public void testCreateRegionForReplicatedRegionWithPartitionResolver() {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat("create region --name=" + regionName
+        + " --type=REPLICATE --partition-resolver=InvalidPartitionResolver")
+        .containsOutput("\"/" + regionName + "\" is not a Partitioned Region").statusIsError();
+  }
 
-    // Create a region with an unrecognized compressor
-    CommandStringBuilder commandStringBuilder = new CommandStringBuilder(CliStrings.CREATE_REGION);
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGION,
-        "testCreateRegionForReplicatedRegionWithParitionResolver");
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__REGIONSHORTCUT, "REPLICATE");
-    commandStringBuilder.addOption(CliStrings.CREATE_REGION__PARTITION_RESOLVER, "a.b.c.d");
-    CommandResult cmdResult = executeCommand(commandStringBuilder.toString());
-    assertEquals(Result.Status.ERROR, cmdResult.getStatus());
+  @Test
+  public void overrideListenerFromTemplate() throws Exception {
+    gfsh.executeAndAssertThat("create region --name=/TEMPLATE --type=PARTITION_REDUNDANT"
+        + " --cache-listener=" + TestCacheListener.class.getName()).statusIsSuccess();
 
-    // Assert that our region was not created
-    vm.invoke(() -> {
-      Region region =
-          getCache().getRegion("testCreateRegionForReplicatedRegionWithParitionResolver");
-      assertNull(region);
+    gfsh.executeAndAssertThat("create region --name=/COPY --template-region=/TEMPLATE"
+        + " --cache-listener=" + AnotherTestCacheListener.class.getName()).statusIsSuccess();
+
+    server1.getVM().invoke(() -> {
+      Region copy = ClusterStartupRule.getCache().getRegion("/COPY");
+
+      assertThat(Arrays.stream(copy.getAttributes().getCacheListeners())
+          .map(c -> c.getClass().getName()).collect(Collectors.toSet()))
+              .containsExactly(AnotherTestCacheListener.class.getName());
     });
+
+    gfsh.executeAndAssertThat("destroy region --name=/COPY").statusIsSuccess();
+    gfsh.executeAndAssertThat("destroy region --name=/TEMPLATE").statusIsSuccess();
   }
 
-  private void writeJarBytesToFile(File jarFile, byte[] jarBytes) throws IOException {
-    final OutputStream outStream = new FileOutputStream(jarFile);
-    outStream.write(jarBytes);
-    outStream.flush();
-    outStream.close();
+  @Test
+  public void ensureOverridingCallbacksFromTemplateDoNotRequireClassesOnLocator() throws Exception {
+    final File prJarFile = new File(tmpDir.getRoot(), "myCacheListener.jar");
+    new JarBuilder().buildJar(prJarFile, getUniversalClassCode("MyCallback"),
+        getUniversalClassCode("MyNewCallback"));
+    gfsh.executeAndAssertThat("deploy --jar=" + prJarFile.getAbsolutePath()).statusIsSuccess();
+
+    String myCallback = "io.pivotal.MyCallback";
+    gfsh.executeAndAssertThat(
+        String
+            .format(
+                "create region --name=/TEMPLATE --type=PARTITION_REDUNDANT "
+                    + "--cache-listener=%1$s " + "--cache-loader=%1$s " + "--cache-writer=%1$s "
+                    + "--compressor=%1$s " + "--key-constraint=%1$s " + "--value-constraint=%1$s",
+                myCallback))
+        .statusIsSuccess();
+
+    String myNewCallback = "io.pivotal.MyNewCallback";
+    gfsh.executeAndAssertThat(String
+        .format("create region --name=/COPY --template-region=/TEMPLATE " + "--cache-listener=%1$s "
+            + "--cache-loader=%1$s " + "--cache-writer=%1$s " + "--compressor=%1$s "
+            + "--key-constraint=%1$s " + "--value-constraint=%1$s", myNewCallback))
+        .statusIsSuccess();
+
+    server1.getVM().invoke(() -> {
+      Region copy = ClusterStartupRule.getCache().getRegion("/COPY");
+
+      assertThat(Arrays.stream(copy.getAttributes().getCacheListeners())
+          .map(c -> c.getClass().getName()).collect(Collectors.toSet()))
+              .containsExactly(myNewCallback);
+
+      assertThat(copy.getAttributes().getCacheLoader().getClass().getName())
+          .isEqualTo(myNewCallback);
+
+      assertThat(copy.getAttributes().getCacheWriter().getClass().getName())
+          .isEqualTo(myNewCallback);
+
+      assertThat(copy.getAttributes().getCompressor().getClass().getName())
+          .isEqualTo(myNewCallback);
+
+      assertThat(copy.getAttributes().getKeyConstraint().getName()).isEqualTo(myNewCallback);
+
+      assertThat(copy.getAttributes().getValueConstraint().getName()).isEqualTo(myNewCallback);
+    });
+
+    gfsh.executeAndAssertThat("destroy region --name=/COPY").statusIsSuccess();
+    gfsh.executeAndAssertThat("destroy region --name=/TEMPLATE").statusIsSuccess();
   }
+
+  @Test
+  public void ensureNewCallbacksFromTemplateDoNotRequireClassesOnLocator() throws Exception {
+    final File prJarFile = new File(tmpDir.getRoot(), "myCacheListener.jar");
+    new JarBuilder().buildJar(prJarFile, getUniversalClassCode("MyNewCallback"));
+    gfsh.executeAndAssertThat("deploy --jar=" + prJarFile.getAbsolutePath()).statusIsSuccess();
+
+    gfsh.executeAndAssertThat("create region --name=/TEMPLATE --type=PARTITION_REDUNDANT")
+        .statusIsSuccess();
+
+    String myNewCallback = "io.pivotal.MyNewCallback";
+    gfsh.executeAndAssertThat(String
+        .format("create region --name=/COPY --template-region=/TEMPLATE " + "--cache-listener=%1$s "
+            + "--cache-loader=%1$s " + "--cache-writer=%1$s " + "--compressor=%1$s "
+            + "--key-constraint=%1$s " + "--value-constraint=%1$s", myNewCallback))
+        .statusIsSuccess();
+
+    server1.getVM().invoke(() -> {
+      Region copy = ClusterStartupRule.getCache().getRegion("/COPY");
+
+      assertThat(Arrays.stream(copy.getAttributes().getCacheListeners())
+          .map(c -> c.getClass().getName()).collect(Collectors.toSet()))
+              .containsExactly(myNewCallback);
+
+      assertThat(copy.getAttributes().getCacheLoader().getClass().getName())
+          .isEqualTo(myNewCallback);
+
+      assertThat(copy.getAttributes().getCacheWriter().getClass().getName())
+          .isEqualTo(myNewCallback);
+
+      assertThat(copy.getAttributes().getCompressor().getClass().getName())
+          .isEqualTo(myNewCallback);
+
+      assertThat(copy.getAttributes().getKeyConstraint().getName()).isEqualTo(myNewCallback);
+
+      assertThat(copy.getAttributes().getValueConstraint().getName()).isEqualTo(myNewCallback);
+    });
+
+    gfsh.executeAndAssertThat("destroy region --name=/COPY").statusIsSuccess();
+    gfsh.executeAndAssertThat("destroy region --name=/TEMPLATE").statusIsSuccess();
+  }
+
+  @Test
+  public void ensureOriginalCallbacksFromTemplateDoNotRequireClassesOnLocator() throws Exception {
+    final File prJarFile = new File(tmpDir.getRoot(), "myCacheListener.jar");
+    new JarBuilder().buildJar(prJarFile, getUniversalClassCode("MyCallback"));
+    gfsh.executeAndAssertThat("deploy --jar=" + prJarFile.getAbsolutePath()).statusIsSuccess();
+
+    String myCallback = "io.pivotal.MyCallback";
+    gfsh.executeAndAssertThat(
+        String
+            .format(
+                "create region --name=/TEMPLATE --type=PARTITION_REDUNDANT "
+                    + "--cache-listener=%1$s " + "--cache-loader=%1$s " + "--cache-writer=%1$s "
+                    + "--compressor=%1$s " + "--key-constraint=%1$s " + "--value-constraint=%1$s",
+                myCallback))
+        .statusIsSuccess();
+
+    gfsh.executeAndAssertThat("create region --name=/COPY --template-region=/TEMPLATE")
+        .statusIsSuccess();
+
+    server1.getVM().invoke(() -> {
+      Region copy = ClusterStartupRule.getCache().getRegion("/COPY");
+
+      assertThat(Arrays.stream(copy.getAttributes().getCacheListeners())
+          .map(c -> c.getClass().getName()).collect(Collectors.toSet()))
+              .containsExactly(myCallback);
+
+      assertThat(copy.getAttributes().getCacheLoader().getClass().getName()).isEqualTo(myCallback);
+
+      assertThat(copy.getAttributes().getCacheWriter().getClass().getName()).isEqualTo(myCallback);
+
+      assertThat(copy.getAttributes().getCompressor().getClass().getName()).isEqualTo(myCallback);
+
+      assertThat(copy.getAttributes().getKeyConstraint().getName()).isEqualTo(myCallback);
+
+      assertThat(copy.getAttributes().getValueConstraint().getName()).isEqualTo(myCallback);
+    });
+
+    gfsh.executeAndAssertThat("destroy region --name=/COPY").statusIsSuccess();
+    gfsh.executeAndAssertThat("destroy region --name=/TEMPLATE").statusIsSuccess();
+  }
+
+  @Test
+  public void startWithNonProxyRegion() {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat("create region --type=REPLICATE --group=group1 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-1");
+    gfsh.executeAndAssertThat("create region --type=REPLICATE --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("Region /" + regionName + " already exists on the cluster");
+
+    gfsh.executeAndAssertThat("create region --type=PARTITION --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("Region /" + regionName + " already exists on the cluster");
+
+    gfsh.executeAndAssertThat(
+        "create region --type=REPLICATE_PROXY --group=group2 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-2");
+
+    locator.waitTillRegionsAreReadyOnServers("/" + regionName, 2);
+
+    gfsh.executeAndAssertThat(
+        "create region --type=PARTITION_PROXY --group=group2 --name=" + regionName).statusIsError()
+        .containsOutput("The existing region is not a partitioned region");
+  }
+
+  @Test
+  public void startWithReplicateProxyRegion() {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat(
+        "create region --type=REPLICATE_PROXY --group=group1 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-1");
+    gfsh.executeAndAssertThat("create region --type=REPLICATE --group=group2 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-2");
+
+    locator.waitTillRegionsAreReadyOnServers("/" + regionName, 2);
+    // the following two should fail with name check on locator, not on server
+    gfsh.executeAndAssertThat("create region --type=PARTITION --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("Region /" + regionName + " already exists on the cluster");
+    gfsh.executeAndAssertThat(
+        "create region --type=PARTITION_PROXY --group=group2 --name=" + regionName).statusIsError()
+        .containsOutput("The existing region is not a partitioned region");
+  }
+
+  @Test
+  public void startWithReplicateProxyThenPartitionRegion() {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat(
+        "create region --type=REPLICATE_PROXY --group=group1 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-1");
+    gfsh.executeAndAssertThat("create region --type=PARTITION --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("The existing region is not a partitioned region");
+    gfsh.executeAndAssertThat(
+        "create region --type=PARTITION_PROXY --group=group2 --name=" + regionName).statusIsError()
+        .containsOutput("The existing region is not a partitioned region");
+    gfsh.executeAndAssertThat("create region --type=LOCAL --group=group2 --name=" + regionName)
+        .statusIsError();
+  }
+
+  @Test
+  public void startWithPartitionProxyThenReplicate() {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat(
+        "create region --type=PARTITION_PROXY --group=group1 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-1");
+    gfsh.executeAndAssertThat("create region --type=REPLICATE --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("The existing region is not a replicate region");
+    gfsh.executeAndAssertThat(
+        "create region --type=REPLICATE_PROXY --group=group2 --name=" + regionName).statusIsError()
+        .containsOutput("The existing region is not a replicate region");
+    gfsh.executeAndAssertThat("create region --type=LOCAL --group=group2 --name=" + regionName)
+        .statusIsError();
+  }
+
+  @Test
+  public void startWithLocalPersistent() {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat(
+        "create region --type=LOCAL_PERSISTENT --group=group1 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-1");
+    gfsh.executeAndAssertThat("create region --type=REPLICATE --group=group2 --name=" + regionName)
+        .statusIsError()
+        .containsOutput("Region /startWithLocalPersistent already exists on the cluster");
+    gfsh.executeAndAssertThat("create region --type=LOCAL --group=group2 --name=" + regionName)
+        .statusIsError()
+        .containsOutput("Region /startWithLocalPersistent already exists on the cluster");
+  }
+
+  @Test
+  public void startWithReplicateHeapLRU() {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat(
+        "create region --type=REPLICATE_HEAP_LRU --group=group1 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-1");
+    gfsh.executeAndAssertThat("create region --type=REPLICATE --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("already exists on the cluster");
+    gfsh.executeAndAssertThat("create region --type=LOCAL --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("already exists on the cluster");
+    gfsh.executeAndAssertThat(
+        "create region --type=REPLICATE_PROXY --group=group2 --name=" + regionName)
+        .statusIsSuccess();
+  }
+
+  @Test
+  public void startWithReplicateThenPartition() {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat("create region --type=REPLICATE --group=group1 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-1");
+    gfsh.executeAndAssertThat("create region --type=PARTITION --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("already exists on the cluster");
+    gfsh.executeAndAssertThat(
+        "create region --type=PARTITION_PROXY --group=group2 --name=" + regionName).statusIsError()
+        .containsOutput("The existing region is not a partitioned region");
+    gfsh.executeAndAssertThat("create region --type=LOCAL --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("already exists on the cluster");
+    gfsh.executeAndAssertThat(
+        "create region --type=REPLICATE_PROXY --group=group1 --name=" + regionName).statusIsError()
+        .containsOutput("already exists on these members: server-1");
+  }
+
+  @Test
+  public void startWithPartitionThenReplicate() {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat("create region --type=PARTITION --group=group1 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-1");
+    gfsh.executeAndAssertThat("create region --type=REPLICATE --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("already exists on the cluster");
+    gfsh.executeAndAssertThat(
+        "create region --type=REPLICATE_PROXY --group=group2 --name=" + regionName).statusIsError()
+        .containsOutput("The existing region is not a replicate region");
+    gfsh.executeAndAssertThat("create region --type=LOCAL --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("already exists on the cluster");
+    gfsh.executeAndAssertThat(
+        "create region --type=PARTITION_PROXY --group=group1 --name=" + regionName).statusIsError()
+        .containsOutput("already exists on these members: server-1");
+  }
+
+  @Test
+  public void startWithPartitionProxyRegion() {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat(
+        "create region --type=PARTITION_PROXY --group=group1 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-1");
+    gfsh.executeAndAssertThat("create region --type=PARTITION --group=group1 --name=" + regionName)
+        .statusIsError().containsOutput("already exists on these members: server-1");
+    gfsh.executeAndAssertThat("create region --type=PARTITION --group=group2 --name=" + regionName)
+        .statusIsSuccess().tableHasRowWithValues("Member", "server-2");
+
+    locator.waitTillRegionsAreReadyOnServers("/" + regionName, 2);
+    gfsh.executeAndAssertThat("create region --type=PARTITION --group=group2 --name=" + regionName)
+        .statusIsError().containsOutput("Region /" + regionName + " already exists on the cluster");
+    gfsh.executeAndAssertThat(
+        "create region --type=REPLICATE_PROXY --group=group2 --name=" + regionName).statusIsError()
+        .containsOutput("The existing region is not a replicate region");
+    gfsh.executeAndAssertThat(
+        "create region --type=PARTITION_PROXY --group=group1 --name=" + regionName).statusIsError()
+        .containsOutput("already exists on these members: server-1");
+  }
+
+  @Test
+  public void startWithLocalRegion() {
+    String regionName = testName.getMethodName();
+    gfsh.executeAndAssertThat("create region --type=LOCAL --group=group1 --name=" + regionName)
+        .statusIsSuccess();
+    gfsh.executeAndAssertThat("create region --type=REPLICATE --name=" + regionName).statusIsError()
+        .containsOutput("Region /startWithLocalRegion already exists on the cluster.");
+    gfsh.executeAndAssertThat("create region --type=PARTITION --group=group2 --name=" + regionName)
+        .statusIsError()
+        .containsOutput("Region /startWithLocalRegion already exists on the cluster.");
+    gfsh.executeAndAssertThat(
+        "create region --type=PARTITION_PROXY --group=group2 --name=" + regionName).statusIsError()
+        .containsOutput("Region /startWithLocalRegion already exists on the cluster");
+  }
+
+  private String getUniversalClassCode(String classname) {
+    String code = "package io.pivotal;" + "import org.apache.geode.cache.CacheLoader;"
+        + "import org.apache.geode.cache.CacheLoaderException;"
+        + "import org.apache.geode.cache.CacheWriter;"
+        + "import org.apache.geode.cache.CacheWriterException;"
+        + "import org.apache.geode.cache.EntryEvent;"
+        + "import org.apache.geode.cache.LoaderHelper;"
+        + "import org.apache.geode.cache.RegionEvent;"
+        + "import org.apache.geode.cache.util.CacheListenerAdapter;"
+        + "import org.apache.geode.compression.Compressor;" + "public class " + classname
+        + " extends CacheListenerAdapter "
+        + "implements CacheWriter, CacheLoader, Compressor, java.io.Serializable {"
+        + "public void beforeUpdate(EntryEvent event) throws CacheWriterException {}"
+        + "public void beforeCreate(EntryEvent event) throws CacheWriterException {}"
+        + "public void beforeDestroy(EntryEvent event) throws CacheWriterException {}"
+        + "public void beforeRegionDestroy(RegionEvent event) throws CacheWriterException {}"
+        + "public void beforeRegionClear(RegionEvent event) throws CacheWriterException {}"
+        + "public Object load(LoaderHelper helper) throws CacheLoaderException { return null; }"
+        + "public byte[] compress(byte[] input) { return new byte[0]; }"
+        + "public byte[] decompress(byte[] input) { return new byte[0]; }" + "}";
+    return code;
+  }
+
 }

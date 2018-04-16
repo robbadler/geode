@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- *
- */
 package org.apache.geode.internal.cache;
 
 import java.io.File;
@@ -23,11 +20,12 @@ import java.util.UUID;
 
 import org.apache.geode.cache.DiskStore;
 import org.apache.geode.cache.DiskStoreFactory;
+import org.apache.geode.internal.cache.persistence.DefaultDiskDirs;
 
 /**
  * Creates an attribute object for DiskStore.
  * </p>
- * 
+ *
  * @since GemFire prPersistSprint2
  */
 public class DiskStoreAttributes implements Serializable, DiskStore {
@@ -61,7 +59,7 @@ public class DiskStoreAttributes implements Serializable, DiskStore {
     this.timeInterval = DiskStoreFactory.DEFAULT_TIME_INTERVAL;
     this.writeBufferSize = DiskStoreFactory.DEFAULT_WRITE_BUFFER_SIZE;
     this.queueSize = DiskStoreFactory.DEFAULT_QUEUE_SIZE;
-    this.diskDirs = DiskStoreFactory.DEFAULT_DISK_DIRS;
+    this.diskDirs = DefaultDiskDirs.getDefaultDiskDirs();
     this.diskDirSizes = DiskStoreFactory.DEFAULT_DISK_DIR_SIZES;
     this.diskUsageWarningPct = DiskStoreFactory.DEFAULT_DISK_USAGE_WARNING_PERCENTAGE;
     this.diskUsageCriticalPct = DiskStoreFactory.DEFAULT_DISK_USAGE_CRITICAL_PERCENTAGE;
@@ -73,7 +71,7 @@ public class DiskStoreAttributes implements Serializable, DiskStore {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.DiskStore#getAllowForceCompaction()
    */
   public boolean getAllowForceCompaction() {
@@ -82,7 +80,7 @@ public class DiskStoreAttributes implements Serializable, DiskStore {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.DiskStore#getAutoCompact()
    */
   public boolean getAutoCompact() {
@@ -91,7 +89,7 @@ public class DiskStoreAttributes implements Serializable, DiskStore {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.DiskStore#getCompactionThreshold()
    */
   public int getCompactionThreshold() {
@@ -100,7 +98,7 @@ public class DiskStoreAttributes implements Serializable, DiskStore {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.DiskStore#getDiskDirSizes()
    */
   public int[] getDiskDirSizes() {
@@ -111,7 +109,7 @@ public class DiskStoreAttributes implements Serializable, DiskStore {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.DiskStore#getDiskDirs()
    */
   public File[] getDiskDirs() {
@@ -122,7 +120,7 @@ public class DiskStoreAttributes implements Serializable, DiskStore {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.DiskStore#getMaxOplogSize()
    */
   public long getMaxOplogSize() {
@@ -139,7 +137,7 @@ public class DiskStoreAttributes implements Serializable, DiskStore {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.DiskStore#getName()
    */
   public String getName() {
@@ -148,7 +146,7 @@ public class DiskStoreAttributes implements Serializable, DiskStore {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.DiskStore#getQueueSize()
    */
   public int getQueueSize() {
@@ -157,7 +155,7 @@ public class DiskStoreAttributes implements Serializable, DiskStore {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.DiskStore#getTimeInterval()
    */
   public long getTimeInterval() {
@@ -166,7 +164,7 @@ public class DiskStoreAttributes implements Serializable, DiskStore {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.DiskStore#getWriteBufferSize()
    */
   public int getWriteBufferSize() {

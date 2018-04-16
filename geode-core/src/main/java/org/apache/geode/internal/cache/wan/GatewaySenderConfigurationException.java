@@ -12,17 +12,14 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.wan;
 
 /**
  * An exception indicating that a gateway configuration will not work with the remote side of the
  * gateway's configuration.
- * 
+ *
  * @since GemFire 7.0
- * 
+ *
  */
 public class GatewaySenderConfigurationException extends GatewaySenderException {
   private static final long serialVersionUID = 1L;

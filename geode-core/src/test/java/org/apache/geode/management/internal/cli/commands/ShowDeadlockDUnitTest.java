@@ -17,6 +17,7 @@ package org.apache.geode.management.internal.cli.commands;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -33,18 +34,19 @@ import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.ResultCollector;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.distributed.internal.deadlock.GemFireDeadlockDetectorDUnitTest;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.test.concurrent.FileBasedCountDownLatch;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
 import org.apache.geode.test.dunit.rules.MemberVM;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 
 /**
  * Distributed tests for show deadlock command in {@link ShowDeadlockCommand}.
- * 
+ *
  * @see GemFireDeadlockDetectorDUnitTest
  */
 @Category(DistributedTest.class)
@@ -59,13 +61,13 @@ public class ShowDeadlockDUnitTest {
   private String showDeadlockCommand;
 
   @Rule
-  public LocatorServerStartupRule lsRule = new LocatorServerStartupRule();
+  public ClusterStartupRule lsRule = new ClusterStartupRule();
 
   @Rule
   public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
   @Rule
-  public GfshShellConnectionRule gfsh = new GfshShellConnectionRule();
+  public GfshCommandRule gfsh = new GfshCommandRule();
 
   @Before
   public void setup() throws Exception {
@@ -74,8 +76,12 @@ public class ShowDeadlockDUnitTest {
     outputFile.delete();
 
     MemberVM locator = lsRule.startLocatorVM(0);
-    server1 = lsRule.startServerVM(1, locator.getPort());
-    server2 = lsRule.startServerVM(2, locator.getPort());
+
+    Properties props = new Properties();
+    props.setProperty(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.management.internal.cli.commands.ShowDeadlockDUnitTest*");
+    server1 = lsRule.startServerVM(1, props, locator.getPort());
+    server2 = lsRule.startServerVM(2, props, locator.getPort());
 
     gfsh.connect(locator);
   }
@@ -88,7 +94,7 @@ public class ShowDeadlockDUnitTest {
 
   @Test
   public void testNoDeadlock() throws Exception {
-    gfsh.executeAndVerifyCommand(showDeadlockCommand);
+    gfsh.executeAndAssertThat(showDeadlockCommand).statusIsSuccess();
     String commandOutput = gfsh.getGfshOutput();
 
     assertThat(commandOutput).startsWith(CliStrings.SHOW_DEADLOCK__NO__DEADLOCK);
@@ -105,7 +111,7 @@ public class ShowDeadlockDUnitTest {
     lockTheLocks(server2, server1, countDownLatch);
 
     Awaitility.await().atMost(5, TimeUnit.MINUTES).pollDelay(5, TimeUnit.SECONDS).until(() -> {
-      gfsh.executeAndVerifyCommand(showDeadlockCommand);
+      gfsh.executeAndAssertThat(showDeadlockCommand).statusIsSuccess();
       String commandOutput = gfsh.getGfshOutput();
       assertThat(commandOutput).startsWith(CliStrings.SHOW_DEADLOCK__DEADLOCK__DETECTED);
       assertThat(outputFile).exists();
@@ -133,8 +139,8 @@ public class ShowDeadlockDUnitTest {
   }
 
   private static InternalDistributedMember getInternalDistributedMember(MemberVM memberVM) {
-    return memberVM.getVM().invoke(() -> LocatorServerStartupRule.serverStarter.getCache()
-        .getInternalDistributedSystem().getDistributedMember());
+    return memberVM.getVM().invoke(
+        () -> ClusterStartupRule.getCache().getInternalDistributedSystem().getDistributedMember());
   }
 
   private static class LockFunction implements Function<Object> {
@@ -149,4 +155,3 @@ public class ShowDeadlockDUnitTest {
     }
   }
 }
-

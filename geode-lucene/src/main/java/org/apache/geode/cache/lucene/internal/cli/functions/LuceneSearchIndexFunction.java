@@ -20,40 +20,33 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.execute.FunctionAdapter;
+import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
-import org.apache.geode.cache.lucene.LuceneQuery;
-import org.apache.geode.cache.lucene.LuceneQueryException;
-import org.apache.geode.cache.lucene.LuceneResultStruct;
-import org.apache.geode.cache.lucene.LuceneService;
-import org.apache.geode.cache.lucene.LuceneServiceProvider;
-import org.apache.geode.cache.lucene.PageableLuceneQueryResults;
+import org.apache.geode.cache.lucene.*;
 import org.apache.geode.cache.lucene.internal.cli.LuceneIndexDetails;
 import org.apache.geode.cache.lucene.internal.cli.LuceneIndexInfo;
 import org.apache.geode.cache.lucene.internal.cli.LuceneQueryInfo;
 import org.apache.geode.cache.lucene.internal.cli.LuceneSearchResults;
 import org.apache.geode.internal.InternalEntity;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 
 /**
  * The LuceneSearchIndexFunction class is a function used to collect the information on a particular
  * lucene index.
  * </p>
- * 
+ *
  * @see Cache
  * @see org.apache.geode.cache.execute.Function
- * @see FunctionAdapter
+ * @see Function
  * @see FunctionContext
  * @see InternalEntity
  * @see LuceneIndexDetails
  * @see LuceneIndexInfo
  */
 @SuppressWarnings("unused")
-public class LuceneSearchIndexFunction<K, V> extends FunctionAdapter implements InternalEntity {
+public class LuceneSearchIndexFunction<K, V> implements InternalFunction {
 
-  protected Cache getCache() {
-    return CacheFactory.getAnyInstance();
-  }
+  private static final long serialVersionUID = 163818919780803222L;
 
   public String getId() {
     return LuceneSearchIndexFunction.class.getName();
@@ -61,10 +54,10 @@ public class LuceneSearchIndexFunction<K, V> extends FunctionAdapter implements 
 
   public void execute(final FunctionContext context) {
     Set<LuceneSearchResults> result = new HashSet<>();
-    final Cache cache = getCache();
+    final Cache cache = context.getCache();
     final LuceneQueryInfo queryInfo = (LuceneQueryInfo) context.getArguments();
 
-    LuceneService luceneService = LuceneServiceProvider.get(getCache());
+    LuceneService luceneService = LuceneServiceProvider.get(context.getCache());
     try {
       if (luceneService.getIndex(queryInfo.getIndexName(), queryInfo.getRegionPath()) == null) {
         throw new Exception("Index " + queryInfo.getIndexName() + " not found on region "
@@ -97,4 +90,3 @@ public class LuceneSearchIndexFunction<K, V> extends FunctionAdapter implements 
     }
   }
 }
-

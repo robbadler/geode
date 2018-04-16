@@ -15,20 +15,60 @@
 
 package org.apache.geode.internal.cache;
 
-import org.apache.geode.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.Externalizable;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.CancelException;
+import org.apache.geode.DataSerializable;
+import org.apache.geode.DataSerializer;
+import org.apache.geode.InternalGemFireError;
+import org.apache.geode.InternalGemFireException;
+import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.DiskAccessException;
-import org.apache.geode.cache.Operation;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.query.internal.CqStateImpl;
 import org.apache.geode.cache.query.internal.DefaultQueryService;
 import org.apache.geode.cache.query.internal.cq.CqService;
 import org.apache.geode.cache.query.internal.cq.ServerCQ;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.distributed.internal.*;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.DistributionMessage;
+import org.apache.geode.distributed.internal.HighPriorityDistributionMessage;
+import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.distributed.internal.MessageWithReply;
+import org.apache.geode.distributed.internal.ReplyException;
+import org.apache.geode.distributed.internal.ReplyMessage;
+import org.apache.geode.distributed.internal.ReplyProcessor21;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
-import org.apache.geode.internal.*;
+import org.apache.geode.internal.Assert;
+import org.apache.geode.internal.ByteArrayDataInput;
+import org.apache.geode.internal.DataSerializableFixedID;
+import org.apache.geode.internal.InternalDataSerializer;
+import org.apache.geode.internal.NullDataOutputStream;
+import org.apache.geode.internal.Version;
 import org.apache.geode.internal.cache.InitialImageFlowControl.FlowControlPermitMessage;
+import org.apache.geode.internal.cache.entries.DiskEntry;
 import org.apache.geode.internal.cache.ha.HAContainerWrapper;
 import org.apache.geode.internal.cache.persistence.DiskStoreID;
 import org.apache.geode.internal.cache.persistence.PersistenceAdvisor;
@@ -36,7 +76,13 @@ import org.apache.geode.internal.cache.tier.InterestType;
 import org.apache.geode.internal.cache.tier.sockets.CacheClientNotifier;
 import org.apache.geode.internal.cache.tier.sockets.CacheClientProxy;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
-import org.apache.geode.internal.cache.versions.*;
+import org.apache.geode.internal.cache.versions.DiskRegionVersionVector;
+import org.apache.geode.internal.cache.versions.DiskVersionTag;
+import org.apache.geode.internal.cache.versions.RegionVersionHolder;
+import org.apache.geode.internal.cache.versions.RegionVersionVector;
+import org.apache.geode.internal.cache.versions.VersionSource;
+import org.apache.geode.internal.cache.versions.VersionStamp;
+import org.apache.geode.internal.cache.versions.VersionTag;
 import org.apache.geode.internal.cache.vmotion.VMotionObserverHolder;
 import org.apache.geode.internal.cache.wan.AbstractGatewaySender;
 import org.apache.geode.internal.i18n.LocalizedStrings;
@@ -44,20 +90,13 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.LoggingThreadGroup;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.logging.log4j.LogMarker;
-import org.apache.geode.internal.offheap.annotations.Released;
 import org.apache.geode.internal.sequencelog.EntryLogger;
 import org.apache.geode.internal.sequencelog.RegionLogger;
 import org.apache.geode.internal.util.ObjectIntProcedure;
-import org.apache.logging.log4j.Logger;
-
-import java.io.*;
-import java.util.*;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Handles requests for an initial image from a cache peer
- * 
+ *
  */
 public class InitialImageOperation {
   private static final Logger logger = LogService.getLogger();
@@ -148,7 +187,7 @@ public class InitialImageOperation {
   }
 
   /** a flag for inhibiting the use of StateFlushOperation before gii */
-  private final static ThreadLocal inhibitStateFlush = new ThreadLocal() {
+  private static final ThreadLocal inhibitStateFlush = new ThreadLocal() {
     @Override
     protected Object initialValue() {
       return Boolean.valueOf(false);
@@ -193,10 +232,9 @@ public class InitialImageOperation {
 
   /**
    * Fetch an initial image from a single recipient
-   * 
+   *
    * @param recipientSet list of candidates to fetch from
    * @param targetReinitialized true if candidate should wait until initialized before responding
-   * @param advice
    * @param recoveredRVV recovered rvv
    * @return true if succeeded to get image
    * @throws org.apache.geode.cache.TimeoutException
@@ -278,7 +316,8 @@ public class InitialImageOperation {
           continue;
         }
       }
-      final DistributionManager dm = (DistributionManager) this.region.getDistributionManager();
+      final ClusterDistributionManager dm =
+          (ClusterDistributionManager) this.region.getDistributionManager();
       boolean allowDeltaGII = true;
       if (FORCE_FULL_GII || recipient.getVersionObject().compareTo(Version.GFE_80) < 0) {
         allowDeltaGII = false;
@@ -286,7 +325,7 @@ public class InitialImageOperation {
       Set keysOfUnfinishedOps = null;
       RegionVersionVector received_rvv = null;
       RegionVersionVector remote_rvv = null;
-      if (this.region.concurrencyChecksEnabled
+      if (this.region.getConcurrencyChecksEnabled()
           && recipient.getVersionObject().compareTo(Version.GFE_80) >= 0) {
         if (internalBeforeRequestRVV != null
             && internalBeforeRequestRVV.getRegionName().equals(this.region.getName())) {
@@ -343,8 +382,9 @@ public class InitialImageOperation {
             r.addAll(advice.others);
             r.addAll(advice.empties);
             r.addAll(advice.uninitialized);
-            int processorType = targetReinitialized ? DistributionManager.WAITING_POOL_EXECUTOR
-                : DistributionManager.HIGH_PRIORITY_EXECUTOR;
+            int processorType =
+                targetReinitialized ? ClusterDistributionManager.WAITING_POOL_EXECUTOR
+                    : ClusterDistributionManager.HIGH_PRIORITY_EXECUTOR;
             try {
               boolean success = sf.flush(r, recipient, processorType, true);
               if (!success) {
@@ -368,8 +408,8 @@ public class InitialImageOperation {
         r.addAll(advice.others);
         r.addAll(advice.empties);
         r.addAll(advice.uninitialized);
-        int processorType = targetReinitialized ? DistributionManager.WAITING_POOL_EXECUTOR
-            : DistributionManager.HIGH_PRIORITY_EXECUTOR;
+        int processorType = targetReinitialized ? ClusterDistributionManager.WAITING_POOL_EXECUTOR
+            : ClusterDistributionManager.HIGH_PRIORITY_EXECUTOR;
         try {
           boolean success = sf.flush(r, recipient, processorType, false);
           if (!success) {
@@ -389,7 +429,7 @@ public class InitialImageOperation {
       m.targetReinitialized = targetReinitialized;
       m.setRecipient(recipient);
 
-      if (this.region.concurrencyChecksEnabled) {
+      if (this.region.getConcurrencyChecksEnabled()) {
         if (allowDeltaGII && recoveredFromDisk) {
           if (!this.region.getDiskRegion().getRVVTrusted()) {
             if (isDebugEnabled) {
@@ -473,8 +513,9 @@ public class InitialImageOperation {
               if (re == null) {
                 continue;
               }
-              if (logger.isTraceEnabled(LogMarker.GII)) {
-                logger.trace(LogMarker.GII, "Processing unfinished operation:entry={}", re);
+              if (logger.isTraceEnabled(LogMarker.INITIAL_IMAGE_VERBOSE)) {
+                logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
+                    "Processing unfinished operation:entry={}", re);
               }
               DiskEntry de = (DiskEntry) re;
               synchronized (de) {
@@ -498,7 +539,7 @@ public class InitialImageOperation {
           throw ex;
         } catch (ReplyException e) {
           if (!region.isDestroyed()) {
-            e.handleAsUnexpected();
+            e.handleCause();
           }
         } finally {
           ImageState imgState = region.getImageState();
@@ -528,7 +569,7 @@ public class InitialImageOperation {
             // TODO add localizedString
             logger.info("{} failed to get image from {}", this.region.getName(), recipient);
           }
-          if (this.region.dataPolicy.withPersistence()) {
+          if (this.region.getDataPolicy().withPersistence()) {
             logger.info(LocalizedMessage.create(
                 LocalizedStrings.InitialImageOperation_REGION_0_INITIALIZED_PERSISTENT_REGION_WITH_ID_1_FROM_2,
                 new Object[] {this.region.getName(), this.region.getPersistentID(), recipient}));
@@ -566,7 +607,8 @@ public class InitialImageOperation {
    */
   public void synchronizeWith(InternalDistributedMember target, VersionSource lostMemberVersionID,
       InternalDistributedMember lostMember) {
-    final DistributionManager dm = (DistributionManager) this.region.getDistributionManager();
+    final ClusterDistributionManager dm =
+        (ClusterDistributionManager) this.region.getDistributionManager();
 
     this.isSynchronizing = true;
     RequestImageMessage m = new RequestImageMessage();
@@ -612,7 +654,7 @@ public class InitialImageOperation {
         throw ex;
       } catch (ReplyException e) {
         if (!region.isDestroyed()) {
-          e.handleAsUnexpected();
+          e.handleCause();
         }
       } finally {
         if (this.gotImage) {
@@ -657,7 +699,7 @@ public class InitialImageOperation {
     // We have to check all of the received versions for members that
     // left during GII to see if the RVV contains them.
     RegionVersionVector rvv = this.region.getVersionVector();
-    if (this.region.concurrencyChecksEnabled && rvv != null) {
+    if (this.region.getConcurrencyChecksEnabled() && rvv != null) {
       ImageState state = this.region.getImageState();
       if (state.hasLeftMembers()) {
         Set<VersionSource> needsSync = null;
@@ -717,14 +759,13 @@ public class InitialImageOperation {
 
   /**
    * transfer interest/cq registrations from the image provider to this VM
-   * 
-   * @param recipient
+   *
    * @return whether the operation succeeded in transferring anything
    */
   private boolean requestFilterInfo(InternalDistributedMember recipient) {
     // Request for Filter Information before getting the
     // HARegion snapshot.
-    final DM dm = this.region.getDistributionManager();
+    final DistributionManager dm = this.region.getDistributionManager();
     RequestFilterInfoMessage filterInfoMsg = new RequestFilterInfoMessage();
     filterInfoMsg.regionPath = this.region.getFullPath();
     filterInfoMsg.setRecipient(recipient);
@@ -743,7 +784,7 @@ public class InitialImageOperation {
       throw ex;
     } catch (ReplyException e) {
       if (!region.isDestroyed()) {
-        e.handleAsUnexpected();
+        e.handleCause();
       }
     }
     return false;
@@ -752,7 +793,7 @@ public class InitialImageOperation {
 
   /**
    * Called from separate thread when reply is processed.
-   * 
+   *
    * @param entries entries to add to the region
    * @return false if should abort (region was destroyed or cache was closed)
    */
@@ -784,6 +825,10 @@ public class InitialImageOperation {
         keys = new HashSet();
       }
       final ByteArrayDataInput in = new ByteArrayDataInput();
+      List<Entry> entriesToSynchronize = null;
+      if (this.isSynchronizing) {
+        entriesToSynchronize = new ArrayList<>();
+      }
       for (int i = 0; i < entryCount; i++) {
         // stream is null-terminated
         if (internalDuringApplyDelta != null && !internalDuringApplyDelta.isRunning
@@ -867,7 +912,8 @@ public class InitialImageOperation {
                   continue;
                 }
                 if (entry.isSerialized() && !Token.isInvalidOrRemoved(tmpValue)) {
-                  tmpValue = CachedDeserializableFactory.create((byte[]) tmpValue);
+                  tmpValue =
+                      CachedDeserializableFactory.create((byte[]) tmpValue, region.getCache());
                 }
                 try {
                   if (tag != null) {
@@ -884,6 +930,9 @@ public class InitialImageOperation {
                   if (record) {
                     this.entries.initialImagePut(entry.key, lastModified, tmpValue, wasRecovered,
                         true, tag, sender, this.isSynchronizing);
+                    if (this.isSynchronizing) {
+                      entriesToSynchronize.add(entry);
+                    }
                   }
                 } catch (RegionDestroyedException e) {
                   return false;
@@ -909,7 +958,7 @@ public class InitialImageOperation {
           if (tmpValue == null) {
             tmpValue = entry.isLocalInvalid() ? Token.LOCAL_INVALID : Token.INVALID;
           } else if (entry.isSerialized()) {
-            tmpValue = CachedDeserializableFactory.create((byte[]) tmpValue);
+            tmpValue = CachedDeserializableFactory.create((byte[]) tmpValue, region.getCache());
           }
           try {
             // null IDs in a version tag are meant to mean "this member", so
@@ -927,6 +976,9 @@ public class InitialImageOperation {
             }
             this.entries.initialImagePut(entry.key, lastModified, tmpValue, wasRecovered, false,
                 tag, sender, this.isSynchronizing);
+            if (this.isSynchronizing) {
+              entriesToSynchronize.add(entry);
+            }
           } catch (RegionDestroyedException e) {
             return false;
           } catch (CancelException e) {
@@ -934,6 +986,12 @@ public class InitialImageOperation {
           }
           didIIP = true;
         }
+      }
+      if (this.isSynchronizing && !entriesToSynchronize.isEmpty()) {
+        LocalRegion owner = ((AbstractRegionMap) this.entries)._getOwner();
+        LocalRegion region = owner instanceof BucketRegion ? owner.getPartitionedRegion() : owner;
+        owner.getCache().invokeRegionEntrySynchronizationListenersAfterSynchronization(sender,
+            region, entriesToSynchronize);
       }
       if (keys != null) {
         if (isDebugEnabled) {
@@ -956,7 +1014,7 @@ public class InitialImageOperation {
     }
   }
 
-  protected RegionVersionVector getRVVFromProvider(final DistributionManager dm,
+  protected RegionVersionVector getRVVFromProvider(final ClusterDistributionManager dm,
       InternalDistributedMember recipient, boolean targetReinitialized) {
     RegionVersionVector received_rvv = null;
     // RequestRVVMessage is to send rvv of gii provider for both persistent and non-persistent
@@ -985,7 +1043,7 @@ public class InitialImageOperation {
       throw ex;
     } catch (ReplyException e) {
       if (!region.isDestroyed()) {
-        e.handleAsUnexpected();
+        e.handleCause();
       }
     }
     return received_rvv;
@@ -993,7 +1051,7 @@ public class InitialImageOperation {
 
   /**
    * Compare the received RVV with local RVV and return a set of keys for unfinished operations.
-   * 
+   *
    * @param remoteRVV RVV from provider
    * @param localRVV RVV recovered from disk
    * @return set for keys of unfinished operations.
@@ -1024,8 +1082,8 @@ public class InitialImageOperation {
           remoteRVV.recordVersion(id, stamp.getRegionVersion());
 
           if (count < 10) {
-            if (logger.isTraceEnabled(LogMarker.GII)) {
-              logger.trace(LogMarker.GII,
+            if (logger.isTraceEnabled(LogMarker.INITIAL_IMAGE_VERBOSE)) {
+              logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
                   "Region:{} found unfinished operation key={},member={},region version={}",
                   region.getFullPath(), mapEntry.getKey(), stamp.getMemberID(),
                   stamp.getRegionVersion());
@@ -1035,8 +1093,8 @@ public class InitialImageOperation {
         }
       }
       if (!keys.isEmpty()) {
-        if (logger.isTraceEnabled(LogMarker.GII)) {
-          logger.trace(LogMarker.GII, "Region:{} found {} unfinished operations",
+        if (logger.isTraceEnabled(LogMarker.INITIAL_IMAGE_VERBOSE)) {
+          logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE, "Region:{} found {} unfinished operations",
               region.getFullPath(), keys.size());
         }
       }
@@ -1052,9 +1110,9 @@ public class InitialImageOperation {
     // concurrent clear() doesn't prevent the new region's RVV from being
     // initialized and that any vector entries that are no longer represented
     // by stamps in the region are not lost
-    if (logger.isTraceEnabled(LogMarker.GII)) {
-      logger.trace(LogMarker.GII, "Applying received version vector {} to {}", rvv.fullToString(),
-          region.getName());
+    if (logger.isTraceEnabled(LogMarker.INITIAL_IMAGE_VERBOSE)) {
+      logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE, "Applying received version vector {} to {}",
+          rvv.fullToString(), region.getName());
     }
     // TODO - RVV - Our current RVV might reflect some operations
     // that are concurrent updates. We want to keep those updates. However
@@ -1065,8 +1123,8 @@ public class InitialImageOperation {
       region.getDiskRegion().writeRVV(region, false);
       region.getDiskRegion().writeRVVGC(region);
     }
-    if (logger.isTraceEnabled(LogMarker.GII)) {
-      logger.trace(LogMarker.GII, "version vector is now {}",
+    if (logger.isTraceEnabled(LogMarker.INITIAL_IMAGE_VERBOSE)) {
+      logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE, "version vector is now {}",
           region.getVersionVector().fullToString());
     }
   }
@@ -1212,7 +1270,7 @@ public class InitialImageOperation {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see
      * org.apache.geode.distributed.internal.ReplyProcessor21#process(org.apache.geode.distributed.
      * internal.DistributionMessage)
@@ -1406,8 +1464,8 @@ public class InitialImageOperation {
     return buf.toString();
   }
 
-  protected static LocalRegion getGIIRegion(final DistributionManager dm, final String regionPath,
-      final boolean targetReinitialized) {
+  protected static LocalRegion getGIIRegion(final ClusterDistributionManager dm,
+      final String regionPath, final boolean targetReinitialized) {
 
     final boolean isDebugEnabled = logger.isDebugEnabled();
 
@@ -1415,13 +1473,12 @@ public class InitialImageOperation {
     int initLevel = targetReinitialized ? LocalRegion.AFTER_INITIAL_IMAGE : LocalRegion.ANY_INIT;
     int oldLevel = LocalRegion.setThreadInitLevelRequirement(initLevel);
     try {
-      DistributedSystem system = dm.getSystem();
-      // GemFireCache cache = (GemFireCache)CacheFactory.getInstance(system);
       if (isDebugEnabled) {
         logger.debug("RequestImageMessage: attempting to get region reference for {}, initLevel={}",
             regionPath, initLevel);
       }
-      lclRgn = LocalRegion.getRegionFromPath(system, regionPath);
+      InternalCache cache = dm.getCache();
+      lclRgn = cache == null ? null : (LocalRegion) cache.getRegionByPath(regionPath);
       // if this is a targeted getInitialImage after a region was initialized,
       // make sure this is the region that was reinitialized.
       if (lclRgn != null && !lclRgn.isUsedForPartitionedRegionBucket() && targetReinitialized
@@ -1444,7 +1501,7 @@ public class InitialImageOperation {
       return null;
     }
 
-    if (lclRgn.scope.isLocal()) {
+    if (lclRgn.getScope().isLocal()) {
       if (isDebugEnabled) {
         logger.debug("local scope region, nothing to do");
       }
@@ -1519,8 +1576,8 @@ public class InitialImageOperation {
 
     @Override
     public int getProcessorType() {
-      return this.targetReinitialized ? DistributionManager.WAITING_POOL_EXECUTOR
-          : DistributionManager.HIGH_PRIORITY_EXECUTOR;
+      return this.targetReinitialized ? ClusterDistributionManager.WAITING_POOL_EXECUTOR
+          : ClusterDistributionManager.HIGH_PRIORITY_EXECUTOR;
     }
 
     public boolean goWithFullGII(DistributedRegion rgn, RegionVersionVector requesterRVV) {
@@ -1547,8 +1604,8 @@ public class InitialImageOperation {
     }
 
     @Override
-    protected void process(final DistributionManager dm) {
-      final boolean isGiiDebugEnabled = logger.isTraceEnabled(LogMarker.GII);
+    protected void process(final ClusterDistributionManager dm) {
+      final boolean isGiiDebugEnabled = logger.isTraceEnabled(LogMarker.INITIAL_IMAGE_VERBOSE);
 
       Throwable thr = null;
       final boolean lclAbortTest = abortTest;
@@ -1573,7 +1630,7 @@ public class InitialImageOperation {
         if (this.versionVector != null) {
           if (this.versionVector.isForSynchronization() && !rgn.getConcurrencyChecksEnabled()) {
             if (isGiiDebugEnabled) {
-              logger.trace(LogMarker.GII,
+              logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
                   "ignoring synchronization request as this region has no version vector");
             }
             replyNoData(dm, true, Collections.EMPTY_MAP);
@@ -1593,7 +1650,7 @@ public class InitialImageOperation {
             // vector doesn't have anything that the other region needs
             if (this.unfinishedKeys == null || this.unfinishedKeys.isEmpty()) {
               if (isGiiDebugEnabled) {
-                logger.trace(LogMarker.GII,
+                logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
                     "version vector reports that I have nothing that the requester hasn't already seen");
               }
               replyNoData(dm, true, rgn.getVersionVector().getMemberToGCVersion());
@@ -1602,7 +1659,7 @@ public class InitialImageOperation {
             }
           } else {
             if (isGiiDebugEnabled) {
-              logger.trace(LogMarker.GII,
+              logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
                   "version vector reports that I have updates the requester hasn't seen, remote rvv is {}",
                   this.versionVector);
             }
@@ -1614,8 +1671,8 @@ public class InitialImageOperation {
 
         // chunkEntries returns false if didn't finish
         if (isGiiDebugEnabled) {
-          logger.trace(LogMarker.GII, "RequestImageMessage: Starting chunkEntries for {}",
-              rgn.getFullPath());
+          logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
+              "RequestImageMessage: Starting chunkEntries for {}", rgn.getFullPath());
         }
 
         final InitialImageFlowControl flowControl =
@@ -1642,14 +1699,14 @@ public class InitialImageOperation {
                 RegionVersionHolder holderOfRequest =
                     this.versionVector.getHolderForMember(this.lostMemberVersionID);
                 if (holderToSync.isNewerThanOrCanFillExceptionsFor(holderOfRequest)) {
-                  logger.trace(LogMarker.GII,
+                  logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
                       "synchronizeWith detected mismatch region version holder for lost member {}. Old is {}, new is {}",
                       lostMemberVersionID, holderOfRequest, holderToSync);
                 }
               }
             } catch (TimeoutException e) {
               if (isGiiDebugEnabled) {
-                logger.trace(LogMarker.GII,
+                logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
                     "timed out waiting for the departure of {} before processing delta GII request",
                     this.lostMemberID);
               }
@@ -1664,18 +1721,18 @@ public class InitialImageOperation {
             }
           } else if (getSender().getVersionObject().compareTo(Version.GFE_80) < 0) {
             // older versions of the product expect a RegionStateMessage at this point
-            if (rgn.concurrencyChecksEnabled && this.versionVector == null
+            if (rgn.getConcurrencyChecksEnabled() && this.versionVector == null
                 && !recoveringForLostMember) {
               RegionVersionVector rvv = rgn.getVersionVector().getCloneForTransmission();
               RegionStateMessage.send(dm, getSender(), this.processorId, rvv, false);
             }
           }
           if (this.checkTombstoneVersions && this.versionVector != null
-              && rgn.concurrencyChecksEnabled) {
+              && rgn.getConcurrencyChecksEnabled()) {
             synchronized (rgn.getCache().getTombstoneService().getBlockGCLock()) {
               if (goWithFullGII(rgn, this.versionVector)) {
                 if (isGiiDebugEnabled) {
-                  logger.trace(LogMarker.GII, "have to do fullGII");
+                  logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE, "have to do fullGII");
                 }
                 this.versionVector = null; // full GII
               } else {
@@ -1683,7 +1740,8 @@ public class InitialImageOperation {
                 int count = rgn.getCache().getTombstoneService().incrementGCBlockCount();
                 markedOngoingGII = true;
                 if (isGiiDebugEnabled) {
-                  logger.trace(LogMarker.GII, "There're {} Delta GII on going", count);
+                  logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE, "There're {} Delta GII on going",
+                      count);
                 }
               }
             }
@@ -1734,7 +1792,7 @@ public class InitialImageOperation {
 
 
           if (isGiiDebugEnabled) {
-            logger.trace(LogMarker.GII,
+            logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
                 "RequestImageMessage: ended chunkEntries for {}; finished = {}", rgn.getFullPath(),
                 finished);
           }
@@ -1755,7 +1813,7 @@ public class InitialImageOperation {
             if (count == 0) {
               markedOngoingGII = false;
               if (isGiiDebugEnabled) {
-                logger.trace(LogMarker.GII, "Delta GII count is reset");
+                logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE, "Delta GII count is reset");
               }
             }
           }
@@ -1774,15 +1832,18 @@ public class InitialImageOperation {
       } catch (RegionDestroyedException e) {
         // thr = e; Don't marshal an exception here; just return null
         if (isGiiDebugEnabled) {
-          logger.trace(LogMarker.GII, "{}; Region destroyed: aborting image provision", this);
+          logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
+              "{}; Region destroyed: aborting image provision", this);
         }
       } catch (IllegalStateException e) {
         // thr = e; Don't marshal an exception here; just return null
-        logger.trace(LogMarker.GII, "{}; disk region deleted? aborting image provision", this, e);
+        logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
+            "{}; disk region deleted? aborting image provision", this, e);
       } catch (CancelException e) {
         // thr = e; Don't marshal an exception here; just return null
         if (isGiiDebugEnabled) {
-          logger.trace(LogMarker.GII, "{}; Cache Closed: aborting image provision", this);
+          logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
+              "{}; Cache Closed: aborting image provision", this);
         }
       } catch (VirtualMachineError err) {
         sendFailureMessage = false; // Don't try to respond!
@@ -1823,10 +1884,9 @@ public class InitialImageOperation {
      * chunk and an int indicating whether it is the last chunk (positive means last chunk, zero
      * otherwise). The return value of proc indicates whether to continue to the next chunk (true)
      * or abort (false).
-     * 
+     *
      * @param versionVector requester's region version vector
      * @param unfinishedKeys keys of unfinished operation (persistent region only)
-     * @param flowControl
      * @return true if finished all chunks, false if stopped early
      */
     protected boolean chunkEntries(DistributedRegion rgn, int chunkSizeInBytes,
@@ -1840,11 +1900,11 @@ public class InitialImageOperation {
       }
 
       ByteArrayDataInput in = null;
-      DistributionManager dm = (DistributionManager) rgn.getDistributionManager();
+      ClusterDistributionManager dm = (ClusterDistributionManager) rgn.getDistributionManager();
 
       List chunkEntries = null;
-      chunkEntries =
-          new InitialImageVersionedEntryList(rgn.concurrencyChecksEnabled, MAX_ENTRIES_PER_CHUNK);
+      chunkEntries = new InitialImageVersionedEntryList(rgn.getConcurrencyChecksEnabled(),
+          MAX_ENTRIES_PER_CHUNK);
       DiskRegion dr = rgn.getDiskRegion();
       if (dr != null) {
         dr.setClearCountReference();
@@ -1913,8 +1973,9 @@ public class InitialImageOperation {
                     fillRes = mapEntry.fillInValue(rgn, entry, in, rgn.getDistributionManager(),
                         sender.getVersionObject());
                     if (versionVector != null) {
-                      if (logger.isTraceEnabled(LogMarker.GII)) {
-                        logger.trace(LogMarker.GII, "chunkEntries:entry={},stamp={}", entry, stamp);
+                      if (logger.isTraceEnabled(LogMarker.INITIAL_IMAGE_VERBOSE)) {
+                        logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
+                            "chunkEntries:entry={},stamp={}", entry, stamp);
                       }
                     }
                   }
@@ -1967,14 +2028,14 @@ public class InitialImageOperation {
       }
     }
 
-    private void replyNoData(DistributionManager dm, boolean isDeltaGII,
+    private void replyNoData(ClusterDistributionManager dm, boolean isDeltaGII,
         Map<VersionSource, Long> gcVersions) {
       ImageReplyMessage.send(getSender(), this.processorId, null, dm, null, 0, 0, 1, true, 0,
           isDeltaGII, null, gcVersions);
     }
 
-    protected void replyWithData(DistributionManager dm, List entries, int seriesNum, int msgNum,
-        int numSeries, boolean lastInSeries, int flowControlId, boolean isDeltaGII,
+    protected void replyWithData(ClusterDistributionManager dm, List entries, int seriesNum,
+        int msgNum, int numSeries, boolean lastInSeries, int flowControlId, boolean isDeltaGII,
         RegionVersionHolder holderToSend, Map<VersionSource, Long> gcVersions) {
       ImageReplyMessage.send(getSender(), this.processorId, null, dm, entries, seriesNum, msgNum,
           numSeries, lastInSeries, flowControlId, isDeltaGII, holderToSend, gcVersions);
@@ -1982,7 +2043,7 @@ public class InitialImageOperation {
 
 
     // test hook
-    private void initiateLocalAbortForTest(final DM dm) {
+    private void initiateLocalAbortForTest(final DistributionManager dm) {
       if (!dm.getSystem().isDisconnecting()) {
         if (logger.isDebugEnabled()) {
           logger.debug(
@@ -2166,19 +2227,19 @@ public class InitialImageOperation {
 
     @Override
     public int getProcessorType() {
-      return DistributionManager.HIGH_PRIORITY_EXECUTOR;
+      return ClusterDistributionManager.HIGH_PRIORITY_EXECUTOR;
     }
 
     @Override
-    protected void process(final DistributionManager dm) {
+    protected void process(final ClusterDistributionManager dm) {
       Throwable thr = null;
       boolean sendFailureMessage = true;
-      LocalRegion lclRgn = null;
+      InternalRegion lclRgn = null;
       ReplyException rex = null;
       try {
         Assert.assertTrue(this.regionPath != null, "Region path is null.");
-        DistributedSystem system = dm.getSystem();
-        lclRgn = LocalRegion.getRegionFromPath(system, this.regionPath);
+        InternalCache cache = dm.getCache();
+        lclRgn = cache == null ? null : cache.getRegionByPath(regionPath);
 
         if (lclRgn == null) {
           if (logger.isDebugEnabled()) {
@@ -2226,7 +2287,7 @@ public class InitialImageOperation {
           if (rex == null) {
             rex = new ReplyException("Failed to process filter info request.");
           }
-          FilterInfoMessage.send(dm, getSender(), this.processorId, lclRgn, rex);
+          FilterInfoMessage.send(dm, getSender(), this.processorId, (LocalRegion) lclRgn, rex);
         } // !success
       }
     }
@@ -2284,7 +2345,7 @@ public class InitialImageOperation {
 
     @Override
     public void process(DistributionMessage msg) {
-      final boolean isGiiDebugEnabled = logger.isTraceEnabled(LogMarker.GII);
+      final boolean isGiiDebugEnabled = logger.isTraceEnabled(LogMarker.INITIAL_IMAGE_VERBOSE);
 
       ReplyMessage reply = (ReplyMessage) msg;
       try {
@@ -2292,7 +2353,7 @@ public class InitialImageOperation {
         if (reply == null) {
           // if remote member is shutting down, the reply will be null
           if (isGiiDebugEnabled) {
-            logger.trace(LogMarker.GII,
+            logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
                 "Did not received RVVReply from {}. Remote member might be down.",
                 Arrays.toString(getMembers()));
           }
@@ -2300,8 +2361,8 @@ public class InitialImageOperation {
         }
         if (reply.getException() != null) {
           if (isGiiDebugEnabled) {
-            logger.trace(LogMarker.GII, "Failed to get RVV from {} due to {}", reply.getSender(),
-                reply.getException());
+            logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE, "Failed to get RVV from {} due to {}",
+                reply.getSender(), reply.getException());
           }
           return;
         }
@@ -2312,7 +2373,7 @@ public class InitialImageOperation {
       } finally {
         if (received_rvv == null) {
           if (isGiiDebugEnabled) {
-            logger.trace(LogMarker.GII,
+            logger.trace(LogMarker.INITIAL_IMAGE_VERBOSE,
                 "{} did not send back rvv. Maybe it's non-persistent proxy region or remote region {} not found or not initialized. Nothing to do.",
                 reply.getSender(), region.getFullPath());
           }
@@ -2338,7 +2399,7 @@ public class InitialImageOperation {
 
   /**
    * RVVReplyMessage transmits the GII provider's RVV to requester
-   * 
+   *
    */
   public static class RVVReplyMessage extends ReplyMessage {
 
@@ -2358,7 +2419,7 @@ public class InitialImageOperation {
       this.versionVector = rvv;
     }
 
-    public static void send(DM dm, InternalDistributedMember dest, int processorId,
+    public static void send(DistributionManager dm, InternalDistributedMember dest, int processorId,
         RegionVersionVector rvv, ReplyException ex) {
       RVVReplyMessage msg = new RVVReplyMessage(dest, processorId, rvv);
       if (ex != null) {
@@ -2401,7 +2462,7 @@ public class InitialImageOperation {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.geode.internal.DataSerializableFixedID#getDSFID()
      */
     @Override
@@ -2437,12 +2498,12 @@ public class InitialImageOperation {
 
     @Override
     public int getProcessorType() {
-      return this.targetReinitialized ? DistributionManager.WAITING_POOL_EXECUTOR
-          : DistributionManager.HIGH_PRIORITY_EXECUTOR;
+      return this.targetReinitialized ? ClusterDistributionManager.WAITING_POOL_EXECUTOR
+          : ClusterDistributionManager.HIGH_PRIORITY_EXECUTOR;
     }
 
     @Override
-    protected void process(final DistributionManager dm) {
+    protected void process(final ClusterDistributionManager dm) {
       Throwable thr = null;
       boolean sendFailureMessage = true;
       LocalRegion lclRgn = null;
@@ -2558,7 +2619,7 @@ public class InitialImageOperation {
 
 
     @Override
-    protected void process(final DistributionManager dm) {
+    protected void process(final ClusterDistributionManager dm) {
       LocalRegion lclRgn = null;
       try {
         Assert.assertTrue(this.regionPath != null, "Region path is null.");
@@ -2689,8 +2750,8 @@ public class InitialImageOperation {
      * @param holderToSend higher version holder to sync for the lost member
      */
     public static void send(InternalDistributedMember recipient, int processorId,
-        ReplyException exception, DistributionManager dm, List entries, int seriesNum, int msgNum,
-        int numSeries, boolean lastInSeries, int flowControlId, boolean isDeltaGII,
+        ReplyException exception, ClusterDistributionManager dm, List entries, int seriesNum,
+        int msgNum, int numSeries, boolean lastInSeries, int flowControlId, boolean isDeltaGII,
         RegionVersionHolder holderToSend, Map<VersionSource, Long> gcVersions) {
       ImageReplyMessage m = new ImageReplyMessage();
 
@@ -2718,7 +2779,7 @@ public class InitialImageOperation {
 
 
     @Override
-    public void process(DM dm, ReplyProcessor21 processor) {
+    public void process(DistributionManager dm, ReplyProcessor21 processor) {
       // We have to do this here, rather than in the reply processor code,
       // because the reply processor may be null.
       try {
@@ -2876,7 +2937,7 @@ public class InitialImageOperation {
      * <p>
      * Defaults to invalid, not serialized, not local invalid. The "invalid" flag is not used. When
      * invalid, localInvalid is false and the values is null.
-     * 
+     *
      * @see EntryBits
      */
     private byte entryBits = 0;
@@ -2890,12 +2951,12 @@ public class InitialImageOperation {
     private VersionTag versionTag;
 
     /** Given local milliseconds, store as cache milliseconds */
-    void setLastModified(DM dm, long localMillis) {
+    public void setLastModified(DistributionManager dm, long localMillis) {
       this.lastModified = localMillis;
     }
 
     /** Return lastModified as local milliseconds */
-    public long getLastModified(DM dm) {
+    public long getLastModified(DistributionManager dm) {
       return this.lastModified;
     }
 
@@ -2903,7 +2964,7 @@ public class InitialImageOperation {
       return EntryBits.isSerialized(this.entryBits);
     }
 
-    void setSerialized(boolean isSerialized) {
+    public void setSerialized(boolean isSerialized) {
       this.entryBits = EntryBits.setSerialized(this.entryBits, isSerialized);
     }
 
@@ -2911,7 +2972,7 @@ public class InitialImageOperation {
       return (this.value == null) && !EntryBits.isLocalInvalid(this.entryBits);
     }
 
-    void setInvalid() {
+    public void setInvalid() {
       this.entryBits = EntryBits.setLocalInvalid(this.entryBits, false);
       this.value = null;
     }
@@ -2920,13 +2981,17 @@ public class InitialImageOperation {
       return EntryBits.isLocalInvalid(this.entryBits);
     }
 
-    void setLocalInvalid() {
+    public void setLocalInvalid() {
       this.entryBits = EntryBits.setLocalInvalid(this.entryBits, true);
       this.value = null;
     }
 
-    void setTombstone() {
+    public void setTombstone() {
       this.entryBits = EntryBits.setTombstone(this.entryBits, true);
+    }
+
+    public Object getKey() {
+      return key;
     }
 
     public VersionTag getVersionTag() {
@@ -2999,6 +3064,14 @@ public class InitialImageOperation {
     public Version[] getSerializationVersions() {
       return null;
     }
+
+    public Object getValue() {
+      return value;
+    }
+
+    public void setValue(Object value) {
+      this.value = value;
+    }
   }
 
   /**
@@ -3015,7 +3088,7 @@ public class InitialImageOperation {
 
     /**
      * InitialImageOperation.Entry list
-     * 
+     *
      */
     // List<Entry> entries;
 
@@ -3105,7 +3178,7 @@ public class InitialImageOperation {
     }
 
     /**
-     * 
+     *
      * @return whether the source region had concurrency checks enabled
      */
     public boolean isRegionVersioned() {
@@ -3117,8 +3190,7 @@ public class InitialImageOperation {
      * from a server may have null IDs because they were operations performed by that server. We
      * transmit them as nulls to cut costs, but have to do the swap on the receiving end (in the
      * client)
-     * 
-     * @param sender
+     *
      */
     public void replaceNullIDs(DistributedMember sender) {
       for (VersionTag versionTag : versionTags) {
@@ -3164,9 +3236,9 @@ public class InitialImageOperation {
         flags |= 0x08;
       }
 
-      if (logger.isTraceEnabled(LogMarker.GII_VERSIONED_ENTRY)) {
-        logger.trace(LogMarker.GII_VERSIONED_ENTRY, "serializing {} with flags 0x{}", this,
-            Integer.toHexString(flags));
+      if (logger.isTraceEnabled(LogMarker.INITIAL_IMAGE_VERSIONED_VERBOSE)) {
+        logger.trace(LogMarker.INITIAL_IMAGE_VERSIONED_VERBOSE, "serializing {} with flags 0x{}",
+            this, Integer.toHexString(flags));
       }
 
       out.writeByte(flags);
@@ -3211,7 +3283,7 @@ public class InitialImageOperation {
     @Override
     public void fromData(DataInput in) throws IOException, ClassNotFoundException {
       final boolean isGiiVersionEntryDebugEnabled =
-          logger.isTraceEnabled(LogMarker.GII_VERSIONED_ENTRY);
+          logger.isTraceEnabled(LogMarker.INITIAL_IMAGE_VERSIONED_VERBOSE);
 
       int flags = in.readByte();
       boolean hasEntries = (flags & 0x02) == 0x02;
@@ -3220,14 +3292,14 @@ public class InitialImageOperation {
       boolean persistent = (flags & 0x20) == 0x20;
 
       if (isGiiVersionEntryDebugEnabled) {
-        logger.trace(LogMarker.GII_VERSIONED_ENTRY,
+        logger.trace(LogMarker.INITIAL_IMAGE_VERSIONED_VERBOSE,
             "deserializing a InitialImageVersionedObjectList with flags 0x{}",
             Integer.toHexString(flags));
       }
       if (hasEntries) {
         int size = (int) InternalDataSerializer.readUnsignedVL(in);
         if (isGiiVersionEntryDebugEnabled) {
-          logger.trace(LogMarker.GII_VERSIONED_ENTRY, "reading {} keys", size);
+          logger.trace(LogMarker.INITIAL_IMAGE_VERSIONED_VERBOSE, "reading {} keys", size);
         }
         for (int i = 0; i < size; i++) {
           super.add((Entry) DataSerializer.readObject(in));
@@ -3237,7 +3309,7 @@ public class InitialImageOperation {
       if (hasTags) {
         int size = (int) InternalDataSerializer.readUnsignedVL(in);
         if (isGiiVersionEntryDebugEnabled) {
-          logger.trace(LogMarker.GII_VERSIONED_ENTRY, "reading {} version tags", size);
+          logger.trace(LogMarker.INITIAL_IMAGE_VERSIONED_VERBOSE, "reading {} version tags", size);
         }
         this.versionTags = new ArrayList<VersionTag>(size);
         List<VersionSource> ids = new ArrayList<VersionSource>(size);
@@ -3287,7 +3359,7 @@ public class InitialImageOperation {
   /**
    * EventStateMessage transmits the cache's memberId:threadId sequence# information so that a cache
    * receiving an initial image will know what events that image represents.
-   * 
+   *
    */
   public static class RegionStateMessage extends ReplyMessage {
 
@@ -3320,16 +3392,18 @@ public class InitialImageOperation {
       this.isHARegion = isHARegion;
     }
 
-    public static void send(DM dm, InternalDistributedMember dest, int processorId,
+    public static void send(DistributionManager dm, InternalDistributedMember dest, int processorId,
         Map<? extends DataSerializable, ? extends DataSerializable> eventState,
         boolean isHARegion) {
       RegionStateMessage msg = new RegionStateMessage(dest, processorId, eventState, isHARegion);
+      msg.setSender(dm.getId()); // for EventStateHelper.dataSerialize
       dm.putOutgoing(msg);
     }
 
-    public static void send(DM dm, InternalDistributedMember dest, int processorId,
+    public static void send(DistributionManager dm, InternalDistributedMember dest, int processorId,
         RegionVersionVector rvv, boolean isHARegion) {
       RegionStateMessage msg = new RegionStateMessage(dest, processorId, rvv, isHARegion);
+      msg.setSender(dm.getId()); // for EventStateHelper.dataSerialize
       dm.putOutgoing(msg);
     }
 
@@ -3339,7 +3413,7 @@ public class InitialImageOperation {
       dop.writeBoolean(isHARegion);
       if (eventState != null) {
         dop.writeBoolean(true);
-        EventStateHelper.toData(dop, eventState, isHARegion);
+        EventStateHelper.dataSerialize(dop, eventState, isHARegion, getSender());
       } else {
         dop.writeBoolean(false);
       }
@@ -3372,7 +3446,7 @@ public class InitialImageOperation {
       isHARegion = dip.readBoolean();
       boolean has = dip.readBoolean();
       if (has) {
-        eventState = EventStateHelper.fromData(dip, isHARegion);
+        eventState = EventStateHelper.deDataSerialize(dip, isHARegion);
       }
       has = dip.readBoolean();
       if (has) {
@@ -3383,7 +3457,7 @@ public class InitialImageOperation {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.geode.internal.DataSerializableFixedID#getDSFID()
      */
     @Override
@@ -3604,8 +3678,7 @@ public class InitialImageOperation {
 
     /**
      * Registers the filters associated with this client on current cache region.
-     * 
-     * @param region
+     *
      */
     public void registerFilters(LocalRegion region) {
       CacheClientNotifier ccn = CacheClientNotifier.getInstance();
@@ -3797,8 +3870,8 @@ public class InitialImageOperation {
       }
     }
 
-    public static void send(DM dm, InternalDistributedMember dest, int processorId, LocalRegion rgn,
-        ReplyException ex) {
+    public static void send(DistributionManager dm, InternalDistributedMember dest, int processorId,
+        LocalRegion rgn, ReplyException ex) {
       FilterInfoMessage msg = new FilterInfoMessage(dest, processorId, rgn);
       if (ex != null) {
         msg.setException(ex);
@@ -3941,7 +4014,7 @@ public class InitialImageOperation {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.geode.internal.DataSerializableFixedID#getDSFID()
      */
     @Override
@@ -3950,10 +4023,10 @@ public class InitialImageOperation {
     }
   }
 
-  public static abstract class GIITestHook implements Runnable, Serializable {
-    final private GIITestHookType type;
-    final private String region_name;
-    volatile public boolean isRunning;
+  public abstract static class GIITestHook implements Runnable, Serializable {
+    private final GIITestHookType type;
+    private final String region_name;
+    public volatile boolean isRunning;
 
     public GIITestHook(GIITestHookType type, String region_name) {
       this.type = type;
@@ -4265,4 +4338,3 @@ public class InitialImageOperation {
     internalAfterSavedRVVEnd = null;
   }
 }
-

@@ -14,6 +14,9 @@
  */
 package org.apache.geode.cache.query.dunit;
 
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionShortcut;
 import org.apache.geode.cache.client.ClientCache;
@@ -23,6 +26,7 @@ import org.apache.geode.cache.query.QueryService;
 import org.apache.geode.cache.query.SelectResults;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.internal.AvailablePortHelper;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.pdx.PdxInstance;
 import org.apache.geode.pdx.PdxInstanceFactory;
 import org.apache.geode.pdx.internal.PdxInstanceFactoryImpl;
@@ -34,10 +38,9 @@ import org.apache.geode.test.dunit.SerializableCallable;
 import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, OQLQueryTest.class})
 public class PdxLocalQueryVersionedClassDUnitTest extends PDXQueryTestBase {
 
 
@@ -45,8 +48,7 @@ public class PdxLocalQueryVersionedClassDUnitTest extends PDXQueryTestBase {
   /**
    * Testing the isRemote flag which could be inconsistent when bind queries are being executed in
    * multiple threads. Bug #49662 is caused because of this inconsistent behavior.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testIsRemoteFlagForRemoteQueries() throws Exception {
@@ -85,8 +87,8 @@ public class PdxLocalQueryVersionedClassDUnitTest extends PDXQueryTestBase {
             cache.createClientRegionFactory(ClientRegionShortcut.CACHING_PROXY).create(regionName);
 
         for (int i = 0; i < numberOfEntries; i++) {
-          PdxInstanceFactory pdxInstanceFactory =
-              PdxInstanceFactoryImpl.newCreator("PdxVersionedNewPortfolio", false);
+          PdxInstanceFactory pdxInstanceFactory = PdxInstanceFactoryImpl
+              .newCreator("PdxVersionedNewPortfolio", false, (InternalCache) cache);
           pdxInstanceFactory.writeInt("id", i);
           pdxInstanceFactory.writeString("status", (i % 2 == 0 ? "active" : "inactive"));
           PdxInstance pdxInstance = pdxInstanceFactory.create();

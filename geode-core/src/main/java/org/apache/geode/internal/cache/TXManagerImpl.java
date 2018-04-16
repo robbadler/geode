@@ -52,7 +52,7 @@ import org.apache.geode.cache.TransactionListener;
 import org.apache.geode.cache.TransactionWriter;
 import org.apache.geode.cache.UnsupportedOperationInTransactionException;
 import org.apache.geode.distributed.TXManagerCancelledException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.HighPriorityDistributionMessage;
@@ -60,6 +60,7 @@ import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.MembershipListener;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.SystemTimer.SystemTimerTask;
+import org.apache.geode.internal.cache.entries.AbstractRegionEntry;
 import org.apache.geode.internal.cache.tier.sockets.Message;
 import org.apache.geode.internal.concurrent.ConcurrentHashSet;
 import org.apache.geode.internal.i18n.LocalizedStrings;
@@ -72,13 +73,13 @@ import org.apache.geode.internal.util.concurrent.CustomEntryConcurrentHashMap.Ma
 /**
  * The internal implementation of the {@link CacheTransactionManager} interface returned by
  * {@link InternalCache#getCacheTransactionManager}. Internal operations
- * 
+ *
  * {@code TransactionListener} invocation, Region synchronization, transaction statistics and
- * 
+ *
  * transaction logging are handled here
  *
  * @since GemFire 4.0
- * 
+ *
  * @see CacheTransactionManager
  */
 public class TXManagerImpl implements CacheTransactionManager, MembershipListener {
@@ -88,12 +89,14 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
   // Thread specific context container
   private final ThreadLocal<TXStateProxy> txContext;
 
+  private final ThreadLocal<Boolean> pauseJTA;
+
   private static TXManagerImpl currentInstance = null;
 
   // The unique transaction ID for this Manager
   private final AtomicInteger uniqId;
 
-  private final DM dm;
+  private final DistributionManager dm;
   private final InternalCache cache;
 
   // The DistributionMemberID used to construct TXId's
@@ -185,6 +188,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     this.cachePerfStats = cachePerfStats;
     this.hostedTXStates = new HashMap<>();
     this.txContext = new ThreadLocal<>();
+    this.pauseJTA = new ThreadLocal<Boolean>();
     this.isTXDistributed = new ThreadLocal<>();
     this.transactionTimeToLive = Integer
         .getInteger(DistributionConfig.GEMFIRE_PREFIX + "cacheServer.transactionTimeToLive", 180);
@@ -197,7 +201,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   /**
    * Get the TransactionWriter for the cache
-   * 
+   *
    * @return the current TransactionWriter
    * @see TransactionWriter
    */
@@ -317,12 +321,19 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
                 .toLocalizedString(tid));
       }
     }
+    {
+      TXStateProxy curProxy = txContext.get();
+      if (curProxy == PAUSED) {
+        throw new java.lang.IllegalStateException(
+            "Current thread has paused its transaction so it can not start a new transaction");
+      }
+    }
     TXId id = new TXId(this.distributionMgrId, this.uniqId.incrementAndGet());
     TXStateProxyImpl proxy = null;
     if (isDistributed()) {
-      proxy = new DistTXStateProxyImplOnCoordinator(this, id, null);
+      proxy = new DistTXStateProxyImplOnCoordinator(cache, this, id, null);
     } else {
-      proxy = new TXStateProxyImpl(this, id, null);
+      proxy = new TXStateProxyImpl(cache, this, id, null);
     }
     setTXState(proxy);
     this.localTxMap.put(id, proxy);
@@ -340,9 +351,9 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     TXStateProxy newState = null;
 
     if (isDistributed()) {
-      newState = new DistTXStateProxyImplOnCoordinator(this, id, true);
+      newState = new DistTXStateProxyImplOnCoordinator(cache, this, id, true);
     } else {
-      newState = new TXStateProxyImpl(this, id, true);
+      newState = new TXStateProxyImpl(cache, this, id, true);
     }
     setTXState(newState);
     return newState;
@@ -591,6 +602,10 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
    */
   public TXStateProxy getTXState() {
     TXStateProxy tsp = txContext.get();
+    if (tsp == PAUSED) {
+      // treats paused transaction as no transaction.
+      return null;
+    }
     if (tsp != null && !tsp.isInProgress()) {
       this.txContext.set(null);
       tsp = null;
@@ -601,7 +616,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
   /**
    * sets {@link TXStateProxy#setInProgress(boolean)} when a txContext is present. This method must
    * only be used in fail-over scenarios.
-   * 
+   *
    * @param progress value of the progress flag to be set
    * @return the previous value of inProgress flag
    * @see TXStateProxy#setInProgress(boolean)
@@ -609,6 +624,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
   public boolean setInProgress(boolean progress) {
     boolean retVal = false;
     TXStateProxy tsp = txContext.get();
+    assert tsp != PAUSED;
     if (tsp != null) {
       retVal = tsp.isInProgress();
       tsp.setInProgress(progress);
@@ -670,29 +686,92 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     }
   }
 
+  private static final TXStateProxy PAUSED = new PausedTXStateProxyImpl();
+
+  /**
+   * If the current thread is in a transaction then pause will cause it to no longer be in a
+   * transaction. The same thread is expected to unpause/resume the transaction later. The thread
+   * should not start a new transaction after it paused a transaction.
+   *
+   * @return the state of the transaction or null. Pass this value to
+   *         {@link TXManagerImpl#unpauseTransaction} to reactivate the puased/suspended
+   *         transaction.
+   */
+  public TXStateProxy pauseTransaction() {
+    return internalSuspend(true);
+  }
+
+  /**
+   * If the current thread is in a transaction then internal suspend will cause it to no longer be
+   * in a transaction. The thread can start a new transaction after it internal suspended a
+   * transaction.
+   *
+   * @return the state of the transaction or null. to reactivate the suspended transaction.
+   */
+  public TXStateProxy internalSuspend() {
+    return internalSuspend(false);
+  }
+
   /**
    * If the current thread is in a transaction then suspend will cause it to no longer be in a
    * transaction.
-   * 
-   * @return the state of the transaction or null. Pass this value to {@link TXManagerImpl#resume}
-   *         to reactivate the suspended transaction.
+   *
+   * @param needToResumeBySameThread whether a suspended transaction needs to be resumed by the same
+   *        thread.
+   * @return the state of the transaction or null. Pass this value to
+   *         {@link TXManagerImpl#internalResume(TXStateProxy, boolean)} to reactivate the suspended
+   *         transaction.
    */
-  public TXStateProxy internalSuspend() {
+  private TXStateProxy internalSuspend(boolean needToResumeBySameThread) {
     TXStateProxy result = getTXState();
     if (result != null) {
       result.suspend();
-      setTXState(null);
+      if (needToResumeBySameThread) {
+        setTXState(PAUSED);
+      } else {
+        setTXState(null);
+      }
+    } else {
+      if (needToResumeBySameThread) {
+        // pausedJTA is set to true when JTA is not yet bootstrapped.
+        pauseJTA.set(true);
+      }
     }
     return result;
   }
 
   /**
-   * Activates the specified transaction on the calling thread.
-   * 
+   * Activates the specified transaction on the calling thread. Only the same thread that pause the
+   * transaction can unpause it.
+   *
+   * @param tx the transaction to be unpaused.
+   * @throws IllegalStateException if this thread already has an active transaction or this thread
+   *         did not pause the transaction.
+   */
+  public void unpauseTransaction(TXStateProxy tx) {
+    internalResume(tx, true);
+  }
+
+  /**
+   * Activates the specified transaction on the calling thread. Does not require the same thread to
+   * resume it.
+   *
    * @param tx the transaction to activate.
    * @throws IllegalStateException if this thread already has an active transaction
    */
   public void internalResume(TXStateProxy tx) {
+    internalResume(tx, false);
+  }
+
+  /**
+   * Activates the specified transaction on the calling thread.
+   *
+   * @param tx the transaction to activate.
+   * @param needToResumeBySameThread whether a suspended transaction needs to be resumed by the same
+   *        thread.
+   * @throws IllegalStateException if this thread already has an active transaction
+   */
+  private void internalResume(TXStateProxy tx, boolean needToResumeBySameThread) {
     if (tx != null) {
       TransactionId tid = getTransactionId();
       if (tid != null) {
@@ -700,9 +779,33 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
             LocalizedStrings.TXManagerImpl_TRANSACTION_0_ALREADY_IN_PROGRESS
                 .toLocalizedString(tid));
       }
+      if (needToResumeBySameThread) {
+        TXStateProxy result = txContext.get();
+        if (result != PAUSED) {
+          throw new java.lang.IllegalStateException(
+              "try to unpause a transaction not paused by the same thread");
+        }
+      }
       setTXState(tx);
+
       tx.resume();
+    } else {
+      if (needToResumeBySameThread) {
+        pauseJTA.set(false);
+      }
     }
+  }
+
+  public boolean isTransactionPaused() {
+    return txContext.get() == PAUSED;
+  }
+
+  public boolean isJTAPaused() {
+    Boolean jtaPaused = pauseJTA.get();
+    if (jtaPaused == null) {
+      return false;
+    }
+    return jtaPaused;
   }
 
   /**
@@ -724,7 +827,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     }
   }
 
-  DM getDM() {
+  DistributionManager getDM() {
     return this.dm;
   }
 
@@ -750,7 +853,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   public int getMyTXUniqueId() {
     TXStateProxy t = txContext.get();
-    if (t != null) {
+    if (t != null && t != PAUSED) {
       return t.getTxId().getUniqId();
     } else {
       return NOTX;
@@ -761,7 +864,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
    * Associate the remote txState with the thread processing this message. Also, we acquire a lock
    * on the txState, on which this thread operates. Some messages like SizeMessage should not create
    * a new txState.
-   * 
+   *
    * @return {@link TXStateProxy} the txProxy for the transactional message
    */
   public TXStateProxy masqueradeAs(TransactionMessage msg) throws InterruptedException {
@@ -794,10 +897,10 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
         val = this.hostedTXStates.get(key);
         if (val == null && msg.canStartRemoteTransaction()) {
           if (msg.isTransactionDistributed()) {
-            val = new DistTXStateProxyImplOnDatanode(this, key, msg.getTXOriginatorClient());
+            val = new DistTXStateProxyImplOnDatanode(cache, this, key, msg.getTXOriginatorClient());
             val.setLocalTXState(new DistTXState(val, true));
           } else {
-            val = new TXStateProxyImpl(this, key, msg.getTXOriginatorClient());
+            val = new TXStateProxyImpl(cache, this, key, msg.getTXOriginatorClient());
             val.setLocalTXState(new TXState(val, true));
           }
           this.hostedTXStates.put(key, val);
@@ -840,7 +943,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
    * Associate the remote txState with the thread processing this message. Also, we acquire a lock
    * on the txState, on which this thread operates. Some messages like SizeMessage should not create
    * a new txState.
-   * 
+   *
    * @param probeOnly - do not masquerade; just look up the TX state
    * @return {@link TXStateProxy} the txProxy for the transactional message
    */
@@ -859,10 +962,10 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
           // TODO: Conditionally create object based on distributed or non-distributed tx mode
           if (msg instanceof TransactionMessage
               && ((TransactionMessage) msg).isTransactionDistributed()) {
-            val = new DistTXStateProxyImplOnDatanode(this, key, memberId);
+            val = new DistTXStateProxyImplOnDatanode(cache, this, key, memberId);
             // val.setLocalTXState(new DistTXState(val,true));
           } else {
-            val = new TXStateProxyImpl(this, key, memberId);
+            val = new TXStateProxyImpl(cache, this, key, memberId);
             // val.setLocalTXState(new TXState(val,true));
           }
           this.hostedTXStates.put(key, val);
@@ -890,7 +993,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   /**
    * Associate the transactional state with this thread.
-   * 
+   *
    * @param txState the transactional state.
    */
   public void masqueradeAs(TXStateProxy txState) {
@@ -913,7 +1016,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   /**
    * Cleanup the remote txState after commit and rollback
-   * 
+   *
    * @return the TXStateProxy
    */
   public TXStateProxy removeHostedTXState(TXId txId) {
@@ -947,7 +1050,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   /**
    * Used to verify if a transaction with a given id is hosted by this txManager.
-   * 
+   *
    * @return true if the transaction is in progress, false otherwise
    */
   public boolean isHostedTxInProgress(TXId txId) {
@@ -979,7 +1082,8 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     return this.localTxMap.size();
   }
 
-  public void memberDeparted(InternalDistributedMember id, boolean crashed) {
+  public void memberDeparted(DistributionManager distributionManager, InternalDistributedMember id,
+      boolean crashed) {
     synchronized (this.hostedTXStates) {
       Iterator<Map.Entry<TXId, TXStateProxy>> iterator = this.hostedTXStates.entrySet().iterator();
       while (iterator.hasNext()) {
@@ -997,18 +1101,18 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     expireClientTransactionsSentFromDepartedProxy(id);
   }
 
-  public void memberJoined(InternalDistributedMember id) {}
+  public void memberJoined(DistributionManager distributionManager, InternalDistributedMember id) {}
 
-  public void quorumLost(Set<InternalDistributedMember> failures,
-      List<InternalDistributedMember> remaining) {}
+  public void quorumLost(DistributionManager distributionManager,
+      Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
-  public void memberSuspect(InternalDistributedMember id, InternalDistributedMember whoSuspected,
-      String reason) {}
+  public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
+      InternalDistributedMember whoSuspected, String reason) {}
 
 
   /**
    * retrieve the transaction TXIds for the given client
-   * 
+   *
    * @param id the client's membership ID
    * @return a set of the currently open TXIds
    */
@@ -1026,7 +1130,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   /**
    * retrieve the transaction states for the given client
-   * 
+   *
    * @param id the client's membership ID
    * @return a set of the currently open transaction states
    */
@@ -1063,9 +1167,11 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     }
   }
 
-  private void saveTXStateForClientFailover(TXStateProxy tx) {
+  void saveTXStateForClientFailover(TXStateProxy tx) {
     if (tx.isOnBehalfOfClient() && tx.isRealDealLocal()) {
-      failoverMap.put(tx.getTxId(), tx.getCommitMessage());
+      TXCommitMessage commitMessage =
+          tx.getCommitMessage() == null ? TXCommitMessage.ROLLBACK_MSG : tx.getCommitMessage();
+      failoverMap.put(tx.getTxId(), commitMessage);
       if (logger.isDebugEnabled()) {
         logger.debug(
             "TX: storing client initiated transaction:{}; now there are {} entries in the failoverMap",
@@ -1108,7 +1214,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
   /**
    * If the given transaction is already being completed by another thread this will wait for that
    * completion to finish and will ensure that the result is saved in the client failover map.
-   * 
+   *
    * @return true if a wait was performed
    */
   public boolean waitForCompletingTransaction(TXId txId) {
@@ -1135,7 +1241,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   /**
    * Returns the TXCommitMessage for a transaction that has been successfully completed.
-   * 
+   *
    * @return the commit message or an exception token e.g {@link TXCommitMessage#CMT_CONFLICT_MSG}
    *         if the transaction threw an exception
    * @see #isExceptionToken(TXCommitMessage)
@@ -1158,7 +1264,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
   /**
    * Generates exception messages for the three TXCommitMessage tokens that represent exceptions
    * during transaction execution.
-   * 
+   *
    * @param msg the token that represents the exception
    * @return the exception
    */
@@ -1187,7 +1293,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     /** for deserialization */
     public TXRemovalMessage() {}
 
-    static void send(DM dm, Set recipients, Set<TXId> txIds) {
+    static void send(DistributionManager dm, Set recipients, Set<TXId> txIds) {
       TXRemovalMessage msg = new TXRemovalMessage();
       msg.txIds = txIds;
       msg.setRecipients(recipients);
@@ -1209,7 +1315,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     }
 
     @Override
-    protected void process(DistributionManager dm) {
+    protected void process(ClusterDistributionManager dm) {
       InternalCache cache = dm.getCache();
       if (cache != null) {
         TXManagerImpl mgr = cache.getTXMgr();
@@ -1229,7 +1335,8 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     TXStateProxy result = getTXState();
     if (result != null) {
       TransactionId txId = result.getTransactionId();
-      internalSuspend();
+      result.suspend();
+      setTXState(null);
       this.suspendedTXs.put(txId, result);
       // wake up waiting threads
       Queue<Thread> waitingThreads = this.waitMap.get(txId);
@@ -1286,7 +1393,9 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   private void resumeProxy(TXStateProxy txProxy) {
     assert txProxy != null;
-    internalResume(txProxy);
+    assert getTXState() == null;
+    setTXState(txProxy);
+    txProxy.resume();
     SystemTimerTask task = this.expiryTasks.remove(txProxy.getTransactionId());
     if (task != null) {
       if (task.cancel()) {
@@ -1360,7 +1469,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
   /**
    * The timeout after which any suspended transactions are rolled back if they are not resumed. If
    * a negative timeout is passed, suspended transactions will never expire.
-   * 
+   *
    * @param timeout the timeout in minutes
    */
   public void setSuspendedTransactionTimeout(long timeout) {
@@ -1369,7 +1478,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   /**
    * Return the timeout after which suspended transactions are rolled back.
-   * 
+   *
    * @return the timeout in minutes
    * @see #setSuspendedTransactionTimeout(long)
    */
@@ -1385,7 +1494,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   /**
    * schedules the transaction to expire after {@link #suspendedTXTimeout}
-   * 
+   *
    * @param expiryTimeUnit the time unit to use when scheduling the expiration
    */
   private void scheduleExpiry(TransactionId txId, TimeUnit expiryTimeUnit) {
@@ -1660,7 +1769,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
   /**
    * Find all client originated transactions sent from the departed proxy server. Remove them from
    * the hostedTXStates map after the set TransactionTimeToLive period.
-   * 
+   *
    * @param proxyServer the departed proxy server
    */
   public void removeTransactionsSentFromDepartedProxy(InternalDistributedMember proxyServer) {
@@ -1689,9 +1798,9 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
   /*
    * retrieve the transaction states for the given client from a certain proxy server. if
    * transactions failed over, the new proxy server information should be stored in the TXState
-   * 
+   *
    * @param id the proxy server
-   * 
+   *
    * @return a set of the currently open transaction states
    */
   private Set<TXId> getTransactionsSentFromDepartedProxy(InternalDistributedMember proxyServer) {

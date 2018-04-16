@@ -30,13 +30,12 @@ import org.apache.geode.DataSerializer;
 import org.apache.geode.internal.DataSerializableFixedID;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.management.ManagementException;
 
 /**
  * Central component for federation It consists of an Object State as well as some meta data for the
  * Object being federated.
- * 
- * 
+ *
+ *
  */
 
 public class FederationComponent
@@ -44,9 +43,6 @@ public class FederationComponent
   private static final Logger logger = LogService.getLogger();
 
   private static final String THIS_COMPONENT = FederationComponent.class.getName();
-  /**
-   * 
-   */
   private static final long serialVersionUID = 3123549507449088591L;
 
   /**
@@ -78,12 +74,12 @@ public class FederationComponent
 
   private transient Map<String, Object> oldObjectState = new HashMap<String, Object>();
 
-  private transient final Map<Method, OpenMethod> methodHandlerMap = OpenTypeUtil.newMap();
+  private final transient Map<Method, OpenMethod> methodHandlerMap = OpenTypeUtil.newMap();
 
   private transient boolean prevRefreshChangeDetected = false;
 
   /**
-   * 
+   *
    * @param objectName ObjectName of the MBean
    * @param interfaceClass interface class of the MBean
    * @param notificationEmitter specifies whether this MBean is going to emit notifications
@@ -128,7 +124,7 @@ public class FederationComponent
 
   /**
    * gets the Canonical name of the MBean interface
-   * 
+   *
    * @return mbean interface class name
    */
 
@@ -138,7 +134,7 @@ public class FederationComponent
 
   /**
    * True if this MBean is a notification emitter.
-   * 
+   *
    * @return whether its a notification emitter or not
    */
 
@@ -149,13 +145,12 @@ public class FederationComponent
   /**
    * This method will get called from Management Thread. This will dynamically invoke the MBeans
    * getter methods and set them in ObjectState Map.
-   * 
+   *
    * In Future releases we can implement the delta propagation here
-   * 
+   *
    * @return true if the refresh detects that the state changed. It will return false if two
    *         consecutive refresh calls results in no state change. This indicates to the
    *         LocalManager whether to send the MBean state to Manager or not.
-   * @throws ManagementException
    */
 
   public boolean refreshObjectState(boolean keepOldState) {
@@ -228,8 +223,7 @@ public class FederationComponent
 
   /**
    * Managing node will get Object state by calling this method
-   * 
-   * @param propertyName
+   *
    * @return value of the given property
    */
   public Object getValue(String propertyName) {

@@ -27,10 +27,10 @@ package org.apache.geode.cache.server;
  * defined by <b>capacity</b></LI>
  * </UL>
  * <br/>
- * 
+ *
  * The capacity limits the total amount of memory or entries for all client queues on held on this
  * server. If this server hosts multiple client queues, they will all share the same capacity.
- * 
+ *
  * <p>
  * <b>Configuration: </b>
  * <p>
@@ -41,7 +41,7 @@ package org.apache.geode.cache.server;
  * <code>ClientSubscriptionConfig</code> object and modify each desired parameter and value.
  * <p>
  * <p>
- * 
+ *
  * If you are using a <code>cache.xml</code> file to create a <code>CacheServer</code>
  * declaratively, you can do the following to configure <code>ClientSubscriptionConfig</code> and to
  * have <b>none</b> eviction policy no need to specify client-subscription tag as it is a default
@@ -55,11 +55,11 @@ package org.apache.geode.cache.server;
  * &lt;/cache-server&gt;
  * </code>
  * </pre>
- * 
+ *
  * @see #getEvictionPolicy
  * @see #getCapacity
- * 
- * 
+ *
+ *
  * @since GemFire 5.7
  */
 
@@ -68,82 +68,82 @@ public interface ClientSubscriptionConfig {
   /**
    * The default limit that is assigned to client subscription.
    */
-  public static final int DEFAULT_CAPACITY = 1;
+  int DEFAULT_CAPACITY = 1;
 
   /**
    * The default eviction policy that is assigned to client subscription.
    */
-  public static final String DEFAULT_EVICTION_POLICY = "none";
+  String DEFAULT_EVICTION_POLICY = "none";
 
   /**
    * The default overflow directory that is assigned to client subscription.
    */
-  public static final String DEFAULT_OVERFLOW_DIRECTORY = ".";
+  String DEFAULT_OVERFLOW_DIRECTORY = ".";
 
   /**
    * Returns the capacity of the client queue. will be in MB for eviction-policy <b>mem</b> else
    * number of entries
-   * 
+   *
    * @see #DEFAULT_CAPACITY
    * @since GemFire 5.7
    */
-  public int getCapacity();
+  int getCapacity();
 
   /**
    * Sets the capacity of the client queue. will be in MB for eviction-policy <b>mem</b> else number
    * of entries
-   * 
+   *
    * @see #DEFAULT_CAPACITY
    * @since GemFire 5.7
    */
-  public void setCapacity(int capacity);
+  void setCapacity(int capacity);
 
   /**
    * Returns the eviction policy that is executed when capacity of the client queue is reached.
-   * 
+   *
    * @see #DEFAULT_EVICTION_POLICY
    * @since GemFire 5.7
    */
-  public String getEvictionPolicy();
+  String getEvictionPolicy();
 
   /**
    * Sets the eviction policy that is executed when capacity of the client queue is reached.
-   * 
+   *
    * @see #DEFAULT_EVICTION_POLICY
    * @since GemFire 5.7
    */
-  public void setEvictionPolicy(String policy);
+  void setEvictionPolicy(String policy);
 
   /**
    * Sets the overflow directory for a client queue
-   * 
+   *
    * @param overflowDirectory the overflow directory for a client queue's overflowed entries
    * @since GemFire 5.7
    * @deprecated as of 6.5 use {@link #setDiskStoreName(String)} instead
    */
-  public void setOverflowDirectory(String overflowDirectory);
+  void setOverflowDirectory(String overflowDirectory);
 
   /**
    * Answers the overflow directory for a client queue's overflowed client queue entries.
-   * 
+   *
    * @return the overflow directory for a client queue's overflowed entries
    * @since GemFire 5.7
    * @deprecated as of 6.5 use {@link #getDiskStoreName} instead
    */
-  public String getOverflowDirectory();
+  String getOverflowDirectory();
 
   /**
    * Sets the disk store name for overflow
-   * 
+   *
    * @param diskStoreName
    * @since GemFire 6.5
    */
-  public void setDiskStoreName(String diskStoreName);
+  void setDiskStoreName(String diskStoreName);
 
   /**
    * get the diskStoreName for overflow
-   * 
+   *
    * @since GemFire 6.5
    */
-  public String getDiskStoreName();
+  String getDiskStoreName();
 }

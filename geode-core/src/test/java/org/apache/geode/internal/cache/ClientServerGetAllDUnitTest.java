@@ -14,8 +14,12 @@
  */
 package org.apache.geode.internal.cache;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.apache.geode.test.dunit.Assert.*;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.OFF_HEAP_MEMORY_SIZE;
+import static org.apache.geode.distributed.ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER;
+import static org.apache.geode.test.dunit.Assert.assertEquals;
+import static org.apache.geode.test.dunit.Assert.assertTrue;
+import static org.apache.geode.test.dunit.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,7 +28,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 
-import org.apache.geode.test.junit.categories.ClientServerTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -36,6 +39,10 @@ import org.apache.geode.cache.LoaderHelper;
 import org.apache.geode.cache.PartitionAttributesFactory;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.Scope;
+import org.apache.geode.cache.client.ClientCache;
+import org.apache.geode.cache.client.ClientCacheFactory;
+import org.apache.geode.cache.client.ClientRegionFactory;
+import org.apache.geode.cache.client.ClientRegionShortcut;
 import org.apache.geode.cache.client.PoolFactory;
 import org.apache.geode.cache.client.PoolManager;
 import org.apache.geode.cache.server.CacheServer;
@@ -51,6 +58,7 @@ import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.NetworkUtils;
 import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.junit.categories.ClientServerTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
@@ -72,7 +80,6 @@ public class ClientServerGetAllDUnitTest extends ClientServerTestCase {
     final VM server = host.getVM(0);
     final VM client = host.getVM(1);
     final String regionName = getUniqueName();
-    final int mcastPort = 0; /* loner is ok for this test */ // AvailablePort.getRandomAvailablePort(AvailablePort.JGROUPS);
     final int serverPort = AvailablePort.getRandomAvailablePort(AvailablePort.SOCKET);
     final String serverHost = NetworkUtils.getServerHostName(server.getHost());
 
@@ -291,13 +298,20 @@ public class ClientServerGetAllDUnitTest extends ClientServerTestCase {
     stopBridgeServer(server);
   }
 
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties properties = super.getDistributedSystemProperties();
+    properties.put(SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.internal.cache.UnitTestValueHolder");
+    return properties;
+  }
+
   @Test
   public void testLargeGetAllFromServer() throws Throwable {
     final Host host = Host.getHost(0);
     final VM server = host.getVM(0);
     final VM client = host.getVM(1);
     final String regionName = getUniqueName();
-    final int mcastPort = 0; /* loner is ok for this test */ // AvailablePort.getRandomAvailablePort(AvailablePort.JGROUPS);
     final int serverPort = AvailablePortHelper.getRandomAvailableTCPPort();
     final String serverHost = NetworkUtils.getServerHostName(server.getHost());
 
@@ -694,9 +708,7 @@ public class ClientServerGetAllDUnitTest extends ClientServerTestCase {
       @Override
       public void run2() throws CacheException {
         // Create DS
-        Properties config = new Properties();
-        config.setProperty(LOCATORS,
-            "localhost[" + DistributedTestUtils.getDUnitLocatorPort() + "]");
+        Properties config = getDistributedSystemProperties();
         if (offheap) {
           config.setProperty(OFF_HEAP_MEMORY_SIZE, "350m");
         }
@@ -799,17 +811,12 @@ public class ClientServerGetAllDUnitTest extends ClientServerTestCase {
       @Override
       public void run2() throws CacheException {
         // Create DS
-        Properties config = new Properties();
-        config.setProperty(MCAST_PORT, "0");
-        config.setProperty(LOCATORS, "");
-        getSystem(config);
+        Properties config = getDistributedSystemProperties();
+        ClientCache clientCache = getClientCache(new ClientCacheFactory(config));
 
         // Create Region
-        AttributesFactory factory = new AttributesFactory();
-        factory.setScope(Scope.LOCAL);
-        if (proxy) {
-          factory.setDataPolicy(DataPolicy.EMPTY);
-        }
+        ClientRegionFactory factory = clientCache.createClientRegionFactory(
+            proxy ? ClientRegionShortcut.PROXY : ClientRegionShortcut.CACHING_PROXY);
         {
           PoolFactory pf = PoolManager.createFactory();
           for (int i = 0; i < serverPorts.length; i++) {
@@ -821,7 +828,7 @@ public class ClientServerGetAllDUnitTest extends ClientServerTestCase {
           pf.create("myPool");
         }
         factory.setPoolName("myPool");
-        createRootRegion(regionName, factory.create());
+        factory.create(regionName);
       }
     });
   }
@@ -841,10 +848,9 @@ public class ClientServerGetAllDUnitTest extends ClientServerTestCase {
       public void run2() throws CacheException {
         Region region = getRootRegion(regionName);
         region.close();
-        OffHeapTestUtil.checkOrphans();
+        OffHeapTestUtil.checkOrphans(getCache());
       }
     });
 
   }
 }
-

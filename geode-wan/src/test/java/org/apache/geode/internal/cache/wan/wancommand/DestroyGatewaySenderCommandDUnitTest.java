@@ -12,64 +12,96 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-
 package org.apache.geode.internal.cache.wan.wancommand;
 
-import static org.apache.geode.test.dunit.LogWriterUtils.getLogWriter;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.apache.geode.distributed.ConfigurationProperties.DISTRIBUTED_SYSTEM_ID;
+import static org.apache.geode.distributed.ConfigurationProperties.NAME;
+import static org.apache.geode.distributed.ConfigurationProperties.REMOTE_LOCATORS;
 
-import java.util.List;
+import java.util.Properties;
 
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import org.apache.geode.management.cli.Result;
-import org.apache.geode.management.internal.cli.i18n.CliStrings;
-import org.apache.geode.management.internal.cli.result.CommandResult;
-import org.apache.geode.management.internal.cli.result.TabularResultData;
-import org.apache.geode.test.dunit.IgnoredException;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
+import org.apache.geode.test.dunit.rules.MemberVM;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.WanTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 
-@Category(DistributedTest.class)
-public class DestroyGatewaySenderCommandDUnitTest extends WANCommandTestBase {
-  @Test
-  public void testDestroyGatewaySender_NotCreatedSender() {
-    Integer dsIdPort = vm1.invoke(() -> createFirstLocatorWithDSId(1));
-    propsSetUp(dsIdPort);
+@Category({DistributedTest.class, WanTest.class})
+public class DestroyGatewaySenderCommandDUnitTest {
 
-    vm2.invoke(() -> createFirstRemoteLocator(2, dsIdPort));
-    vm3.invoke(() -> createCache(dsIdPort));
-    vm4.invoke(() -> createCache(dsIdPort));
-    vm5.invoke(() -> createCache(dsIdPort));
+  public static final String CREATE =
+      "create gateway-sender --id=sender --remote-distributed-system-id=2";
+  public static final String DESTROY = "destroy gateway-sender --id=sender";
 
-    // Test Destroy Command
-    String command =
-        CliStrings.DESTROY_GATEWAYSENDER + " --" + CliStrings.DESTROY_GATEWAYSENDER__ID + "=ln";
-    CommandResult cmdResult = executeCommandWithIgnoredExceptions(command);
-    if (cmdResult != null) {
-      String strCmdResult = commandResultToString(cmdResult);
-      getLogWriter().info(
-          "testDestroyGatewaySender_NotCreatedSender stringResult : " + strCmdResult + ">>>>");
-      assertEquals(Result.Status.OK, cmdResult.getStatus());
-      TabularResultData resultData = (TabularResultData) cmdResult.getResultData();
-      List<String> status = resultData.retrieveAllValues("Status");
-      assertEquals(5, status.size());
-      for (String stat : status) {
-        assertTrue("GatewaySender destroy should fail", stat.contains("ERROR:"));
-      }
-    } else {
-      fail("testCreateDestroyParallelGatewaySender failed as did not get CommandResult");
-    }
+  @ClassRule
+  public static ClusterStartupRule clusterStartupRule = new ClusterStartupRule();
+
+  @Rule
+  public GfshCommandRule gfsh = new GfshCommandRule();
+
+  private static MemberVM locatorSite1;
+  private static MemberVM server1;
+
+  @BeforeClass
+  public static void beforeClass() throws Exception {
+    Properties props = new Properties();
+    props.setProperty(NAME, "happylocator");
+    props.setProperty(DISTRIBUTED_SYSTEM_ID, "" + 1);
+    locatorSite1 = clusterStartupRule.startLocatorVM(0, props);
+
+    props.setProperty(NAME, "happyserver1");
+    server1 = clusterStartupRule.startServerVM(1, props, locatorSite1.getPort());
+
+    props.setProperty(DISTRIBUTED_SYSTEM_ID, "" + 2);
+    props.setProperty(NAME, "happyremotelocator");
+    props.setProperty(REMOTE_LOCATORS, "localhost[" + locatorSite1.getPort() + "]");
+    clusterStartupRule.startLocatorVM(2, props);
   }
 
-  private CommandResult executeCommandWithIgnoredExceptions(String command) {
-    final IgnoredException ignored = IgnoredException.addIgnoredException("Could not connect");
-    try {
-      return executeCommand(command);
-    } finally {
-      ignored.remove();
-    }
+  @Before
+  public void before() throws Exception {
+    gfsh.connectAndVerify(locatorSite1);
+  }
+
+  @Test
+  public void testCreateDestroySerialGatewaySenderWithDefault() throws Exception {
+    gfsh.executeAndAssertThat(CREATE).statusIsSuccess().tableHasColumnWithExactValuesInAnyOrder(
+        "Status", "GatewaySender \"sender\" created on \"happyserver1\"");
+
+    locatorSite1.waitTilGatewaySendersAreReady(1);
+
+    // destroy gateway sender and verify AEQs cleaned up
+    gfsh.executeAndAssertThat(DESTROY).statusIsSuccess().tableHasColumnWithExactValuesInAnyOrder(
+        "Status", "GatewaySender \"sender\" destroyed on \"happyserver1\"");
+
+    locatorSite1.waitTilGatewaySendersAreReady(0);
+
+    gfsh.executeAndAssertThat("list gateways").statusIsError()
+        .containsOutput("GatewaySenders or GatewayReceivers are not available in cluster");
+  }
+
+  @Test
+  public void testCreateDestroyParallellGatewaySenderWithDefault() throws Exception {
+    gfsh.executeAndAssertThat(CREATE + " --parallel").statusIsSuccess()
+        .tableHasColumnWithExactValuesInAnyOrder("Status",
+            "GatewaySender \"sender\" created on \"happyserver1\"");
+
+    locatorSite1.waitTilGatewaySendersAreReady(1);
+
+    // destroy gateway sender and verify AEQs cleaned up
+    gfsh.executeAndAssertThat(DESTROY).statusIsSuccess().tableHasColumnWithExactValuesInAnyOrder(
+        "Status", "GatewaySender \"sender\" destroyed on \"happyserver1\"");
+
+    locatorSite1.waitTilGatewaySendersAreReady(0);
+
+    gfsh.executeAndAssertThat("list gateways").statusIsError()
+        .containsOutput("GatewaySenders or GatewayReceivers are not available in cluster");
   }
 }

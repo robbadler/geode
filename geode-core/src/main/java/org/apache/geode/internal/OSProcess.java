@@ -14,37 +14,74 @@
  */
 package org.apache.geode.internal;
 
+import java.io.*;
+import java.lang.management.*;
+import java.util.*;
+import java.util.zip.GZIPOutputStream;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.SystemFailure;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.io.TeePrintStream;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.LoggingThreadGroup;
-import org.apache.logging.log4j.Logger;
-
-import java.io.*;
-import java.lang.management.*;
-import java.util.*;
-import java.util.zip.GZIPOutputStream;
 
 /**
  * Used to interact with operating system processes. Use <code>exec</code> to create a new process
  * by executing a command. Use <code>kill</code> to kill a process.
  *
- *
  */
+// TODO: In the next major release, we should remove the variables and logic related to the system
+// properties used to determine whether output redirection is allowed or not
+// (DISABLE_OUTPUT_REDIRECTION_PROPERTY, ENABLE_OUTPUT_REDIRECTION_PROPERTY,
+// DISABLE_REDIRECTION_CONFIGURATION_PROPERTY, ENABLE_OUTPUT_REDIRECTION, DISABLE_OUTPUT_REDIRECTION
+// and DISABLE_REDIRECTION_CONFIGURATION). GFSH should always use the new redirect-output flag.
 public class OSProcess {
   private static final Logger logger = LogService.getLogger();
 
+  /**
+   * @deprecated use GFSH redirect-output flag instead.
+   */
+  @Deprecated
   public static final String DISABLE_OUTPUT_REDIRECTION_PROPERTY =
       DistributionConfig.GEMFIRE_PREFIX + "OSProcess.DISABLE_OUTPUT_REDIRECTION";
+
+  /**
+   * @deprecated use GFSH redirect-output flag instead.
+   */
+  @Deprecated
   public static final String ENABLE_OUTPUT_REDIRECTION_PROPERTY =
       DistributionConfig.GEMFIRE_PREFIX + "OSProcess.ENABLE_OUTPUT_REDIRECTION";
 
-  private static final boolean DISABLE_OUTPUT_REDIRECTION =
-      Boolean.getBoolean(DISABLE_OUTPUT_REDIRECTION_PROPERTY);
+  /**
+   * @deprecated use GFSH redirect-output flag instead.
+   */
+  @Deprecated
+  public static final String DISABLE_REDIRECTION_CONFIGURATION_PROPERTY =
+      DistributionConfig.GEMFIRE_PREFIX + "OSProcess.DISABLE_REDIRECTION_CONFIGURATION";
+
+  /**
+   * @deprecated use GFSH redirect-output flag instead.
+   */
+  @Deprecated
   private static final boolean ENABLE_OUTPUT_REDIRECTION =
       Boolean.getBoolean(ENABLE_OUTPUT_REDIRECTION_PROPERTY);
+
+  /**
+   * @deprecated use GFSH redirect-output flag instead.
+   */
+  @Deprecated
+  private static final boolean DISABLE_OUTPUT_REDIRECTION =
+      Boolean.getBoolean(DISABLE_OUTPUT_REDIRECTION_PROPERTY);
+
+  /**
+   * @deprecated use GFSH redirect-output flag instead.
+   */
+  @Deprecated
+  private static final boolean DISABLE_REDIRECTION_CONFIGURATION =
+      Boolean.getBoolean(DISABLE_REDIRECTION_CONFIGURATION_PROPERTY);
 
   static final boolean pureMode = PureJavaMode.isPure();
 
@@ -322,12 +359,12 @@ public class OSProcess {
 
   /**
    * Ask a process to shut itself down. The process may catch and ignore this shutdown request.
-   * 
+   *
    * @param pid the id of the process to shutdown
    * @return true if the request was sent to the process; false if the process does not exist or can
    *         not be asked to shutdown.
    */
-  static public boolean shutdown(int pid) {
+  public static boolean shutdown(int pid) {
     if (pureMode) {
       throw new RuntimeException(
           LocalizedStrings.OSProcess_SHUTDOWN_NOT_ALLOWED_IN_PURE_JAVA_MODE.toLocalizedString());
@@ -337,17 +374,17 @@ public class OSProcess {
     }
   }
 
-  static private native boolean _shutdown(int pid);
+  private static native boolean _shutdown(int pid);
 
   /**
    * Terminate a process without warning and without a chance of an orderly shutdown. This method
    * should only be used as a last resort. The {@link #shutdown(int)} method should be used in most
    * cases.
-   * 
+   *
    * @param pid the id of the process to kill
    * @return true if the process was killed; false if it does not exist or can not be killed.
    */
-  static public boolean kill(int pid) {
+  public static boolean kill(int pid) {
     if (pureMode) {
       throw new RuntimeException(
           LocalizedStrings.OSProcess_KILL_NOT_ALLOWED_IN_PURE_JAVA_MODE.toLocalizedString());
@@ -357,26 +394,26 @@ public class OSProcess {
     }
   }
 
-  static private native boolean _kill(int pid);
+  private static native boolean _kill(int pid);
 
   /**
    * Tells a process to print its stacks to its standard output
-   * 
+   *
    * @param pid the id of the process that will print its stacks, or zero for the current process
    * @return true if the process was told; false if it does not exist or can not be told.
    */
-  static public boolean printStacks(int pid) {
+  public static boolean printStacks(int pid) {
     return printStacks(pid, false);
   }
 
   /**
    * Tells a process to print its stacks to its standard output or the given log writer
-   * 
+   *
    * @param pid the id of the process that will print its stacks, or zero for the current process
    * @param useNative if true we attempt to use native code, which goes to stdout
    * @return true if the process was told; false if it does not exist or can not be told.
    */
-  static public boolean printStacks(int pid, boolean useNative) {
+  public static boolean printStacks(int pid, boolean useNative) {
     if (pureMode || !useNative) {
       if (pid > 0 && pid != myPid[0]) {
         return false;
@@ -423,9 +460,9 @@ public class OSProcess {
     return result;
   }
 
-  static private native boolean _printStacks(int pid);
+  private static native boolean _printStacks(int pid);
 
-  final static int MAX_STACK_FRAMES = 75;
+  static final int MAX_STACK_FRAMES = 75;
 
   private static void formatThreadInfo(ThreadInfo t, PrintWriter pw) {
     // this is largely copied from the JDK's ThreadInfo.java, but it limits the
@@ -502,11 +539,11 @@ public class OSProcess {
 
   /**
    * Find out if a process exists.
-   * 
+   *
    * @param pid the id of the process to check for
    * @return true if the process exists; false if it does not.
    */
-  static public boolean exists(int pid) {
+  public static boolean exists(int pid) {
     if (pureMode) {
       throw new RuntimeException(
           LocalizedStrings.OSProcess_EXISTS_NOT_ALLOWED_IN_PURE_JAVA_MODE.toLocalizedString());
@@ -532,13 +569,13 @@ public class OSProcess {
   /**
    * Waits for a child process to die and reaps it.
    */
-  static private native void waitForPid(int pid);
+  private static native void waitForPid(int pid);
 
   /**
    * Waits until the identified process exits. If the process does not exist then returns
    * immediately.
    */
-  static public void waitForPidToExit(int pid) {
+  public static void waitForPidToExit(int pid) {
     if (pureMode) {
       throw new RuntimeException(
           LocalizedStrings.OSProcess_WAITFORPIDTOEXIT_NOT_ALLOWED_IN_PURE_JAVA_MODE
@@ -550,10 +587,10 @@ public class OSProcess {
 
   /**
    * Sets the current directory of this process.
-   * 
+   *
    * @return true if current directory was set; false if not.
    */
-  static public boolean setCurrentDirectory(File curDir) {
+  public static boolean setCurrentDirectory(File curDir) {
     if (pureMode) {
       throw new RuntimeException(
           LocalizedStrings.OSProcess_SETCURRENTDIRECTORY_NOT_ALLOWED_IN_PURE_JAVA_MODE
@@ -569,7 +606,7 @@ public class OSProcess {
 
   /**
    * Reaps a child process if it has died. Does not wait for the child.
-   * 
+   *
    * @param pid the id of the process to reap
    * @return true if it was reaped or lost (someone else reaped it); false if the child still
    *         exists. HACK: If pid is -1 then returns true if this platform needs reaping.
@@ -715,7 +752,8 @@ public class OSProcess {
     }
     final PrintStream newPrintStream =
         new PrintStream(new BufferedOutputStream(newFileStream, 128), true);
-    if (ENABLE_OUTPUT_REDIRECTION && !DISABLE_OUTPUT_REDIRECTION && setOut) {
+    if (((DISABLE_REDIRECTION_CONFIGURATION)
+        || (ENABLE_OUTPUT_REDIRECTION && !DISABLE_OUTPUT_REDIRECTION)) && setOut) {
       System.setOut(newPrintStream);
       if (System.err instanceof TeePrintStream) {
         ((TeePrintStream) System.err).getTeeOutputStream()

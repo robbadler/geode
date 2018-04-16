@@ -15,6 +15,19 @@
 
 package org.apache.geode.modules.session.internal.filter;
 
+import java.util.Enumeration;
+import java.util.UUID;
+
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import javax.naming.InitialContext;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpSession;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.EntryNotFoundException;
@@ -35,19 +48,6 @@ import org.apache.geode.modules.session.internal.filter.attributes.DeltaSessionA
 import org.apache.geode.modules.session.internal.filter.util.TypeAwareMap;
 import org.apache.geode.modules.session.internal.jmx.SessionStatistics;
 import org.apache.geode.modules.util.RegionHelper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-import javax.naming.InitialContext;
-import javax.servlet.FilterConfig;
-import javax.servlet.ServletContext;
-import javax.servlet.http.HttpSession;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * This class implements the session management using a Gemfire distributedCache as a persistent
@@ -300,7 +300,6 @@ public class GemfireSessionManager implements SessionManager {
   /**
    * Start the underlying distributed system
    *
-   * @param config
    */
   private void startDistributedSystem(FilterConfig config) {
     // Get the distributedCache type

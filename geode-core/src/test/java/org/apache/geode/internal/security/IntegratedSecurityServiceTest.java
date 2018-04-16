@@ -22,6 +22,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Properties;
 
+import org.apache.shiro.session.Session;
 import org.apache.shiro.subject.Subject;
 import org.apache.shiro.subject.SubjectContext;
 import org.apache.shiro.subject.support.SubjectThreadState;
@@ -34,7 +35,6 @@ import org.junit.experimental.categories.Category;
 
 import org.apache.geode.internal.security.shiro.SecurityManagerProvider;
 import org.apache.geode.security.AuthenticationRequiredException;
-import org.apache.geode.security.GemFireSecurityException;
 import org.apache.geode.security.PostProcessor;
 import org.apache.geode.security.SecurityManager;
 import org.apache.geode.test.junit.categories.UnitTest;
@@ -59,6 +59,7 @@ public class IntegratedSecurityServiceTest {
     when(provider.getSecurityManager()).thenReturn(mockSecurityManager);
     when(shiroManager.createSubject(any(SubjectContext.class))).thenReturn(mockSubject);
     when(mockSubject.getPrincipal()).thenReturn("principal");
+    when(mockSubject.getSession()).thenReturn(mock(Session.class));
 
     this.securityService = new IntegratedSecurityService(provider, null);
   }
@@ -71,7 +72,8 @@ public class IntegratedSecurityServiceTest {
   @Test
   public void bindSubject_nullSubject_shouldReturn_null() throws Exception {
     assertThatThrownBy(() -> this.securityService.bindSubject(null))
-        .isInstanceOf(GemFireSecurityException.class).hasMessageContaining("Anonymous User");
+        .isInstanceOf(AuthenticationRequiredException.class)
+        .hasMessageContaining("Failed to find the authenticated user");
   }
 
   @Test

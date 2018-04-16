@@ -19,7 +19,6 @@ import java.util.Map;
 
 import org.apache.geode.StatisticDescriptor;
 import org.apache.geode.Statistics;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.statistics.StatisticId;
 import org.apache.geode.internal.statistics.StatisticNotFoundException;
 import org.apache.geode.internal.statistics.StatisticsListener;
@@ -27,10 +26,6 @@ import org.apache.geode.internal.statistics.StatisticsNotification;
 import org.apache.geode.internal.statistics.ValueMonitor;
 import org.apache.geode.management.internal.beans.stats.MBeanStatsMonitor.DefaultHashMap;
 
-/**
- * 
- *
- */
 public class MemberLevelDiskMonitor extends MBeanStatsMonitor {
 
 
@@ -159,11 +154,10 @@ public class MemberLevelDiskMonitor extends MBeanStatsMonitor {
     /**
      * Only decrease those values which can both increase and decrease and not values which can only
      * increase like read/writes
-     * 
+     *
      * Remove last sample value from the aggregate. Last Sampled value can be obtained from the
      * DefaultHashMap for the disk
-     * 
-     * @param stats
+     *
      */
 
     public void decreaseDiskStoreStats(Statistics stats) {

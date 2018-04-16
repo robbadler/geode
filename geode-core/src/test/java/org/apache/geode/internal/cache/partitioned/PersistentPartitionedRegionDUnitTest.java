@@ -14,11 +14,14 @@
  */
 package org.apache.geode.internal.cache.partitioned;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.awaitility.Awaitility.*;
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.*;
+import static org.awaitility.Awaitility.await;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -32,11 +35,12 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.awaitility.Awaitility;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+
 import org.apache.geode.DataSerializable;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
@@ -70,15 +74,17 @@ import org.apache.geode.cache.persistence.RevokeFailedException;
 import org.apache.geode.cache.persistence.RevokedPersistentDataException;
 import org.apache.geode.cache.query.QueryException;
 import org.apache.geode.cache.server.CacheServer;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.ConfigurationProperties;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionMessageObserver;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.internal.AvailablePort;
+import org.apache.geode.internal.cache.DiskRegion;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.internal.cache.InitialImageOperation.RequestImageMessage;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.PartitionedRegionTestHelper;
-import org.apache.geode.internal.cache.InitialImageOperation.RequestImageMessage;
 import org.apache.geode.internal.cache.control.InternalResourceManager;
 import org.apache.geode.internal.cache.partitioned.ManageBucketMessage.ManageBucketReplyMessage;
 import org.apache.geode.internal.i18n.LocalizedStrings;
@@ -96,7 +102,6 @@ import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
-import org.awaitility.Awaitility;
 
 /**
  * Tests the basic use cases for PR persistence.
@@ -109,10 +114,6 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
   // tests. The command line is setting the ack-wait-threshold to be
   // 60 seconds.
   private static final int MAX_WAIT = 65 * 1000;
-
-  public PersistentPartitionedRegionDUnitTest() {
-    super();
-  }
 
   /**
    * A simple test case that we are actually persisting with a PR.
@@ -168,7 +169,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
     } catch (RMIException exp) {
       assertTrue(exp.getCause() instanceof IllegalStateException);
       IllegalStateException ise = (IllegalStateException) exp.getCause();
-      Object[] prms = new Object[] {"/" + PR_REGION_NAME, 2, 5};
+      Object[] prms = new Object[] {"/" + getPartitionedRegionName(), 2, 5};
       assertTrue(ise.getMessage().contains(
           LocalizedStrings.PartitionedRegion_FOR_REGION_0_TotalBucketNum_1_SHOULD_NOT_BE_CHANGED_Previous_Configured_2
               .toString(prms)));
@@ -180,7 +181,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
     } catch (RMIException exp) {
       assertTrue(exp.getCause() instanceof IllegalStateException);
       IllegalStateException ise = (IllegalStateException) exp.getCause();
-      Object[] prms = new Object[] {"/" + PR_REGION_NAME, 10, 5};
+      Object[] prms = new Object[] {"/" + getPartitionedRegionName(), 10, 5};
       assertTrue(ise.getMessage().contains(
           LocalizedStrings.PartitionedRegion_FOR_REGION_0_TotalBucketNum_1_SHOULD_NOT_BE_CHANGED_Previous_Configured_2
               .toString(prms)));
@@ -212,7 +213,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
         af.setDataPolicy(DataPolicy.PERSISTENT_PARTITION);
         af.setDiskStoreName("disk");
         RegionAttributes attr = af.create();
-        cache.createRegion(PR_REGION_NAME, attr);
+        cache.createRegion(getPartitionedRegionName(), attr);
       }
     };
 
@@ -234,8 +235,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
 
   /**
    * Test to make sure that we can recover from a complete system shutdown with redundancy 0
-   * 
-   * @throws Throwable
+   *
    */
   @Test
   public void testTotalRecoverRedundancy0() throws Throwable {
@@ -244,8 +244,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
 
   /**
    * Test to make sure that we can recover from a complete system shutdown with redundancy 1
-   * 
-   * @throws Throwable
+   *
    */
   @Test
   public void testTotalRecoverRedundancy1() throws Throwable {
@@ -291,7 +290,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
       vm0.invoke(new SerializableRunnable() {
         public void run() {
           Cache cache = getCache();
-          Region region = cache.getRegion(PR_REGION_NAME);
+          Region region = cache.getRegion(getPartitionedRegionName());
           try {
             for (int i = 0; i < numBuckets; i++) {
               region.put(i, new BadSerializer());
@@ -325,6 +324,24 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
       expected1.remove();
       expected2.remove();
     }
+  }
+
+  void checkRecoveredFromDisk(VM vm, final int bucketId, final boolean recoveredLocally) {
+    vm.invoke(new SerializableRunnable("check recovered from disk") {
+      @Override
+      public void run() {
+        Cache cache = getCache();
+        PartitionedRegion region = (PartitionedRegion) cache.getRegion(getPartitionedRegionName());
+        DiskRegion disk = region.getRegionAdvisor().getBucket(bucketId).getDiskRegion();
+        if (recoveredLocally) {
+          assertEquals(0, disk.getStats().getRemoteInitializations());
+          assertEquals(1, disk.getStats().getLocalInitializations());
+        } else {
+          assertEquals(1, disk.getStats().getRemoteInitializations());
+          assertEquals(0, disk.getStats().getLocalInitializations());
+        }
+      }
+    });
   }
 
   public static class BadSerializer implements DataSerializable {
@@ -544,6 +561,15 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
     });
   }
 
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties result = super.getDistributedSystemProperties();
+    result.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.internal.cache.partitioned.PersistentPartitionedRegionDUnitTest$TestFunction");
+    return result;
+
+  }
+
   /**
    * Test that we wait for missing data to come back if the redundancy was 0.
    */
@@ -609,7 +635,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
     vm0.invoke(new SerializableRunnable("Test ways to read") {
       public void run() {
         Cache cache = getCache();
-        Region region = cache.getRegion(PR_REGION_NAME);
+        Region region = cache.getRegion(getPartitionedRegionName());
 
         try {
           FunctionService.onRegion(region).execute(new TestFunction());
@@ -651,7 +677,8 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
         }
 
         try {
-          cache.getQueryService().newQuery("select * from /" + PR_REGION_NAME).execute();
+          cache.getQueryService().newQuery("select * from /" + getPartitionedRegionName())
+              .execute();
           fail("Should not have been able to read from missing buckets!");
         } catch (PartitionOfflineException e) {
           // expected
@@ -889,8 +916,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
 
   /**
    * Test to make sure that we recreate a bucket if a member is revoked
-   * 
-   * @throws Throwable
+   *
    */
   @Test
   public void testRevokedMemberRedundancy1() throws Throwable {
@@ -967,8 +993,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
   /**
    * Test to make sure that we recreate a bucket if a member is revoked, and that we do it
    * immediately if recovery delay is set to 0.
-   * 
-   * @throws Throwable
+   *
    */
   @Test
   public void testRevokedMemberRedundancy1ImmediateRecovery() throws Throwable {
@@ -1044,6 +1069,9 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
   /**
    * This test this case we replace buckets where are offline on A by creating them on C We then
    * shutdown C and restart A, which recovers those buckets
+   * <p>
+   *
+   * TRAC 41340: data inconsistency after disk recovery from persistent PR
    */
   @Test
   public void testBug41340() throws Throwable {
@@ -1159,6 +1187,9 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
   /**
    * Test that we don't record our old member ID as offline, preventing redundancy recovery in the
    * future.
+   * <p>
+   *
+   * TRAC 41341: Redundancy not restored after reinitializing after locally destroying persistent PR
    */
   @Test
   public void testBug41341() {
@@ -1404,7 +1435,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
         paf.setLocalMaxMemory(0);
         af.setPartitionAttributes(paf.create());
         af.setDataPolicy(DataPolicy.PARTITION);
-        cache.createRegion(PR_REGION_NAME, af.create());
+        cache.createRegion(getPartitionedRegionName(), af.create());
 
         CacheServer server = cache.addCacheServer();
         server.setPort(AvailablePort.getRandomAvailablePort(AvailablePort.SOCKET));
@@ -1437,7 +1468,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
           af.setDataPolicy(DataPolicy.NORMAL);
           af.setScope(Scope.LOCAL);
           af.setPoolName("pool");
-          Region region = cache.createRegion(PR_REGION_NAME, af.create());
+          Region region = cache.createRegion(getPartitionedRegionName(), af.create());
           try {
             region.registerInterestRegex(".*");
           } catch (ServerOperationException e) {
@@ -1467,7 +1498,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
         EvictionAttributes.createLRUEntryAttributes(50, EvictionAction.OVERFLOW_TO_DISK));
     rf.setDiskDirs(getDiskDirs());
 
-    Region region = rf.create(PR_REGION_NAME);
+    Region region = rf.create(getPartitionedRegionName());
     region.get(0);
     cache.getDistributedSystem().disconnect();
     // cache.close();
@@ -1489,8 +1520,9 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
 
           @Override
-          public void beforeSendMessage(DistributionManager dm, DistributionMessage msg) {
-            if (msg instanceof ManageBucketReplyMessage) {
+          public void beforeSendMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
+            if (message instanceof ManageBucketReplyMessage) {
               Cache cache = getCache();
               disconnectFromDS();
 
@@ -1553,18 +1585,18 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
     createNestedPR(vm1);
     createNestedPR(vm2);
 
-    createData(vm0, 0, numBuckets, "a", "parent1/" + PR_REGION_NAME);
-    createData(vm0, 0, numBuckets, "b", "parent2/" + PR_REGION_NAME);
-    checkData(vm2, 0, numBuckets, "a", "parent1/" + PR_REGION_NAME);
-    checkData(vm2, 0, numBuckets, "b", "parent2/" + PR_REGION_NAME);
+    createData(vm0, 0, numBuckets, "a", "parent1/" + getPartitionedRegionName());
+    createData(vm0, 0, numBuckets, "b", "parent2/" + getPartitionedRegionName());
+    checkData(vm2, 0, numBuckets, "a", "parent1/" + getPartitionedRegionName());
+    checkData(vm2, 0, numBuckets, "b", "parent2/" + getPartitionedRegionName());
 
-    Set<Integer> vm1_0Buckets = getBucketList(vm0, "parent1/" + PR_REGION_NAME);
-    Set<Integer> vm1_1Buckets = getBucketList(vm1, "parent1/" + PR_REGION_NAME);
-    Set<Integer> vm1_2Buckets = getBucketList(vm2, "parent1/" + PR_REGION_NAME);
+    Set<Integer> vm1_0Buckets = getBucketList(vm0, "parent1/" + getPartitionedRegionName());
+    Set<Integer> vm1_1Buckets = getBucketList(vm1, "parent1/" + getPartitionedRegionName());
+    Set<Integer> vm1_2Buckets = getBucketList(vm2, "parent1/" + getPartitionedRegionName());
 
-    Set<Integer> vm2_0Buckets = getBucketList(vm0, "parent2/" + PR_REGION_NAME);
-    Set<Integer> vm2_1Buckets = getBucketList(vm1, "parent2/" + PR_REGION_NAME);
-    Set<Integer> vm2_2Buckets = getBucketList(vm2, "parent2/" + PR_REGION_NAME);
+    Set<Integer> vm2_0Buckets = getBucketList(vm0, "parent2/" + getPartitionedRegionName());
+    Set<Integer> vm2_1Buckets = getBucketList(vm1, "parent2/" + getPartitionedRegionName());
+    Set<Integer> vm2_2Buckets = getBucketList(vm2, "parent2/" + getPartitionedRegionName());
 
     closeCache(vm0);
     closeCache(vm1);
@@ -1582,20 +1614,20 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
     async1.getResult();
     async2.getResult();
 
-    assertEquals(vm1_0Buckets, getBucketList(vm0, "parent1/" + PR_REGION_NAME));
-    assertEquals(vm1_1Buckets, getBucketList(vm1, "parent1/" + PR_REGION_NAME));
-    assertEquals(vm1_2Buckets, getBucketList(vm2, "parent1/" + PR_REGION_NAME));
+    assertEquals(vm1_0Buckets, getBucketList(vm0, "parent1/" + getPartitionedRegionName()));
+    assertEquals(vm1_1Buckets, getBucketList(vm1, "parent1/" + getPartitionedRegionName()));
+    assertEquals(vm1_2Buckets, getBucketList(vm2, "parent1/" + getPartitionedRegionName()));
 
-    assertEquals(vm2_0Buckets, getBucketList(vm0, "parent2/" + PR_REGION_NAME));
-    assertEquals(vm2_1Buckets, getBucketList(vm1, "parent2/" + PR_REGION_NAME));
-    assertEquals(vm2_2Buckets, getBucketList(vm2, "parent2/" + PR_REGION_NAME));
+    assertEquals(vm2_0Buckets, getBucketList(vm0, "parent2/" + getPartitionedRegionName()));
+    assertEquals(vm2_1Buckets, getBucketList(vm1, "parent2/" + getPartitionedRegionName()));
+    assertEquals(vm2_2Buckets, getBucketList(vm2, "parent2/" + getPartitionedRegionName()));
 
-    checkData(vm0, 0, numBuckets, "a", "parent1/" + PR_REGION_NAME);
-    checkData(vm0, 0, numBuckets, "b", "parent2/" + PR_REGION_NAME);
-    createData(vm1, numBuckets, 113, "c", "parent1/" + PR_REGION_NAME);
-    createData(vm1, numBuckets, 113, "d", "parent2/" + PR_REGION_NAME);
-    checkData(vm2, numBuckets, 113, "c", "parent1/" + PR_REGION_NAME);
-    checkData(vm2, numBuckets, 113, "d", "parent2/" + PR_REGION_NAME);
+    checkData(vm0, 0, numBuckets, "a", "parent1/" + getPartitionedRegionName());
+    checkData(vm0, 0, numBuckets, "b", "parent2/" + getPartitionedRegionName());
+    createData(vm1, numBuckets, 113, "c", "parent1/" + getPartitionedRegionName());
+    createData(vm1, numBuckets, 113, "d", "parent2/" + getPartitionedRegionName());
+    checkData(vm2, numBuckets, 113, "c", "parent1/" + getPartitionedRegionName());
+    checkData(vm2, numBuckets, 113, "d", "parent2/" + getPartitionedRegionName());
   }
 
   @Test
@@ -1615,7 +1647,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
 
       public Object call() {
         Cache cache = getCache();
-        Region region = cache.getRegion(PR_REGION_NAME);
+        Region region = cache.getRegion(getPartitionedRegionName());
 
         int i = 0;
         while (true) {
@@ -1635,7 +1667,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
     SerializableCallable waitForIntValue = new SerializableCallable() {
       public Object call() {
         Cache cache = getCache();
-        Region region = cache.getRegion(PR_REGION_NAME);
+        Region region = cache.getRegion(getPartitionedRegionName());
         // The value is initialized as a String so wait
         // for it to be changed to an Integer.
         await().atMost(60, SECONDS).until(() -> {
@@ -1668,7 +1700,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
 
       public Object call() {
         Cache cache = getCache();
-        Region region = cache.getRegion(PR_REGION_NAME);
+        Region region = cache.getRegion(getPartitionedRegionName());
         int value = (Integer) region.get(0);
         return value;
       }
@@ -1686,8 +1718,10 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
    * member A that it hosts the bucket 3. Member A crashes 4. Member B destroys the bucket and
    * throws a partition offline exception, because it wasn't able to complete initialization. 5.
    * Member A recovers, and gets stuck waiting for member B.
-   * 
-   * @throws Throwable
+   * <p>
+   *
+   * TRAC 42226: recycled VM hangs during re-start while waiting for Partition to come online (after
+   * Controller VM sees unexpected PartitionOffLineException while doing ops)
    */
   @Category(FlakyTest.class) // GEODE-1208: time sensitive, multiple non-thread-safe test hooks,
                              // async actions
@@ -1704,7 +1738,8 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
 
           @Override
-          public void beforeProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void beforeProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof RequestImageMessage) {
               RequestImageMessage rim = (RequestImageMessage) message;
               // Don't disconnect until we see a bucket
@@ -1716,7 +1751,8 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
           }
 
           @Override
-          public void afterProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void afterProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
 
           }
         });
@@ -1768,8 +1804,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
   /**
    * A test to make sure that we allow the PR to be used after at least one copy of every bucket is
    * recovered, but before the secondaries are initialized.
-   * 
-   * @throws Throwable
+   *
    */
   @Test
   public void testAllowRegionUseBeforeRedundancyRecovery() throws Throwable {
@@ -1833,7 +1868,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
 
           Cache cache = getCache();
           RegionAttributes attr = getPersistentPRAttributes(redundancy, -1, cache, 113, true);
-          cache.createRegion(PR_REGION_NAME, attr);
+          cache.createRegion(getPartitionedRegionName(), attr);
         }
       };
 
@@ -1905,7 +1940,8 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
       public void run() {
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
           @Override
-          public void beforeProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void beforeProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof RequestImageMessage) {
               RequestImageMessage rim = (RequestImageMessage) message;
               if (rim.regionPath.contains("_0")) {
@@ -1936,11 +1972,10 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
   /**
    * Another test for bug 41436. If the GII source crashes before the GII is complete, we need to
    * make sure that later we can recover redundancy.
-   * 
+   *
    * In this test case, we bring the GII down before we bring the source back up, to make sure the
    * source still discovers that the GII target is no longer hosting the bucket.
-   * 
-   * @throws InterruptedException
+   *
    */
   @Test
   public void testCrashDuringBucketGII2() throws InterruptedException {
@@ -1958,7 +1993,8 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
       public void run() {
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
           @Override
-          public void beforeProcessMessage(DistributionManager dm, DistributionMessage message) {
+          public void beforeProcessMessage(ClusterDistributionManager dm,
+              DistributionMessage message) {
             if (message instanceof RequestImageMessage) {
               RequestImageMessage rim = (RequestImageMessage) message;
               if (rim.regionPath.contains("_0")) {
@@ -2007,6 +2043,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
   }
 
   @Test
+  @Category(FlakyTest.class)
   public void testCleanupAfterConflict() throws Exception {
     Host host = Host.getHost(0);
     VM vm0 = host.getVM(0);
@@ -2128,15 +2165,15 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
 
     // create some buckets
     createData(vm0, 0, 2, "a");
-    createData(vm0, 0, 2, "a", PR_CHILD_REGION_NAME);
-    closePR(vm0, PR_CHILD_REGION_NAME);
+    createData(vm0, 0, 2, "a", getChildRegionName());
+    closePR(vm0, getChildRegionName());
     closePR(vm0);
 
     // createPR(vm1, 1);
     createCoLocatedPR(vm1, 1, false);
     // create an overlapping bucket
     createData(vm1, 2, 4, "a");
-    createData(vm1, 2, 4, "a", PR_CHILD_REGION_NAME);
+    createData(vm1, 2, 4, "a", getChildRegionName());
 
     IgnoredException[] expectVm0 =
         {IgnoredException.addIgnoredException("ConflictingPersistentDataException", vm0),
@@ -2349,19 +2386,18 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
   private void createChildPR(VM vm) {
     vm.invoke(() -> {
       PartitionAttributes PRatts =
-          new PartitionAttributesFactory().setColocatedWith(PR_REGION_NAME).create();
+          new PartitionAttributesFactory().setColocatedWith(getPartitionedRegionName()).create();
       PartitionedRegion child =
           (PartitionedRegion) PartitionedRegionTestHelper.createPartionedRegion("CHILD", PRatts);
     });
   }
 
-  private static final class RecoveryObserver
-      extends InternalResourceManager.ResourceObserverAdapter {
+  private final class RecoveryObserver extends InternalResourceManager.ResourceObserverAdapter {
     final CountDownLatch recoveryDone = new CountDownLatch(1);
 
     @Override
     public void rebalancingOrRecoveryFinished(Region region) {
-      if (region.getName().equals(PR_REGION_NAME)) {
+      if (region.getName().equals(getPartitionedRegionName())) {
         recoveryDone.countDown();
       }
     }
@@ -2394,7 +2430,7 @@ public class PersistentPartitionedRegionDUnitTest extends PersistentPartitionedR
     CountDownLatch cdl = new CountDownLatch(1);
 
     @Override
-    public void beforeSendMessage(DistributionManager dm, DistributionMessage message) {
+    public void beforeSendMessage(ClusterDistributionManager dm, DistributionMessage message) {
       if (message instanceof RequestImageMessage) {
         RequestImageMessage rim = (RequestImageMessage) message;
         // make sure this is a bucket region doing a GII

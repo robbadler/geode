@@ -17,12 +17,11 @@ package org.apache.geode.management.internal.cli.functions;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.execute.Function;
+
 import org.apache.geode.cache.execute.FunctionContext;
-import org.apache.geode.internal.InternalEntity;
 import org.apache.geode.internal.cache.CacheServerImpl;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.cache.tier.sockets.AcceptorImpl;
 import org.apache.geode.internal.cache.tier.sockets.CacheClientNotifier;
 import org.apache.geode.internal.cache.tier.sockets.CacheClientProxy;
@@ -32,20 +31,16 @@ import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
 /**
  * @since GemFire 8.0
  */
-public class ContinuousQueryFunction implements Function, InternalEntity {
+public class ContinuousQueryFunction implements InternalFunction {
   private static final long serialVersionUID = 1L;
 
   public static final String ID = ContinuousQueryFunction.class.getName();
-
-  private InternalCache getCache() {
-    return (InternalCache) CacheFactory.getAnyInstance();
-  }
 
   @Override
   public void execute(FunctionContext context) {
     try {
       String clientID = (String) context.getArguments();
-      InternalCache cache = getCache();
+      InternalCache cache = (InternalCache) context.getCache();
       if (cache.getCacheServers().size() > 0) {
         CacheServerImpl server = (CacheServerImpl) cache.getCacheServers().iterator().next();
         if (server != null) {

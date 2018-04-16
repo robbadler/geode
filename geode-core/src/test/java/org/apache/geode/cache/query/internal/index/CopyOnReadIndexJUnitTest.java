@@ -14,26 +14,24 @@
  */
 package org.apache.geode.cache.query.internal.index;
 
-import org.apache.geode.cache.Region;
-import org.apache.geode.cache.query.*;
-import org.apache.geode.cache.query.data.Portfolio;
-import org.apache.geode.cache.query.data.Position;
-import org.apache.geode.test.junit.categories.IntegrationTest;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.assertEquals;
+
+import java.util.HashMap;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.util.HashMap;
+import org.apache.geode.cache.Region;
+import org.apache.geode.cache.query.*;
+import org.apache.geode.cache.query.data.Portfolio;
+import org.apache.geode.cache.query.data.Position;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
-import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
-import static org.junit.Assert.assertEquals;
-
-/**
- * 
- *
- */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLIndexTest.class})
 public class CopyOnReadIndexJUnitTest {
 
   static int numObjects = 10;
@@ -76,9 +74,7 @@ public class CopyOnReadIndexJUnitTest {
   }
 
   /**
-   * 
-   * @param region
-   * @param numObjects
+   *
    * @param objectsAndResultsMultiplier number of similar objects to put into the cache so that
    *        results from queries will be satisfied by the multiple
    */
@@ -301,16 +297,6 @@ public class CopyOnReadIndexJUnitTest {
         objectsAndResultsMultiplier, true, true);
   }
 
-  /**
-   * 
-   * @param queries
-   * @param expectedResults
-   * @param numObjects
-   * @param objectsAndResultsMultiplier
-   * @param hasIndex
-   * @param isPR
-   * @throws Exception
-   */
   private void helpExecuteQueriesCopyOnRead(String[] queries, int[] expectedResults, int numObjects,
       int objectsAndResultsMultiplier, boolean hasIndex, boolean isPR) throws Exception {
     Region region = utils.getCache().getRegion("/" + regionName);
@@ -325,16 +311,6 @@ public class CopyOnReadIndexJUnitTest {
     }
   }
 
-  /**
-   * 
-   * @param queries
-   * @param expectedResults
-   * @param numObjects
-   * @param objectsAndResultsMultiplier
-   * @param hasIndex
-   * @param isPR
-   * @throws Exception
-   */
   private void helpExecuteQueriesCopyOnReadFalse(String[] queries, int[] expectedResults,
       int numObjects, int objectsAndResultsMultiplier, boolean hasIndex, boolean isPR)
       throws Exception {
@@ -488,4 +464,3 @@ public class CopyOnReadIndexJUnitTest {
 
 
 }
-

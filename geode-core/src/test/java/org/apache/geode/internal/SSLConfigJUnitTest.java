@@ -21,10 +21,13 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 
+import org.junit.After;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.distributed.internal.DistributionConfigImpl;
+import org.apache.geode.internal.net.SSLConfigurationFactory;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 import org.apache.geode.test.junit.categories.SecurityTest;
 
@@ -44,7 +47,8 @@ public class SSLConfigJUnitTest {
   private static final Properties GATEWAY_SSL_PROPS_MAP = new Properties();
   private static final Properties GATEWAY_PROPS_SUBSET_MAP = new Properties();
 
-  static {
+  @BeforeClass
+  public static void initializeSSLMaps() {
 
     SSL_PROPS_MAP.put("javax.net.ssl.keyStoreType", "jks");
     SSL_PROPS_MAP.put("javax.net.ssl.keyStore", "/export/gemfire-configs/gemfire.keystore");
@@ -104,6 +108,11 @@ public class SSLConfigJUnitTest {
     GATEWAY_PROPS_SUBSET_MAP.put(GATEWAY_SSL_TRUSTSTORE,
         "/export/gemfire-configs/gateway.truststore");
 
+  }
+
+  @After
+  public void tearDownTest() {
+    SSLConfigurationFactory.close();
   }
 
   @Test
@@ -382,7 +391,6 @@ public class SSLConfigJUnitTest {
     gemFireProps.put(CLUSTER_SSL_PROTOCOLS, sslprotocols);
     gemFireProps.put(CLUSTER_SSL_CIPHERS, sslciphers);
     gemFireProps.put(CLUSTER_SSL_REQUIRE_AUTHENTICATION, String.valueOf(requireAuth));
-
 
     gemFireProps.put(SERVER_SSL_ENABLED, String.valueOf(cacheServerSslenabled));
     gemFireProps.put(SERVER_SSL_PROTOCOLS, cacheServerSslprotocols);

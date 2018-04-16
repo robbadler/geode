@@ -14,36 +14,27 @@
  */
 package org.apache.geode.cache.client.internal.locator.wan;
 
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
-import org.apache.geode.distributed.internal.InternalLocator;
-import org.apache.geode.cache.client.internal.locator.wan.LocatorMembershipListener;
-import org.apache.geode.distributed.internal.WanLocatorDiscoverer;
 import org.apache.geode.internal.CopyOnWriteHashSet;
 import org.apache.geode.internal.admin.remote.DistributionLocatorId;
 
 /**
  * This is a helper class which helps to add the locator information to the allLocatorInfoMap.
- * 
+ *
  *
  */
 public class LocatorHelper {
 
-  public final static Object locatorObject = new Object();
+  public static final Object locatorObject = new Object();
 
   /**
-   * 
+   *
    * This methods add the given locator to allLocatorInfoMap. It also invokes a locatorlistener to
    * inform other locators in allLocatorInfoMap about this newly added locator.
-   * 
-   * @param distributedSystemId
-   * @param locator
-   * @param locatorListener
-   * @param sourceLocator
+   *
    */
   public static boolean addLocator(int distributedSystemId, DistributionLocatorId locator,
       LocatorMembershipListener locatorListener, DistributionLocatorId sourceLocator) {
@@ -72,10 +63,7 @@ public class LocatorHelper {
   /**
    * This methods decides whether the given locator is server locator, if so then add this locator
    * in allServerLocatorsInfo map.
-   * 
-   * @param distributedSystemId
-   * @param locatorListener
-   * @param locator
+   *
    */
   private static void addServerLocator(Integer distributedSystemId,
       LocatorMembershipListener locatorListener, DistributionLocatorId locator) {
@@ -94,9 +82,7 @@ public class LocatorHelper {
 
   /**
    * This method adds the map of locatorsinfo sent by other locator to this locator's allLocatorInfo
-   * 
-   * @param locators
-   * @param locatorListener
+   *
    */
   public static boolean addExchangedLocators(Map<Integer, Set<DistributionLocatorId>> locators,
       LocatorMembershipListener locatorListener) {

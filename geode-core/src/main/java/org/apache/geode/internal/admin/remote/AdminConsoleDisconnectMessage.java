@@ -23,14 +23,14 @@ import java.io.IOException;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.PooledDistributionMessage;
-import org.apache.geode.internal.statistics.GemFireStatSampler;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.AlertAppender;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
+import org.apache.geode.internal.statistics.GemFireStatSampler;
 
 /**
  * A message that is sent to a particular distribution manager to let it know that the sender is an
@@ -69,7 +69,7 @@ public class AdminConsoleDisconnectMessage extends PooledDistributionMessage {
 
   /**
    * @param reason the reason for getting disconnected
-   * 
+   *
    * @since GemFire 6.5
    */
   public void setReason(String reason) {
@@ -77,7 +77,7 @@ public class AdminConsoleDisconnectMessage extends PooledDistributionMessage {
   }
 
   @Override
-  public void process(DistributionManager dm) {
+  public void process(ClusterDistributionManager dm) {
     InternalDistributedSystem sys = dm.getSystem();
     // DistributionConfig config = sys.getConfig();
     if (alertListenerExpected) {

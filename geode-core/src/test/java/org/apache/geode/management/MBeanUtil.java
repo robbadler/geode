@@ -14,7 +14,7 @@
  */
 package org.apache.geode.management;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.fail;
 
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
@@ -45,10 +45,8 @@ public class MBeanUtil {
 
   /**
    * Utility Method to obtain MemberMXBean proxy reference for a particular Member
-   * 
-   * @param member
+   *
    * @return a reference to MemberMXBean
-   * @throws Exception
    */
   public static MemberMXBean getMemberMbeanProxy(DistributedMember member) throws Exception {
     MemberMXBean bean = null;
@@ -85,10 +83,8 @@ public class MBeanUtil {
 
   /**
    * Utility Method to obtain CacheServerMXBean proxy reference for a particular Member
-   * 
-   * @param member
+   *
    * @return a reference to CacheServerMXBean
-   * @throws Exception
    */
   public static CacheServerMXBean getCacheServerMbeanProxy(DistributedMember member, int port)
       throws Exception {
@@ -131,10 +127,8 @@ public class MBeanUtil {
   /**
    * Utility Method to obtain LockServiceMXBean proxy reference for a particular lock service on a
    * Member
-   * 
-   * @param member
+   *
    * @return a reference to LockServiceMXBean
-   * @throws Exception
    */
   public static LockServiceMXBean getLockServiceMbeanProxy(DistributedMember member,
       String lockServiceName) throws Exception {
@@ -176,10 +170,8 @@ public class MBeanUtil {
 
   /**
    * Utility Method to obtain RegionMXBean proxy reference for a particular region on a member
-   * 
-   * @param member
+   *
    * @return a reference to RegionMXBean
-   * @throws Exception
    */
   public static RegionMXBean getRegionMbeanProxy(DistributedMember member, String regionPath)
       throws Exception {
@@ -224,11 +216,10 @@ public class MBeanUtil {
   /**
    * Utility Method to obtain GatewaySenderMXBean proxy reference for a particular sender id on a
    * member
-   * 
+   *
    * @param member distributed member
    * @param gatwaySenderId sender id
    * @return a reference to GatewaySenderMXBean
-   * @throws Exception
    */
   public static GatewaySenderMXBean getGatewaySenderMbeanProxy(DistributedMember member,
       String gatwaySenderId) throws Exception {
@@ -272,11 +263,10 @@ public class MBeanUtil {
   /**
    * Utility Method to obtain AsyncEventQueueMXBean proxy reference for a particular queue id on a
    * member
-   * 
+   *
    * @param member distributed member
    * @param queueId Queue id
    * @return a reference to AsyncEventQueueMXBean
-   * @throws Exception
    */
   public static AsyncEventQueueMXBean getAsyncEventQueueMBeanProxy(DistributedMember member,
       String queueId) throws Exception {
@@ -319,10 +309,9 @@ public class MBeanUtil {
 
   /**
    * Utility Method to obtain GatewayReceiverMXBean proxy reference for a member
-   * 
+   *
    * @param member distributed member
    * @return a reference to GatewayReceiverMXBean
-   * @throws Exception
    */
   public static GatewayReceiverMXBean getGatewayReceiverMbeanProxy(DistributedMember member)
       throws Exception {
@@ -365,10 +354,9 @@ public class MBeanUtil {
 
   /**
    * Utility Method to obtain DistributedRegionMXBean proxy reference for a particular region
-   * 
+   *
    * @param regionName name of the region
    * @return a reference to DistributedRegionMXBean
-   * @throws Exception
    */
   public static DistributedRegionMXBean getDistributedRegionMbean(final String regionName,
       final int expectedMembers) throws Exception {
@@ -401,10 +389,9 @@ public class MBeanUtil {
 
   /**
    * Utility Method to obtain DistributedRegionMXBean proxy reference for a particular region
-   * 
+   *
    * @param lockServiceName name of the lock service
    * @return a reference to DistributedLockServiceMXBean
-   * @throws Exception
    */
   public static DistributedLockServiceMXBean getDistributedLockMbean(final String lockServiceName,
       final int expectedMembers) throws Exception {
@@ -435,10 +422,9 @@ public class MBeanUtil {
 
   /**
    * Utility Method to obtain GatewayReceiverMXBean proxy reference for a member
-   * 
+   *
    * @param member distributed member
    * @return a reference to GatewayReceiverMXBean
-   * @throws Exception
    */
   public static LocatorMXBean getLocatorMbeanProxy(DistributedMember member) throws Exception {
 

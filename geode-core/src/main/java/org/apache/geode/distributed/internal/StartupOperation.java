@@ -30,11 +30,11 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 public class StartupOperation {
   private static final Logger logger = LogService.getLogger();
 
-  DistributionManager dm;
+  ClusterDistributionManager dm;
   RemoteTransportConfig transport;
   Set newlyDeparted;
 
-  StartupOperation(DistributionManager dm, RemoteTransportConfig transport) {
+  StartupOperation(ClusterDistributionManager dm, RemoteTransportConfig transport) {
     this.dm = dm;
     this.transport = transport;
   }
@@ -44,7 +44,7 @@ public class StartupOperation {
    * responses to come back. This method may throw jgroups and other io exceptions since it
    * interacts with the distribution manager at a low level to send the startup messages. It does
    * this to ensure it knows which recipients didn't receive the message.
-   * 
+   *
    * @return whether all recipients could be contacted. The failure set can be fetched with
    *         getFailureSet??
    */
@@ -81,7 +81,7 @@ public class StartupOperation {
         InternalDistributedMember id = (InternalDistributedMember) it.next();
         this.dm.handleManagerDeparture(id, false,
             LocalizedStrings.StartupOperation_LEFT_THE_MEMBERSHIP_VIEW.toLocalizedString());
-        proc.memberDeparted(id, true);
+        proc.memberDeparted(this.dm, id, true);
       }
     }
 

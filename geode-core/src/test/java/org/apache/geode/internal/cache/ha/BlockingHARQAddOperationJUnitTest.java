@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
 
-import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -32,25 +31,22 @@ import org.apache.geode.internal.cache.Conflatable;
 import org.apache.geode.internal.cache.EventID;
 import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.dunit.Wait;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 
 /**
  * Test runs all tests of HARQAddOperationJUnitTest using BlockingHARegionQueue instead of
  * HARegionQueue
- * 
- * 
+ *
+ *
  */
 @Category({IntegrationTest.class, ClientSubscriptionTest.class})
 public class BlockingHARQAddOperationJUnitTest extends HARQAddOperationJUnitTest {
 
   /**
    * Creates Blocking HA region-queue object
-   * 
+   *
    * @return Blocking HA region-queue object
-   * @throws IOException
-   * @throws ClassNotFoundException
-   * @throws CacheException
-   * @throws InterruptedException
    */
   protected HARegionQueue createHARegionQueue(String name)
       throws IOException, ClassNotFoundException, CacheException, InterruptedException {
@@ -61,12 +57,8 @@ public class BlockingHARQAddOperationJUnitTest extends HARQAddOperationJUnitTest
 
   /**
    * Creates Blocking HA region-queue object
-   * 
+   *
    * @return Blocking HA region-queue object
-   * @throws IOException
-   * @throws ClassNotFoundException
-   * @throws CacheException
-   * @throws InterruptedException
    */
   protected HARegionQueue createHARegionQueue(String name, HARegionQueueAttributes attrs)
       throws IOException, ClassNotFoundException, CacheException, InterruptedException {
@@ -77,8 +69,7 @@ public class BlockingHARQAddOperationJUnitTest extends HARQAddOperationJUnitTest
 
   /**
    * Tests the take() functionality of <code>BlockingHARegionQueue<code> with conflation disabled.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testBlockingTakeConflationDisabled() throws Exception {
@@ -90,9 +81,8 @@ public class BlockingHARQAddOperationJUnitTest extends HARQAddOperationJUnitTest
 
   /**
    * Tests the take() functionality of <code>BlockingHARegionQueue<code> with conflation enabled.
-   * 
-   * @throws Exception
-   * 
+   *
+   *
    */
   @Test
   public void testBlockingTakeConflationEnabled() throws Exception {
@@ -108,10 +98,9 @@ public class BlockingHARQAddOperationJUnitTest extends HARQAddOperationJUnitTest
    * significant time that the thread is still alive as it should be blocked on take() since there
    * are no events in the queue.<br>
    * 3)Do a put into the queue and verify that the take thread returns with the same object.
-   * 
+   *
    * @param conflationEnabled - whether conflation is enabled or not
-   * @throws Exception
-   * 
+   *
    */
   public void doBlockingTake(boolean conflationEnabled) throws Exception {
 
@@ -155,9 +144,8 @@ public class BlockingHARQAddOperationJUnitTest extends HARQAddOperationJUnitTest
    * 3)Put two object into the queue. <br>
    * 4)Verify both both take() threads return with an object by ensuring that the size of the list
    * containing return objects is two.<br>
-   * 
-   * @throws Exception
-   * 
+   *
+   *
    */
   @Test
   public void testConcurrentBlockingTake() throws Exception {

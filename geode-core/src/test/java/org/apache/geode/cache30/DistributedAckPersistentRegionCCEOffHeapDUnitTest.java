@@ -30,7 +30,7 @@ import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * Tests Distributed Ack Persistent Region with ConcurrencyChecksEnabled and OffHeap memory.
- * 
+ *
  * @since Geode 1.0
  */
 @SuppressWarnings({"deprecation", "serial"})
@@ -49,7 +49,7 @@ public class DistributedAckPersistentRegionCCEOffHeapDUnitTest
       @Override
       public void run() {
         if (hasCache()) {
-          OffHeapTestUtil.checkOrphans();
+          OffHeapTestUtil.checkOrphans(getCache());
         }
       }
     };

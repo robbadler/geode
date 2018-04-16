@@ -22,6 +22,11 @@ import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.EntryOperation;
 import org.apache.geode.cache.PartitionAttributesFactory;
@@ -32,11 +37,7 @@ import org.apache.geode.cache.query.internal.DefaultQuery;
 import org.apache.geode.internal.cache.LocalDataSet;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
 /**
  * @implNote This test class has been designed to test the query execution using the
@@ -44,7 +45,7 @@ import org.junit.experimental.categories.Category;
  *           used. Different variation of hashset variables are passed to the function to check for
  *           errors.
  */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class QueryWithBucketParameterIntegrationTest {
   DefaultQuery queryExecutor;
   LocalDataSet lds;

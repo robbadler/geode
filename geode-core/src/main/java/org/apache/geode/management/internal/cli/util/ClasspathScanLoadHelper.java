@@ -16,22 +16,22 @@ package org.apache.geode.management.internal.cli.util;
 
 import static java.util.stream.Collectors.toSet;
 
-import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
-
 import java.lang.reflect.Modifier;
 import java.util.HashSet;
 import java.util.Set;
 
+import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
+
 /**
  * Utility class to scan class-path & load classes.
- * 
+ *
  * @since GemFire 7.0
  */
 public class ClasspathScanLoadHelper {
-  public static Set<Class<?>> scanPackageForClassesImplementing(String packageToScan,
-      Class<?> implementedInterface) {
+  public static Set<Class<?>> scanPackagesForClassesImplementing(Class<?> implementedInterface,
+      String... packagesToScan) {
     Set<Class<?>> classesImplementing = new HashSet<>();
-    new FastClasspathScanner(packageToScan)
+    new FastClasspathScanner(packagesToScan)
         .matchClassesImplementing(implementedInterface, classesImplementing::add).scan();
 
     return classesImplementing.stream().filter(ClasspathScanLoadHelper::isInstantiable)

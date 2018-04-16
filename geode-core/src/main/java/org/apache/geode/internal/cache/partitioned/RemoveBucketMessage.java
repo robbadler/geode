@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -41,7 +41,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 
 /**
  * Removes the hosted bucket from the recipient's PartitionedRegionDataStore.
- * 
+ *
  * Usage: RemoveBucketResponse response = RemoveBucketMessage.send( InternalDistributedMember,
  * PartitionedRegion, int bucketId); if (response != null && response.waitForResponse()) { // bucket
  * was removed }
@@ -66,7 +66,7 @@ public class RemoveBucketMessage extends PartitionMessage {
 
   /**
    * Sends a message to remove the bucket.
-   * 
+   *
    * @param recipient the member to remove the bucket from
    * @param region the PartitionedRegion of the bucket
    * @param bucketId the bucket to remove
@@ -80,6 +80,7 @@ public class RemoveBucketMessage extends PartitionMessage {
     RemoveBucketResponse response = new RemoveBucketResponse(region.getSystem(), recipient, region);
     RemoveBucketMessage msg = new RemoveBucketMessage(recipient, region.getPRId(), response,
         bucketId, forceRemovePrimary);
+    msg.setTransactionDistributed(region.getCache().getTxManager().isDistributed());
 
     Set<InternalDistributedMember> failures = region.getDistributionManager().putOutgoing(msg);
     if (failures != null && failures.size() > 0) {
@@ -101,8 +102,8 @@ public class RemoveBucketMessage extends PartitionMessage {
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion region,
-      long startTime) throws ForceReattemptException {
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm,
+      PartitionedRegion region, long startTime) throws ForceReattemptException {
 
     PartitionedRegionDataStore dataStore = region.getDataStore();
     boolean removed = dataStore.removeBucket(this.bucketId, this.forceRemovePrimary);
@@ -157,8 +158,8 @@ public class RemoveBucketMessage extends PartitionMessage {
     }
 
     /** Send a reply */
-    public static void send(InternalDistributedMember recipient, int processorId, DM dm,
-        ReplyException re, boolean removed) {
+    public static void send(InternalDistributedMember recipient, int processorId,
+        DistributionManager dm, ReplyException re, boolean removed) {
       Assert.assertTrue(recipient != null, "RemoveBucketReplyMessage NULL recipient");
       RemoveBucketReplyMessage m = new RemoveBucketReplyMessage(processorId, re, removed);
       m.setRecipient(recipient);
@@ -170,24 +171,24 @@ public class RemoveBucketMessage extends PartitionMessage {
     }
 
     @Override
-    public void process(final DM dm, final ReplyProcessor21 processor) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 processor) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.debug(
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "RemoveBucketReplyMessage process invoking reply processor with processorId: {}",
             this.processorId);
       }
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.debug("RemoveBucketReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "RemoveBucketReplyMessage processor not found");
         }
         return;
       }
       processor.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.debug("{} processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} processed {}", processor, this);
       }
       dm.getStats().incReplyMessageTime(NanoTimer.getTime() - startTime);
     }
@@ -237,8 +238,8 @@ public class RemoveBucketMessage extends PartitionMessage {
         if (msg instanceof RemoveBucketReplyMessage) {
           RemoveBucketReplyMessage reply = (RemoveBucketReplyMessage) msg;
           this.removed = reply.removed();
-          if (logger.isTraceEnabled(LogMarker.DM)) {
-            logger.debug("RemoveBucketResponse is {}", removed);
+          if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+            logger.trace(LogMarker.DM_VERBOSE, "RemoveBucketResponse is {}", removed);
           }
         }
       } finally {
@@ -278,7 +279,7 @@ public class RemoveBucketMessage extends PartitionMessage {
           logger.debug(msg, t);
           return true;
         }
-        e.handleAsUnexpected();
+        e.handleCause();
       }
       return this.removed;
     }

@@ -19,17 +19,16 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.geode.DataSerializer;
-import org.apache.geode.cache.client.internal.locator.ServerLocationRequest;
 import org.apache.geode.internal.DataSerializableFixedID;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.admin.remote.DistributionLocatorId;
 
 /**
  * Requests remote locators of a remote WAN site
- * 
- * 
+ *
+ *
  * @since GemFire 6.6
- * 
+ *
  */
 public class RemoteLocatorJoinRequest implements DataSerializableFixedID {
 

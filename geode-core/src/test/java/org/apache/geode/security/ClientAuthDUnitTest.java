@@ -15,46 +15,60 @@
 package org.apache.geode.security;
 
 import static org.apache.geode.distributed.ConfigurationProperties.SECURITY_MANAGER;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
-import org.apache.geode.test.dunit.Host;
-import org.apache.geode.test.dunit.IgnoredException;
-import org.apache.geode.test.dunit.VM;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.dunit.rules.ServerStarterRule;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.SecurityTest;
+import java.io.Serializable;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-@Category({DistributedTest.class, SecurityTest.class})
-public class ClientAuthDUnitTest extends JUnit4DistributedTestCase {
+import org.apache.geode.cache.client.ClientCache;
+import org.apache.geode.cache.client.ClientRegionFactory;
+import org.apache.geode.cache.client.ClientRegionShortcut;
+import org.apache.geode.test.dunit.IgnoredException;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.SecurityTest;
+import org.apache.geode.test.junit.rules.ServerStarterRule;
 
-  final Host host = Host.getHost(0);
-  final VM client1 = host.getVM(1);
-  final VM client2 = host.getVM(2);
+@Category({DistributedTest.class, SecurityTest.class})
+public class ClientAuthDUnitTest {
+  @Rule
+  public ClusterStartupRule lsRule = new ClusterStartupRule();
 
   @Rule
   public ServerStarterRule server = new ServerStarterRule()
       .withProperty(SECURITY_MANAGER, SimpleTestSecurityManager.class.getName()).withAutoStart();
 
   @Test
-  public void authWithCorrectPasswordShouldPass() {
-    client1.invoke("logging in super-user with correct password", () -> {
-      SecurityTestUtil.createClientCache("test", "test", server.getPort());
-    });
+  public void authWithCorrectPasswordShouldPass() throws Exception {
+    lsRule.startClientVM(0, "test", "test", true, server.getPort());
   }
 
   @Test
-  public void authWithIncorrectPasswordShouldFail() {
+  public void authWithIncorrectPasswordShouldFail() throws Exception {
     IgnoredException.addIgnoredException(AuthenticationFailedException.class.getName());
-    client2.invoke("logging in super-user with wrong password", () -> {
-      assertThatThrownBy(
-          () -> SecurityTestUtil.createClientCache("test", "wrong", server.getPort()))
-              .isInstanceOf(AuthenticationFailedException.class);
-    });
+
+    assertThatThrownBy(() -> lsRule.startClientVM(0, "test", "invalidPassword", true,
+        server.getPort(), new ClientCacheHook(lsRule)))
+            .isInstanceOf(AuthenticationFailedException.class);
+  }
+
+  static class ClientCacheHook implements Runnable, Serializable {
+    final ClusterStartupRule lsRule;
+
+    ClientCacheHook(ClusterStartupRule lsRule) {
+      this.lsRule = lsRule;
+    }
+
+    public void run() {
+      // Perform an operation that causes the cache to lazy-initialize a pool with the invalid
+      // authentication so as to induce the exception.
+      ClientCache clientCache = lsRule.getClientCache();
+      ClientRegionFactory clientRegionFactory =
+          clientCache.createClientRegionFactory(ClientRegionShortcut.PROXY);
+      clientRegionFactory.create("region");
+    }
   }
 }
-
-

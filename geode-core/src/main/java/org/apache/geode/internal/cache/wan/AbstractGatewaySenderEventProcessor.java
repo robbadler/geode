@@ -33,6 +33,7 @@ import org.apache.geode.GemFireException;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.EntryEvent;
+import org.apache.geode.cache.EntryOperation;
 import org.apache.geode.cache.Operation;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionDestroyedException;
@@ -49,6 +50,7 @@ import org.apache.geode.internal.cache.EventID;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
+import org.apache.geode.internal.cache.PartitionedRegionHelper;
 import org.apache.geode.internal.cache.RegionQueue;
 import org.apache.geode.internal.cache.wan.parallel.ConcurrentParallelGatewaySenderQueue;
 import org.apache.geode.internal.cache.wan.parallel.ParallelGatewaySenderQueue;
@@ -64,14 +66,12 @@ import org.apache.geode.pdx.internal.PeerTypeRegistration;
  * The queue could be SerialGatewaySenderQueue or ParallelGatewaySenderQueue or
  * {@link ConcurrentParallelGatewaySenderQueue}. The dispatcher could be either
  * GatewaySenderEventRemoteDispatcher or GatewaySenderEventCallbackDispatcher.
- * 
+ *
  * @since GemFire 7.0
  */
 public abstract class AbstractGatewaySenderEventProcessor extends Thread {
 
   private static final Logger logger = LogService.getLogger();
-
-  public static boolean TEST_HOOK = false;
 
   protected RegionQueue queue;
 
@@ -133,6 +133,9 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
 
   private volatile boolean resetLastPeekedEvents;
 
+  /**
+   * Cumulative count of events dispatched by this event processor.
+   */
   private long numEventsDispatched;
 
   /**
@@ -142,10 +145,6 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
    */
   private int batchSize;
 
-  /**
-   * @param createThreadGroup
-   * @param string
-   */
   public AbstractGatewaySenderEventProcessor(LoggingThreadGroup createThreadGroup, String string,
       GatewaySender sender) {
     super(createThreadGroup, string);
@@ -153,7 +152,7 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
     this.batchSize = sender.getBatchSize();
   }
 
-  abstract protected void initializeMessageQueue(String id);
+  protected abstract void initializeMessageQueue(String id);
 
   public abstract void enqueueEvent(EnumListenerEvent operation, EntryEvent event,
       Object substituteValue) throws IOException, CacheException;
@@ -231,7 +230,7 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
 
   /**
    * Returns the current batch id to be used to identify the next batch.
-   * 
+   *
    * @return the current batch id to be used to identify the next batch
    */
   protected int getBatchId() {
@@ -260,13 +259,55 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
     }
 
     // This should be local size instead of pr size
-    if (this.queue instanceof ParallelGatewaySenderQueue) {
-      return ((ParallelGatewaySenderQueue) queue).localSize();
-    }
     if (this.queue instanceof ConcurrentParallelGatewaySenderQueue) {
       return ((ConcurrentParallelGatewaySenderQueue) queue).localSize();
     }
     return this.queue.size();
+  }
+
+  public int eventSecondaryQueueSize() {
+    if (queue == null) {
+      return 0;
+    }
+
+    // if parallel, get both primary and secondary queues' size, then substract primary queue's size
+    if (this.queue instanceof ConcurrentParallelGatewaySenderQueue) {
+      int size = ((ConcurrentParallelGatewaySenderQueue) queue).localSize(true)
+          - ((ConcurrentParallelGatewaySenderQueue) queue).localSize(false);
+      return size;
+    }
+    return this.queue.size();
+  }
+
+  public void registerEventDroppedInPrimaryQueue(EntryEventImpl event) {
+    if (queue == null) {
+      return;
+    }
+    if (this.queue instanceof ConcurrentParallelGatewaySenderQueue) {
+      ConcurrentParallelGatewaySenderQueue cpgsq = (ConcurrentParallelGatewaySenderQueue) queue;
+      PartitionedRegion prQ = cpgsq.getRegion(event.getRegion().getFullPath());
+      if (prQ == null) {
+        if (logger.isDebugEnabled()) {
+          logger.debug("shadow partitioned region " + event.getRegion().getFullPath()
+              + " is not created yet.");
+        }
+        return;
+      }
+      int bucketId = PartitionedRegionHelper.getHashKey((EntryOperation) event);
+      long shadowKey = event.getTailKey();
+
+      ParallelGatewaySenderQueue pgsq =
+          (ParallelGatewaySenderQueue) cpgsq.getQueueByBucket(bucketId);
+      boolean isPrimary = prQ.getRegionAdvisor().getBucketAdvisor(bucketId).isPrimary();
+      if (isPrimary) {
+        pgsq.sendQueueRemovalMesssageForDroppedEvent(prQ, bucketId, shadowKey);
+        this.sender.getStatistics().incEventsNotQueuedAtYetRunningPrimarySender();
+        if (logger.isDebugEnabled()) {
+          logger.debug("register dropped event for primary queue. BucketId is " + bucketId
+              + ", shadowKey is " + shadowKey + ", prQ is " + prQ.getFullPath());
+        }
+      }
+    }
   }
 
   /**
@@ -464,7 +505,7 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
               /*
                * // Check if paused. If so, wait for resumption if (this.isPaused) {
                * waitForResumption(); }
-               * 
+               *
                * synchronized (this.getQueue()) { // its quite possible that the queue region is //
                * destroyed(userRegion // localdestroy destroys shadow region locally). In this case
                * // better to // wait for shadows region to get recreated instead of keep loop //
@@ -640,9 +681,8 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
             for (GatewaySenderEventImpl pdxGatewaySenderEvent : pdxEventsToBeDispatched) {
               pdxGatewaySenderEvent.isDispatched = true;
             }
-            if (TEST_HOOK) {
-              this.numEventsDispatched += conflatedEventsToBeDispatched.size();
-            }
+
+            increaseNumEventsDispatched(conflatedEventsToBeDispatched.size());
           } // successful batch
           else { // The batch was unsuccessful.
             if (this.dispatcher instanceof GatewaySenderEventCallbackDispatcher) {
@@ -731,7 +771,7 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
     return false;
   }
 
-  private List conflate(List<GatewaySenderEventImpl> events) {
+  public List conflate(List<GatewaySenderEventImpl> events) {
     List<GatewaySenderEventImpl> conflatedEvents = null;
     // Conflate the batch if necessary
     if (this.sender.isBatchConflationEnabled() && events.size() > 1) {
@@ -756,7 +796,7 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
           // The event should not be conflated (create or destroy). Add it to
           // the map.
           ConflationKey key = new ConflationKey(gsEvent.getRegion().getFullPath(),
-              gsEvent.getKeyToConflate(), gsEvent.getOperation());
+              gsEvent.getKeyToConflate(), gsEvent.getOperation(), gsEvent.getShadowKey());
           conflatedEventsMap.put(key, gsEvent);
         }
       }
@@ -851,8 +891,7 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
 
   /**
    * Mark all PDX types as requiring dispatch so that they will be sent over the connection again.
-   * 
-   * @param remotePdxSize
+   *
    */
   public void checkIfPdxNeedsResend(int remotePdxSize) {
     InternalCache cache = this.sender.getCache();
@@ -1104,7 +1143,7 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
   /**
    * Stops the dispatcher from dispatching events . The dispatcher will stay alive for a predefined
    * time OR until its queue is empty.
-   * 
+   *
    * @see AbstractGatewaySender#MAXIMUM_SHUTDOWN_WAIT_TIME
    */
   public void stopProcessing() {
@@ -1233,7 +1272,7 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
 
   /**
    * Logs a batch of events.
-   * 
+   *
    * @param events The batch of events to log
    **/
   public void logBatchFine(String message, List<GatewaySenderEventImpl> events) {
@@ -1255,8 +1294,13 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
     }
   }
 
+
   public long getNumEventsDispatched() {
     return numEventsDispatched;
+  }
+
+  public void increaseNumEventsDispatched(long newEventsDispatched) {
+    this.numEventsDispatched += newEventsDispatched;
   }
 
   public void clear(PartitionedRegion pr, int bucketId) {
@@ -1291,6 +1335,8 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
     ((ParallelGatewaySenderQueue) this.queue).addShadowPartitionedRegionForUserRR(userRegion);
   }
 
+  protected abstract void enqueueEvent(GatewayQueueEvent event);
+
   protected class SenderStopperCallable implements Callable<Boolean> {
     private final AbstractGatewaySenderEventProcessor p;
 
@@ -1314,10 +1360,17 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
 
     private String regionName;
 
+    private long shadowKey;
+
     private ConflationKey(String region, Object key, Operation operation) {
+      this(region, key, operation, -1);
+    }
+
+    private ConflationKey(String region, Object key, Operation operation, long shadowKey) {
       this.key = key;
       this.operation = operation;
       this.regionName = region;
+      this.shadowKey = shadowKey;
     }
 
     @Override
@@ -1327,6 +1380,7 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
       result = prime * result + key.hashCode();
       result = prime * result + operation.hashCode();
       result = prime * result + regionName.hashCode();
+      result = prime * result + Long.hashCode(this.shadowKey);
       return result;
     }
 
@@ -1349,6 +1403,9 @@ public abstract class AbstractGatewaySenderEventProcessor extends Thread {
         return false;
       }
       if (!this.operation.equals(that.operation)) {
+        return false;
+      }
+      if (this.shadowKey != that.shadowKey) {
         return false;
       }
       return true;

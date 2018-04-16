@@ -16,15 +16,13 @@ package org.apache.geode.modules.session;
 
 import static org.apache.geode.distributed.ConfigurationProperties.*;
 
-import java.util.List;
 import java.util.Properties;
 
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.client.PoolFactory;
-import org.apache.geode.cache.client.PoolManager;
+import org.apache.geode.cache.client.ClientCacheFactory;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
@@ -33,7 +31,6 @@ import org.apache.geode.modules.session.catalina.DeltaSessionManager;
 import org.apache.geode.modules.session.catalina.Tomcat8DeltaSessionManager;
 import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(DistributedTest.class)
 public class Tomcat8SessionsClientServerDUnitTest extends TestSessionsTomcat8Base {
@@ -41,7 +38,7 @@ public class Tomcat8SessionsClientServerDUnitTest extends TestSessionsTomcat8Bas
   // Set up the session manager we need
   @Override
   public void postSetUp() throws Exception {
-    setupServer(new Tomcat8DeltaSessionManager());
+    setupServer();
   }
 
   @Override
@@ -53,7 +50,7 @@ public class Tomcat8SessionsClientServerDUnitTest extends TestSessionsTomcat8Bas
   }
 
   // Set up the servers we need
-  public void setupServer(DeltaSessionManager manager) throws Exception {
+  public void setupServer() throws Exception {
     Host host = Host.getHost(0);
     vm0 = host.getVM(1);
     String hostName = vm0.getHost().getHostName();
@@ -62,12 +59,18 @@ public class Tomcat8SessionsClientServerDUnitTest extends TestSessionsTomcat8Bas
       CacheFactory cf = new CacheFactory(props);
       Cache cache = cf.create();
       CacheServer server = cache.addCacheServer();
+      server.setPort(0);
       server.start();
       return server.getPort();
     });
 
     port = AvailablePortHelper.getRandomAvailableTCPPort();
     server = new EmbeddedTomcat8("/test", port, "JVM-1");
+
+    ClientCacheFactory cacheFactory = new ClientCacheFactory();
+    cacheFactory.addPoolServer(hostName, cacheServerPort);
+    cacheFactory.create();
+    DeltaSessionManager manager = new Tomcat8DeltaSessionManager();
 
     ClientServerCacheLifecycleListener listener = new ClientServerCacheLifecycleListener();
     listener.setProperty(MCAST_PORT, "0");
@@ -80,9 +83,6 @@ public class Tomcat8SessionsClientServerDUnitTest extends TestSessionsTomcat8Bas
     servlet = server.addServlet("/test/*", "default", CommandServlet.class.getName());
     server.startContainer();
 
-    PoolFactory pf = PoolManager.createFactory();
-    pf.addServer(hostName, cacheServerPort);
-    pf.create("Pool Connecting to Cache Server");
 
     /*
      * Can only retrieve the region once the container has started up (and the cache has started

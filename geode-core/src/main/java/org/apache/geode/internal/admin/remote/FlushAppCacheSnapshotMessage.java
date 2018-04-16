@@ -16,10 +16,9 @@
 
 package org.apache.geode.internal.admin.remote;
 
-import org.apache.geode.distributed.internal.*;
-// import org.apache.geode.*;
-// import org.apache.geode.internal.*;
 import java.io.*;
+
+import org.apache.geode.distributed.internal.*;
 
 
 /**
@@ -35,7 +34,7 @@ public class FlushAppCacheSnapshotMessage extends PooledDistributionMessage {
 
 
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     // try {
     // AppCacheSnapshotMessage.flushSnapshots(this.getSender());
     // } catch (Exception ex) {

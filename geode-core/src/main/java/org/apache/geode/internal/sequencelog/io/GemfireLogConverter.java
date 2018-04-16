@@ -40,9 +40,6 @@ import org.apache.geode.internal.sequencelog.Transition;
  */
 public class GemfireLogConverter {
 
-  /**
-   * 
-   */
   private static final Pattern DATE_PATTERN =
       Pattern.compile("(\\d\\d\\d\\d)/(\\d\\d)/(\\d\\d) (\\d\\d):(\\d\\d):(\\d\\d).(\\d\\d\\d)");
   private static final Pattern ALL = Pattern.compile(".*");
@@ -71,10 +68,6 @@ public class GemfireLogConverter {
     }
   }
 
-  /**
-   * @param args
-   * @throws IOException
-   */
   public static void main(String[] args) throws IOException {
 
     if (args.length == 0) {
@@ -280,7 +273,7 @@ public class GemfireLogConverter {
 
   }
 
-  private static abstract class Test {
+  private abstract static class Test {
     private Pattern pattern;
 
     public Test(String pattern) {

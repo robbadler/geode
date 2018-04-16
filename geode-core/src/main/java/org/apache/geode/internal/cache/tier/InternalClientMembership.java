@@ -31,7 +31,6 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.SystemFailure;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.client.PoolManager;
 import org.apache.geode.cache.client.internal.PoolImpl;
 import org.apache.geode.cache.server.CacheServer;
@@ -64,7 +63,7 @@ public class InternalClientMembership {
 
   /**
    * The membership listeners registered on this InternalClientMembership
-   * 
+   *
    * This list is never modified in place, and a new list is installed only under the control of
    * (@link #membershipLock}.
    */
@@ -92,7 +91,7 @@ public class InternalClientMembership {
 
   /**
    * True if class is monitoring systems
-   * 
+   *
    * guarded.By InternalClientMembership.class
    */
   private static boolean isMonitoring = false;
@@ -139,7 +138,7 @@ public class InternalClientMembership {
   /**
    * Registers a {@link ClientMembershipListener} for notification of connection changes for
    * CacheServer and clients.
-   * 
+   *
    * @param listener a ClientMembershipListener to be registered
    */
   public static void registerClientMembershipListener(ClientMembershipListener listener) {
@@ -157,7 +156,7 @@ public class InternalClientMembership {
 
   /**
    * Removes registration of a previously registered {@link ClientMembershipListener}.
-   * 
+   *
    * @param listener a ClientMembershipListener to be unregistered
    */
   public static void unregisterClientMembershipListener(ClientMembershipListener listener) {
@@ -177,7 +176,7 @@ public class InternalClientMembership {
   /**
    * Returns an array of all the currently registered <code>ClientMembershipListener</code>s.
    * Modifications to the returned array will not effect the registration of these listeners.
-   * 
+   *
    * @return the registered <code>ClientMembershipListener</code>s; an empty array if no listeners
    */
   public static ClientMembershipListener[] getClientMembershipListeners() {
@@ -210,21 +209,21 @@ public class InternalClientMembership {
    * a String representation of the client memberId, and the map entry value is an Integer count of
    * connections to that client. Since a single client can have multiple ConnectionProxy objects,
    * this map will contain all the Connection objects across the ConnectionProxies
-   * 
+   *
    * @param onlyClientsNotifiedByThisServer true will return only those clients that are actively
    *        being updated by this server
    * @return map of client memberIds to count of connections to that client
-   * 
-   * 
+   *
+   *
    */
-  public static Map getConnectedClients(boolean onlyClientsNotifiedByThisServer) {
+  public static Map getConnectedClients(boolean onlyClientsNotifiedByThisServer,
+      InternalCache cache) {
     ClientHealthMonitor chMon = ClientHealthMonitor.getInstance();
     Set filterProxyIDs = null;
     if (onlyClientsNotifiedByThisServer) {
       // Note it is not necessary to synchronize on the list of Client servers here,
       // since this is only a status (snapshot) of the system.
-      for (Iterator bsii = CacheFactory.getAnyInstance().getCacheServers().iterator(); bsii
-          .hasNext();) {
+      for (Iterator bsii = cache.getCacheServers().iterator(); bsii.hasNext();) {
         CacheServerImpl bsi = (CacheServerImpl) bsii.next();
         AcceptorImpl ai = bsi.getAcceptor();
         if (ai != null && ai.getCacheClientNotifier() != null) {
@@ -242,7 +241,7 @@ public class InternalClientMembership {
     Map map = chMon.getConnectedClients(filterProxyIDs);
     /*
      * if (onlyClientsNotifiedByThisServer) { Map notifyMap = new HashMap();
-     * 
+     *
      * for (Iterator iter = map.keySet().iterator(); iter.hasNext();) { String memberId = (String)
      * iter.next(); if (notifierClients.contains(memberId)) { // found memberId that is notified by
      * this server notifyMap.put(memberId, map.get(memberId)); } } map = notifyMap; }
@@ -253,7 +252,7 @@ public class InternalClientMembership {
   /**
    * This method returns the CacheClientStatus for all the clients that are connected to this
    * server. This method returns all clients irrespective of whether subscription is enabled or not.
-   * 
+   *
    * @return Map of ClientProxyMembershipID against CacheClientStatus objects.
    */
   public static Map getStatusForAllClientsIgnoreSubscriptionStatus() {
@@ -266,15 +265,14 @@ public class InternalClientMembership {
 
   /**
    * Caller must synchronize on cache.allClientServersLock
-   * 
+   *
    * @return all the clients
    */
-  public static Map getConnectedClients() {
+  public static Map getConnectedClients(InternalCache cache) {
 
     // Get all clients
     Map allClients = new HashMap();
-    for (Iterator bsii = CacheFactory.getAnyInstance().getCacheServers().iterator(); bsii
-        .hasNext();) {
+    for (Iterator bsii = cache.getCacheServers().iterator(); bsii.hasNext();) {
       CacheServerImpl bsi = (CacheServerImpl) bsii.next();
       AcceptorImpl ai = bsi.getAcceptor();
       if (ai != null && ai.getCacheClientNotifier() != null) {
@@ -287,10 +285,6 @@ public class InternalClientMembership {
       ClientHealthMonitor.getInstance().fillInClientInfo(allClients);
 
     return allClients;
-  }
-
-  public static Map getClientQueueSizes() {
-    return getClientQueueSizes((InternalCache) CacheFactory.getAnyInstance());
   }
 
   public static Map getClientQueueSizes(final InternalCache cache) {
@@ -312,7 +306,7 @@ public class InternalClientMembership {
   /**
    * Returns a map of servers to count of pools connected to that server. The map entry key is a
    * String representation of the server,
-   * 
+   *
    * @return map of servers to count of pools using that server
    */
   public static Map getConnectedServers() {
@@ -418,7 +412,7 @@ public class InternalClientMembership {
   /**
    * Notifies registered listeners that a Client member has joined. The new member may be a client
    * connecting to this process or a server that this process has just connected to.
-   * 
+   *
    * @param member the <code>DistributedMember</code>
    * @param client true if the member is a client; false if server
    * @param typeOfEvent joined/left/crashed
@@ -609,4 +603,3 @@ public class InternalClientMembership {
     JOINED, LEFT, CRASHED
   }
 }
-

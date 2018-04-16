@@ -16,7 +16,7 @@ package org.apache.geode.management.internal.cli.functions;
 
 /**
  * Function used by the 'create disk-store' gfsh command to create a disk store on each member.
- * 
+ *
  * @since GemFire 8.0
  */
 
@@ -24,26 +24,20 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.CacheClosedException;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.DiskStoreFactory;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.internal.InternalEntity;
 import org.apache.geode.internal.cache.DiskStoreAttributes;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.cache.xmlcache.CacheXml;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.management.internal.configuration.domain.XmlEntity;
 
-public class CreateDiskStoreFunction extends FunctionAdapter implements InternalEntity {
+public class CreateDiskStoreFunction implements InternalFunction {
   private static final Logger logger = LogService.getLogger();
 
   private static final long serialVersionUID = 1L;
-
-  private InternalCache getCache() {
-    return (InternalCache) CacheFactory.getAnyInstance();
-  }
 
   @Override
   public void execute(FunctionContext context) {
@@ -54,7 +48,7 @@ public class CreateDiskStoreFunction extends FunctionAdapter implements Internal
       final String diskStoreName = (String) args[0];
       final DiskStoreAttributes diskStoreAttrs = (DiskStoreAttributes) args[01];
 
-      InternalCache cache = getCache();
+      InternalCache cache = (InternalCache) context.getCache();
 
       DistributedMember member = cache.getDistributedSystem().getDistributedMember();
 

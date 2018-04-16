@@ -14,8 +14,6 @@
  */
 package org.apache.geode.internal.datasource;
 
-/**
- */
 import java.sql.SQLException;
 
 import javax.sql.ConnectionEventListener;
@@ -29,8 +27,8 @@ import org.apache.geode.internal.logging.LogService;
 
 /**
  * This class models a connection pool for transactional database connection. Extends the
- * AbstractPoolCache to inherit the pool bahavior.
- * 
+ * AbstractPoolCache to inherit the pool behavior.
+ *
  */
 public class TranxPoolCacheImpl extends AbstractPoolCache {
   private static final long serialVersionUID = 3295652525163658888L;
@@ -49,9 +47,6 @@ public class TranxPoolCacheImpl extends AbstractPoolCache {
     initializePool();
   }
 
-  /**
-   *  
-   */
   @Override
   void destroyPooledConnection(Object connectionObject) {
     try {
@@ -69,7 +64,7 @@ public class TranxPoolCacheImpl extends AbstractPoolCache {
 
   /**
    * Creates a new connection for the pool. This connection can participate in the transactions.
-   * 
+   *
    * @return the connection from the database as PooledConnection object.
    */
   @Override

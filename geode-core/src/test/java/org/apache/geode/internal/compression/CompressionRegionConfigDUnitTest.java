@@ -14,16 +14,12 @@
  */
 package org.apache.geode.internal.compression;
 
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-
 import java.io.IOException;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.Region;
@@ -31,7 +27,6 @@ import org.apache.geode.cache.client.ClientCache;
 import org.apache.geode.cache.client.ClientCacheFactory;
 import org.apache.geode.cache.client.ClientRegionShortcut;
 import org.apache.geode.cache.server.CacheServer;
-import org.apache.geode.cache30.CacheTestCase;
 import org.apache.geode.compression.Compressor;
 import org.apache.geode.compression.SnappyCompressor;
 import org.apache.geode.test.dunit.DistributedTestUtils;
@@ -42,11 +37,13 @@ import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
 import org.apache.geode.test.dunit.standalone.DUnitLauncher;
+import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * Sanity checks on a number of basic cluster configurations with compression turned on.
- * 
+ *
  */
 @Category(DistributedTest.class)
 public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
@@ -73,7 +70,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Creates a new CompressionRegionOperationsDUnitTest.
-   * 
+   *
    * @param name a test name.
    */
   public CompressionRegionConfigDUnitTest() {
@@ -82,8 +79,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Sanity check using two peers sharing a replicated region.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testReplicateRegion() throws Exception {
@@ -98,8 +94,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Sanity check for two peers sharing a persisted replicated region.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testReplicatePersistentRegion() throws Exception {
@@ -188,7 +183,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * closes a region on a virtual machine.
-   * 
+   *
    * @param vm a virtual machine.
    * @param region the region to close.
    */
@@ -203,7 +198,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Flushes a disk store on a vm causing region entries to be written to disk.
-   * 
+   *
    * @param vm the virtual machine to perform the flush on.
    * @param diskStore the disk store to flush.
    */
@@ -218,7 +213,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Returns when a put has been replicated to a peer.
-   * 
+   *
    * @param vm a peer.
    * @param key the key to wait on.
    */
@@ -238,7 +233,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Performs a put operation on a client virtual machine.
-   * 
+   *
    * @param vm a client.
    * @param key the key to put.
    * @param value the value to put.
@@ -258,7 +253,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Performs a put operation on a peer.
-   * 
+   *
    * @param vm a peer.
    * @param key the key to put.
    * @param value the value to put.
@@ -277,7 +272,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Performs a get operation on a client.
-   * 
+   *
    * @param vm a client.
    * @param key a region entry key.
    * @return the value.
@@ -296,7 +291,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Performs a get operation on a peer.
-   * 
+   *
    * @param vm the peer.
    * @param key a region entry key.
    * @return the value.
@@ -314,7 +309,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Returns the VM for a given identifier.
-   * 
+   *
    * @param vm a virtual machine identifier.
    */
   private VM getVM(int vm) {
@@ -323,7 +318,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Closes opened regions on a client.
-   * 
+   *
    * @param vm a client.
    */
   private void cleanupClient(final VM vm) {
@@ -337,7 +332,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Removes created regions from a VM.
-   * 
+   *
    * @param vm the virtual machine to cleanup.
    */
   private void cleanup(final VM vm) {
@@ -353,7 +348,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Creates a region and assigns a compressor..
-   * 
+   *
    * @param vm a virtual machine to create the region on.
    * @param name a region name.
    * @param compressor a compressor.
@@ -378,7 +373,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Creates a region and assigns a compressor.
-   * 
+   *
    * @param vm a virtual machine to create the region on.
    * @param name a region name.
    * @param compressor a compressor.
@@ -403,7 +398,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Creates a region and assigns a compressor.
-   * 
+   *
    * @param vm a virtual machine to create the region on.
    * @param name a region name.
    * @param compressor a compressor.
@@ -428,7 +423,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Creates a compressed region on a client.
-   * 
+   *
    * @param vm the client.
    * @param name the region.
    * @param compressor a compressor.
@@ -454,7 +449,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Creates a compressed region for a client.
-   * 
+   *
    * @param name a region.
    * @param compressor a compressor.
    * @param shortcut the type of client.
@@ -469,7 +464,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Creates a region and assigns a compressor.
-   * 
+   *
    * @param name the region name.
    * @param dataPolicy the type of peer.
    * @param compressor a compressor.
@@ -483,7 +478,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Creates a compressed region and adds a cache server to a peer.
-   * 
+   *
    * @param name the region name.
    * @param dataPolicy the type of peer.
    * @param compressor a compressor
@@ -503,7 +498,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Creates a region and assigns a compressor.
-   * 
+   *
    * @param name the region name.
    * @param dataPolicy the type of peer.
    * @param compressor a compressor.
@@ -519,7 +514,7 @@ public class CompressionRegionConfigDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Creates a new ClientCacheFactory.
-   * 
+   *
    * @param dunitLocatorPort a locator port.
    * @return the newly created ClientCacheFactory.
    */

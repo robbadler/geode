@@ -24,7 +24,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 
 import org.apache.logging.log4j.Logger;
@@ -34,13 +33,16 @@ import org.apache.geode.InternalGemFireException;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.EntryEvent;
 import org.apache.geode.cache.Region;
+import org.apache.geode.cache.wan.GatewayQueueEvent;
 import org.apache.geode.internal.cache.EntryEventImpl;
 import org.apache.geode.internal.cache.EnumListenerEvent;
+import org.apache.geode.internal.cache.InternalRegion;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.RegionQueue;
 import org.apache.geode.internal.cache.wan.AbstractGatewaySender;
 import org.apache.geode.internal.cache.wan.AbstractGatewaySenderEventProcessor;
 import org.apache.geode.internal.cache.wan.GatewaySenderEventDispatcher;
+import org.apache.geode.internal.cache.wan.GatewaySenderEventImpl;
 import org.apache.geode.internal.cache.wan.GatewaySenderException;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
@@ -90,8 +92,8 @@ public class ConcurrentParallelGatewaySenderEventProcessor
     // gets the remaining
     // bucket
     Set<Region> targetRs = new HashSet<Region>();
-    for (LocalRegion pr : sender.getCache().getApplicationRegions()) {
-      if (pr.getAllGatewaySenderIds().contains(sender.getId())) {
+    for (InternalRegion pr : sender.getCache().getApplicationRegions()) {
+      if (((LocalRegion) pr).getAllGatewaySenderIds().contains(sender.getId())) {
         targetRs.add(pr);
       }
     }
@@ -187,7 +189,7 @@ public class ConcurrentParallelGatewaySenderEventProcessor
         if (ex != null) {
           throw new GatewaySenderException(
               LocalizedStrings.Sender_COULD_NOT_START_GATEWAYSENDER_0_BECAUSE_OF_EXCEPTION_1
-                  .toLocalizedString(new Object[] {this.getId(), ex.getMessage()}),
+                  .toLocalizedString(new Object[] {this.sender.getId(), ex.getMessage()}),
               ex.getCause());
         }
       }
@@ -240,8 +242,6 @@ public class ConcurrentParallelGatewaySenderEventProcessor
       }
     } catch (InterruptedException e) {
       throw new InternalGemFireException(e);
-    } catch (RejectedExecutionException rejectedExecutionEx) {
-      throw rejectedExecutionEx;
     }
 
     stopperService.shutdown();
@@ -324,5 +324,11 @@ public class ConcurrentParallelGatewaySenderEventProcessor
   @Override
   public void initializeEventDispatcher() {
     // no op for AsyncEventProcessor
+  }
+
+  @Override
+  protected void enqueueEvent(GatewayQueueEvent event) {
+    int pId = ((GatewaySenderEventImpl) event).getBucketId() % this.nDispatcher;
+    this.processors[pId].enqueueEvent(event);
   }
 }

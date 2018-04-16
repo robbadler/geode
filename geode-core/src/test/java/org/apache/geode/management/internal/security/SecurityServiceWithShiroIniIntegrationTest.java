@@ -17,18 +17,19 @@ package org.apache.geode.management.internal.security;
 import static org.apache.geode.distributed.ConfigurationProperties.SECURITY_SHIRO_INIT;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Properties;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.internal.security.SecurityServiceFactory;
 import org.apache.geode.security.GemFireSecurityException;
 import org.apache.geode.security.ResourcePermission;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 import org.apache.geode.test.junit.categories.SecurityTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import java.util.Properties;
 
 /**
  * Integration tests for SecurityService using shiro.ini
@@ -56,12 +57,12 @@ public class SecurityServiceWithShiroIniIntegrationTest {
     this.securityService.login(loginCredentials("root", "secret"));
     this.securityService.authorize(TestCommand.none);
     this.securityService.authorize(TestCommand.everyOneAllowed);
-    this.securityService.authorize(TestCommand.dataRead);
-    this.securityService.authorize(TestCommand.dataWrite);
+    this.securityService.authorize(ResourcePermissions.DATA_READ);
+    this.securityService.authorize(ResourcePermissions.DATA_WRITE);
     this.securityService.authorize(TestCommand.regionARead);
     this.securityService.authorize(TestCommand.regionAWrite);
-    this.securityService.authorize(TestCommand.clusterWrite);
-    this.securityService.authorize(TestCommand.clusterRead);
+    this.securityService.authorize(ResourcePermissions.CLUSTER_WRITE);
+    this.securityService.authorize(ResourcePermissions.CLUSTER_READ);
   }
 
   @Test
@@ -70,12 +71,12 @@ public class SecurityServiceWithShiroIniIntegrationTest {
     this.securityService.authorize(TestCommand.none);
     this.securityService.authorize(TestCommand.everyOneAllowed);
 
-    assertNotAuthorized(TestCommand.dataRead);
-    assertNotAuthorized(TestCommand.dataWrite);
+    assertNotAuthorized(ResourcePermissions.DATA_READ);
+    assertNotAuthorized(ResourcePermissions.DATA_WRITE);
     assertNotAuthorized(TestCommand.regionARead);
     assertNotAuthorized(TestCommand.regionAWrite);
-    assertNotAuthorized(TestCommand.clusterRead);
-    assertNotAuthorized(TestCommand.clusterWrite);
+    assertNotAuthorized(ResourcePermissions.CLUSTER_READ);
+    assertNotAuthorized(ResourcePermissions.CLUSTER_WRITE);
   }
 
   @Test
@@ -86,10 +87,10 @@ public class SecurityServiceWithShiroIniIntegrationTest {
     this.securityService.authorize(TestCommand.regionARead);
 
     assertNotAuthorized(TestCommand.regionAWrite);
-    assertNotAuthorized(TestCommand.dataRead);
-    assertNotAuthorized(TestCommand.dataWrite);
-    assertNotAuthorized(TestCommand.clusterRead);
-    assertNotAuthorized(TestCommand.clusterWrite);
+    assertNotAuthorized(ResourcePermissions.DATA_READ);
+    assertNotAuthorized(ResourcePermissions.DATA_WRITE);
+    assertNotAuthorized(ResourcePermissions.CLUSTER_READ);
+    assertNotAuthorized(ResourcePermissions.CLUSTER_WRITE);
   }
 
   @Test
@@ -100,10 +101,10 @@ public class SecurityServiceWithShiroIniIntegrationTest {
     this.securityService.authorize(TestCommand.regionAWrite);
     this.securityService.authorize(TestCommand.regionARead);
 
-    assertNotAuthorized(TestCommand.dataRead);
-    assertNotAuthorized(TestCommand.dataWrite);
-    assertNotAuthorized(TestCommand.clusterRead);
-    assertNotAuthorized(TestCommand.clusterWrite);
+    assertNotAuthorized(ResourcePermissions.DATA_READ);
+    assertNotAuthorized(ResourcePermissions.DATA_WRITE);
+    assertNotAuthorized(ResourcePermissions.CLUSTER_READ);
+    assertNotAuthorized(ResourcePermissions.CLUSTER_WRITE);
   }
 
   @Test
@@ -112,12 +113,12 @@ public class SecurityServiceWithShiroIniIntegrationTest {
     this.securityService.authorize(TestCommand.none);
     this.securityService.authorize(TestCommand.everyOneAllowed);
     this.securityService.authorize(TestCommand.regionARead);
-    this.securityService.authorize(TestCommand.dataRead);
+    this.securityService.authorize(ResourcePermissions.DATA_READ);
 
     assertNotAuthorized(TestCommand.regionAWrite);
-    assertNotAuthorized(TestCommand.dataWrite);
-    assertNotAuthorized(TestCommand.clusterRead);
-    assertNotAuthorized(TestCommand.clusterWrite);
+    assertNotAuthorized(ResourcePermissions.DATA_WRITE);
+    assertNotAuthorized(ResourcePermissions.CLUSTER_READ);
+    assertNotAuthorized(ResourcePermissions.CLUSTER_WRITE);
   }
 
   @Test
@@ -126,12 +127,12 @@ public class SecurityServiceWithShiroIniIntegrationTest {
     this.securityService.authorize(TestCommand.none);
     this.securityService.authorize(TestCommand.everyOneAllowed);
     this.securityService.authorize(TestCommand.regionARead);
-    this.securityService.authorize(TestCommand.dataRead);
-    this.securityService.authorize(TestCommand.clusterRead);
+    this.securityService.authorize(ResourcePermissions.DATA_READ);
+    this.securityService.authorize(ResourcePermissions.CLUSTER_READ);
 
     assertNotAuthorized(TestCommand.regionAWrite);
-    assertNotAuthorized(TestCommand.dataWrite);
-    assertNotAuthorized(TestCommand.clusterWrite);
+    assertNotAuthorized(ResourcePermissions.DATA_WRITE);
+    assertNotAuthorized(ResourcePermissions.CLUSTER_WRITE);
   }
 
   private void assertNotAuthorized(ResourcePermission context) {

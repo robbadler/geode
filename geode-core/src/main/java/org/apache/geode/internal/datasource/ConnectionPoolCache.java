@@ -16,34 +16,33 @@ package org.apache.geode.internal.datasource;
 
 /**
  * This interface outlines the behavior of a connection pool.
- * 
+ *
  */
 public interface ConnectionPoolCache {
 
   /**
    * This method is used to get the connection from the pool. The default username and password are
    * used for making the conections.
-   * 
+   *
    * @return Object - connection from the pool.
-   * @throws PoolException
    */
-  public Object getPooledConnectionFromPool() throws PoolException;
+  Object getPooledConnectionFromPool() throws PoolException;
 
   /**
    * This method will return the Pooled connection object back to the pool.
-   * 
+   *
    * @param connectionObject - Connection object returned to the pool.
    */
-  public void returnPooledConnectionToPool(Object connectionObject);
+  void returnPooledConnectionToPool(Object connectionObject);
 
   /**
    * This method is used to set the time out for active connection so that it can be collected by
    * the cleaner thread Modified by Asif
    */
-  public void expirePooledConnection(Object connectionObject);
+  void expirePooledConnection(Object connectionObject);
 
   /**
    * Clean up the resources before restart of Cache
    */
-  public void clearUp();
+  void clearUp();
 }

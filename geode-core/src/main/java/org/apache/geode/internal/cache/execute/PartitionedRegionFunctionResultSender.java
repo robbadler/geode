@@ -23,7 +23,7 @@ import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.cache.ForceReattemptException;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.partitioned.PartitionedRegionFunctionStreamingMessage;
@@ -37,7 +37,7 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
  * PRFunctionExecutionStreamer to send results to the calling node. The results will be received in
  * the ResultReciever. ResultSender will be instantiated in executeOnDatastore and set in
  * FunctionContext.
- * 
+ *
  */
 
 public class PartitionedRegionFunctionResultSender implements InternalResultSender {
@@ -46,7 +46,7 @@ public class PartitionedRegionFunctionResultSender implements InternalResultSend
 
   PartitionedRegionFunctionStreamingMessage msg = null;
 
-  private final DM dm;
+  private final DistributionManager dm;
 
   private final PartitionedRegion pr;
 
@@ -76,14 +76,11 @@ public class PartitionedRegionFunctionResultSender implements InternalResultSend
 
   /**
    * Have to combine next two constructor in one and make a new class which will send Results back.
-   * 
-   * @param msg
-   * @param dm
-   * @param pr
-   * @param time
+   *
    */
-  public PartitionedRegionFunctionResultSender(DM dm, PartitionedRegion pr, long time,
-      PartitionedRegionFunctionStreamingMessage msg, Function function, Set<Integer> bucketSet) {
+  public PartitionedRegionFunctionResultSender(DistributionManager dm, PartitionedRegion pr,
+      long time, PartitionedRegionFunctionStreamingMessage msg, Function function,
+      Set<Integer> bucketSet) {
     this.msg = msg;
     this.dm = dm;
     this.pr = pr;
@@ -96,15 +93,12 @@ public class PartitionedRegionFunctionResultSender implements InternalResultSend
 
   /**
    * Have to combine next two constructor in one and make a new class which will send Results back.
-   * 
-   * @param dm
-   * @param partitionedRegion
-   * @param time
-   * @param rc
+   *
    */
-  public PartitionedRegionFunctionResultSender(DM dm, PartitionedRegion partitionedRegion,
-      long time, ResultCollector rc, ServerToClientFunctionResultSender sender, boolean onlyLocal,
-      boolean onlyRemote, boolean forwardExceptions, Function function, Set<Integer> bucketSet) {
+  public PartitionedRegionFunctionResultSender(DistributionManager dm,
+      PartitionedRegion partitionedRegion, long time, ResultCollector rc,
+      ServerToClientFunctionResultSender sender, boolean onlyLocal, boolean onlyRemote,
+      boolean forwardExceptions, Function function, Set<Integer> bucketSet) {
     this.dm = dm;
     this.pr = partitionedRegion;
     this.time = time;

@@ -16,8 +16,6 @@ package org.apache.geode.cache.query.internal.index;
 
 import static java.lang.Integer.*;
 
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -28,6 +26,8 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
@@ -51,6 +51,7 @@ import org.apache.geode.cache.query.internal.index.IndexStore.IndexStoreEntry;
 import org.apache.geode.cache.query.internal.parse.OQLLexerTokenTypes;
 import org.apache.geode.cache.query.internal.types.TypeUtils;
 import org.apache.geode.cache.query.types.ObjectType;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.RegionEntry;
 import org.apache.geode.internal.cache.persistence.query.CloseableIterator;
 import org.apache.geode.internal.i18n.LocalizedStrings;
@@ -67,7 +68,7 @@ public class RangeIndex extends AbstractIndex {
       new ConcurrentSkipListMap(TypeUtils.getExtendedNumericComparator());
 
   // Map for RegionEntries=>value of indexedExpression (reverse map)
-  final private RegionEntryToValuesMap entryToValuesMap;
+  private final RegionEntryToValuesMap entryToValuesMap;
 
   // Map for RegionEntries=>values when indexedExpression evaluates to null
   protected RegionEntryToValuesMap nullMappedEntries;
@@ -86,7 +87,7 @@ public class RangeIndex extends AbstractIndex {
   // TODO: need more specific list of exceptions
   /**
    * Create an Range Index that can be used when executing queries.
-   * 
+   *
    * @param indexName the name of this index, used for statistics collection
    * @param indexedExpression the expression to index on, a function dependent on region entries
    *        individually.
@@ -95,11 +96,11 @@ public class RangeIndex extends AbstractIndex {
    * @param projectionAttributes expression that transforms each element in the result set of a
    *        query Return the newly created Index
    */
-  public RangeIndex(String indexName, Region region, String fromClause, String indexedExpression,
-      String projectionAttributes, String origFromClause, String origIndexExpr,
-      String[] definitions, IndexStatistics stats) {
-    super(indexName, region, fromClause, indexedExpression, projectionAttributes, origFromClause,
-        origIndexExpr, definitions, stats);
+  public RangeIndex(InternalCache cache, String indexName, Region region, String fromClause,
+      String indexedExpression, String projectionAttributes, String origFromClause,
+      String origIndexExpr, String[] definitions, IndexStatistics stats) {
+    super(cache, indexName, region, fromClause, indexedExpression, projectionAttributes,
+        origFromClause, origIndexExpr, definitions, stats);
 
     RegionAttributes ra = region.getAttributes();
     this.entryToValuesMap = new RegionEntryToValuesMap(
@@ -435,7 +436,7 @@ public class RangeIndex extends AbstractIndex {
 
   /**
    * Get the index type
-   * 
+   *
    * @return the type of index
    */
   public IndexType getType() {
@@ -979,7 +980,7 @@ public class RangeIndex extends AbstractIndex {
   }
 
   /**
-   * 
+   *
    * @param entriesMap SortedMap object containing the indexed key as the key & the value being
    *        RegionEntryToValues Map object containing the indexed results
    * @param result Index Results holder Collection used for fetching the index results
@@ -1034,7 +1035,7 @@ public class RangeIndex extends AbstractIndex {
 
 
   /**
-   * 
+   *
    * @param entriesMap SortedMap object containing the indexed key as the key & the value being
    *        RegionEntryToValues Map object containing the indexed results
    * @param result Index Results holder Collection used for fetching the index results
@@ -1132,7 +1133,7 @@ public class RangeIndex extends AbstractIndex {
    * RegionEntryToValuesMap) { RegionEntryToValuesMap rvMap = (RegionEntryToValuesMap) entriesMap;
    * rvMap.removeValuesFromCollection(result); } else { throw new
    * RuntimeException(LocalizedStrings.RangeIndex_PROBLEM_IN_INDEX_QUERY.toLocalizedString()); } }
-   * 
+   *
    * private void removeValuesFromResult(Object entriesMap, Collection result,CompiledValue iterOps,
    * RuntimeIterator runtimeItr, ExecutionContext context, List projAttrib, SelectResults
    * intermediateResults, boolean isIntersection) throws FunctionDomainException,

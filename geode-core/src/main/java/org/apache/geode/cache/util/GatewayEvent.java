@@ -23,75 +23,75 @@ import org.apache.geode.cache.Region;
  * <code>Gateway</code>s.
  *
  * @since GemFire 5.1
- * 
+ *
  * @deprecated as of GemFire 8.0. Use {@link org.apache.geode.cache.wan.GatewayQueueEvent} instead
- * 
+ *
  */
 @Deprecated
 public interface GatewayEvent {
 
   /**
    * Returns the <code>Region</code> associated with this <code>GatewayEvent</code>.
-   * 
+   *
    * @return the <code>Region</code> associated with this <code>GatewayEvent</code>
    */
-  public Region<?, ?> getRegion();
+  Region<?, ?> getRegion();
 
   /**
    * Returns the <code>Operation</code> that triggered this event.
-   * 
+   *
    * @return the <code>Operation</code> that triggered this event
    */
-  public Operation getOperation();
+  Operation getOperation();
 
   /**
    * Returns the callbackArgument associated with this event.
-   * 
+   *
    * @return the callbackArgument associated with this event
    */
-  public Object getCallbackArgument();
+  Object getCallbackArgument();
 
   /**
    * Returns the key associated with this event.
-   * 
+   *
    * @return the key associated with this event
    */
-  public Object getKey();
+  Object getKey();
 
   /**
    * Returns the deserialized value associated with this event.
-   * 
+   *
    * @return the deserialized value associated with this event
    */
-  public Object getDeserializedValue();
+  Object getDeserializedValue();
 
   /**
    * Returns the serialized form of the value associated with this event.
-   * 
+   *
    * @return the serialized form of the value associated with this event
    */
-  public byte[] getSerializedValue();
+  byte[] getSerializedValue();
 
   /**
    * Sets whether this event is a possible duplicate.
-   * 
+   *
    * @param possibleDuplicate whether this event is a possible duplicate
    */
-  public void setPossibleDuplicate(boolean possibleDuplicate);
+  void setPossibleDuplicate(boolean possibleDuplicate);
 
   /**
    * Returns whether this event is a possible duplicate.
-   * 
+   *
    * @return whether this event is a possible duplicate
    */
-  public boolean getPossibleDuplicate();
+  boolean getPossibleDuplicate();
 
   /**
    * Returns the creation timestamp in milliseconds.
-   * 
+   *
    * @return the creation timestamp in milliseconds
-   * 
+   *
    * @since GemFire 6.0
    */
-  public long getCreationTime();
+  long getCreationTime();
 }

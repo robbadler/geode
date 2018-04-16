@@ -23,24 +23,19 @@ import org.springframework.shell.core.annotation.CliCommand;
 import org.springframework.shell.core.annotation.CliOption;
 
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.management.GatewayReceiverMXBean;
-import org.apache.geode.management.ManagementService;
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.ConverterHint;
 import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.internal.MBeanJMXAdapter;
 import org.apache.geode.management.internal.SystemManagementService;
-import org.apache.geode.management.internal.cli.CliUtil;
-import org.apache.geode.management.internal.cli.LogWrapper;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
-import org.apache.geode.management.internal.cli.result.CommandResultException;
 import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.cli.result.TabularResultData;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
-public class StopGatewayReceiverCommand implements GfshCommand {
+public class StopGatewayReceiverCommand extends InternalGfshCommand {
   @CliCommand(value = CliStrings.STOP_GATEWAYRECEIVER, help = CliStrings.STOP_GATEWAYRECEIVER__HELP)
   @CliMetaData(relatedTopic = CliStrings.TOPIC_GEODE_WAN)
   @ResourceOperation(resource = ResourcePermission.Resource.CLUSTER,
@@ -51,48 +46,40 @@ public class StopGatewayReceiverCommand implements GfshCommand {
 
       @CliOption(key = {CliStrings.MEMBER, CliStrings.MEMBERS},
           optionContext = ConverterHint.MEMBERIDNAME,
-          help = CliStrings.STOP_GATEWAYRECEIVER__MEMBER__HELP) String[] onMember) {
+          help = CliStrings.STOP_GATEWAYRECEIVER__MEMBER__HELP) String[] onMember)
+      throws Exception {
 
     Result result;
 
-    try {
-      InternalCache cache = getCache();
-      SystemManagementService service =
-          (SystemManagementService) ManagementService.getExistingManagementService(cache);
+    SystemManagementService service = (SystemManagementService) getManagementService();
 
-      GatewayReceiverMXBean receiverBean;
+    GatewayReceiverMXBean receiverBean;
 
-      TabularResultData resultData = ResultBuilder.createTabularResultData();
+    TabularResultData resultData = ResultBuilder.createTabularResultData();
 
-      Set<DistributedMember> dsMembers = CliUtil.findMembers(onGroup, onMember);
+    Set<DistributedMember> dsMembers = findMembers(onGroup, onMember);
 
-      if (dsMembers.isEmpty()) {
-        return ResultBuilder.createUserErrorResult(CliStrings.NO_MEMBERS_FOUND_MESSAGE);
-      }
+    if (dsMembers.isEmpty()) {
+      return ResultBuilder.createUserErrorResult(CliStrings.NO_MEMBERS_FOUND_MESSAGE);
+    }
 
-      for (DistributedMember member : dsMembers) {
-        ObjectName gatewayReceiverObjectName = MBeanJMXAdapter.getGatewayReceiverMBeanName(member);
+    for (DistributedMember member : dsMembers) {
+      ObjectName gatewayReceiverObjectName = MBeanJMXAdapter.getGatewayReceiverMBeanName(member);
 
-        if (gatewayReceiverObjectName != null) {
-          receiverBean =
-              service.getMBeanProxy(gatewayReceiverObjectName, GatewayReceiverMXBean.class);
-          if (receiverBean != null) {
-            if (receiverBean.isRunning()) {
-              receiverBean.stop();
-              GatewayCommandsUtils.accumulateStartResult(resultData, member.getId(),
-                  CliStrings.GATEWAY_OK,
-                  CliStrings.format(CliStrings.GATEWAY_RECEIVER_IS_STOPPED_ON_MEMBER_0,
-                      new Object[] {member.getId()}));
-            } else {
-              GatewayCommandsUtils.accumulateStartResult(resultData, member.getId(),
-                  CliStrings.GATEWAY_ERROR,
-                  CliStrings.format(CliStrings.GATEWAY_RECEIVER_IS_NOT_RUNNING_ON_MEMBER_0,
-                      new Object[] {member.getId()}));
-            }
+      if (gatewayReceiverObjectName != null) {
+        receiverBean =
+            service.getMBeanProxy(gatewayReceiverObjectName, GatewayReceiverMXBean.class);
+        if (receiverBean != null) {
+          if (receiverBean.isRunning()) {
+            receiverBean.stop();
+            GatewayCommandsUtils.accumulateStartResult(resultData, member.getId(),
+                CliStrings.GATEWAY_OK,
+                CliStrings.format(CliStrings.GATEWAY_RECEIVER_IS_STOPPED_ON_MEMBER_0,
+                    new Object[] {member.getId()}));
           } else {
             GatewayCommandsUtils.accumulateStartResult(resultData, member.getId(),
                 CliStrings.GATEWAY_ERROR,
-                CliStrings.format(CliStrings.GATEWAY_RECEIVER_IS_NOT_AVAILABLE_ON_MEMBER_0,
+                CliStrings.format(CliStrings.GATEWAY_RECEIVER_IS_NOT_RUNNING_ON_MEMBER_0,
                     new Object[] {member.getId()}));
           }
         } else {
@@ -101,14 +88,15 @@ public class StopGatewayReceiverCommand implements GfshCommand {
               CliStrings.format(CliStrings.GATEWAY_RECEIVER_IS_NOT_AVAILABLE_ON_MEMBER_0,
                   new Object[] {member.getId()}));
         }
+      } else {
+        GatewayCommandsUtils.accumulateStartResult(resultData, member.getId(),
+            CliStrings.GATEWAY_ERROR,
+            CliStrings.format(CliStrings.GATEWAY_RECEIVER_IS_NOT_AVAILABLE_ON_MEMBER_0,
+                new Object[] {member.getId()}));
       }
-      result = ResultBuilder.buildResult(resultData);
-    } catch (CommandResultException crex) {
-      result = GatewayCommandsUtils.handleCommandResultException(crex);
-    } catch (Exception e) {
-      LogWrapper.getInstance().warning(CliStrings.GATEWAY_ERROR + CliUtil.stackTraceAsString(e));
-      result = ResultBuilder.createGemFireErrorResult(CliStrings.GATEWAY_ERROR + e.getMessage());
     }
+    result = ResultBuilder.buildResult(resultData);
+
     return result;
   }
 }

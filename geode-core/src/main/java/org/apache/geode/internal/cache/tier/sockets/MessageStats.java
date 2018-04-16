@@ -17,15 +17,15 @@ package org.apache.geode.internal.cache.tier.sockets;
 
 /**
  * Statistics supported by cache/server Message.
- * 
+ *
  * @since GemFire 5.0.2
  */
 public interface MessageStats {
-  public void incReceivedBytes(long v);
+  void incReceivedBytes(long v);
 
-  public void incSentBytes(long v);
+  void incSentBytes(long v);
 
-  public void incMessagesBeingReceived(int bytes);
+  void incMessagesBeingReceived(int bytes);
 
-  public void decMessagesBeingReceived(int bytes);
+  void decMessagesBeingReceived(int bytes);
 }

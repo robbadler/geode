@@ -21,23 +21,23 @@ import org.apache.geode.cache.query.types.CollectionType;
 /**
  * This interface is to be implemented by all SelectResults implementation which can hold struct
  * using field values array ( Object[])
- * 
+ *
  * @see SortedStructSet
  * @see StructSet
  * @see StructBag
  * @see SortedStructBag
- * 
+ *
  *
  */
 public interface StructFields {
 
-  public boolean addFieldValues(Object[] fieldValues);
+  boolean addFieldValues(Object[] fieldValues);
 
-  public boolean removeFieldValues(Object[] fieldValues);
+  boolean removeFieldValues(Object[] fieldValues);
 
-  public Iterator fieldValuesIterator();
+  Iterator fieldValuesIterator();
 
-  public CollectionType getCollectionType();
+  CollectionType getCollectionType();
 
-  public boolean containsFieldValues(Object[] fieldValues);
+  boolean containsFieldValues(Object[] fieldValues);
 }

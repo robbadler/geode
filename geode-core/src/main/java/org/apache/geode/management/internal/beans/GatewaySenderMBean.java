@@ -14,8 +14,9 @@
  */
 package org.apache.geode.management.internal.beans;
 
-import org.apache.geode.management.GatewaySenderMXBean;
 import javax.management.NotificationBroadcasterSupport;
+
+import org.apache.geode.management.GatewaySenderMXBean;
 
 public class GatewaySenderMBean extends NotificationBroadcasterSupport
     implements GatewaySenderMXBean {
@@ -70,6 +71,21 @@ public class GatewaySenderMBean extends NotificationBroadcasterSupport
   @Override
   public float getEventsReceivedRate() {
     return bridge.getEventsReceivedRate();
+  }
+
+  @Override
+  public float getLRUEvictionsRate() {
+    return bridge.getLRUEvictionsRate();
+  }
+
+  @Override
+  public long getEntriesOverflowedToDisk() {
+    return bridge.getEntriesOverflowedToDisk();
+  }
+
+  @Override
+  public long getBytesOverflowedToDisk() {
+    return bridge.getBytesOverflowedToDisk();
   }
 
   @Override

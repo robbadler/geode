@@ -20,7 +20,6 @@ import static org.apache.geode.test.dunit.Assert.*;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -28,6 +27,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import org.apache.geode.DataSerializable;
 import org.apache.geode.Delta;
 import org.apache.geode.InvalidDeltaException;
 import org.apache.geode.cache.CacheListener;
@@ -178,7 +178,7 @@ public class ConcurrentMapOpsDUnitTest extends JUnit4CacheTestCase {
     });
   }
 
-  private static abstract class AbstractConcMapOpsListener
+  private abstract static class AbstractConcMapOpsListener
       implements CacheListener<Integer, String> {
     public void afterCreate(EntryEvent<Integer, String> event) {
       validate(event);
@@ -1259,11 +1259,13 @@ public class ConcurrentMapOpsDUnitTest extends JUnit4CacheTestCase {
     }
   }
 
-  private static class CustomerDelta implements Serializable, Delta {
+  private static class CustomerDelta implements DataSerializable, Delta {
     private String name;
     private String address;
     private boolean nameChanged;
     private boolean addressChanged;
+
+    public CustomerDelta() {}
 
     public CustomerDelta(CustomerDelta o) {
       this.address = o.address;
@@ -1273,6 +1275,22 @@ public class ConcurrentMapOpsDUnitTest extends JUnit4CacheTestCase {
     public CustomerDelta(String name, String address) {
       this.name = name;
       this.address = address;
+    }
+
+    @Override
+    public void toData(DataOutput out) throws IOException {
+      out.writeUTF(name);
+      out.writeUTF(address);
+      out.writeBoolean(nameChanged);
+      out.writeBoolean(addressChanged);
+    }
+
+    @Override
+    public void fromData(DataInput in) throws IOException, ClassNotFoundException {
+      name = in.readUTF();
+      address = in.readUTF();
+      nameChanged = in.readBoolean();
+      addressChanged = in.readBoolean();
     }
 
     public void fromDelta(DataInput in) throws IOException, InvalidDeltaException {
@@ -1331,5 +1349,6 @@ public class ConcurrentMapOpsDUnitTest extends JUnit4CacheTestCase {
     public int hashCode() {
       return this.address.hashCode() + this.name.hashCode();
     }
+
   }
 }

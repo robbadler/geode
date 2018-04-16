@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- *
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
 import java.io.IOException;
@@ -40,7 +37,7 @@ import org.apache.geode.security.ResourcePermission.Resource;
 
 public class UnregisterInterestList extends BaseCommand {
 
-  private final static UnregisterInterestList singleton = new UnregisterInterestList();
+  private static final UnregisterInterestList singleton = new UnregisterInterestList();
 
   public static Command getCommand() {
     return singleton;

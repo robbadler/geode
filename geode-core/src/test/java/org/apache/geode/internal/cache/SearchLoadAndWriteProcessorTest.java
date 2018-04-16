@@ -22,21 +22,22 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.awaitility.Awaitility;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+
 import org.apache.geode.CancelCriterion;
 import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.ExpirationAttributes;
 import org.apache.geode.cache.Operation;
 import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.Scope;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.versions.VersionTag;
 import org.apache.geode.internal.offheap.StoredObject;
 import org.apache.geode.test.junit.categories.UnitTest;
-import org.awaitility.Awaitility;
 
 @Category(UnitTest.class)
 public class SearchLoadAndWriteProcessorTest {
@@ -85,7 +86,7 @@ public class SearchLoadAndWriteProcessorTest {
     RegionAttributes attrs = mock(RegionAttributes.class);
     GemFireCacheImpl cache = mock(GemFireCacheImpl.class);
     InternalDistributedSystem ds = mock(InternalDistributedSystem.class);
-    DM dm = mock(DM.class);
+    DistributionManager dm = mock(DistributionManager.class);
     CacheDistributionAdvisor advisor = mock(CacheDistributionAdvisor.class);
     CachePerfStats stats = mock(CachePerfStats.class);
     ExpirationAttributes expirationAttrs = mock(ExpirationAttributes.class);
@@ -125,7 +126,7 @@ public class SearchLoadAndWriteProcessorTest {
             .until(() -> processor.getSelectedNode() != null);
         departedMember = processor.getSelectedNode();
         // Simulate member departed event
-        processor.memberDeparted(departedMember, true);
+        processor.memberDeparted(dm, departedMember, true);
       }
     });
     t1.start();
@@ -158,7 +159,7 @@ public class SearchLoadAndWriteProcessorTest {
     t3.start();
 
     processor.initialize(lr, key, null);
-    processor.doSearchAndLoad(event, null, null);
+    processor.doSearchAndLoad(event, null, null, false);
 
     assertTrue(Arrays.equals((byte[]) event.getNewValue(), v2));
   }

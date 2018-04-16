@@ -17,14 +17,12 @@ package org.apache.geode.management.internal.cli.functions;
 import java.io.File;
 
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.Region;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.snapshot.RegionSnapshotService;
 import org.apache.geode.cache.snapshot.SnapshotOptions;
 import org.apache.geode.cache.snapshot.SnapshotOptions.SnapshotFormat;
-import org.apache.geode.internal.InternalEntity;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 
 /****
@@ -32,7 +30,7 @@ import org.apache.geode.management.internal.cli.i18n.CliStrings;
  * RegionSnapshotService to import the data
  *
  */
-public class ImportDataFunction extends FunctionAdapter implements InternalEntity {
+public class ImportDataFunction implements InternalFunction {
 
   private static final long serialVersionUID = 1L;
 
@@ -48,7 +46,7 @@ public class ImportDataFunction extends FunctionAdapter implements InternalEntit
     final boolean parallel = (boolean) args[3];
 
     try {
-      final Cache cache = CacheFactory.getAnyInstance();
+      final Cache cache = context.getCache();
       final Region<?, ?> region = cache.getRegion(regionName);
       final String hostName = cache.getDistributedSystem().getDistributedMember().getHost();
       if (region != null) {

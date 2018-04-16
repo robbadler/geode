@@ -25,8 +25,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.Operation;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionAdvisor;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.distributed.internal.ReplyMessage;
@@ -46,15 +46,15 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
  * 2) To inform the other nodes that {@link org.apache.geode.internal.cache.PartitionedRegion} is
  * closed/locally destroyed or cache is closed on a node<br>
  * This results in updating of the RegionAdvisor of the remote nodes.
- * 
+ *
  * Sending this message should flush all previous {@link org.apache.geode.cache.Region} operations,
  * which means this operation should not over-ride
  * {@link org.apache.geode.internal.cache.partitioned.PartitionMessage#getProcessorId()}. It is
  * critical guarantee delivery of events sent prior to this message.
- * 
+ *
  * A standard {@link ReplyMessage} is used to send the reply, however any exception that it carries
  * is ignored, preventing interuption after sending this message.
- * 
+ *
  * @since GemFire 5.0
  */
 public class DestroyPartitionedRegionMessage extends PartitionMessage {
@@ -77,7 +77,7 @@ public class DestroyPartitionedRegionMessage extends PartitionMessage {
   public DestroyPartitionedRegionMessage() {}
 
   /**
-   * 
+   *
    * @param recipients the set of members on which the partitioned region should be destoryed
    * @param region the partitioned region
    * @param processor the processor that the reply will use to notify of the reply.
@@ -94,7 +94,7 @@ public class DestroyPartitionedRegionMessage extends PartitionMessage {
   }
 
   /**
-   * 
+   *
    * @param recipients set of members who have the PartitionedRegion defined.
    * @param r the PartitionedRegion to destroy on each member
    * @return the response on which to wait for the confirmation
@@ -106,12 +106,13 @@ public class DestroyPartitionedRegionMessage extends PartitionMessage {
         new DestroyPartitionedRegionResponse(r.getSystem(), recipients);
     DestroyPartitionedRegionMessage m =
         new DestroyPartitionedRegionMessage(recipients, r, resp, event, serials);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
     r.getDistributionManager().putOutgoing(m);
     return resp;
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion r,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion r,
       long startTime) throws CacheException {
     if (this.op.isLocal()) {
       // notify the advisor that the sending member has locally destroyed (or closed) the region
@@ -140,27 +141,23 @@ public class DestroyPartitionedRegionMessage extends PartitionMessage {
       if (ok) {
         RegionAdvisor ra = r.getRegionAdvisor();
         ra.removeIdAndBuckets(this.sender, this.prSerial, this.bucketSerials, !this.op.isClose());
-        // r.getRegionAdvisor().removeId(this.sender);
       }
 
       sendReply(getSender(), getProcessorId(), dm, null, r, startTime);
-      /*
-       * } finally { isClosingWriteLock.unlock(); }
-       */
       return false;
     }
 
     // If region's isDestroyed flag is true, we can check if local destroy is done or not and if
-    // NOT,
-    // we can invoke destroyPartitionedRegionLocally method.
+    // NOT, we can invoke destroyPartitionedRegionLocally method.
     if (r.isDestroyed()) {
       boolean isClose = this.op.isClose();
       r.destroyPartitionedRegionLocally(!isClose);
       return true;
     }
 
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.trace(LogMarker.DM, "{} operateOnRegion: {}", getClass().getName(), r.getFullPath());
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace(LogMarker.DM_VERBOSE, "{} operateOnRegion: {}", getClass().getName(),
+          r.getFullPath());
     }
     RegionEventImpl event = new RegionEventImpl(r, this.op, this.cbArg, true, r.getMyId());
     r.basicDestroyRegion(event, false, false, true);
@@ -214,10 +211,10 @@ public class DestroyPartitionedRegionMessage extends PartitionMessage {
   /**
    * The response on which to wait for all the replies. This response ignores any exceptions
    * received from the "far side"
-   * 
+   *
    * @since GemFire 5.0
    */
-  static public class DestroyPartitionedRegionResponse extends ReplyProcessor21 {
+  public static class DestroyPartitionedRegionResponse extends ReplyProcessor21 {
     public DestroyPartitionedRegionResponse(InternalDistributedSystem system, Set initMembers) {
       super(system, initMembers);
     }

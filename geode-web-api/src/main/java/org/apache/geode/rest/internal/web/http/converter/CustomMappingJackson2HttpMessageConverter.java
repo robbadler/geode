@@ -27,7 +27,7 @@ import org.springframework.util.Assert;
 
 /**
  * The CustomMappingJackson2HttpMessageConverter class...
- * 
+ *
  * @see org.springframework.http.converter.json.MappingJackson2HttpMessageConverter
  * @since GemFire 0.0.1
  */
@@ -118,9 +118,9 @@ public class CustomMappingJackson2HttpMessageConverter extends MappingJackson2Ht
 
   protected interface HttpOutputMessageWrapper extends HttpOutputMessage {
 
-    public long getContentLength();
+    long getContentLength();
 
-    public void flush() throws IOException;
+    void flush() throws IOException;
 
   }
 

@@ -18,21 +18,24 @@ package org.apache.geode.tools.pulse;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.geode.cache.RegionShortcut;
-import org.apache.geode.security.SimpleTestSecurityManager;
-import org.apache.geode.test.dunit.rules.EmbeddedPulseRule;
-import org.apache.geode.test.dunit.rules.HttpClientRule;
-import org.apache.geode.test.dunit.rules.ServerStarterRule;
-import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.apache.geode.tools.pulse.internal.data.Cluster;
 import org.apache.http.HttpResponse;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import org.apache.geode.cache.RegionShortcut;
+import org.apache.geode.security.SimpleTestSecurityManager;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.PulseTest;
+import org.apache.geode.test.junit.categories.SecurityTest;
+import org.apache.geode.test.junit.rules.EmbeddedPulseRule;
+import org.apache.geode.test.junit.rules.HttpClientRule;
+import org.apache.geode.test.junit.rules.ServerStarterRule;
+import org.apache.geode.tools.pulse.internal.data.Cluster;
 
-@Category(IntegrationTest.class)
+
+@Category({IntegrationTest.class, SecurityTest.class, PulseTest.class})
 public class PulseSecurityTest {
 
   @ClassRule
@@ -108,4 +111,11 @@ public class PulseSecurityTest {
     assertThat(result.toString()).contains("No Data Found");
   }
 
+  @Test
+  public void loginAfterLogout() throws Exception {
+    client.loginToPulseAndVerify("data", "data");
+    client.logoutFromPulse();
+    client.loginToPulseAndVerify("data", "data");
+    client.logoutFromPulse();
+  }
 }

@@ -28,7 +28,7 @@ import org.apache.geode.management.internal.cli.LogWrapper;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.management.internal.cli.result.ResultBuilder;
 
-public class ExportOfflineDiskStoreCommand implements GfshCommand {
+public class ExportOfflineDiskStoreCommand extends InternalGfshCommand {
   @CliCommand(value = CliStrings.EXPORT_OFFLINE_DISK_STORE,
       help = CliStrings.EXPORT_OFFLINE_DISK_STORE__HELP)
   @CliMetaData(shellOnly = true, relatedTopic = {CliStrings.TOPIC_GEODE_DISKSTORE})
@@ -60,7 +60,7 @@ public class ExportOfflineDiskStoreCommand implements GfshCommand {
       throw e;
     } catch (Throwable th) {
       SystemFailure.checkFailure();
-      LogWrapper.getInstance().warning(th.getMessage(), th);
+      LogWrapper.getInstance(getCache()).warning(th.getMessage(), th);
       return ResultBuilder.createGemFireErrorResult(CliStrings
           .format(CliStrings.EXPORT_OFFLINE_DISK_STORE__ERROR, diskStoreName, th.toString()));
     }

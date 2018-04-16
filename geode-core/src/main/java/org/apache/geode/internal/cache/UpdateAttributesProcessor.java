@@ -28,7 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.SystemFailure;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionAdvisee;
 import org.apache.geode.distributed.internal.DistributionAdvisor;
 import org.apache.geode.distributed.internal.DistributionAdvisor.Profile;
@@ -42,7 +42,6 @@ import org.apache.geode.distributed.internal.ReplyMessage;
 import org.apache.geode.distributed.internal.ReplyProcessor21;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
-import org.apache.geode.internal.DSFIDFactory;
 import org.apache.geode.internal.logging.LogService;
 
 /**
@@ -59,7 +58,7 @@ public class UpdateAttributesProcessor {
   /**
    * If true then sender is telling receiver to remove the sender's profile. No profile exchange is
    * needed in this case.
-   * 
+   *
    * @since GemFire 5.7
    */
   private boolean removeProfile = false;
@@ -72,7 +71,7 @@ public class UpdateAttributesProcessor {
 
   /**
    * Creates a new instance of UpdateAttributesProcessor
-   * 
+   *
    * @since GemFire 5.7
    */
   public UpdateAttributesProcessor(DistributionAdvisee da, boolean removeProfile) {
@@ -90,7 +89,7 @@ public class UpdateAttributesProcessor {
 
   /**
    * Distribute with optional exchange of profiles but do not create new profile version.
-   * 
+   *
    * @param exchangeProfiles true if we want to receive profile replies
    */
   public void distribute(boolean exchangeProfiles) {
@@ -102,14 +101,14 @@ public class UpdateAttributesProcessor {
     if (processor == null) {
       return;
     }
-    DM mgr = this.advisee.getDistributionManager();
+    DistributionManager mgr = this.advisee.getDistributionManager();
     try {
       // bug 36983 - you can't loop on a reply processor
       mgr.getCancelCriterion().checkCancelInProgress(null);
       try {
         processor.waitForRepliesUninterruptibly();
       } catch (ReplyException e) {
-        e.handleAsUnexpected();
+        e.handleCause();
       }
     } finally {
       processor.cleanup();
@@ -117,7 +116,7 @@ public class UpdateAttributesProcessor {
   }
 
   public void sendProfileUpdate(boolean exchangeProfiles) {
-    DM mgr = this.advisee.getDistributionManager();
+    DistributionManager mgr = this.advisee.getDistributionManager();
     DistributionAdvisor advisor = this.advisee.getDistributionAdvisor();
     this.profileExchange = exchangeProfiles;
 
@@ -186,7 +185,7 @@ public class UpdateAttributesProcessor {
 
     /**
      * Registers this processor as a membership listener and returns a set of the current members.
-     * 
+     *
      * @return a Set of the current members
      * @since GemFire 5.7
      */
@@ -202,7 +201,7 @@ public class UpdateAttributesProcessor {
 
     /**
      * Unregisters this processor as a membership listener
-     * 
+     *
      * @since GemFire 5.7
      */
     @Override
@@ -217,7 +216,7 @@ public class UpdateAttributesProcessor {
 
     /**
      * If this processor being used by controller then return ALL members; otherwise defer to super.
-     * 
+     *
      * @return a Set of the current members
      * @since GemFire 5.7
      */
@@ -278,7 +277,7 @@ public class UpdateAttributesProcessor {
     }
 
     @Override
-    protected void process(DistributionManager dm) {
+    protected void process(ClusterDistributionManager dm) {
       Throwable thr = null;
       boolean sendReply = this.processorId != 0;
       List<Profile> replyProfiles = null;
@@ -380,7 +379,7 @@ public class UpdateAttributesProcessor {
     Profile profile;
 
     public static void send(InternalDistributedMember recipient, int processorId,
-        ReplyException exception, DistributionManager dm, Profile profile) {
+        ReplyException exception, ClusterDistributionManager dm, Profile profile) {
       Assert.assertTrue(recipient != null, "Sending a ProfileReplyMessage to ALL");
       ProfileReplyMessage m = new ProfileReplyMessage();
 
@@ -427,7 +426,7 @@ public class UpdateAttributesProcessor {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.geode.distributed.internal.ReplyMessage#getInlineProcess()
      * ProfileReplyMessages must be processed in-line and not in a pool to keep partitioned region
      * bucket profile exchange from swamping the high priority pool and not allowing other profile
@@ -442,14 +441,14 @@ public class UpdateAttributesProcessor {
   }
   /**
    * Used to return multiple profiles
-   * 
+   *
    * @since GemFire 5.7
    */
   public static class ProfilesReplyMessage extends ReplyMessage {
     Profile[] profiles;
 
     public static void send(InternalDistributedMember recipient, int processorId,
-        ReplyException exception, DistributionManager dm, Profile[] profiles) {
+        ReplyException exception, ClusterDistributionManager dm, Profile[] profiles) {
       Assert.assertTrue(recipient != null, "Sending a ProfilesReplyMessage to ALL");
       ProfilesReplyMessage m = new ProfilesReplyMessage();
 
@@ -519,7 +518,7 @@ public class UpdateAttributesProcessor {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.geode.distributed.internal.ReplyMessage#getInlineProcess()
      * ProfilesReplyMessages must be processed in-line and not in a pool to keep partitioned region
      * bucket profile exchange from swamping the high priority pool and not allowing other profile

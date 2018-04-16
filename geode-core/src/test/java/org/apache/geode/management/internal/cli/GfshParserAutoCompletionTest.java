@@ -17,13 +17,15 @@ package org.apache.geode.management.internal.cli;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 
-import org.apache.geode.management.internal.cli.i18n.CliStrings;
-import org.apache.geode.test.dunit.rules.GfshParserRule;
-import org.apache.geode.test.junit.categories.IntegrationTest;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.springframework.shell.core.Completion;
+
+import org.apache.geode.cache.query.IndexType;
+import org.apache.geode.management.internal.cli.i18n.CliStrings;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.rules.GfshParserRule;
 
 @Category(IntegrationTest.class)
 public class GfshParserAutoCompletionTest {
@@ -34,18 +36,18 @@ public class GfshParserAutoCompletionTest {
   private GfshParserRule.CommandCandidate candidate;
 
   @Test
-  public void testCompletionDescibe() throws Exception {
+  public void testCompletionDescribe() throws Exception {
     buffer = "describe";
     candidate = parser.complete(buffer);
-    assertThat(candidate.size()).isEqualTo(7);
+    assertThat(candidate.size()).isEqualTo(8);
     assertThat(candidate.getFirstCandidate()).isEqualTo("describe client");
   }
 
   @Test
-  public void testCompletionDescibeWithSpace() throws Exception {
+  public void testCompletionDescribeWithSpace() throws Exception {
     buffer = "describe ";
     candidate = parser.complete(buffer);
-    assertThat(candidate.size()).isEqualTo(7);
+    assertThat(candidate.size()).isEqualTo(8);
     assertThat(candidate.getFirstCandidate()).isEqualTo("describe client");
   }
 
@@ -122,7 +124,7 @@ public class GfshParserAutoCompletionTest {
     buffer = "start server --name=name1 --";
     candidate = parser.complete(buffer);
     assertThat(candidate.getCursor()).isEqualTo(buffer.length() - 2);
-    assertThat(candidate.size()).isEqualTo(52);
+    assertThat(candidate.size()).isEqualTo(53);
     assertTrue(candidate.getCandidates().contains(new Completion("--properties-file")));
     assertThat(candidate.getFirstCandidate()).isEqualTo(buffer + "J");
   }
@@ -132,7 +134,7 @@ public class GfshParserAutoCompletionTest {
     buffer = "start server --name=name1 ";
     candidate = parser.complete(buffer);
     assertThat(candidate.getCursor()).isEqualTo(buffer.length() - 1);
-    assertThat(candidate.size()).isEqualTo(52);
+    assertThat(candidate.size()).isEqualTo(53);
     assertTrue(candidate.getCandidates().contains(new Completion(" --properties-file")));
     assertThat(candidate.getFirstCandidate()).isEqualTo(buffer + "--J");
   }
@@ -142,7 +144,7 @@ public class GfshParserAutoCompletionTest {
     buffer = "start server --name=name1";
     candidate = parser.complete(buffer);
     assertThat(candidate.getCursor()).isEqualTo(buffer.length());
-    assertThat(candidate.size()).isEqualTo(52);
+    assertThat(candidate.size()).isEqualTo(53);
     assertTrue(candidate.getCandidates().contains(new Completion(" --properties-file")));
     assertThat(candidate.getFirstCandidate()).isEqualTo(buffer + " --J");
   }
@@ -167,7 +169,7 @@ public class GfshParserAutoCompletionTest {
   public void testCompleteWithDash() throws Exception {
     buffer = "start server --name=name1 --J=-Dfoo.bar --";
     candidate = parser.complete(buffer);
-    assertThat(candidate.size()).isEqualTo(51);
+    assertThat(candidate.size()).isEqualTo(52);
   }
 
   @Test
@@ -185,7 +187,7 @@ public class GfshParserAutoCompletionTest {
     buffer = "start server --name=name1 --J=-Dtest=test1 --J=-Dfoo=bar";
     candidate = parser.complete(buffer);
     assertThat(candidate.getCursor()).isEqualTo(buffer.length());
-    assertThat(candidate.size()).isEqualTo(51);
+    assertThat(candidate.size()).isEqualTo(52);
     assertThat(candidate.getFirstCandidate()).isEqualTo(buffer + " --assign-buckets");
   }
 
@@ -194,7 +196,7 @@ public class GfshParserAutoCompletionTest {
     buffer = "start server --J=-Dtest=test1 --J=-Dfoo=bar --name=name1";
     candidate = parser.complete(buffer);
     assertThat(candidate.getCursor()).isEqualTo(buffer.length());
-    assertThat(candidate.size()).isEqualTo(51);
+    assertThat(candidate.size()).isEqualTo(52);
     assertThat(candidate.getFirstCandidate()).isEqualTo(buffer + " --assign-buckets");
   }
 
@@ -203,7 +205,7 @@ public class GfshParserAutoCompletionTest {
     buffer = "start server --name=name1 --locators=localhost --J=-Dfoo=bar";
     candidate = parser.complete(buffer);
     assertThat(candidate.getCursor()).isEqualTo(buffer.length());
-    assertThat(candidate.size()).isEqualTo(50);
+    assertThat(candidate.size()).isEqualTo(51);
     assertThat(candidate.getFirstCandidate()).isEqualTo(buffer + " --assign-buckets");
   }
 
@@ -212,7 +214,7 @@ public class GfshParserAutoCompletionTest {
     buffer = "start server --name=name1 --locators=localhost  --J=-Dfoo=bar --";
     candidate = parser.complete(buffer);
     assertThat(candidate.getCursor()).isEqualTo(buffer.length() - 2);
-    assertThat(candidate.size()).isEqualTo(50);
+    assertThat(candidate.size()).isEqualTo(51);
     assertThat(candidate.getFirstCandidate()).isEqualTo(buffer + "assign-buckets");
   }
 
@@ -244,7 +246,7 @@ public class GfshParserAutoCompletionTest {
   public void testCompletWithRegionTypeWithSpace() throws Exception {
     buffer = "create region --name=test --type=REPLICATE ";
     candidate = parser.complete(buffer);
-    assertThat(candidate.size()).isEqualTo(38);
+    assertThat(candidate.size()).isEqualTo(45);
     assertThat(candidate.getFirstCandidate()).isEqualTo(buffer + "--async-event-queue-id");
   }
 
@@ -275,10 +277,12 @@ public class GfshParserAutoCompletionTest {
     assertThat(parser.getCommandManager().obtainHelp(command)).isEqualTo(helpString);
   }
 
-  private String getCompleted(String buffer, int cursor, Completion completed) {
-    return buffer.substring(0, cursor) + completed.getValue();
+  @Test
+  public void testIndexType() throws Exception {
+    buffer = "create index --type=";
+    candidate = parser.complete(buffer);
+    assertThat(candidate.size()).isEqualTo(IndexType.values().length);
+    assertThat(candidate.getFirstCandidate()).isEqualTo(buffer + "hash");
   }
-
-
 
 }

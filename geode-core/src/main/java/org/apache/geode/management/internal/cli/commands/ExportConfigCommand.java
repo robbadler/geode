@@ -18,7 +18,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
@@ -42,7 +41,7 @@ import org.apache.geode.management.internal.cli.shell.Gfsh;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
-public class ExportConfigCommand implements GfshCommand {
+public class ExportConfigCommand extends InternalGfshCommand {
   private final ExportConfigFunction exportConfigFunction = new ExportConfigFunction();
 
   /**
@@ -69,7 +68,7 @@ public class ExportConfigCommand implements GfshCommand {
           help = CliStrings.EXPORT_CONFIG__DIR__HELP) String dir) {
     InfoResultData infoData = ResultBuilder.createInfoResultData();
 
-    Set<DistributedMember> targetMembers = CliUtil.findMembers(group, member);
+    Set<DistributedMember> targetMembers = findMembers(group, member);
     if (targetMembers.isEmpty()) {
       return ResultBuilder.createUserErrorResult(CliStrings.NO_MEMBERS_FOUND_MESSAGE);
     }
@@ -103,8 +102,7 @@ public class ExportConfigCommand implements GfshCommand {
 
     @Override
     public Result preExecution(GfshParseResult parseResult) {
-      Map<String, String> paramValueMap = parseResult.getParamValueStrings();
-      String dir = paramValueMap.get("dir");
+      String dir = parseResult.getParamValueAsString("dir");
       if (StringUtils.isBlank(dir)) {
         saveDirString = new File(".").getAbsolutePath();
         return ResultBuilder.createInfoResult("OK");

@@ -24,7 +24,7 @@ import java.util.Set;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -64,10 +64,9 @@ public class FetchPartitionDetailsMessage extends PartitionMessage {
   /**
    * Sends a message to fetch {@link org.apache.geode.cache.partition.PartitionMemberInfo
    * PartitionMemberDetails} for the specified <code>PartitionedRegion</code>.
-   * 
+   *
    * @param recipients the members to fetch PartitionMemberDetails from
    * @param region the PartitionedRegion to fetch member details for
-   * @param fetchOfflineMembers
    * @return the processor used to fetch the PartitionMemberDetails
    */
   public static FetchPartitionDetailsResponse send(Set<InternalDistributedMember> recipients,
@@ -80,6 +79,7 @@ public class FetchPartitionDetailsMessage extends PartitionMessage {
         new FetchPartitionDetailsResponse(region.getSystem(), recipients, region);
     FetchPartitionDetailsMessage msg = new FetchPartitionDetailsMessage(recipients,
         region.getPRId(), response, internal, fetchOfflineMembers, probe);
+    msg.setTransactionDistributed(region.getCache().getTxManager().isDistributed());
 
     /* Set<InternalDistributedMember> failures = */
     region.getDistributionManager().putOutgoing(msg);
@@ -99,8 +99,8 @@ public class FetchPartitionDetailsMessage extends PartitionMessage {
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion region,
-      long startTime) throws ForceReattemptException {
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm,
+      PartitionedRegion region, long startTime) throws ForceReattemptException {
 
     PartitionMemberInfoImpl details = (PartitionMemberInfoImpl) region.getRedundancyProvider()
         .buildPartitionMemberDetails(this.internal, this.loadProbe);
@@ -186,12 +186,11 @@ public class FetchPartitionDetailsMessage extends PartitionMessage {
 
     /**
      * Send an ack
-     * 
-     * @param offlineDetails
+     *
      */
     public static void send(InternalDistributedMember recipient, int processorId,
-        PartitionMemberInfoImpl details, DM dm, OfflineMemberDetails offlineDetails,
-        ReplyException re) {
+        PartitionMemberInfoImpl details, DistributionManager dm,
+        OfflineMemberDetails offlineDetails, ReplyException re) {
       Assert.assertTrue(recipient != null, "FetchPartitionDetailsReplyMessage NULL recipient");
       FetchPartitionDetailsReplyMessage m =
           new FetchPartitionDetailsReplyMessage(processorId, details, offlineDetails, re);
@@ -200,24 +199,25 @@ public class FetchPartitionDetailsMessage extends PartitionMessage {
     }
 
     @Override
-    public void process(final DM dm, final ReplyProcessor21 processor) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 processor) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "FetchPartitionDetailsReplyMessage process invoking reply processor with processorId: {}",
             this.processorId);
       }
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "FetchPartitionDetailsReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE,
+              "FetchPartitionDetailsReplyMessage processor not found");
         }
         return;
       }
       processor.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} processed {}", processor, this);
       }
       dm.getStats().incReplyMessageTime(NanoTimer.getTime() - startTime);
     }
@@ -299,7 +299,7 @@ public class FetchPartitionDetailsMessage extends PartitionMessage {
   /**
    * A processor to capture the value returned by
    * {@link org.apache.geode.internal.cache.partitioned.FetchPartitionDetailsMessage.FetchPartitionDetailsReplyMessage}
-   * 
+   *
    */
   public static class FetchPartitionDetailsResponse extends PartitionResponse {
 
@@ -327,11 +327,13 @@ public class FetchPartitionDetailsMessage extends PartitionMessage {
               // This just picks the offline details from the last member to return
               this.offlineDetails = reply.offlineDetails;
             }
-            if (logger.isTraceEnabled(LogMarker.DM)) {
-              logger.debug("FetchPartitionDetailsResponse return details is {}", details);
+            if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+              logger.trace(LogMarker.DM_VERBOSE,
+                  "FetchPartitionDetailsResponse return details is {}", details);
             }
-          } else if (logger.isTraceEnabled(LogMarker.DM)) {
-            logger.debug("FetchPartitionDetailsResponse ignoring null details");
+          } else if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+            logger.trace(LogMarker.DM_VERBOSE,
+                "FetchPartitionDetailsResponse ignoring null details");
           }
         }
       } finally {

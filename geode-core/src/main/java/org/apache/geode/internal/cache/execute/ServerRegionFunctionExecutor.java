@@ -18,7 +18,6 @@ import java.util.Set;
 
 import org.apache.logging.log4j.Logger;
 
-import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.client.internal.ProxyCache;
 import org.apache.geode.cache.client.internal.ServerRegionProxy;
@@ -38,7 +37,7 @@ import org.apache.geode.internal.logging.LogService;
 
 /**
  * Executes Function with FunctionService#onRegion(Region region) in client server mode.
- * 
+ *
  * @see FunctionService#onRegion(Region) *
  * @since GemFire 5.8 LA
  */
@@ -148,7 +147,7 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
     try {
       if (proxyCache != null) {
         if (this.proxyCache.isClosed()) {
-          throw new CacheClosedException("Cache is closed for this user.");
+          throw proxyCache.getCacheClosedException("Cache is closed for this user.");
         }
         UserAttributes.userAttributes.set(this.proxyCache.getUserAttributes());
       }
@@ -175,7 +174,7 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
     try {
       if (proxyCache != null) {
         if (this.proxyCache.isClosed()) {
-          throw new CacheClosedException("Cache is closed for this user.");
+          throw proxyCache.getCacheClosedException("Cache is closed for this user.");
         }
         UserAttributes.userAttributes.set(this.proxyCache.getUserAttributes());
       }

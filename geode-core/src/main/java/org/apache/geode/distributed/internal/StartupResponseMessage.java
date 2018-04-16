@@ -17,14 +17,12 @@ package org.apache.geode.distributed.internal;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Properties;
 import java.util.Set;
 
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.Instantiator;
-// import java.util.*;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.InternalDataSerializer.SerializerAttributesHolder;
@@ -63,7 +61,7 @@ public class StartupResponseMessage extends HighPriorityDistributionMessage
 
   }
 
-  StartupResponseMessage(DistributionManager dm, int processorId,
+  StartupResponseMessage(ClusterDistributionManager dm, int processorId,
       InternalDistributedMember recipient, String rejectionMessage, boolean responderIsAdmin) {
     // StartupResponseMessage m = new StartupResponseMessage();
 
@@ -133,7 +131,7 @@ public class StartupResponseMessage extends HighPriorityDistributionMessage
    * This method is invoked on the receiver side
    */
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
 
     if (this.interfaces == null || this.interfaces.size() == 0) {
       // this.rejectionMessage = "Peer " + getSender() + " has no network interfaces";
@@ -184,8 +182,8 @@ public class StartupResponseMessage extends HighPriorityDistributionMessage
           proc.setReceivedAcceptance(true);
         }
         proc.process(this);
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "{} Processed {}", proc, this);
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "{} Processed {}", proc, this);
         }
       }
     } // proc != null

@@ -142,31 +142,31 @@ public class OffHeapMemoryMonitor implements MemoryMonitor, MemoryUsageListener 
   /**
    * Used by unit tests to be notified when OffHeapMemoryMonitor does something.
    */
-  public static interface OffHeapMemoryMonitorObserver {
+  public interface OffHeapMemoryMonitorObserver {
     /**
      * Called at the beginning of updateMemoryUsed.
-     * 
+     *
      * @param bytesUsed the number of bytes of off-heap memory currently used
      * @param willSendEvent true if an event will be sent to the OffHeapMemoryUsageListener.
      */
-    public void beginUpdateMemoryUsed(long bytesUsed, boolean willSendEvent);
+    void beginUpdateMemoryUsed(long bytesUsed, boolean willSendEvent);
 
-    public void afterNotifyUpdateMemoryUsed(long bytesUsed);
+    void afterNotifyUpdateMemoryUsed(long bytesUsed);
 
     /**
      * Called at the beginning of updateStateAndSendEvent.
-     * 
+     *
      * @param bytesUsed the number of bytes of off-heap memory currently used
      * @param willSendEvent true if an event will be sent to the OffHeapMemoryUsageListener.
      */
-    public void beginUpdateStateAndSendEvent(long bytesUsed, boolean willSendEvent);
+    void beginUpdateStateAndSendEvent(long bytesUsed, boolean willSendEvent);
 
-    public void updateStateAndSendEventBeforeProcess(long bytesUsed, MemoryEvent event);
+    void updateStateAndSendEventBeforeProcess(long bytesUsed, MemoryEvent event);
 
-    public void updateStateAndSendEventBeforeAbnormalProcess(long bytesUsed, MemoryEvent event);
+    void updateStateAndSendEventBeforeAbnormalProcess(long bytesUsed, MemoryEvent event);
 
-    public void updateStateAndSendEventIgnore(long bytesUsed, MemoryState oldState,
-        MemoryState newState, long mostRecentBytesUsed, boolean deliverNextAbnormalEvent);
+    void updateStateAndSendEventIgnore(long bytesUsed, MemoryState oldState, MemoryState newState,
+        long mostRecentBytesUsed, boolean deliverNextAbnormalEvent);
   }
 
   @Override
@@ -283,7 +283,7 @@ public class OffHeapMemoryMonitor implements MemoryMonitor, MemoryUsageListener 
   /**
    * Compare the number of bytes used (fetched from the JVM) to the thresholds. If necessary, change
    * the state and send an event for the state change.
-   * 
+   *
    * @return true if an event was sent
    */
   public boolean updateStateAndSendEvent() {
@@ -293,9 +293,9 @@ public class OffHeapMemoryMonitor implements MemoryMonitor, MemoryUsageListener 
   /**
    * Compare the number of bytes used to the thresholds. If necessary, change the state and send an
    * event for the state change.
-   * 
+   *
    * Public for testing.
-   * 
+   *
    * @param bytesUsed Number of bytes of off-heap memory currently used.
    * @return true if an event was sent
    */
@@ -345,7 +345,7 @@ public class OffHeapMemoryMonitor implements MemoryMonitor, MemoryUsageListener 
   /**
    * Return true if the given number of bytes compared to the current monitor state would generate a
    * new memory event.
-   * 
+   *
    * @param bytesUsed Number of bytes of off-heap memory currently used.
    * @return true if a new event might need to be sent
    */
@@ -377,7 +377,7 @@ public class OffHeapMemoryMonitor implements MemoryMonitor, MemoryUsageListener 
 
   /**
    * Update resource manager stats based upon the given event.
-   * 
+   *
    * @param event Event from which to derive data for updating stats.
    */
   private void updateStatsFromEvent(MemoryEvent event) {
@@ -398,7 +398,7 @@ public class OffHeapMemoryMonitor implements MemoryMonitor, MemoryUsageListener 
 
   /**
    * Populate off-heap memory data in the given profile.
-   * 
+   *
    * @param profile Profile to populate.
    */
   @Override
@@ -436,9 +436,9 @@ public class OffHeapMemoryMonitor implements MemoryMonitor, MemoryUsageListener 
    * Deliver a memory event from one of the monitors to both local listeners and remote resource
    * managers. Also, if a critical event is received and a query monitor has been enabled, then the
    * query monitor will be notified.
-   * 
+   *
    * Package private for testing.
-   * 
+   *
    * @param event Event to process.
    */
   void processLocalEvent(MemoryEvent event) {

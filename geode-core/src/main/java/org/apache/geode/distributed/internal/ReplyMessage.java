@@ -178,15 +178,15 @@ public class ReplyMessage extends HighPriorityDistributionMessage {
    * Processes this message. This method is invoked by the receiver of the message if the message is
    * not direct ack. If the message is a direct ack, the process(dm, ReplyProcessor) method is
    * invoked instead.
-   * 
+   *
    * @param dm the distribution manager that is processing the message.
    */
   @Override
-  protected void process(final DistributionManager dm) {
+  protected void process(final ClusterDistributionManager dm) {
     dmProcess(dm);
   }
 
-  public void dmProcess(final DM dm) {
+  public void dmProcess(final DistributionManager dm) {
     final long startTime = getTimestamp();
     ReplyProcessor21 processor = ReplyProcessor21.getProcessor(processorId);
     try {
@@ -203,11 +203,7 @@ public class ReplyMessage extends HighPriorityDistributionMessage {
     }
   }
 
-  /**
-   * @param dm
-   * @param processor
-   */
-  public void process(final DM dm, ReplyProcessor21 processor) {
+  public void process(final DistributionManager dm, ReplyProcessor21 processor) {
     if (processor == null)
       return;
     processor.process(ReplyMessage.this);

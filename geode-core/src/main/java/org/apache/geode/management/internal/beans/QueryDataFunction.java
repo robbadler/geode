@@ -14,13 +14,26 @@
  */
 package org.apache.geode.management.internal.beans;
 
+import java.io.Serializable;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.execute.Function;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.cache.execute.FunctionService;
@@ -40,36 +53,24 @@ import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.LocalDataSet;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.PartitionedRegionHelper;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.management.DistributedRegionMXBean;
 import org.apache.geode.management.ManagementService;
 import org.apache.geode.management.internal.ManagementConstants;
 import org.apache.geode.management.internal.ManagementStrings;
 import org.apache.geode.management.internal.SystemManagementService;
-import org.apache.geode.management.internal.cli.commands.DataCommandsUtils;
+import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.internal.cli.json.GfJsonException;
 import org.apache.geode.management.internal.cli.json.GfJsonObject;
 import org.apache.geode.management.internal.cli.json.TypedJson;
-import org.apache.logging.log4j.Logger;
-
-import java.io.Serializable;
-import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.StringTokenizer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * This function is executed on one or multiple members based on the member input to
  * DistributedSystemMXBean.queryData()
  */
 @SuppressWarnings({"deprecation", "unchecked"})
-public class QueryDataFunction extends FunctionAdapter implements InternalEntity {
+public class QueryDataFunction implements Function, InternalEntity {
 
   private static final long serialVersionUID = 1L;
 
@@ -365,7 +366,7 @@ public class QueryDataFunction extends FunctionAdapter implements InternalEntity
                     .toString();
           } else {
             Set<DistributedMember> associatedMembers =
-                DataCommandsUtils.getRegionAssociatedMembers(regionPath, cache, true);
+                CliUtil.getRegionAssociatedMembers(regionPath, cache, true);
 
             if (inputMembers != null && inputMembers.size() > 0) {
               if (!associatedMembers.containsAll(inputMembers)) {
@@ -396,10 +397,9 @@ public class QueryDataFunction extends FunctionAdapter implements InternalEntity
 
       String randomRegion = regionsInQuery.iterator().next();
 
+      // get the first available member
       Set<DistributedMember> associatedMembers =
-          DataCommandsUtils.getQueryRegionsAssociatedMembers(regionsInQuery, cache, false);// First
-      // available
-      // member
+          CliUtil.getQueryRegionsAssociatedMembers(regionsInQuery, cache, false);
 
       if (associatedMembers != null && associatedMembers.size() > 0) {
         Object[] functionArgs = new Object[6];
@@ -487,7 +487,7 @@ public class QueryDataFunction extends FunctionAdapter implements InternalEntity
   /**
    * Function to gather data locally. This function is required to execute query with region context
    */
-  private class LocalQueryFunction extends FunctionAdapter {
+  private class LocalQueryFunction implements InternalFunction {
 
     private static final long serialVersionUID = 1L;
 

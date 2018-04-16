@@ -16,13 +16,14 @@ package org.apache.geode.pdx.internal;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.InternalGemFireError;
-import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.client.Pool;
 import org.apache.geode.cache.client.ServerConnectivityException;
 import org.apache.geode.cache.client.internal.AddPDXEnumOp;
@@ -116,9 +117,9 @@ public class ClientTypeRegistration implements TypeRegistration {
 
     if (pools.isEmpty()) {
       if (this.cache.isClosed()) {
-        throw new CacheClosedException("PDX detected cache was closed");
+        throw cache.getCacheClosedException("PDX detected cache was closed");
       }
-      throw new CacheClosedException(
+      throw cache.getCacheClosedException(
           "Client pools have been closed so the PDX type registry is not available.");
     }
     return pools;
@@ -248,6 +249,20 @@ public class ClientTypeRegistration implements TypeRegistration {
       }
     }
     return null;
+  }
+
+  @Override
+  public Set<PdxType> getPdxTypesForClassName(String className) {
+    Set<PdxType> result = new HashSet<>();
+    for (Object value : types().values()) {
+      if (value instanceof PdxType) {
+        PdxType pdxType = (PdxType) value;
+        if (pdxType.getClassName().equals(className)) {
+          result.add(pdxType);
+        }
+      }
+    }
+    return result;
   }
 
   @Override
