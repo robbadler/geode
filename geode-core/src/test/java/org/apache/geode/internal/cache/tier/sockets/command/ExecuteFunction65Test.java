@@ -14,8 +14,12 @@
  */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
-import static org.mockito.Matchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -41,7 +45,6 @@ import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.control.HeapMemoryMonitor;
 import org.apache.geode.internal.cache.control.InternalResourceManager;
-import org.apache.geode.internal.cache.execute.AbstractExecution;
 import org.apache.geode.internal.cache.tier.CachedRegionHelper;
 import org.apache.geode.internal.cache.tier.sockets.AcceptorImpl;
 import org.apache.geode.internal.cache.tier.sockets.ChunkedMessage;
@@ -52,6 +55,8 @@ import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
 import org.apache.geode.internal.security.AuthorizeRequest;
 import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.security.NotAuthorizedException;
+import org.apache.geode.security.ResourcePermission.Operation;
+import org.apache.geode.security.ResourcePermission.Resource;
 import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
@@ -153,7 +158,7 @@ public class ExecuteFunction65Test {
   public void nonSecureShouldSucceed() throws Exception {
     when(this.securityService.isClientSecurityRequired()).thenReturn(false);
 
-    this.executeFunction65.cmdExecute(this.message, this.serverConnection, 0);
+    this.executeFunction65.cmdExecute(this.message, this.serverConnection, this.securityService, 0);
 
     // verify(this.functionResponseMessage).sendChunk(this.serverConnection); // TODO: why do none
     // of the reply message types get sent?
@@ -164,9 +169,9 @@ public class ExecuteFunction65Test {
     when(this.securityService.isClientSecurityRequired()).thenReturn(true);
     when(this.securityService.isIntegratedSecurity()).thenReturn(true);
 
-    this.executeFunction65.cmdExecute(this.message, this.serverConnection, 0);
+    this.executeFunction65.cmdExecute(this.message, this.serverConnection, this.securityService, 0);
 
-    verify(this.securityService).authorizeDataWrite();
+    verify(this.securityService).authorize(Resource.DATA, Operation.WRITE);
     // verify(this.replyMessage).send(this.serverConnection); TODO: why do none of the reply message
     // types get sent?
   }
@@ -175,11 +180,12 @@ public class ExecuteFunction65Test {
   public void withIntegratedSecurityShouldThrowIfNotAuthorized() throws Exception {
     when(this.securityService.isClientSecurityRequired()).thenReturn(true);
     when(this.securityService.isIntegratedSecurity()).thenReturn(true);
-    doThrow(new NotAuthorizedException("")).when(this.securityService).authorizeDataWrite();
+    doThrow(new NotAuthorizedException("")).when(this.securityService).authorize(Resource.DATA,
+        Operation.WRITE);
 
-    this.executeFunction65.cmdExecute(this.message, this.serverConnection, 0);
+    this.executeFunction65.cmdExecute(this.message, this.serverConnection, this.securityService, 0);
 
-    verify(this.securityService).authorizeDataWrite();
+    verify(this.securityService).authorize(Resource.DATA, Operation.WRITE);
     // verify(this.chunkedResponseMessage).sendChunk(this.serverConnection);
   }
 
@@ -188,7 +194,7 @@ public class ExecuteFunction65Test {
     when(this.securityService.isClientSecurityRequired()).thenReturn(true);
     when(this.securityService.isIntegratedSecurity()).thenReturn(false);
 
-    this.executeFunction65.cmdExecute(this.message, this.serverConnection, 0);
+    this.executeFunction65.cmdExecute(this.message, this.serverConnection, this.securityService, 0);
 
     verify(this.authzRequest).executeFunctionAuthorize(eq(FUNCTION_ID), any(), any(), any(),
         eq(false));
@@ -203,9 +209,9 @@ public class ExecuteFunction65Test {
     doThrow(new NotAuthorizedException("")).when(this.authzRequest)
         .executeFunctionAuthorize(eq(FUNCTION_ID), any(), any(), any(), eq(false));
 
-    this.executeFunction65.cmdExecute(this.message, this.serverConnection, 0);
+    this.executeFunction65.cmdExecute(this.message, this.serverConnection, this.securityService, 0);
 
-    verify(this.securityService).authorizeDataWrite();
+    verify(this.securityService).authorize(Resource.DATA, Operation.WRITE);
     // verify(this.chunkedResponseMessage).sendChunk(this.serverConnection);
   }
 

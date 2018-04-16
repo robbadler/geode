@@ -34,7 +34,21 @@ import static org.apache.geode.test.dunit.Assert.fail;
 import static org.apache.geode.test.dunit.LogWriterUtils.getLogWriter;
 import static org.apache.geode.test.dunit.Wait.waitForCriterion;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.util.List;
+import java.util.Properties;
+import java.util.concurrent.CopyOnWriteArrayList;
+
 import org.apache.commons.io.FileUtils;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.asyncqueue.AsyncEventQueue;
 import org.apache.geode.distributed.Locator;
@@ -53,39 +67,24 @@ import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.nio.file.Files;
-import java.util.List;
-import java.util.Properties;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A distributed test suite of test cases for testing the queue commands that are part of Gfsh.
  *
  * @since GemFire 8.0
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, FlakyTest.class}) // GEODE-1429 GEODE-1976 GEODE-3530
+@SuppressWarnings("serial")
 public class QueueCommandsDUnitTest extends CliCommandTestBase {
 
-  private static final long serialVersionUID = 1L;
-
-  final List<String> filesToBeDeleted = new CopyOnWriteArrayList<String>();
+  private final List<String> filesToBeDeleted = new CopyOnWriteArrayList<>();
 
   @Override
   public final void preSetUp() throws Exception {
     disconnectAllFromDS();
   }
 
-  @Category(FlakyTest.class) // GEODE-1429
-  @Test
+  @Test // FlakyTest: GEODE-1429
   public void testAsyncEventQueue() throws IOException {
     final String queue1Name = "testAsyncEventQueue1";
     final String queue2Name = "testAsyncEventQueue2";
@@ -159,7 +158,7 @@ public class QueueCommandsDUnitTest extends CliCommandTestBase {
     CommandStringBuilder commandStringBuilder =
         new CommandStringBuilder(CliStrings.CREATE_DISK_STORE);
     commandStringBuilder.addOption(CliStrings.CREATE_DISK_STORE__NAME, diskStoreName);
-    commandStringBuilder.addOption(CliStrings.CREATE_DISK_STORE__GROUP, "Group1");
+    commandStringBuilder.addOption(CliStrings.GROUP, "Group1");
     commandStringBuilder.addOption(CliStrings.CREATE_DISK_STORE__DIRECTORY_AND_SIZE,
         diskStoreDir.getAbsolutePath());
     cmdResult = executeCommand(commandStringBuilder.toString());
@@ -171,7 +170,7 @@ public class QueueCommandsDUnitTest extends CliCommandTestBase {
 
     commandStringBuilder = new CommandStringBuilder(CliStrings.CREATE_ASYNC_EVENT_QUEUE);
     commandStringBuilder.addOption(CliStrings.CREATE_ASYNC_EVENT_QUEUE__ID, queue1Name);
-    commandStringBuilder.addOption(CliStrings.CREATE_ASYNC_EVENT_QUEUE__GROUP, "Group1");
+    commandStringBuilder.addOption(CliStrings.GROUP, "Group1");
     commandStringBuilder.addOption(CliStrings.CREATE_ASYNC_EVENT_QUEUE__BATCH_SIZE, "514");
     commandStringBuilder.addOption(CliStrings.CREATE_ASYNC_EVENT_QUEUE__PERSISTENT, "true");
     commandStringBuilder.addOption(CliStrings.CREATE_ASYNC_EVENT_QUEUE__DISK_STORE, diskStoreName);
@@ -267,8 +266,7 @@ public class QueueCommandsDUnitTest extends CliCommandTestBase {
   /**
    * Asserts that creating async event queues correctly updates the shared configuration.
    */
-  @Category(FlakyTest.class) // GEODE-1976
-  @Test
+  @Test // FlakyTest: GEODE-1976
   public void testCreateUpdatesSharedConfig() throws IOException {
     disconnectAllFromDS();
     final int[] ports = AvailablePortHelper.getRandomAvailableTCPPorts(2);
@@ -364,7 +362,7 @@ public class QueueCommandsDUnitTest extends CliCommandTestBase {
     CommandStringBuilder commandStringBuilder =
         new CommandStringBuilder(CliStrings.CREATE_ASYNC_EVENT_QUEUE);
     commandStringBuilder.addOption(CliStrings.CREATE_ASYNC_EVENT_QUEUE__ID, queueName);
-    commandStringBuilder.addOption(CliStrings.CREATE_ASYNC_EVENT_QUEUE__GROUP, groupName);
+    commandStringBuilder.addOption(CliStrings.GROUP, groupName);
     commandStringBuilder.addOption(CliStrings.CREATE_ASYNC_EVENT_QUEUE__LISTENER,
         "com.qcdunit.QueueCommandsDUnitTestListener");
     cmdResult = executeCommand(commandStringBuilder.toString());

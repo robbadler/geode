@@ -17,20 +17,22 @@ package org.apache.geode.test.dunit.rules;
 import static org.apache.geode.test.dunit.IgnoredException.addIgnoredException;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
+import java.util.function.Supplier;
+
 import org.apache.commons.lang.StringUtils;
-import org.apache.geode.management.cli.Result;
-import org.apache.geode.management.internal.cli.CliUtil;
-import org.apache.geode.management.internal.cli.HeadlessGfsh;
-import org.apache.geode.management.internal.cli.i18n.CliStrings;
-import org.apache.geode.management.internal.cli.result.CommandResult;
-import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
-import org.apache.geode.test.dunit.IgnoredException;
-import org.apache.geode.test.junit.rules.DescribedExternalResource;
 import org.json.JSONArray;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.Description;
 
-import java.util.function.Supplier;
+import org.apache.geode.management.cli.Result;
+import org.apache.geode.management.internal.cli.HeadlessGfsh;
+import org.apache.geode.management.internal.cli.i18n.CliStrings;
+import org.apache.geode.management.internal.cli.result.CommandResult;
+import org.apache.geode.management.internal.cli.shell.Gfsh;
+import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
+import org.apache.geode.test.dunit.IgnoredException;
+import org.apache.geode.test.junit.rules.DescribedExternalResource;
 
 /**
  * Class which eases the connection to the locator/jmxManager in Gfsh shell and execute gfsh
@@ -44,12 +46,12 @@ import java.util.function.Supplier;
  *
  * you can use this as Rule
  * 
- * @Rule GfshShellConnectionRule rule = new GfshSheelConnectionRule(); then after you connect to a
+ * @Rule GfshShellConnectionRule rule = new GfshShellConnectionRule(); then after you connect to a
  *       locator, you don't have to call disconnect() or close() at all, since the rule's after
  *       takes care of it for you.
  *
  *       Or as a ClassRule
- * @ClassRule GfshShellConnectionRule rule = new GfshSheelConnectionRule(); When using as a
+ * @ClassRule GfshShellConnectionRule rule = new GfshShellConnectionRule(); When using as a
  *            ClassRule, if you call connect in a test, you will need to call disconnect after the
  *            test as well. See NetstatDUnitTest for example.
  *
@@ -62,6 +64,8 @@ public class GfshShellConnectionRule extends DescribedExternalResource {
   private boolean connected = false;
   private IgnoredException ignoredException;
   private TemporaryFolder temporaryFolder = new TemporaryFolder();
+  private File workingDir;
+
 
   public GfshShellConnectionRule() {
     try {
@@ -79,8 +83,8 @@ public class GfshShellConnectionRule extends DescribedExternalResource {
 
   @Override
   protected void before(Description description) throws Throwable {
-    this.gfsh = new HeadlessGfsh(getClass().getName(), 30,
-        temporaryFolder.newFolder("gfsh_files").getAbsolutePath());
+    workingDir = temporaryFolder.newFolder("gfsh_files");
+    this.gfsh = new HeadlessGfsh(getClass().getName(), 30, workingDir.getAbsolutePath());
     ignoredException =
         addIgnoredException("java.rmi.NoSuchObjectException: no such object in table");
 
@@ -89,15 +93,14 @@ public class GfshShellConnectionRule extends DescribedExternalResource {
       return;
     }
 
-    // do not auto connect if it's not used with ConnectionConfiguration
     ConnectionConfiguration config = description.getAnnotation(ConnectionConfiguration.class);
     if (config == null) {
-      return;
+      connectAndVerify(portSupplier.get(), portType);
+    } else {
+      // when config is not null, developer may deliberately pass in a wrong
+      // password so that the test will verify the connection itself. So do not verify here.
+      secureConnect(portSupplier.get(), portType, config.user(), config.password());
     }
-
-    connect(portSupplier.get(), portType, CliStrings.CONNECT__USERNAME, config.user(),
-        CliStrings.CONNECT__PASSWORD, config.password());
-
   }
 
   public void connect(Member locator, String... options) throws Exception {
@@ -128,7 +131,6 @@ public class GfshShellConnectionRule extends DescribedExternalResource {
   }
 
   public void connect(int port, PortType type, String... options) throws Exception {
-    CliUtil.isGfshVM = true;
     if (gfsh == null) {
       this.gfsh = new HeadlessGfsh(getClass().getName(), 30,
           temporaryFolder.newFolder("gfsh_files").getAbsolutePath());
@@ -140,7 +142,7 @@ public class GfshShellConnectionRule extends DescribedExternalResource {
       endpoint = "localhost[" + port + "]";
       connectCommand.addOption(CliStrings.CONNECT__LOCATOR, endpoint);
     } else if (type == PortType.http) {
-      endpoint = "http://localhost:" + port + "/gemfire/v1";
+      endpoint = "http://localhost:" + port + "/geode-mgmt/v1";
       connectCommand.addOption(CliStrings.CONNECT__USE_HTTP, Boolean.TRUE.toString());
       connectCommand.addOption(CliStrings.CONNECT__URL, endpoint);
     } else {
@@ -158,7 +160,7 @@ public class GfshShellConnectionRule extends DescribedExternalResource {
     // when we connect too soon, we would get "Failed to retrieve RMIServer stub:
     // javax.naming.CommunicationException [Root exception is java.rmi.NoSuchObjectException: no
     // such object in table]" Exception.
-    // can not use Awaitility here because it starts another thead, but the Gfsh instance is in a
+    // can not use Awaitility here because it starts another thread, but the Gfsh instance is in a
     // threadLocal variable, See Gfsh.getExistingInstance()
     CommandResult result = null;
     for (int i = 0; i < 50; i++) {
@@ -194,11 +196,14 @@ public class GfshShellConnectionRule extends DescribedExternalResource {
     gfsh.executeCommand("exit");
     gfsh.terminate();
     gfsh = null;
-    CliUtil.isGfshVM = false;
   }
 
-  public HeadlessGfsh getGfsh() {
+  public HeadlessGfsh getHeadlessGfsh() {
     return gfsh;
+  }
+
+  public Gfsh getGfsh() {
+    return gfsh.getGfsh();
   }
 
   public CommandResult executeCommand(String command) throws Exception {
@@ -226,8 +231,13 @@ public class GfshShellConnectionRule extends DescribedExternalResource {
   }
 
 
-  public CommandResult executeAndVerifyCommand(String command) throws Exception {
-    CommandResult result = executeCommand(command);
+  public CommandResult executeAndVerifyCommand(String command) {
+    CommandResult result = null;
+    try {
+      result = executeCommand(command);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
     assertThat(result.getStatus()).isEqualTo(Result.Status.OK);
     return result;
   }
@@ -239,6 +249,10 @@ public class GfshShellConnectionRule extends DescribedExternalResource {
 
   public boolean isConnected() {
     return connected;
+  }
+
+  public File getWorkingDir() {
+    return workingDir;
   }
 
   public enum PortType {
