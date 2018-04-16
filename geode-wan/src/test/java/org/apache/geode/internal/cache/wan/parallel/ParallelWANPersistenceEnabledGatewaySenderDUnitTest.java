@@ -14,19 +14,12 @@
  */
 package org.apache.geode.internal.cache.wan.parallel;
 
-import org.junit.Ignore;
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.FlakyTest;
 
 import java.io.IOException;
 
+import org.junit.Ignore;
+import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.AttributesFactory;
@@ -40,8 +33,11 @@ import org.apache.geode.test.dunit.AsyncInvocation;
 import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.LogWriterUtils;
 import org.apache.geode.test.dunit.SerializableRunnableIF;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class ParallelWANPersistenceEnabledGatewaySenderDUnitTest extends WANTestBase {
 
   private static final long serialVersionUID = 1L;
@@ -132,7 +128,7 @@ public class ParallelWANPersistenceEnabledGatewaySenderDUnitTest extends WANTest
   /**
    * Enable persistence for the GatewaySender but not the region
    */
-  @Category(FlakyTest.class) // GEODE-1670
+  @Category({FlakyTest.class, WanTest.class}) // GEODE-1670
   @Test
   public void testPartitionedRegionWithPersistentGatewaySender() {
     Integer lnPort = (Integer) vm0.invoke(() -> WANTestBase.createFirstLocatorWithDSId(1));
@@ -1337,7 +1333,7 @@ public class ParallelWANPersistenceEnabledGatewaySenderDUnitTest extends WANTest
    * Create persistent PR and non-persistent GatewaySender. After doing puts, close the local site.
    * Rebuild the PR from persistent disk store and create the sender again. Do more puts. Check if
    * the remote site receives newly added events.
-   * 
+   *
    * This test can be used as DUnit test for defect #50247 reported by Indian Railways. At present,
    * customer is using this configuration and which is not recommended since it can lead to event
    * loss of GatewaySender events.
@@ -1518,8 +1514,7 @@ public class ParallelWANPersistenceEnabledGatewaySenderDUnitTest extends WANTest
   /**
    * Test for bug 50120 see if we can recover after deleting the parallel gateway sender files and
    * not recoverying the sender when we have a persistent PR.
-   * 
-   * @throws Throwable
+   *
    */
   @Test
   public void testRemoveGatewayFromPersistentRegionOnRestart() throws Throwable {

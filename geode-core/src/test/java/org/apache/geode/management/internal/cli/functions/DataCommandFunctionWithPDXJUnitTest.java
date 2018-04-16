@@ -17,8 +17,15 @@ package org.apache.geode.management.internal.cli.functions;
 import static org.apache.geode.management.internal.cli.domain.DataCommandResult.MISSING_VALUE;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.assertj.core.api.SoftAssertions;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionShortcut;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.management.internal.cli.domain.DataCommandRequest;
 import org.apache.geode.management.internal.cli.domain.DataCommandResult;
 import org.apache.geode.management.internal.cli.json.GfJsonArray;
@@ -29,26 +36,23 @@ import org.apache.geode.management.internal.cli.result.TabularResultData;
 import org.apache.geode.pdx.PdxReader;
 import org.apache.geode.pdx.PdxSerializable;
 import org.apache.geode.pdx.PdxWriter;
-import org.apache.geode.test.dunit.rules.ServerStarterRule;
+import org.apache.geode.test.junit.categories.GfshTest;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.assertj.core.api.SoftAssertions;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import org.apache.geode.test.junit.rules.ServerStarterRule;
 
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, GfshTest.class})
 public class DataCommandFunctionWithPDXJUnitTest {
   private static final String PARTITIONED_REGION = "part_region";
 
   @Rule
   public ServerStarterRule server = new ServerStarterRule().withPDXPersistent()
-      .withRegion(RegionShortcut.PARTITION, PARTITIONED_REGION);
+      .withPDXReadSerialized().withRegion(RegionShortcut.PARTITION, PARTITIONED_REGION);
 
   private Customer alice;
   private Customer bob;
   private CustomerWithPhone charlie;
   private CustomerWithPhone dan;
+  private InternalCache cache;
 
   @Before
   public void setup() {
@@ -57,7 +61,8 @@ public class DataCommandFunctionWithPDXJUnitTest {
     charlie = new CustomerWithPhone("2", "Charlie", "Chaplin", "(222) 222-2222");
     dan = new CustomerWithPhone("3", "Dan", "Dickinson", "(333) 333-3333");
 
-    Region region = server.getCache().getRegion(PARTITIONED_REGION);
+    cache = server.getCache();
+    Region region = cache.getRegion(PARTITIONED_REGION);
     region.put(0, alice);
     region.put(1, bob);
     region.put(2, charlie);
@@ -131,7 +136,7 @@ public class DataCommandFunctionWithPDXJUnitTest {
   private TabularResultData getTableFromQuery(String query) {
     DataCommandRequest request = new DataCommandRequest();
     request.setQuery(query);
-    DataCommandResult result = new DataCommandFunction().select(request);
+    DataCommandResult result = new DataCommandFunction().select(request, cache);
     CompositeResultData r = result.toSelectCommandResult();
     return r.retrieveSectionByIndex(0).retrieveTableByIndex(0);
   }

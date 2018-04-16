@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.cache.query.internal.index;
 
 import static org.junit.Assert.*;
@@ -58,16 +55,17 @@ import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
 /**
  * This test is similar to {@link ConcurrentIndexUpdateWithoutWLDUnitTest} except that it sets
  * system property gemfire.index.INPLACE_OBJECT_MODIFICATION to false so no reverse map is used for
  * {@link CompactRangeIndex}.
- * 
+ *
  * During validation all region operations are paused for a while. Validation happens multiple time
  * during one test run on a fixed time interval.
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, OQLIndexTest.class})
 public class ConcurrentIndexUpdateWithInplaceObjectModFalseDUnitTest
     extends JUnit4DistributedTestCase {
 
@@ -405,7 +403,7 @@ public class ConcurrentIndexUpdateWithInplaceObjectModFalseDUnitTest
   /**
    * This validator will iterate over RegionEntries and verify their corresponding index key and
    * entry presence in index valuesToEntriesMap.
-   * 
+   *
    *
    */
   public class IndexValidator {

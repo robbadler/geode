@@ -30,8 +30,8 @@ import org.apache.geode.cache.client.PoolManager;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.Locator;
-import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.admin.ClientHealthMonitoringRegion;
@@ -50,7 +50,7 @@ import org.apache.geode.internal.net.SocketCreator;
 /**
  * Class <code>GemFireMemberStatus</code> provides the status of a specific GemFire member VM. This
  * VM can be a peer, a client, a server and/or a gateway.
- * 
+ *
  * @deprecated as of 7.0 use the <code><a href=
  *             "{@docRoot}/org/apache/geode/management/package-summary.html">management</a></code>
  *             package instead
@@ -110,7 +110,7 @@ public class GemFireMemberStatus implements Serializable {
 
   protected long upTime = -1;
 
-  protected transient final Cache cache;
+  protected final transient Cache cache;
 
   public GemFireMemberStatus() {
     this(null);
@@ -135,7 +135,7 @@ public class GemFireMemberStatus implements Serializable {
 
   /**
    * Returns whether this member is a client to a cache server
-   * 
+   *
    * @return whether this member is a client to a cache server
    */
   public boolean getIsClient() {
@@ -144,7 +144,7 @@ public class GemFireMemberStatus implements Serializable {
 
   /**
    * Sets whether this member is a client to a cache server
-   * 
+   *
    * @param isClient Boolean defining whether this member is a client to a cache server
    */
   protected void setIsClient(boolean isClient) {
@@ -153,7 +153,7 @@ public class GemFireMemberStatus implements Serializable {
 
   /**
    * Returns whether this member is a cache server
-   * 
+   *
    * @return whether this member is a cache server
    */
   public boolean getIsServer() {
@@ -162,7 +162,7 @@ public class GemFireMemberStatus implements Serializable {
 
   /**
    * Sets whether this member is a cache server
-   * 
+   *
    * @param isServer Boolean defining whether this member is a cache server
    */
   protected void setIsServer(boolean isServer) {
@@ -179,7 +179,7 @@ public class GemFireMemberStatus implements Serializable {
 
   /**
    * Returns whether this member is a hub for WAN gateways
-   * 
+   *
    * @return whether this member is a hub for WAN gateways
    */
   public boolean getIsGatewayHub() {
@@ -188,7 +188,7 @@ public class GemFireMemberStatus implements Serializable {
 
   /**
    * Sets whether this member is a cache server
-   * 
+   *
    * @param isGatewayHub Boolean defining whether this member is a hub for WAN gateways
    */
   protected void setIsGatewayHub(boolean isGatewayHub) {
@@ -213,16 +213,12 @@ public class GemFireMemberStatus implements Serializable {
 
   /**
    * For internal use only
-   * 
+   *
    * @return status of the gateway hub
    */
-  public Object/* GatewayHubStatus */ getGatewayHubStatus() {
+  public Object getGatewayHubStatus() {
     return this._gatewayHubStatus;
   }
-
-  // protected void setGatewayHubStatus(GatewayHubStatus gatewayHubStatus) {
-  // this._gatewayHubStatus = gatewayHubStatus;
-  // }
 
   public boolean getIsSecondaryGatewayHub() {
     return !this._isPrimaryGatewayHub;
@@ -307,7 +303,7 @@ public class GemFireMemberStatus implements Serializable {
 
   /**
    * For internal use only
-   * 
+   *
    * @param clientID client for health
    * @return the client's health
    */
@@ -333,7 +329,7 @@ public class GemFireMemberStatus implements Serializable {
 
   /**
    * For internal use only
-   * 
+   *
    * @param fullRegionPath region path
    * @return status for the region
    */
@@ -493,8 +489,6 @@ public class GemFireMemberStatus implements Serializable {
 
     // Variables for gateway hubs
     this._outgoingGateways = new HashMap();
-    // this._connectedOutgoingGateways = new HashSet();
-    // this._unconnectedOutgoingGateways = new HashSet();
     this._connectedIncomingGateways = new HashMap();
     this._gatewayQueueSizes = new HashMap();
 
@@ -529,7 +523,8 @@ public class GemFireMemberStatus implements Serializable {
       }
 
       // Get client queue sizes
-      Map clientQueueSize = getClientIDMap(InternalClientMembership.getClientQueueSizes());
+      Map clientQueueSize =
+          getClientIDMap(InternalClientMembership.getClientQueueSizes((InternalCache) cache));
       setClientQueueSizes(clientQueueSize);
 
       // Set server acceptor port (set it based on the first CacheServer)
@@ -537,7 +532,6 @@ public class GemFireMemberStatus implements Serializable {
       setServerPort(server.getPort());
 
       // Get Client Health Stats
-      // Assert.assertTrue(cache != null); (cannot be null)
       Region clientHealthMonitoringRegion =
           ClientHealthMonitoringRegion.getInstance((InternalCache) cache);
       if (clientHealthMonitoringRegion != null) {
@@ -553,7 +547,7 @@ public class GemFireMemberStatus implements Serializable {
 
   /**
    * returning Map of client queue size against client Id
-   * 
+   *
    * param clientMap is a Map of client queue size against ClientProxyMembershipID
    */
   private Map getClientIDMap(Map ClientProxyMembershipIDMap) {
@@ -589,13 +583,7 @@ public class GemFireMemberStatus implements Serializable {
         while (connected.hasNext()) {
           Map.Entry entry = (Map.Entry) connected.next();
           String server = (String) entry.getKey();
-          // Integer connections = (Integer) entry.getValue();
-          // if (connections.intValue()==0) {
-          // addUnconnectedServer(server);
-          // } else {
           addConnectedServer(server);
-          // }
-          // System.out.println(connections.size() + " logical connnections to server " + server);
         }
       }
     }
@@ -635,7 +623,7 @@ public class GemFireMemberStatus implements Serializable {
 
   protected void initializePeers(DistributedSystem distributedSystem) {
     InternalDistributedSystem ids = (InternalDistributedSystem) distributedSystem;
-    DM dm = ids.getDistributionManager();
+    DistributionManager dm = ids.getDistributionManager();
     Set connections = dm.getOtherNormalDistributionManagerIds();
     Set connectionsIDs = new HashSet(connections.size());
     for (Iterator iter = connections.iterator(); iter.hasNext();) {
@@ -646,11 +634,6 @@ public class GemFireMemberStatus implements Serializable {
   }
 
   protected void initializeMemory() {
-    // InternalDistributedSystem system = (InternalDistributedSystem)
-    // region.getCache().getDistributedSystem();
-    // GemFireStatSampler sampler = system.getStatSampler();
-    // VMStatsContract statsContract = sampler.getVMStats();
-
     Runtime rt = Runtime.getRuntime();
     setMaximumHeapSize(rt.maxMemory());
     setFreeHeapSize(rt.freeMemory());
@@ -678,4 +661,3 @@ public class GemFireMemberStatus implements Serializable {
     }
   }
 }
-

@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.cache.query.functional;
 
 import static org.junit.Assert.assertEquals;
@@ -51,11 +48,9 @@ import org.apache.geode.cache.query.types.StructType;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-/**
- * 
- */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class LimitClauseJUnitTest {
 
   Region region;
@@ -218,7 +213,7 @@ public class LimitClauseJUnitTest {
   /**
    * Tests the limit functionality for Iter evaluated query with distinct clause This tests the
    * basic limit functionality for ResultBag wrapped by a SelectResults
-   * 
+   *
    * Tests ResultBag behaviour
    */
   @Test
@@ -254,9 +249,9 @@ public class LimitClauseJUnitTest {
    * basic limit functionality for ResultBag wrapped by a SelectResults . This test contains
    * projection attributes. Since the attribute is unique every time, the limit will be satisfied
    * with first 5 iterations
-   * 
+   *
    * Tests ResultBag behaviour
-   * 
+   *
    */
   @Test
   public void testLimitDistinctIterEvaluatedQueryForResultBagWithProjectionAttribute() {
@@ -292,7 +287,7 @@ public class LimitClauseJUnitTest {
    * duplicate elements. If the distinct clause is present then duplicate elements even if
    * satisfying the where clause should not be considered as part of the resultset as distinct will
    * eliminate them
-   * 
+   *
    * Tests ResultBag behaviour
    */
   @Test
@@ -353,7 +348,7 @@ public class LimitClauseJUnitTest {
    * satisfying the where clause should not be considered as part as distinct will eliminate them.
    * This test validates the above behaviour if projection sttribute is present and the projection
    * attribute may be duplicate
-   * 
+   *
    * Tests ResultBag behaviour
    */
   @Test
@@ -408,9 +403,9 @@ public class LimitClauseJUnitTest {
    * basic limit functionality for StructBag wrapped by a SelectResults . This test contains
    * projection attributes. Since the attribute is unique every time, the limit will be satisfied
    * with first 5 iterations
-   * 
+   *
    * Tests StructBag behaviour
-   * 
+   *
    */
   @Test
   public void testLimitDistinctIterEvaluatedQueryForStructBagWithProjectionAttribute() {
@@ -444,7 +439,7 @@ public class LimitClauseJUnitTest {
   /**
    * Tests the limit functionality for Iter evaluated query with distinct clause This tests the
    * basic limit functionality for StructBag wrapped by a SelectResults
-   * 
+   *
    * Tests StructBag behaviour
    */
   @Test
@@ -479,7 +474,7 @@ public class LimitClauseJUnitTest {
   /**
    * Tests the limit functionality for Iter evaluated query with distinct clause This tests the
    * basic limit functionality for StructBag wrapped by a SelectResults
-   * 
+   *
    * Tests StructBag behaviour
    */
   @Ignore
@@ -518,7 +513,7 @@ public class LimitClauseJUnitTest {
    * satisfying the where clause should not be considered as part as distinct will eliminate them.
    * This test validates the above behaviour if projection attribute is present and the projection
    * attribute may be duplicate
-   * 
+   *
    * Tests StructBag behaviour
    */
   @Test
@@ -576,7 +571,7 @@ public class LimitClauseJUnitTest {
    * duplicate elements. If the distinct clause is present then duplicate elements even if
    * satisfying the where clause should not be considered as part of the resultset as distinct will
    * eliminate them
-   * 
+   *
    * Tests StructBag behaviour
    */
   @Test
@@ -634,7 +629,7 @@ public class LimitClauseJUnitTest {
   /**
    * Tests the limit functionality for Iter evaluated query with distinct clause This tests the
    * basic limit functionality for ResultBag wrapped by a SelectResults
-   * 
+   *
    * Tests ResultBag behaviour
    */
   @Test
@@ -667,9 +662,9 @@ public class LimitClauseJUnitTest {
    * basic limit functionality for ResultBag wrapped by a SelectResults . This test contains
    * projection attributes. Since the attribute is unique every time, the limit will be satisfied
    * with first 5 iterations
-   * 
+   *
    * Tests ResultBag behaviour
-   * 
+   *
    */
   @Test
   public void testLimitDistinctIterEvaluatedQueryForResultBagWithProjectionAttributeWithIndex() {
@@ -704,7 +699,7 @@ public class LimitClauseJUnitTest {
    * duplicate elements. If the distinct clause is present then duplicate elements even if
    * satisfying the where clause should not be considered as part of the resultset as distinct will
    * eliminate them
-   * 
+   *
    * Tests ResultBag behaviour
    */
   @Test
@@ -748,7 +743,7 @@ public class LimitClauseJUnitTest {
    * satisfying the where clause should not be considered as part as distinct will eliminate them.
    * This test validates the above behaviour if projection sttribute is present and the projection
    * attribute may be duplicate
-   * 
+   *
    * Tests ResultBag behaviour
    */
   @Test
@@ -790,9 +785,9 @@ public class LimitClauseJUnitTest {
    * basic limit functionality for StructBag wrapped by a SelectResults . This test contains
    * projection attributes. Since the attribute is unique every time, the limit will be satisfied
    * with first 5 iterations
-   * 
+   *
    * Tests StructBag behaviour
-   * 
+   *
    */
   @Test
   public void testLimitDistinctIterEvaluatedQueryForStructBagWithProjectionAttributeWithIndex() {
@@ -825,7 +820,7 @@ public class LimitClauseJUnitTest {
   /**
    * Tests the limit functionality for Iter evaluated query with distinct clause This tests the
    * basic limit functionality for StructBag wrapped by a SelectResults
-   * 
+   *
    * Tests StructBag behaviour
    */
   @Test
@@ -864,7 +859,7 @@ public class LimitClauseJUnitTest {
    * satisfying the where clause should not be considered as part as distinct will eliminate them.
    * This test validates the above behaviour if projection attribute is present and the projection
    * attribute may be duplicate
-   * 
+   *
    * Tests StructBag behaviour
    */
   @Test
@@ -907,7 +902,7 @@ public class LimitClauseJUnitTest {
    * duplicate elements. If the distinct clause is present then duplicate elements even if
    * satisfying the where clause should not be considered as part of the resultset as distinct will
    * eliminate them
-   * 
+   *
    * Tests StructBag behaviour
    */
   @Test
@@ -951,10 +946,10 @@ public class LimitClauseJUnitTest {
   /**
    * Tests the limit functionality for query which has three conditions with AND operator and two
    * conditions can be evaluated using index but not the 3rd one.
-   * 
+   *
    * This tests the limit application on intermediate results from Index which should not be true in
    * this test.
-   * 
+   *
    */
   @Test
   public void testLimitDistinctQueryWithTwoCondButOneIndex() {
@@ -1202,31 +1197,31 @@ public class LimitClauseJUnitTest {
   /*
    * This test shows an error with order by. Limit does not affect this and will enable this test
    * after the bug for order by is logged and fixed
-   * 
+   *
    * @Test public void testNotApplyingLimitAtIndexLevelForMultiIndexAndClauseUsageWithOrderBy()
    * throws Exception { //try { Query query; SelectResults result; int limit = 25; Region region =
    * CacheUtils.createRegion("portfolios1", Portfolio.class); for (int i = 30; i > 0; i--) {
    * Portfolio p = new Portfolio(i); p.positions.clear(); p.positions.put("IBM", new Position("IBM",
    * i)); region.put("KEY" + i, p); }
-   * 
+   *
    * String queryString =
    * "<trace>SELECT distinct P FROM /portfolios1 P, P.positions.values POS WHERE P.ID > 5 AND POS.secId = 'IBM' ORDER BY P.ID"
    * ; query = qs.newQuery(queryString); SelectResults resultsNoIndex = (SelectResults)
    * query.execute();
-   * 
+   *
    * //Create Index on ID and secId //Index secIndex = qs.createIndex("secIdIndex", "pos.secId",
    * "/portfolios1 p, p.positions.values pos"); Index idIndex = qs.createIndex("idIndex",
    * IndexType.FUNCTIONAL, "P.ID", "/portfolios1 P");
-   * 
+   *
    * //assertNotNull(secIndex); assertNotNull(idIndex); assertTrue(idIndex instanceof
    * CompactRangeIndex); SelectResults resultsWithIndex = (SelectResults) query.execute();
-   * 
+   *
    * assertIndexDetailsEquals(resultsNoIndex.size(), resultsWithIndex.size());
    * assertIndexDetailsEquals(limit, resultsWithIndex.size());
-   * 
+   *
    * int expectedId = 6; Iterator iterator = resultsNoIndex.iterator(); while (iterator.hasNext()) {
    * Portfolio p = (Portfolio) iterator.next(); assertIndexDetailsEquals(expectedId++, p.ID); }
-   * 
+   *
    * //check order by results expectedId = 6; iterator = resultsWithIndex.iterator(); while
    * (iterator.hasNext()) { Portfolio p = (Portfolio) iterator.next();
    * assertIndexDetailsEquals(expectedId++, p.ID); } }
@@ -1768,10 +1763,8 @@ public class LimitClauseJUnitTest {
 
   /*
    * helper method to test against a compact range index
-   * 
-   * @param query
-   * 
-   * @throws Exception
+   *
+   *
    */
   private SelectResults helpTestIndexForQuery(String query, String indexedExpression,
       String regionPath, Object[] params) throws Exception {

@@ -46,8 +46,9 @@ import org.apache.geode.cache.execute.FunctionInvocationTargetException;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.cache.server.CacheServer;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.LonerDistributionManager;
 import org.apache.geode.internal.AvailablePort;
@@ -69,8 +70,9 @@ import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.FunctionServiceTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, FunctionServiceTest.class})
 public class DistributedRegionFunctionExecutionDUnitTest extends JUnit4DistributedTestCase {
 
   VM replicate1 = null;
@@ -106,6 +108,16 @@ public class DistributedRegionFunctionExecutionDUnitTest extends JUnit4Distribut
     // so we need to close it and null out the cache variable
     disconnectAllFromDS();
   }
+
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties result = super.getDistributedSystemProperties();
+    result.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.internal.cache.functions.**;org.apache.geode.internal.cache.execute.**;org.apache.geode.test.dunit.**");
+    return result;
+  }
+
+
 
   @Test
   public void testDistributedRegionFunctionExecutionOnDataPolicyEmpty() {
@@ -422,13 +434,13 @@ public class DistributedRegionFunctionExecutionDUnitTest extends JUnit4Distribut
      * AsyncInvocationArrSize = 1; AsyncInvocation[] async = new
      * AsyncInvocation[AsyncInvocationArrSize]; async[0] = empty.invokeAsync(() ->
      * DistributedRegionFunctionExecutionDUnitTest.executeFunctionHA());
-     * 
+     *
      * replicate1.invoke(() -> DistributedRegionFunctionExecutionDUnitTest.closeCache());
-     * 
+     *
      * replicate2.invoke(() -> DistributedRegionFunctionExecutionDUnitTest.createCacheInVm());
      * replicate2.invoke(() -> DistributedRegionFunctionExecutionDUnitTest.createPeer(
      * DataPolicy.REPLICATE ));
-     * 
+     *
      * DistributedTestCase.join(async[0], 50 * 1000, getLogWriter()); if (async[0].getException() !=
      * null) { fail("UnExpected Exception Occurred : ", async[0].getException()); } List l =
      * (List)async[0].getReturnValue();
@@ -939,7 +951,7 @@ public class DistributedRegionFunctionExecutionDUnitTest extends JUnit4Distribut
     props.setProperty(MCAST_PORT, "0");
     ds = (InternalDistributedSystem) DistributedSystem.connect(props);
 
-    DM dm = ds.getDistributionManager();
+    DistributionManager dm = ds.getDistributionManager();
     assertEquals("Distributed System is not loner", true, dm instanceof LonerDistributionManager);
 
     Cache cache = CacheFactory.create(ds);
@@ -1128,7 +1140,7 @@ public class DistributedRegionFunctionExecutionDUnitTest extends JUnit4Distribut
   public static void executeFunctionFunctionInvocationTargetExceptionWithoutHA() {
     try {
       ResultCollector rc1 = FunctionService.onRegion(region).setArguments(Boolean.TRUE)
-          .execute("DistribuedRegionFunctionFunctionInvocationException", true, false);
+          .execute("DistribuedRegionFunctionFunctionInvocationException");
       rc1.getResult();
       fail("Function Invocation Target Exception should be thrown");
     } catch (Exception e) {
@@ -1154,7 +1166,7 @@ public class DistributedRegionFunctionExecutionDUnitTest extends JUnit4Distribut
   public static void executeFunctionFunctionInvocationTargetException_ClientServer_WithoutHA() {
     try {
       FunctionService.onRegion(region).setArguments(Boolean.TRUE)
-          .execute("DistribuedRegionFunctionFunctionInvocationException", true, false).getResult();
+          .execute("DistribuedRegionFunctionFunctionInvocationException").getResult();
       fail("Function Invocation Target Exception should be thrown");
     } catch (Exception e) {
       e.printStackTrace();
@@ -1280,6 +1292,8 @@ public class DistributedRegionFunctionExecutionDUnitTest extends JUnit4Distribut
 
   private void createCache(Properties props) {
     try {
+      props.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+          "org.apache.geode.internal.cache.functions.**;org.apache.geode.internal.cache.execute.**;org.apache.geode.test.dunit.**");
       DistributedSystem ds = getSystem(props);
       assertNotNull(ds);
       ds.disconnect();

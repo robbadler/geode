@@ -27,6 +27,7 @@ import org.junit.runner.notification.Failure;
 
 import org.apache.geode.test.junit.Repeat;
 import org.apache.geode.test.junit.categories.UnitTest;
+import org.apache.geode.test.junit.runners.TestRunner;
 
 /**
  * Unit tests for {@link RepeatRule}.

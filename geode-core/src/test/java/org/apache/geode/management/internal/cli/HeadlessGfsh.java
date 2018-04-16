@@ -14,14 +14,6 @@
  */
 package org.apache.geode.management.internal.cli;
 
-import jline.console.ConsoleReader;
-import org.apache.geode.management.internal.cli.result.ResultBuilder;
-import org.apache.geode.management.internal.cli.shell.Gfsh;
-import org.apache.geode.management.internal.cli.shell.GfshConfig;
-import org.apache.geode.management.internal.cli.shell.jline.GfshUnsupportedTerminal;
-import org.springframework.shell.core.ExitShellRequest;
-import org.springframework.shell.event.ShellStatus.Status;
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileDescriptor;
@@ -36,6 +28,15 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
+
+import jline.console.ConsoleReader;
+import org.springframework.shell.core.ExitShellRequest;
+import org.springframework.shell.event.ShellStatus.Status;
+
+import org.apache.geode.management.internal.cli.result.ResultBuilder;
+import org.apache.geode.management.internal.cli.shell.Gfsh;
+import org.apache.geode.management.internal.cli.shell.GfshConfig;
+import org.apache.geode.management.internal.cli.shell.jline.GfshUnsupportedTerminal;
 
 
 /**
@@ -84,7 +85,6 @@ public class HeadlessGfsh implements ResultHandler {
     });
 
     this.shell.start();
-    this.shell.setThreadLocalInstance();
 
     try {
       shellStarted.await();
@@ -121,7 +121,7 @@ public class HeadlessGfsh implements ResultHandler {
   }
 
   public Object getResult() throws InterruptedException {
-    // Dont wait for when some command calls gfsh.stop();
+    // Don't wait for when some command calls gfsh.stop();
     if (shell.stopCalledThroughAPI)
       return null;
     try {
@@ -146,6 +146,10 @@ public class HeadlessGfsh implements ResultHandler {
     outputString = null;
   }
 
+  public void setTimeout(long timeout) {
+    this.timeout = timeout;
+  }
+
   public void clearEvents() {
     queue.clear();
     outputString = null;
@@ -153,6 +157,10 @@ public class HeadlessGfsh implements ResultHandler {
 
   public void terminate() {
     shell.terminate();
+  }
+
+  public Gfsh getGfsh() {
+    return shell;
   }
 
   public boolean isConnectedAndReady() {
@@ -195,10 +203,6 @@ public class HeadlessGfsh implements ResultHandler {
       this.handler = handler;
     }
 
-    public void setThreadLocalInstance() {
-      gfshThreadLocal.set(this);
-    }
-
     protected void handleExecutionResult(Object result) {
       if (!result.equals(ERROR_RESULT)) {
         super.handleExecutionResult(result);
@@ -222,6 +226,7 @@ public class HeadlessGfsh implements ResultHandler {
     }
 
     public void stop() {
+      super.stop();
       stopCalledThroughAPI = true;
     }
 
@@ -290,6 +295,7 @@ public class HeadlessGfsh implements ResultHandler {
      */
     @Override
     public void logSevere(String message, Throwable t) {
+      t.printStackTrace();
       super.logSevere(message, t);
       errorString = message;
       hasError = true;
@@ -317,11 +323,6 @@ public class HeadlessGfsh implements ResultHandler {
    * HeadlessGfshConfig for tests. Taken from TestableGfsh
    */
   static class HeadlessGfshConfig extends GfshConfig {
-    {
-      // set vm as a gfsh vm
-      CliUtil.isGfshVM = true;
-    }
-
     private File parentDir;
     private String fileNamePrefix;
     private String name;

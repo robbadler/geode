@@ -44,11 +44,9 @@ import org.apache.geode.cache.query.internal.types.TypeUtils;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
-/**
- *
- */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLIndexTest.class})
 public class IndexCreationInternalsJUnitTest {
   protected String childThreadName1 = "";
   protected String childThreadName2 = "";
@@ -155,7 +153,7 @@ public class IndexCreationInternalsJUnitTest {
     try {
       Region rgn = CacheUtils.createRegion("dummy", null);
 
-      final IndexManager imgr = new IndexManager(rgn);
+      final IndexManager imgr = new IndexManager(CacheUtils.getCache(), rgn);
       ((LocalRegion) rgn).setIndexManager(imgr);
       String name = imgr.putCanonicalizedIteratorNameIfAbsent("dummy");
       assertTrue(
@@ -171,7 +169,7 @@ public class IndexCreationInternalsJUnitTest {
   public void testConcurrentGenerationOfCanonicalizedIteratorNames() {
     try {
       Region rgn = CacheUtils.createRegion("dummy", null);
-      final IndexManager imgr = new IndexManager(rgn);
+      final IndexManager imgr = new IndexManager(CacheUtils.getCache(), rgn);
       ((LocalRegion) rgn).setIndexManager(imgr);
 
       String name = imgr.putCanonicalizedIteratorNameIfAbsent("dummy");

@@ -20,14 +20,12 @@
  */
 package org.apache.geode.internal.cache;
 
-import org.apache.geode.cache.DiskStoreFactory;
-
 import java.io.File;
-import java.util.Arrays;
+
 
 /**
  * A properties object used to create persistent/overflow regions for testing objects
- * 
+ *
  * @since GemFire 5.1
  *
  */

@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.geode.internal.DataSerializableFixedID;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelCriterion;
@@ -51,7 +50,7 @@ import org.apache.geode.distributed.internal.DistributionAdvisor.Profile;
 import org.apache.geode.distributed.internal.tcpserver.TcpHandler;
 import org.apache.geode.distributed.internal.tcpserver.TcpServer;
 import org.apache.geode.i18n.LogWriterI18n;
-import org.apache.geode.internal.net.SocketCreator;
+import org.apache.geode.internal.DataSerializableFixedID;
 import org.apache.geode.internal.cache.CacheServerAdvisor.CacheServerProfile;
 import org.apache.geode.internal.cache.ControllerAdvisor;
 import org.apache.geode.internal.cache.ControllerAdvisor.ControllerProfile;
@@ -59,9 +58,10 @@ import org.apache.geode.internal.cache.FindDurableQueueProcessor;
 import org.apache.geode.internal.cache.GridAdvisor.GridProfile;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.internal.net.SocketCreator;
 
 /**
- * 
+ *
  * @since GemFire 5.7
  */
 public class ServerLocator implements TcpHandler, DistributionAdvisee {
@@ -79,7 +79,7 @@ public class ServerLocator implements TcpHandler, DistributionAdvisee {
   private volatile List<ServerLocation> cachedLocators;
   private final Object cachedLocatorsLock = new Object();
 
-  private final static AtomicInteger profileSN = new AtomicInteger();
+  private static final AtomicInteger profileSN = new AtomicInteger();
 
   private static final long SERVER_LOAD_LOG_INTERVAL = (60 * 60 * 1000); // log server load once an
                                                                          // hour
@@ -101,6 +101,10 @@ public class ServerLocator implements TcpHandler, DistributionAdvisee {
     this.ds = null;
     this.advisor = null;
     this.stats = null;
+  }
+
+  public LocatorLoadSnapshot getLoadSnapshot() {
+    return loadSnapshot;
   }
 
   public ServerLocator(int port, InetAddress bindAddress, String hostNameForClients, File logFile,
@@ -275,7 +279,7 @@ public class ServerLocator implements TcpHandler, DistributionAdvisee {
   }
 
   public void restarting(DistributedSystem ds, GemFireCache cache,
-      ClusterConfigurationService sharedConfig) {
+      InternalClusterConfigurationService sharedConfig) {
     if (ds != null) {
       this.loadSnapshot = new LocatorLoadSnapshot();
       this.ds = (InternalDistributedSystem) ds;
@@ -288,7 +292,7 @@ public class ServerLocator implements TcpHandler, DistributionAdvisee {
   }
 
   // DistributionAdvisee methods
-  public DM getDistributionManager() {
+  public DistributionManager getDistributionManager() {
     return getSystem().getDistributionManager();
   }
 
@@ -377,9 +381,6 @@ public class ServerLocator implements TcpHandler, DistributionAdvisee {
     return new ServerLocation(p.getHost(), p.getPort());
   }
 
-  /**
-   * @param profile
-   */
   public void profileCreated(Profile profile) {
     if (profile instanceof CacheServerProfile) {
       CacheServerProfile bp = (CacheServerProfile) profile;
@@ -398,9 +399,6 @@ public class ServerLocator implements TcpHandler, DistributionAdvisee {
     }
   }
 
-  /**
-   * @param profile
-   */
   public void profileRemoved(Profile profile) {
     if (profile instanceof CacheServerProfile) {
       CacheServerProfile bp = (CacheServerProfile) profile;

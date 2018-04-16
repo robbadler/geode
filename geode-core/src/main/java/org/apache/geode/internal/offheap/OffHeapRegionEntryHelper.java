@@ -16,12 +16,12 @@ package org.apache.geode.internal.offheap;
 
 import org.apache.geode.internal.DSCODE;
 import org.apache.geode.internal.cache.CachedDeserializableFactory;
-import org.apache.geode.internal.cache.DiskEntry;
 import org.apache.geode.internal.cache.DiskId;
 import org.apache.geode.internal.cache.EntryEventImpl;
-import org.apache.geode.internal.cache.OffHeapRegionEntry;
 import org.apache.geode.internal.cache.RegionEntryContext;
 import org.apache.geode.internal.cache.Token;
+import org.apache.geode.internal.cache.entries.DiskEntry;
+import org.apache.geode.internal.cache.entries.OffHeapRegionEntry;
 import org.apache.geode.internal.offheap.annotations.Released;
 import org.apache.geode.internal.offheap.annotations.Retained;
 import org.apache.geode.internal.offheap.annotations.Unretained;
@@ -30,7 +30,7 @@ import org.apache.geode.internal.offheap.annotations.Unretained;
  * The class just has static methods that operate on instances of {@link OffHeapRegionEntry}. It
  * allows common code to be shared for all the classes we have that implement
  * {@link OffHeapRegionEntry}.
- * 
+ *
  * @since Geode 1.0
  */
 public class OffHeapRegionEntryHelper {
@@ -77,7 +77,7 @@ public class OffHeapRegionEntryHelper {
   /**
    * This method may release the object stored at ohAddress if the result needs to be decompressed
    * and the decompress parameter is true. This decompressed result will be on the heap.
-   * 
+   *
    * @param ohAddress OFF_HEAP_ADDRESS
    * @param decompress true if off-heap value should be decompressed before returning
    * @param context used for decompression
@@ -99,7 +99,7 @@ public class OffHeapRegionEntryHelper {
           if (chunk.isSerialized()) {
             // return a VMCachedDeserializable with the decompressed serialized bytes since chunk is
             // serialized
-            result = CachedDeserializableFactory.create(decompressedBytes);
+            result = CachedDeserializableFactory.create(decompressedBytes, context.getCache());
           } else {
             // return a byte[] since chunk is not serialized
             result = decompressedBytes;
@@ -122,7 +122,7 @@ public class OffHeapRegionEntryHelper {
         if (daa.isSerialized()) {
           // return a VMCachedDeserializable with the decompressed serialized bytes since daa is
           // serialized
-          result = CachedDeserializableFactory.create(decompressedBytes);
+          result = CachedDeserializableFactory.create(decompressedBytes, context.getCache());
         } else {
           // return a byte[] since daa is not serialized
           result = decompressedBytes;
@@ -245,7 +245,7 @@ public class OffHeapRegionEntryHelper {
     } else if (isSerialized && !isCompressed) {
       // Check for some special types that take more than 7 bytes to serialize
       // but that might be able to be inlined with less than 8 bytes.
-      if (v[0] == DSCODE.LONG) {
+      if (v[0] == DSCODE.LONG.toByte()) {
         // A long is currently always serialized as 8 bytes (9 if you include the dscode).
         // But many long values will actually be small enough for is to encode in 7 bytes.
         if ((v[1] == 0 && (v[2] & 0x80) == 0) || (v[1] == -1 && (v[2] & 0x80) != 0)) {
@@ -287,7 +287,7 @@ public class OffHeapRegionEntryHelper {
   /**
    * Returns the bytes encoded in the given address. Note that compressed addresses are not
    * supported by this method.
-   * 
+   *
    * @throws UnsupportedOperationException if the address has compressed data
    */
   static byte[] decodeUncompressedAddressToBytes(long addr) {
@@ -306,7 +306,7 @@ public class OffHeapRegionEntryHelper {
     byte[] bytes;
     if (isLong) {
       bytes = new byte[9];
-      bytes[0] = DSCODE.LONG;
+      bytes[0] = DSCODE.LONG.toByte();
       for (int i = 8; i >= 2; i--) {
         addr >>= 8;
         bytes[i] = (byte) (addr & 0x00ff);
@@ -367,7 +367,7 @@ public class OffHeapRegionEntryHelper {
    * value returned is 're' decompressed into another off-heap location, then 're' will be
    * Unretained but the new, decompressed value will be Retained. Therefore, whichever is returned
    * (the value at the address in 're' or the decompressed value) it will have been Retained.
-   * 
+   *
    * @return possible OFF_HEAP_OBJECT (caller must release)
    */
   @Retained

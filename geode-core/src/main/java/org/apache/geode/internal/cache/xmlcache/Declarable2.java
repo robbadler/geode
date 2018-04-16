@@ -14,8 +14,9 @@
  */
 package org.apache.geode.internal.cache.xmlcache;
 
-import org.apache.geode.cache.Declarable;
 import java.util.Properties;
+
+import org.apache.geode.cache.Declarable;
 
 /**
  * An extension of {@link Declarable} that allows a <code>Declarable</code> to provides its
@@ -30,6 +31,6 @@ public interface Declarable2 extends Declarable {
   /**
    * Returns the current configuration of this {@link Declarable}
    */
-  public Properties getConfig();
+  Properties getConfig();
 
 }

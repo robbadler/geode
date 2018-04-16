@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import org.apache.logging.log4j.Logger;
 
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.DataSerializableFixedID;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.cache.persistence.DiskStoreID;
@@ -215,10 +215,9 @@ public abstract class VersionTag<T extends VersionSource>
 
   /**
    * Set canonical ID objects into this version tag using the DM's cache of IDs
-   * 
-   * @param distributionManager
+   *
    */
-  public void setCanonicalIDs(DM distributionManager) {}
+  public void setCanonicalIDs(DistributionManager distributionManager) {}
 
   /**
    * @return the memberID
@@ -270,8 +269,7 @@ public abstract class VersionTag<T extends VersionSource>
 
   /**
    * set or clear the flag that this tag was blessed by a conflict resolver
-   * 
-   * @param flag
+   *
    * @return this tag
    */
   public VersionTag setAllowedByResolver(boolean flag) {
@@ -299,7 +297,6 @@ public abstract class VersionTag<T extends VersionSource>
    * replace null member IDs with the given identifier. This is used to incorporate version
    * information into the cache that has been received from another VM
    *
-   * @param id
    */
   public void replaceNullIDs(VersionSource id) {
     if (this.memberID == null) {
@@ -349,8 +346,8 @@ public abstract class VersionTag<T extends VersionSource>
         flags |= DUPLICATE_MEMBER_IDS;
       }
     }
-    if (logger.isTraceEnabled(LogMarker.VERSION_TAG)) {
-      logger.info(LogMarker.VERSION_TAG, "serializing {} with flags 0x{}", this.getClass(),
+    if (logger.isTraceEnabled(LogMarker.VERSION_TAG_VERBOSE)) {
+      logger.trace(LogMarker.VERSION_TAG_VERBOSE, "serializing {} with flags 0x{}", this.getClass(),
           Integer.toHexString(flags));
     }
     out.writeShort(flags);
@@ -377,9 +374,9 @@ public abstract class VersionTag<T extends VersionSource>
 
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     int flags = in.readUnsignedShort();
-    if (logger.isTraceEnabled(LogMarker.VERSION_TAG)) {
-      logger.info(LogMarker.VERSION_TAG, "deserializing {} with flags 0x{}", this.getClass(),
-          Integer.toHexString(flags));
+    if (logger.isTraceEnabled(LogMarker.VERSION_TAG_VERBOSE)) {
+      logger.trace(LogMarker.VERSION_TAG_VERBOSE, "deserializing {} with flags 0x{}",
+          this.getClass(), Integer.toHexString(flags));
     }
     bitsUpdater.set(this, in.readUnsignedShort());
     this.distributedSystemId = in.readByte();
@@ -456,7 +453,6 @@ public abstract class VersionTag<T extends VersionSource>
   /**
    * Creates a version tag of the appropriate type, based on the member id
    *
-   * @param memberId
    */
   public static VersionTag create(VersionSource memberId) {
     VersionTag tag;

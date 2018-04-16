@@ -17,25 +17,21 @@ package org.apache.geode.management.internal.cli.functions;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.ResultSender;
-import org.apache.geode.cache.wan.GatewaySender.OrderPolicy;
 import org.apache.geode.cache.wan.GatewayEventFilter;
 import org.apache.geode.cache.wan.GatewaySender;
+import org.apache.geode.cache.wan.GatewaySender.OrderPolicy;
 import org.apache.geode.cache.wan.GatewaySenderFactory;
 import org.apache.geode.cache.wan.GatewayTransportFilter;
 import org.apache.geode.internal.ClassPathLoader;
-import org.apache.geode.internal.InternalEntity;
-import org.apache.geode.internal.cache.wan.GatewaySenderException;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.cache.xmlcache.CacheXml;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.management.internal.configuration.domain.XmlEntity;
 
-public class GatewaySenderCreateFunction extends FunctionAdapter implements InternalEntity {
+public class GatewaySenderCreateFunction implements InternalFunction {
 
   private static final Logger logger = LogService.getLogger();
 
@@ -50,9 +46,8 @@ public class GatewaySenderCreateFunction extends FunctionAdapter implements Inte
   public void execute(FunctionContext context) {
     ResultSender<Object> resultSender = context.getResultSender();
 
-    Cache cache = CacheFactory.getAnyInstance();
-    String memberNameOrId =
-        CliUtil.getMemberNameOrId(cache.getDistributedSystem().getDistributedMember());
+    Cache cache = context.getCache();
+    String memberNameOrId = context.getMemberName();
 
     GatewaySenderFunctionArgs gatewaySenderCreateArgs =
         (GatewaySenderFunctionArgs) context.getArguments();
@@ -64,37 +59,17 @@ public class GatewaySenderCreateFunction extends FunctionAdapter implements Inte
       resultSender.lastResult(new CliFunctionResult(memberNameOrId, xmlEntity,
           CliStrings.format(CliStrings.CREATE_GATEWAYSENDER__MSG__GATEWAYSENDER_0_CREATED_ON_1,
               new Object[] {createdGatewaySender.getId(), memberNameOrId})));
-    } catch (GatewaySenderException e) {
-      resultSender.lastResult(handleException(memberNameOrId, e.getMessage(), e));
     } catch (Exception e) {
-      String exceptionMsg = e.getMessage();
-      if (exceptionMsg == null) {
-        exceptionMsg = CliUtil.stackTraceAsString(e);
-      }
-      resultSender.lastResult(handleException(memberNameOrId, exceptionMsg, e));
+      logger.error(e.getMessage(), e);
+      resultSender.lastResult(new CliFunctionResult(memberNameOrId, e, null));
     }
-  }
-
-  private CliFunctionResult handleException(final String memberNameOrId, final String exceptionMsg,
-      final Exception e) {
-    if (e != null && logger.isDebugEnabled()) {
-      logger.debug(e.getMessage(), e);
-    }
-    if (exceptionMsg != null) {
-      return new CliFunctionResult(memberNameOrId, false, exceptionMsg);
-    }
-
-    return new CliFunctionResult(memberNameOrId);
   }
 
   /**
    * Creates the GatewaySender with given configuration.
-   * 
-   * @param cache
-   * @param gatewaySenderCreateArgs
-   * @return GatewaySender
+   *
    */
-  private static GatewaySender createGatewaySender(Cache cache,
+  private GatewaySender createGatewaySender(Cache cache,
       GatewaySenderFunctionArgs gatewaySenderCreateArgs) {
     GatewaySenderFactory gateway = cache.createGatewaySenderFactory();
 
@@ -200,13 +175,13 @@ public class GatewaySenderCreateFunction extends FunctionAdapter implements Inte
       }
     } catch (ClassNotFoundException e) {
       throw new RuntimeException(
-          CliStrings.format(CliStrings.CREATE_REGION__MSG__COULDNOT_FIND_CLASS_0_SPECIFIED_FOR_1,
-              new Object[] {classToLoadName, neededFor}),
+          CliStrings.format(CliStrings.CREATE_REGION__MSG__COULD_NOT_FIND_CLASS_0_SPECIFIED_FOR_1,
+              classToLoadName, neededFor),
           e);
     } catch (ClassCastException e) {
       throw new RuntimeException(CliStrings.format(
           CliStrings.CREATE_REGION__MSG__CLASS_SPECIFIED_FOR_0_SPECIFIED_FOR_1_IS_NOT_OF_EXPECTED_TYPE,
-          new Object[] {classToLoadName, neededFor}), e);
+          classToLoadName, neededFor), e);
     }
 
     return loadedClass;
@@ -218,12 +193,12 @@ public class GatewaySenderCreateFunction extends FunctionAdapter implements Inte
       instance = klass.newInstance();
     } catch (InstantiationException e) {
       throw new RuntimeException(CliStrings.format(
-          CliStrings.CREATE_GATEWAYSENDER__MSG__COULDNOT_INSTANTIATE_CLASS_0_SPECIFIED_FOR_1,
-          new Object[] {klass, neededFor}), e);
+          CliStrings.CREATE_GATEWAYSENDER__MSG__COULD_NOT_INSTANTIATE_CLASS_0_SPECIFIED_FOR_1,
+          klass, neededFor), e);
     } catch (IllegalAccessException e) {
       throw new RuntimeException(CliStrings.format(
-          CliStrings.CREATE_GATEWAYSENDER__MSG__COULDNOT_ACCESS_CLASS_0_SPECIFIED_FOR_1,
-          new Object[] {klass, neededFor}), e);
+          CliStrings.CREATE_GATEWAYSENDER__MSG__COULD_NOT_ACCESS_CLASS_0_SPECIFIED_FOR_1, klass,
+          neededFor), e);
     }
     return instance;
   }

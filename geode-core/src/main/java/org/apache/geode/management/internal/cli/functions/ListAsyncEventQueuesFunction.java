@@ -19,17 +19,14 @@ import java.util.Set;
 
 import org.apache.logging.log4j.Logger;
 
-import org.apache.geode.LogWriter;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.asyncqueue.AsyncEventListener;
 import org.apache.geode.cache.asyncqueue.AsyncEventQueue;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.internal.InternalEntity;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.cache.xmlcache.Declarable2;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.management.internal.cli.domain.AsyncEventQueueDetails;
@@ -38,10 +35,10 @@ import org.apache.geode.management.internal.cli.domain.AsyncEventQueueDetails;
  * An implementation of GemFire Function interface used to determine all the async event queues that
  * exist for the entire cache, distributed across the GemFire distributed system.
  * </p>
- * 
+ *
  * @since GemFire 8.0
  */
-public class ListAsyncEventQueuesFunction extends FunctionAdapter implements InternalEntity {
+public class ListAsyncEventQueuesFunction implements InternalFunction {
   private static final Logger logger = LogService.getLogger();
 
   private static final long serialVersionUID = 1L;
@@ -51,17 +48,13 @@ public class ListAsyncEventQueuesFunction extends FunctionAdapter implements Int
     return getClass().getName();
   }
 
-  protected Cache getCache() {
-    return CacheFactory.getAnyInstance();
-  }
-
   @Override
   public void execute(final FunctionContext context) {
     // Declared here so that it's available when returning a Throwable
     String memberId = "";
 
     try {
-      Cache cache = CacheFactory.getAnyInstance();
+      Cache cache = context.getCache();
 
       DistributedMember member = cache.getDistributedSystem().getDistributedMember();
 

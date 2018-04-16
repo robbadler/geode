@@ -14,32 +14,27 @@
  */
 package org.apache.geode.cache.snapshot;
 
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
-import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
+import static org.junit.Assert.assertEquals;
 
 import java.io.File;
-import java.io.FilenameFilter;
 import java.util.HashMap;
 import java.util.Map;
 
 import com.examples.snapshot.MyObject;
 import com.examples.snapshot.MyPdxSerializer;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.snapshot.RegionGenerator.RegionType;
 import org.apache.geode.cache.snapshot.RegionGenerator.SerializationType;
 import org.apache.geode.cache.snapshot.SnapshotOptions.SnapshotFormat;
-import org.apache.geode.cache30.CacheTestCase;
-import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.LogWriterUtils;
 import org.apache.geode.test.dunit.SerializableCallable;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
 
 @Category(DistributedTest.class)
 public class SnapshotPerformanceDUnitTest extends JUnit4CacheTestCase {
@@ -77,7 +72,7 @@ public class SnapshotPerformanceDUnitTest extends JUnit4CacheTestCase {
   }
 
   private void doExport(Region<Integer, MyObject> region) throws Exception {
-    File f = new File(getDiskDirs()[0], region.getName());
+    File f = new File(getDiskDirs()[0], region.getName() + ".gfd");
 
     long start = System.currentTimeMillis();
     region.getSnapshotService().save(f, SnapshotFormat.GEMFIRE);
@@ -96,7 +91,7 @@ public class SnapshotPerformanceDUnitTest extends JUnit4CacheTestCase {
   }
 
   private void doImport(Region<Integer, MyObject> region) throws Exception {
-    File f = new File(getDiskDirs()[0], region.getName());
+    File f = new File(getDiskDirs()[0], region.getName() + ".gfd");
 
     long start = System.currentTimeMillis();
     region.getSnapshotService().load(f, SnapshotFormat.GEMFIRE);

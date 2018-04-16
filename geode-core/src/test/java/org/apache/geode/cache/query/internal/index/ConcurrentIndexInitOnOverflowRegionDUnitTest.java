@@ -12,21 +12,15 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.cache.query.internal.index;
-
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-
 import java.io.IOException;
+import java.util.Properties;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
@@ -48,7 +42,7 @@ import org.apache.geode.cache.query.data.PortfolioData;
 import org.apache.geode.cache.query.internal.index.IndexManager.TestHook;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.cache30.CacheSerializableRunnable;
-import org.apache.geode.cache30.CacheTestCase;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.internal.cache.EvictionAttributesImpl;
 import org.apache.geode.test.dunit.AsyncInvocation;
 import org.apache.geode.test.dunit.Host;
@@ -58,11 +52,11 @@ import org.apache.geode.test.dunit.NetworkUtils;
 import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
-/**
- * 
- */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, OQLIndexTest.class})
 public class ConcurrentIndexInitOnOverflowRegionDUnitTest extends JUnit4CacheTestCase {
 
   String name;
@@ -77,16 +71,18 @@ public class ConcurrentIndexInitOnOverflowRegionDUnitTest extends JUnit4CacheTes
 
   private static int bridgeServerPort;
 
-  /**
-   * @param name
-   */
   public ConcurrentIndexInitOnOverflowRegionDUnitTest() {
     super();
   }
 
-  /**
-  *
-  */
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties properties = super.getDistributedSystemProperties();
+    properties.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.cache.query.data.*");
+    return properties;
+  }
+
   @Test
   public void testAsyncIndexInitDuringEntryDestroyAndQueryOnRR() {
     Host host = Host.getHost(0);
@@ -191,9 +187,6 @@ public class ConcurrentIndexInitOnOverflowRegionDUnitTest extends JUnit4CacheTes
     ThreadUtils.join(asyncInv1, 30 * 1000);
   }
 
-  /**
-  *
-  */
   @Test
   public void testAsyncIndexInitDuringEntryPutUsingClientOnRR() {
     Host host = Host.getHost(0);

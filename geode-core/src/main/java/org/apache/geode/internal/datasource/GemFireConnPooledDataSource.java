@@ -23,16 +23,16 @@ import javax.sql.PooledConnection;
 
 import org.apache.logging.log4j.Logger;
 
+import org.apache.geode.i18n.StringId;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
-import org.apache.geode.i18n.StringId;
 
 /**
  * GemFireTransactionDataSource extends AbstractDataSource. This is a datasource class which
  * provides connections from the pool. The objects of these class are ConnectionEventListener for
  * connection close and error events.
- * 
+ *
  * Modified Exception handling & changed name of the function
  */
 public class GemFireConnPooledDataSource extends AbstractDataSource
@@ -45,10 +45,9 @@ public class GemFireConnPooledDataSource extends AbstractDataSource
 
   /**
    * Creates a new instance of GemFireConnPooledDataSource
-   * 
+   *
    * @param connPoolDS The ConnectionPoolDataSource object for the database driver.
    * @param configs The ConfiguredDataSourceProperties containing the datasource properties.
-   * @throws SQLException
    */
 
 
@@ -57,7 +56,6 @@ public class GemFireConnPooledDataSource extends AbstractDataSource
    * jdk 1.6
    *
    * @param iface - a Class defining an interface.
-   * @throws SQLException
    */
   public boolean isWrapperFor(Class iface) throws SQLException {
     return true;
@@ -89,8 +87,7 @@ public class GemFireConnPooledDataSource extends AbstractDataSource
   /**
    * Implementation of datasource interface function. This method is used to get the connection from
    * the pool. Default user name and password will be used.
-   * 
-   * @throws SQLException
+   *
    * @return ???
    */
   @Override
@@ -112,10 +109,9 @@ public class GemFireConnPooledDataSource extends AbstractDataSource
   /**
    * Implementation of datasource function. This method is used to get the connection. The specified
    * user name and passowrd will be used.
-   * 
+   *
    * @param clUsername The username for the database connection.
    * @param clPassword The password for the database connection.
-   * @throws SQLException
    * @return ???
    */
   @Override
@@ -127,8 +123,7 @@ public class GemFireConnPooledDataSource extends AbstractDataSource
   /**
    * Implementation of call back function from ConnectionEventListener interface. This callback will
    * be invoked on connection close event.
-   * 
-   * @param event
+   *
    */
   public void connectionClosed(ConnectionEvent event) {
     if (isActive) {
@@ -147,8 +142,7 @@ public class GemFireConnPooledDataSource extends AbstractDataSource
   /**
    * Implementation of call back function from ConnectionEventListener interface. This callback will
    * be invoked on connection error event.
-   * 
-   * @param event
+   *
    */
   public void connectionErrorOccurred(ConnectionEvent event) {
     if (isActive) {
@@ -168,7 +162,7 @@ public class GemFireConnPooledDataSource extends AbstractDataSource
 
   /**
    * Returns true if the connection is not closed.
-   * 
+   *
    * @param conn Connection object
    * @return boolean True is the connection is alive.
    */
@@ -183,8 +177,7 @@ public class GemFireConnPooledDataSource extends AbstractDataSource
 
   /**
    * gets tha connection from the pool
-   * 
-   * @param poolC
+   *
    * @return ???
    */
   protected Connection getSQLConnection(PooledConnection poolC) throws SQLException {
@@ -202,7 +195,7 @@ public class GemFireConnPooledDataSource extends AbstractDataSource
 
   /**
    * Returns the connection provider for the datasource.
-   * 
+   *
    * @return ConnectionProvider object for the datasource
    */
   public ConnectionProvider getConnectionProvider() {

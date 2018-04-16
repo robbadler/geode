@@ -37,9 +37,7 @@ import org.apache.geode.CancelCriterion;
 import org.apache.geode.CancelException;
 import org.apache.geode.StatisticsFactory;
 import org.apache.geode.SystemFailure;
-import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.NoSubscriptionServersAvailableException;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionService;
@@ -55,15 +53,14 @@ import org.apache.geode.distributed.PoolCancelledException;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.ServerLocation;
+import org.apache.geode.distributed.internal.membership.gms.membership.HostAddress;
 import org.apache.geode.internal.ScheduledThreadPoolExecutorWithKeepAlive;
 import org.apache.geode.internal.admin.ClientStatsManager;
 import org.apache.geode.internal.cache.EventID;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.PoolFactoryImpl;
 import org.apache.geode.internal.cache.PoolManagerImpl;
 import org.apache.geode.internal.cache.PoolStats;
-import org.apache.geode.internal.cache.tier.sockets.AcceptorImpl;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.InternalLogWriter;
@@ -73,7 +70,7 @@ import org.apache.geode.internal.statistics.DummyStatisticsFactory;
 
 /**
  * Manages the client side of client to server connections and client queues.
- * 
+ *
  * @since GemFire 5.7
  */
 public class PoolImpl implements InternalPool {
@@ -82,10 +79,6 @@ public class PoolImpl implements InternalPool {
       DistributionConfig.GEMFIRE_PREFIX + "ON_DISCONNECT_CLEAR_PDXTYPEIDS";
 
   private static final Logger logger = LogService.getLogger();
-
-  private static final int HANDSHAKE_TIMEOUT =
-      Integer.getInteger(DistributionConfig.GEMFIRE_PREFIX + "PoolImpl.HANDSHAKE_TIMEOUT",
-          AcceptorImpl.DEFAULT_HANDSHAKE_TIMEOUT_MS);
 
   public static final long SHUTDOWN_TIMEOUT =
       Long.getLong(DistributionConfig.GEMFIRE_PREFIX + "PoolImpl.SHUTDOWN_TIMEOUT", 30000);
@@ -100,9 +93,10 @@ public class PoolImpl implements InternalPool {
    * For durable client tests only. Connection Sources read this flag and return an empty list of
    * servers.
    */
-  public volatile static boolean TEST_DURABLE_IS_NET_DOWN = false;
+  public static volatile boolean TEST_DURABLE_IS_NET_DOWN = false;
 
   private final String name;
+  private final int socketConnectTimeout;
   private final int freeConnectionTimeout;
   private final int loadConditioningInterval;
   private final int socketBufferSize;
@@ -113,7 +107,9 @@ public class PoolImpl implements InternalPool {
   private final int subscriptionRedundancyLevel;
   private final int subscriptionMessageTrackingTimeout;
   private final int subscriptionAckInterval;
+  private final int subscriptionTimeoutMultiplier;
   private final String serverGroup;
+  private final List<HostAddress> locatorAddresses;
   private final List<InetSocketAddress> locators;
   private final List<InetSocketAddress> servers;
   private final boolean startDisabled;
@@ -138,6 +134,7 @@ public class PoolImpl implements InternalPool {
   private final OpExecutorImpl executor;
   private final RegisterInterestTracker riTracker = new RegisterInterestTracker();
   private final InternalDistributedSystem dsys;
+  private InternalCache cache;
 
   private final ClientProxyMembershipID proxyId;
   protected final CancelCriterion cancelCriterion;
@@ -154,8 +151,10 @@ public class PoolImpl implements InternalPool {
   public static final int PRIMARY_QUEUE_TIMED_OUT = -1;
   private AtomicInteger primaryQueueSize = new AtomicInteger(PRIMARY_QUEUE_NOT_AVAILABLE);
 
-  public static PoolImpl create(PoolManagerImpl pm, String name, Pool attributes) {
-    PoolImpl pool = new PoolImpl(pm, name, attributes);
+  public static PoolImpl create(PoolManagerImpl pm, String name, Pool attributes,
+      List<HostAddress> locatorAddresses, InternalDistributedSystem distributedSystem,
+      InternalCache cache) {
+    PoolImpl pool = new PoolImpl(pm, name, attributes, locatorAddresses, distributedSystem, cache);
     pool.finishCreate(pm);
     return pool;
   }
@@ -181,9 +180,12 @@ public class PoolImpl implements InternalPool {
     }
   }
 
-  protected PoolImpl(PoolManagerImpl pm, String name, Pool attributes) {
+  protected PoolImpl(PoolManagerImpl pm, String name, Pool attributes,
+      List<HostAddress> locAddresses, InternalDistributedSystem distributedSystem,
+      InternalCache cache) {
     this.pm = pm;
     this.name = name;
+    this.socketConnectTimeout = attributes.getSocketConnectTimeout();
     this.freeConnectionTimeout = attributes.getFreeConnectionTimeout();
     this.loadConditioningInterval = attributes.getLoadConditioningInterval();
     this.socketBufferSize = attributes.getSocketBufferSize();
@@ -200,54 +202,55 @@ public class PoolImpl implements InternalPool {
     this.subscriptionRedundancyLevel = attributes.getSubscriptionRedundancy();
     this.subscriptionMessageTrackingTimeout = attributes.getSubscriptionMessageTrackingTimeout();
     this.subscriptionAckInterval = attributes.getSubscriptionAckInterval();
+    this.subscriptionTimeoutMultiplier = attributes.getSubscriptionTimeoutMultiplier();
+    if (this.subscriptionTimeoutMultiplier < 0) {
+      throw new IllegalArgumentException("The subscription timeout multipler must not be negative");
+    }
     this.serverGroup = attributes.getServerGroup();
     this.multiuserSecureModeEnabled = attributes.getMultiuserAuthentication();
+    this.locatorAddresses = locAddresses;
     this.locators = attributes.getLocators();
     this.servers = attributes.getServers();
     this.startDisabled =
         ((PoolFactoryImpl.PoolAttributes) attributes).startDisabled || !pm.isNormal();
     this.usedByGateway = ((PoolFactoryImpl.PoolAttributes) attributes).isGateway();
     this.gatewaySender = ((PoolFactoryImpl.PoolAttributes) attributes).getGatewaySender();
-    // if (this.subscriptionEnabled && this.multiuserSecureModeEnabled) {
-    // throw new IllegalStateException(
-    // "subscription-enabled and multiuser-authentication both cannot be true.");
-    // }
-    InternalDistributedSystem ds = InternalDistributedSystem.getAnyInstance();
-    if (ds == null) {
+    this.dsys = distributedSystem;
+    if (this.dsys == null) {
       throw new IllegalStateException(
           LocalizedStrings.PoolImpl_DISTRIBUTED_SYSTEM_MUST_BE_CREATED_BEFORE_CREATING_POOL
               .toLocalizedString());
     }
-    this.securityLogWriter = ds.getSecurityInternalLogWriter();
-    if (!ds.getConfig().getStatisticSamplingEnabled() && this.statisticInterval > 0) {
+    this.cache = cache;
+    this.securityLogWriter = this.dsys.getSecurityInternalLogWriter();
+    if (!this.dsys.getConfig().getStatisticSamplingEnabled() && this.statisticInterval > 0) {
       logger.info(LocalizedMessage.create(
           LocalizedStrings.PoolImpl_STATISTIC_SAMPLING_MUST_BE_ENABLED_FOR_SAMPLING_RATE_OF_0_TO_TAKE_AFFECT,
           this.statisticInterval));
     }
-    this.dsys = ds;
     this.cancelCriterion = new Stopper();
     if (Boolean.getBoolean(DistributionConfig.GEMFIRE_PREFIX + "SPECIAL_DURABLE")) {
       ClientProxyMembershipID.setPoolName(name);
-      this.proxyId = ClientProxyMembershipID.getNewProxyMembership(ds);
+      this.proxyId = ClientProxyMembershipID.getNewProxyMembership(this.dsys);
       ClientProxyMembershipID.setPoolName(null);
     } else {
-      this.proxyId = ClientProxyMembershipID.getNewProxyMembership(ds);
+      this.proxyId = ClientProxyMembershipID.getNewProxyMembership(this.dsys);
     }
     StatisticsFactory statFactory = null;
     if (this.gatewaySender != null) {
       statFactory = new DummyStatisticsFactory();
     } else {
-      statFactory = ds;
+      statFactory = this.dsys;
     }
     this.stats = this.startDisabled ? null
         : new PoolStats(statFactory, getName() + "->"
             + (isEmpty(serverGroup) ? "[any servers]" : "[" + getServerGroup() + "]"));
 
     source = getSourceImpl(((PoolFactoryImpl.PoolAttributes) attributes).locatorCallback);
-    endpointManager = new EndpointManagerImpl(name, ds, this.cancelCriterion, this.stats);
-    connectionFactory = new ConnectionFactoryImpl(source, endpointManager, ds, socketBufferSize,
-        HANDSHAKE_TIMEOUT, readTimeout, proxyId, this.cancelCriterion, usedByGateway, gatewaySender,
-        pingInterval, multiuserSecureModeEnabled, this);
+    endpointManager = new EndpointManagerImpl(name, this.dsys, this.cancelCriterion, this.stats);
+    connectionFactory = new ConnectionFactoryImpl(source, endpointManager, this.dsys,
+        socketBufferSize, socketConnectTimeout, readTimeout, proxyId, this.cancelCriterion,
+        usedByGateway, gatewaySender, pingInterval, multiuserSecureModeEnabled, this);
     if (subscriptionEnabled) {
       queueManager = new QueueManagerImpl(this, endpointManager, source, connectionFactory,
           subscriptionRedundancyLevel, pingInterval, securityLogWriter, proxyId);
@@ -270,13 +273,14 @@ public class PoolImpl implements InternalPool {
   /**
    * Return true if the given Pool is compatible with these attributes. Currently this does what
    * equals would but in the future we might decide to weaken the compatibility contract.
-   * 
+   *
    * @since GemFire 6.5
    */
   public boolean isCompatible(Pool p) {
     if (p == null)
       return false;
     return getFreeConnectionTimeout() == p.getFreeConnectionTimeout()
+        && getSocketConnectTimeout() == p.getSocketConnectTimeout()
         && getLoadConditioningInterval() == p.getLoadConditioningInterval()
         && getSocketBufferSize() == p.getSocketBufferSize()
         && getMinConnections() == p.getMinConnections()
@@ -359,7 +363,7 @@ public class PoolImpl implements InternalPool {
 
   /**
    * Returns the cancellation criterion for this proxy
-   * 
+   *
    * @return the cancellation criterion
    */
   public CancelCriterion getCancelCriterion() {
@@ -380,11 +384,15 @@ public class PoolImpl implements InternalPool {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.Pool#getName()
    */
   public String getName() {
     return this.name;
+  }
+
+  public int getSocketConnectTimeout() {
+    return this.socketConnectTimeout;
   }
 
   public int getFreeConnectionTimeout() {
@@ -503,9 +511,16 @@ public class PoolImpl implements InternalPool {
       if (SPECIAL_DURABLE) {
         synchronized (simpleLock) {
           try {
-            if (!CacheFactory.getAnyInstance().isClosed()
-                && this.getPoolOrCacheCancelInProgress() == null) {
-              Set<Region<?, ?>> regions = CacheFactory.getInstance(dsys).rootRegions();
+            if (cache == null && dsys != null) {
+              cache = dsys.getCache();
+              if (cache == null) {
+                throw new IllegalStateException(
+                    LocalizedStrings.PoolImpl_CACHE_MUST_BE_CREATED_BEFORE_CREATING_POOL
+                        .toLocalizedString());
+              }
+            }
+            if (!cache.isClosed() && this.getPoolOrCacheCancelInProgress() == null) {
+              Set<Region<?, ?>> regions = cache.rootRegions();
               for (Region<?, ?> roots : regions) {
                 Set<Region<?, ?>> subregions = roots.subregions(true);
                 for (Region<?, ?> subroots : subregions) {
@@ -640,8 +655,8 @@ public class PoolImpl implements InternalPool {
     if (locators.isEmpty()) {
       return new ExplicitConnectionSourceImpl(getServers());
     } else {
-      AutoConnectionSourceImpl source =
-          new AutoConnectionSourceImpl(locators, getServerGroup(), HANDSHAKE_TIMEOUT);
+      AutoConnectionSourceImpl source = new AutoConnectionSourceImpl(locators, locatorAddresses,
+          getServerGroup(), socketConnectTimeout);
       if (locatorDiscoveryCallback != null) {
         source.setLocatorDiscoveryCallback(locatorDiscoveryCallback);
       }
@@ -662,6 +677,10 @@ public class PoolImpl implements InternalPool {
     if (!getName().equals(other.getName())) {
       throw new RuntimeException(
           LocalizedStrings.PoolImpl_0_ARE_DIFFERENT.toLocalizedString("names"));
+    }
+    if (getSocketConnectTimeout() != other.getSocketConnectTimeout()) {
+      throw new RuntimeException(
+          LocalizedStrings.PoolImpl_0_IS_DIFFERENT.toLocalizedString("socketConnectimeout"));
     }
     if (getFreeConnectionTimeout() != other.getFreeConnectionTimeout()) {
       throw new RuntimeException(
@@ -746,7 +765,7 @@ public class PoolImpl implements InternalPool {
   /**
    * Execute the given op on the servers that this pool connects to. This method is responsible for
    * retrying the op if an attempt fails. It will only execute it once and on one server.
-   * 
+   *
    * @param op the operation to execute
    * @return the result of execution if any; null if not
    * @since GemFire 5.7
@@ -766,7 +785,7 @@ public class PoolImpl implements InternalPool {
   /**
    * Execute the given op on the servers that this pool connects to. This method is responsible for
    * retrying the op if an attempt fails. It will only execute it once and on one server.
-   * 
+   *
    * @param op the operation to execute
    * @param retries how many times to retry the operation
    * @return the result of execution if any; null if not
@@ -779,7 +798,7 @@ public class PoolImpl implements InternalPool {
 
   /**
    * Execute the given op on the given server.
-   * 
+   *
    * @param server the server to do the execution on
    * @param op the operation to execute
    * @return the result of execution if any; null if not
@@ -791,7 +810,7 @@ public class PoolImpl implements InternalPool {
 
   /**
    * Execute the given op on the given server.
-   * 
+   *
    * @param server the server to do the execution on
    * @param op the operation to execute
    * @param accessed true if the connection is accessed by this execute
@@ -805,7 +824,7 @@ public class PoolImpl implements InternalPool {
 
   /**
    * Execute the given op on the given connection.
-   * 
+   *
    * @param con the connection to do the execution on
    * @param op the operation to execute
    * @return the result of execution if any; null if not
@@ -821,7 +840,7 @@ public class PoolImpl implements InternalPool {
 
   /**
    * Execute the given op on all the servers that have server-to-client queues for this pool
-   * 
+   *
    * @param op the operation to execute
    * @return the result of execution if any; null if not
    * @since GemFire 5.7
@@ -839,7 +858,7 @@ public class PoolImpl implements InternalPool {
 
   /**
    * Execute the given op on the current primary server.
-   * 
+   *
    * @param op the operation to execute
    * @return the result of execution if any; null if not
    */
@@ -885,7 +904,7 @@ public class PoolImpl implements InternalPool {
   /**
    * Borrows a connection from the pool.. Used by gateway and tests. Any connection that is acquired
    * using this method must be returned using returnConnection, even if it is destroyed.
-   * 
+   *
    */
   public Connection acquireConnection() {
     return manager.borrowConnection(45000L);
@@ -994,8 +1013,7 @@ public class PoolImpl implements InternalPool {
 
   public boolean isDurableClient() {
     boolean isDurable = false;
-    InternalDistributedSystem system = InternalDistributedSystem.getAnyInstance();
-    DistributionConfig config = system.getConfig();
+    DistributionConfig config = dsys.getConfig();
     String durableClientId = config.getDurableClientId();
     isDurable = durableClientId != null && durableClientId.length() > 0;
     return isDurable;
@@ -1104,7 +1122,7 @@ public class PoolImpl implements InternalPool {
 
   /**
    * Atomic counter used to keep track of services using this pool.
-   * 
+   *
    * @since GemFire 5.7
    */
   private final AtomicInteger attachCount = new AtomicInteger();
@@ -1114,7 +1132,7 @@ public class PoolImpl implements InternalPool {
    * Returns number of services currently using/attached to this pool.
    * <p>
    * Made public so it can be used by tests
-   * 
+   *
    * @since GemFire 5.7
    */
   public int getAttachCount() {
@@ -1123,7 +1141,7 @@ public class PoolImpl implements InternalPool {
 
   /**
    * This needs to be called when a service (like a Region or CQService) starts using a pool.
-   * 
+   *
    * @since GemFire 5.7
    */
   public void attach() {
@@ -1132,7 +1150,7 @@ public class PoolImpl implements InternalPool {
 
   /**
    * This needs to be called when a service (like a Region or CQService) stops using a pool.
-   * 
+   *
    * @since GemFire 5.7
    */
   public void detach() {
@@ -1141,9 +1159,9 @@ public class PoolImpl implements InternalPool {
 
   /**
    * Get the connection held by this thread if we're using thread local connections
-   * 
+   *
    * This is a a hook for hydra code to pass thread local connections between threads.
-   * 
+   *
    * @return the connection from the thread local, or null if there is no thread local connection.
    */
   public Connection getThreadLocalConnection() {
@@ -1182,7 +1200,7 @@ public class PoolImpl implements InternalPool {
 
   /**
    * Fetch the connection source for this pool
-   * 
+   *
    * @return the source
    */
   public ConnectionSource getConnectionSource() {
@@ -1234,7 +1252,7 @@ public class PoolImpl implements InternalPool {
 
   /**
    * Set the connection held by this thread if we're using thread local connections
-   * 
+   *
    * This is a a hook for hydra code to pass thread local connections between threads.
    */
   public void setThreadLocalConnection(Connection conn) {
@@ -1308,7 +1326,7 @@ public class PoolImpl implements InternalPool {
    */
   public static volatile boolean AFTER_PRIMARY_RECOVERED_CALLBACK_FLAG = false;
 
-  public static abstract class PoolTask implements Runnable {
+  public abstract static class PoolTask implements Runnable {
 
     public void run() {
       try {
@@ -1390,12 +1408,11 @@ public class PoolImpl implements InternalPool {
   /**
    * Returns the QueryService, that can be used to execute Query functions on the servers associated
    * with this pool.
-   * 
+   *
    * @return the QueryService
    */
   public QueryService getQueryService() {
-    Cache cache = CacheFactory.getInstance(InternalDistributedSystem.getAnyInstance());
-    DefaultQueryService queryService = new DefaultQueryService((InternalCache) cache);
+    DefaultQueryService queryService = new DefaultQueryService(cache);
     queryService.setPool(this);
     return queryService;
   }
@@ -1408,13 +1425,20 @@ public class PoolImpl implements InternalPool {
     if (properties == null || properties.isEmpty()) {
       throw new IllegalArgumentException("Security properties cannot be empty.");
     }
-    Cache cache = CacheFactory.getInstance(InternalDistributedSystem.getAnyInstance());
 
     Properties props = new Properties();
     for (Entry<Object, Object> entry : properties.entrySet()) {
       props.setProperty((String) entry.getKey(), (String) entry.getValue());
     }
-    ProxyCache proxy = new ProxyCache(props, (InternalCache) cache, this);
+    if (cache == null && dsys != null) {
+      cache = dsys.getCache();
+      if (cache == null) {
+        throw new IllegalStateException(
+            LocalizedStrings.PoolImpl_CACHE_MUST_BE_CREATED_BEFORE_CREATING_POOL
+                .toLocalizedString());
+      }
+    }
+    ProxyCache proxy = new ProxyCache(props, cache, this);
     synchronized (this.proxyCacheList) {
       this.proxyCacheList.add(proxy);
     }
@@ -1428,12 +1452,19 @@ public class PoolImpl implements InternalPool {
     if (re != null) {
       return re;
     }
-    InternalCache cache = GemFireCacheImpl.getInstance();
     if (cache == null) {
       if (cacheCriterion != null) {
         return cacheCriterion.generateCancelledException(e);
       }
     } else {
+      if (cache == null && dsys != null) {
+        cache = dsys.getCache();
+        if (cache == null) {
+          throw new IllegalStateException(
+              LocalizedStrings.PoolImpl_CACHE_MUST_BE_CREATED_BEFORE_CREATING_POOL
+                  .toLocalizedString());
+        }
+      }
       if (cacheCriterion == null || cacheCriterion != cache.getCancelCriterion()) {
         cacheCriterion = cache.getCancelCriterion();
       }
@@ -1449,13 +1480,20 @@ public class PoolImpl implements InternalPool {
       if (reason != null) {
         return reason;
       }
-      InternalCache cache = GemFireCacheImpl.getInstance();
       if (cache == null) {
         if (cacheCriterion != null) {
           return cacheCriterion.cancelInProgress();
         }
         return null;
       } else {
+        if (cache == null && dsys != null) {
+          cache = dsys.getCache();
+          if (cache == null) {
+            throw new IllegalStateException(
+                LocalizedStrings.PoolImpl_CACHE_MUST_BE_CREATED_BEFORE_CREATING_POOL
+                    .toLocalizedString());
+          }
+        }
         if (cacheCriterion == null) {
           cacheCriterion = cache.getCancelCriterion();
         } else if (cacheCriterion != cache.getCancelCriterion()) {
@@ -1478,7 +1516,6 @@ public class PoolImpl implements InternalPool {
   }
 
   public boolean getKeepAlive() {
-    InternalCache cache = GemFireCacheImpl.getInstance();
     if (cache == null) {
       return keepAlive;
     }
@@ -1496,10 +1533,10 @@ public class PoolImpl implements InternalPool {
 
   /**
    * Assert thread-local var is not null, if it has multiuser-authentication set to true.
-   * 
+   *
    * If serverLocation is non-null, check if the the user is authenticated on that server. If not,
    * authenticate it and return.
-   * 
+   *
    * @param serverLocation
    * @param op
    */
@@ -1575,5 +1612,10 @@ public class PoolImpl implements InternalPool {
               .toLocalizedString());
     }
     return this.primaryQueueSize.get();
+  }
+
+  @Override
+  public int getSubscriptionTimeoutMultiplier() {
+    return subscriptionTimeoutMultiplier;
   }
 }

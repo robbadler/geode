@@ -14,8 +14,8 @@
  */
 package org.apache.geode.internal.admin.statalerts;
 
-import java.io.DataOutput;
 import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.geode.DataSerializer;
@@ -27,7 +27,7 @@ import org.apache.geode.internal.admin.StatAlertDefinition;
 
 /**
  * Implementation of {@link StatAlertDefinition} This provides the definition for single statistic
- * 
+ *
  */
 public class SingleAttrDefinitionImpl implements StatAlertDefinition {
   private static final long serialVersionUID = 3292417185742697896L;
@@ -40,9 +40,6 @@ public class SingleAttrDefinitionImpl implements StatAlertDefinition {
 
   public SingleAttrDefinitionImpl() {}
 
-  /**
-   * @param statisticInfo
-   */
   public SingleAttrDefinitionImpl(String name, StatisticInfo statisticInfo) {
     super();
     this.statisticInfo = statisticInfo;
@@ -107,7 +104,7 @@ public class SingleAttrDefinitionImpl implements StatAlertDefinition {
 
   /**
    * This method returns the name of this stat alert definition.
-   * 
+   *
    * @return Name of the StatAlertDefinition
    */
   public String getName() {
@@ -116,7 +113,7 @@ public class SingleAttrDefinitionImpl implements StatAlertDefinition {
 
   /**
    * This method sets the name of this stat alert definition.
-   * 
+   *
    * @param name name to be set for this StatAlertDefinition.
    */
   public void setName(String name) {
@@ -125,7 +122,7 @@ public class SingleAttrDefinitionImpl implements StatAlertDefinition {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.admin.StatAlertDefinition#getStatisticInfo()
    */
   public StatisticInfo[] getStatisticInfo() {
@@ -134,7 +131,7 @@ public class SingleAttrDefinitionImpl implements StatAlertDefinition {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.admin.StatAlertDefinition#setStatisticInfo(org.apache.geode.internal.
    * admin.StatisticInfo[])
@@ -159,7 +156,7 @@ public class SingleAttrDefinitionImpl implements StatAlertDefinition {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.admin.StatAlertDefinition#evaluate(java.lang.Number[])
    */
   public boolean evaluate(Number[] params) {

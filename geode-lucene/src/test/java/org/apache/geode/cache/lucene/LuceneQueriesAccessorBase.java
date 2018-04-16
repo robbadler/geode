@@ -24,6 +24,16 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.geode.DataSerializable;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.control.RebalanceOperation;
@@ -41,13 +51,6 @@ import org.apache.geode.internal.cache.partitioned.BecomePrimaryBucketMessage.Be
 import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.VM;
 
-import java.io.Serializable;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
 public class LuceneQueriesAccessorBase extends LuceneDUnitTest {
 
   protected VM accessor;
@@ -56,6 +59,16 @@ public class LuceneQueriesAccessorBase extends LuceneDUnitTest {
   public void postSetUp() throws Exception {
     super.postSetUp();
     accessor = Host.getHost(0).getVM(3);
+  }
+
+  protected void putDataInRegion(VM vm) {
+    vm.invoke(() -> {
+      final Cache cache = getCache();
+      Region<Object, Object> region = cache.getRegion(REGION_NAME);
+      region.put(1, new TestObject("hello world"));
+      region.put(113, new TestObject("hi world"));
+      region.put(2, new TestObject("goodbye world"));
+    });
   }
 
   protected boolean waitForFlushBeforeExecuteTextSearch(VM vm, int ms) {
@@ -189,9 +202,11 @@ public class LuceneQueriesAccessorBase extends LuceneDUnitTest {
     });
   }
 
-  protected static class TestObject implements Serializable {
+  protected static class TestObject implements DataSerializable {
     private static final long serialVersionUID = 1L;
     private String text;
+
+    public TestObject() {}
 
     public TestObject(String text) {
       this.text = text;
@@ -225,6 +240,16 @@ public class LuceneQueriesAccessorBase extends LuceneDUnitTest {
     @Override
     public String toString() {
       return "TestObject[" + text + "]";
+    }
+
+    @Override
+    public void toData(DataOutput out) throws IOException {
+      out.writeUTF(text);
+    }
+
+    @Override
+    public void fromData(DataInput in) throws IOException, ClassNotFoundException {
+      text = in.readUTF();
     }
   }
 }

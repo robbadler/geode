@@ -17,6 +17,7 @@
 
 
 apply plugin: 'antlr'
+apply plugin: 'me.champeau.gradle.jmh'
 
 sourceSets {
   jca {
@@ -25,13 +26,17 @@ sourceSets {
   }
 }
 
+
+
 configurations {
   //declaring new configuration that will be used to associate with artifacts
   archives
 }
 
 dependencies {
-   // Source Dependencies
+  // Source Dependencies
+  antlr 'antlr:antlr:' + project.'antlr.version'
+
   // External
   provided files("${System.getProperty('java.home')}/../lib/tools.jar")
   compile 'com.github.stephenc.findbugs:findbugs-annotations:' + project.'stephenc-findbugs.version'
@@ -40,6 +45,9 @@ dependencies {
   compile 'com.fasterxml.jackson.core:jackson-annotations:' + project.'jackson.version'
   compile 'com.fasterxml.jackson.core:jackson-databind:' + project.'jackson.version'
   compile 'commons-io:commons-io:' + project.'commons-io.version'
+  compile 'commons-validator:commons-validator:' + project.'commons-validator.version'
+  compile 'commons-digester:commons-digester:' + project.'commons-digester.version'
+
   compile 'commons-lang:commons-lang:' + project.'commons-lang.version'
   compile ('commons-modeler:commons-modeler:' + project.'commons-modeler.version') {
     exclude module: 'commons-digester'
@@ -59,10 +67,10 @@ dependencies {
   compile ('mx4j:mx4j:' + project.'mx4j.version') {
     ext.optional = true;
   }
-  compile ('mx4j:mx4j-remote:' + project.'mx4j.version') {
+  compile ('mx4j:mx4j-remote:' + project.'mx4j-remote.version') {
     ext.optional = true;
   }
-  compile ('mx4j:mx4j-tools:' + project.'mx4j.version') {
+  compile ('mx4j:mx4j-tools:' + project.'mx4j-tools.version') {
     ext.optional = true;
   }
   compile ('net.java.dev.jna:jna:' + project.'jna.version')
@@ -74,7 +82,10 @@ dependencies {
   runtime ('org.fusesource.jansi:jansi:' + project.'jansi.version') {
     ext.optional = true
   }
+  runtime 'org.slf4j:slf4j-api:' + project.'slf4j-api.version'
+
   runtime ('org.apache.logging.log4j:log4j-slf4j-impl:' + project.'log4j.version') {
+    exclude module: 'slf4j-api'
     ext.optional = true
   }
   runtime ('org.apache.logging.log4j:log4j-jcl:' + project.'log4j.version') {
@@ -108,14 +119,11 @@ dependencies {
   }
 
   compile 'org.apache.shiro:shiro-core:' + project.'shiro.version'
-  // This is only added since shiro is using an old version of beanutils and we want
-  // to use a standard version. Once shiro deps are updated, remove this explicit dependency
-  // in favor of a transitive dependency on beanutils.
-  compile 'commons-beanutils:commons-beanutils:' + project.'commons-beanutils.version'
 
   // https://mvnrepository.com/artifact/io.github.lukehutch/fast-classpath-scanner
   compile 'io.github.lukehutch:fast-classpath-scanner:' + project.'fast-classpath-scanner.version'
 
+  compile 'com.healthmarketscience.rmiio:rmiio:' + project.'rmiio.version'
 
   compile project(':geode-common')
   compile project(':geode-json')
@@ -123,7 +131,8 @@ dependencies {
   jcaCompile sourceSets.main.output
 
   testCompile project(':geode-junit')
-  testCompile project(':geode-old-versions')
+
+  testCompile files(project(':geode-old-versions').sourceSets.main.output)
 
   // Test Dependencies
   // External
@@ -134,16 +143,18 @@ dependencies {
   testRuntime 'commons-collections:commons-collections:' + project.'commons-collections.version'
   testRuntime 'commons-configuration:commons-configuration:' + project.'commons-configuration.version'
   testRuntime 'commons-io:commons-io:' + project.'commons-io.version'
+  testRuntime 'commons-validator:commons-validator:' + project.'commons-validator.version'
   testCompile 'net.spy:spymemcached:' + project.'spymemcached.version'
   testCompile 'redis.clients:jedis:' + project.'jedis.version'
+  testCompile 'org.springframework:spring-test:' + project.'springframework.version'
 
-  testCompile 'org.powermock:powermock-core:' + project.'powermock.version'
-  testCompile 'org.powermock:powermock-module-junit4:' + project.'powermock.version'
-  testCompile 'org.powermock:powermock-api-mockito:' + project.'powermock.version'
 
   testCompile 'com.pholser:junit-quickcheck-core:' + project.'junit-quickcheck.version'
   testCompile 'com.pholser:junit-quickcheck-generators:' + project.'junit-quickcheck.version'
   testCompile 'com.pholser:junit-quickcheck-guava:' + project.'junit-quickcheck.version'
+
+  testRuntime 'xerces:xercesImpl:' + project.'xercesImpl.version'
+  testCompile project(':geode-concurrency-test')
 }
 
 def generatedResources = "$buildDir/generated-resources/main"
@@ -155,6 +166,11 @@ sourceSets {
   test {
     output.dir(generatedResources, builtBy: 'createVersionPropertiesFile')
   }
+}
+
+jmh {
+  include = project.hasProperty('include') ? project.getProperties().get('include') : '.*'
+  duplicateClassesStrategy = 'warn'
 }
 
 // Creates the version properties file and writes it to the classes dir

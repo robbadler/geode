@@ -14,21 +14,18 @@
  */
 package org.apache.geode.internal.cache;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import java.util.Collections;
 import org.apache.geode.internal.cache.persistence.DiskStoreID;
 import org.apache.geode.internal.cache.persistence.PersistentMemberID;
 import org.apache.geode.internal.cache.persistence.PersistentMemberPattern;
 import org.apache.geode.internal.cache.persistence.PersistentMemberState;
 import org.apache.geode.internal.cache.persistence.PersistentMemberView;
 
-/**
- *
- */
 public class InMemoryPersistentMemberView implements PersistentMemberView {
   private Map<PersistentMemberID, PersistentMemberState> members =
       new ConcurrentHashMap<PersistentMemberID, PersistentMemberState>();

@@ -14,7 +14,10 @@
  */
 package org.apache.geode.internal;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
+import static org.apache.geode.distributed.ConfigurationProperties.CACHE_XML_FILE;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_FILE;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -54,7 +57,7 @@ import org.apache.geode.internal.net.SocketCreator;
  * Typically, the cache-xml file will be exactly the same as the one used by the MigrationServer
  * with different disk-dirs settings. When Region entries are transferred from the server to the
  * client, they are then stored in new files in these directories.
- * 
+ *
  * @since GemFire 6.0.1
  */
 public class MigrationClient {
@@ -97,7 +100,7 @@ public class MigrationClient {
       instance = new MigrationClient(cacheXmlFileName, bindAddressName, serverPort);
     } catch (IllegalArgumentException e) {
       System.err.println(e.getMessage());
-      System.exit(1);
+      ExitCode.FATAL.doSystemExit();
     }
     instance.createDistributedSystem();
     instance.createCache();
@@ -117,7 +120,7 @@ public class MigrationClient {
   /**
    * Create a MigrationClient to be used with a DistributedSystem and Cache that are created using
    * GemFire APIs
-   * 
+   *
    * @param bindAddressName the server's address
    * @param serverPort the server's port
    */
@@ -133,7 +136,7 @@ public class MigrationClient {
 
   /**
    * this is for use by main()
-   * 
+   *
    * @param cacheXmlFileName the name of the xml file describing the cache, or null
    * @param bindAddressName the name of the NIC to bind to, or null
    * @param serverPort the port to connect to (must not be zero)
@@ -151,7 +154,7 @@ public class MigrationClient {
   /**
    * Create a distributed system. If this method is not invoked before running the MigrationServer,
    * an existing distributed system must exist for the server to use.
-   * 
+   *
    * @throws Exception if there are any problems
    */
   private void createDistributedSystem() throws Exception {
@@ -170,7 +173,7 @@ public class MigrationClient {
 
   /**
    * create the cache to be used by this migration server
-   * 
+   *
    * @throws Exception if there are any problems
    */
   private void createCache() throws Exception {

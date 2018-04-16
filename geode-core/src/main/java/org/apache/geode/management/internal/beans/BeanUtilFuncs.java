@@ -40,7 +40,7 @@ public class BeanUtilFuncs {
 
   /**
    * returns the tail of the log file
-   * 
+   *
    * @return tail of the log file
    */
   public static String tailSystemLog(File logFile, final int numLines) throws IOException {
@@ -308,8 +308,10 @@ public class BeanUtilFuncs {
     gemFirePropertyData.setSSLKeyStore(config.getSSLKeyStore());
     gemFirePropertyData.setSSLKeyStoreType(config.getSSLKeyStoreType());
     gemFirePropertyData.setSSLKeyStorePassword(config.getSSLKeyStorePassword());
+
     gemFirePropertyData.setSSLTrustStore(config.getSSLTrustStore());
     gemFirePropertyData.setSSLTrustStorePassword(config.getSSLTrustStorePassword());
+    gemFirePropertyData.setSSLTrustStoreType(config.getSSLTrustStoreType());
 
     gemFirePropertyData.setClusterSSLAlias(config.getClusterSSLAlias());
     gemFirePropertyData.setServerSSLAlias(config.getServerSSLAlias());
@@ -325,7 +327,7 @@ public class BeanUtilFuncs {
   /**
    * Compresses a given String. It is encoded using ISO-8859-1, So any decompression of the
    * compressed string should also use ISO-8859-1
-   * 
+   *
    * @param str String to be compressed.
    * @return compressed bytes
    */

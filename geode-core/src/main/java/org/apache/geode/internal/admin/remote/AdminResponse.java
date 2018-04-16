@@ -16,11 +16,9 @@
 
 package org.apache.geode.internal.admin.remote;
 
-import org.apache.geode.distributed.internal.*;
-// import org.apache.geode.*;
-// import org.apache.geode.internal.*;
 import java.io.*;
-// import java.util.*;
+
+import org.apache.geode.distributed.internal.*;
 import org.apache.geode.distributed.internal.membership.*;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 
@@ -53,7 +51,7 @@ public abstract class AdminResponse extends HighPriorityDistributionMessage
    * This method is invoked on the side that sent the original AdminRequest.
    */
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     AdminWaiters.sendResponse(this);
   }
 

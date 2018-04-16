@@ -37,7 +37,7 @@ package org.apache.geode.cache;
  *     System.out.println(
  *         "afterRegisterInterest: " + event.getRegionName() + " -> " + event.getKeysOfInterest());
  *   }
- * 
+ *
  *   public void afterUnregisterInterest(InterestRegistrationEvent event) {
  *     System.out.println("afterUnregisterInterest: " + event.getRegionName() + " -> "
  *         + event.getKeysOfInterest());
@@ -60,7 +60,7 @@ package org.apache.geode.cache;
  *
  *
  * @since GemFire 6.0
- * 
+ *
  * @see org.apache.geode.cache.server.CacheServer#registerInterestRegistrationListener
  *      registerInterestRegistrationListener
  * @see org.apache.geode.cache.server.CacheServer#unregisterInterestRegistrationListener
@@ -73,12 +73,12 @@ public interface InterestRegistrationListener extends CacheCallback {
    *
    * @param event the InterestRegistrationEvent
    */
-  public void afterRegisterInterest(InterestRegistrationEvent event);
+  void afterRegisterInterest(InterestRegistrationEvent event);
 
   /**
    * Handles an after unregister interest event.
    *
    * @param event the InterestRegistrationEvent
    */
-  public void afterUnregisterInterest(InterestRegistrationEvent event);
+  void afterUnregisterInterest(InterestRegistrationEvent event);
 }

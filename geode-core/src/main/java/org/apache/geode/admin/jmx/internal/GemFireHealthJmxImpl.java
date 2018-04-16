@@ -29,7 +29,6 @@ import org.apache.geode.admin.internal.GemFireHealthImpl;
 import org.apache.geode.internal.admin.GfManagerAgent;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
-// import org.apache.commons.modeler.ManagedBean;
 
 /**
  * The JMX "managed resource" that represents the health of GemFire. Basically, it provides the
@@ -80,8 +79,7 @@ public class GemFireHealthJmxImpl extends GemFireHealthImpl implements ManagedRe
       GemFireHealthConfig config = getGemFireHealthConfig(hostName);
       GemFireHealthConfigJmxImpl jmx = (GemFireHealthConfigJmxImpl) config;
       return new ObjectName(jmx.getMBeanName());
-    } // catch (AdminException e) { logWriter.warning(e); throw e; }
-    catch (RuntimeException e) {
+    } catch (RuntimeException e) {
       logger.warn(e.getMessage(), e);
       throw e;
     } catch (VirtualMachineError err) {

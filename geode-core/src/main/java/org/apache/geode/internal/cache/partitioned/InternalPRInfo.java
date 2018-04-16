@@ -14,26 +14,25 @@
  */
 package org.apache.geode.internal.cache.partitioned;
 
-import org.apache.geode.cache.partition.PartitionRegionInfo;
-import org.apache.geode.internal.cache.persistence.PersistentMemberID;
-
 import java.util.Set;
+
+import org.apache.geode.cache.partition.PartitionRegionInfo;
 
 /**
  * Extends <code>PartitionRegionInfo</code> with internal-only methods.
- * 
+ *
  */
 public interface InternalPRInfo extends PartitionRegionInfo, Comparable<InternalPRInfo> {
   /**
    * Returns an immutable set of <code>InternalPartitionDetails</code> representing every member
    * that is configured to provide storage space to the partitioned region.
-   * 
+   *
    * @return set of member details configured for storage space
    */
-  public Set<InternalPartitionDetails> getInternalPartitionDetails();
+  Set<InternalPartitionDetails> getInternalPartitionDetails();
 
   /**
    * Returns a set of members that host a bucket, but are currently offline.
    */
-  public OfflineMemberDetails getOfflineMembers();
+  OfflineMemberDetails getOfflineMembers();
 }

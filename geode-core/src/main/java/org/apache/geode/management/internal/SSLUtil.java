@@ -14,16 +14,14 @@
  */
 package org.apache.geode.management.internal;
 
-import org.apache.commons.lang.StringUtils;
-
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.StringTokenizer;
+
 import javax.net.ssl.SSLContext;
 
+import org.apache.commons.lang.StringUtils;
+
 /**
- * 
+ *
  * @since GemFire 8.1
  */
 public class SSLUtil {
@@ -61,18 +59,13 @@ public class SSLUtil {
     return c;
   }
 
-  /** Read an array of values from a string, whitespace separated. */
+  /** Read an array of values from a string, whitespace or comma separated. */
   public static String[] readArray(String text) {
     if (StringUtils.isBlank(text)) {
       return null;
     }
 
-    StringTokenizer st = new StringTokenizer(text);
-    List<String> v = new ArrayList<String>();
-    while (st.hasMoreTokens()) {
-      v.add(st.nextToken());
-    }
-    return v.toArray(new String[v.size()]);
+    return text.split("[\\s,]+");
   }
 
 }

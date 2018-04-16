@@ -14,10 +14,10 @@
  */
 package org.apache.geode.cache.query.functional;
 
+import static org.junit.Assert.*;
+
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
@@ -25,10 +25,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
-
-import org.apache.geode.cache.AttributesFactory;
-import org.apache.geode.cache.PartitionAttributesFactory;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.query.CacheUtils;
 import org.apache.geode.cache.query.Index;
@@ -45,12 +41,7 @@ import org.apache.geode.cache.query.data.Portfolio;
 import org.apache.geode.cache.query.data.Position;
 import org.apache.geode.cache.query.internal.QueryObserverAdapter;
 import org.apache.geode.cache.query.internal.QueryObserverHolder;
-import org.apache.geode.cache.query.types.ObjectType;
 
-/**
- * 
- * 
- */
 public abstract class NonDistinctOrderByTestImplementation {
 
   @Before
@@ -1512,4 +1503,3 @@ public abstract class NonDistinctOrderByTestImplementation {
 
 
 }
-

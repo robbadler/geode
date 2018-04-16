@@ -14,16 +14,26 @@
  */
 package org.apache.geode.internal;
 
-import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.internal.i18n.LocalizedStrings;
-import org.apache.geode.internal.net.SocketCreator;
-
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Serializable;
-import java.net.*;
+import java.net.DatagramPacket;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.MulticastSocket;
+import java.net.NetworkInterface;
+import java.net.ServerSocket;
+import java.net.SocketAddress;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.Enumeration;
 import java.util.Random;
+
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.internal.i18n.LocalizedStrings;
+import org.apache.geode.internal.net.SocketCreator;
 
 /**
  * This class determines whether or not a given port is available and can also provide a randomly
@@ -222,8 +232,7 @@ public class AvailablePort {
 
   /**
    * Test to see if a given port is available port on all interfaces on this host.
-   * 
-   * @param port
+   *
    * @return true of if the port is free on all interfaces
    */
   private static boolean testAllInterfaces(int port) {
@@ -450,7 +459,7 @@ public class AvailablePort {
    *
    */
   public static class Keeper implements Serializable {
-    private transient final ServerSocket ss;
+    private final transient ServerSocket ss;
     private final int port;
 
     public Keeper(ServerSocket ss, int port) {
@@ -493,7 +502,7 @@ public class AvailablePort {
         LocalizedStrings.AvailablePort_THIS_PROGRAM_EITHER_PRINTS_WHETHER_OR_NOT_A_PORT_IS_AVAILABLE_FOR_A_GIVEN_PROTOCOL_OR_IT_PRINTS_OUT_AN_AVAILABLE_PORT_FOR_A_GIVEN_PROTOCOL
             .toLocalizedString());
     err.println("");
-    System.exit(1);
+    ExitCode.FATAL.doSystemExit();
   }
 
   public static void main(String[] args) {
@@ -538,7 +547,7 @@ public class AvailablePort {
         addr = InetAddress.getByName(addrString);
       } catch (Exception e) {
         e.printStackTrace();
-        System.exit(1);
+        ExitCode.FATAL.doSystemExit();
       }
     }
 

@@ -30,7 +30,7 @@ import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
@@ -101,7 +101,7 @@ public class MemberFunctionExecutor extends AbstractExecution {
   @SuppressWarnings("unchecked")
   private ResultCollector executeFunction(final Function function,
       ResultCollector resultCollector) {
-    final DM dm = this.ds.getDistributionManager();
+    final DistributionManager dm = this.ds.getDistributionManager();
     final Set dest = new HashSet(this.members);
     if (dest.isEmpty()) {
       throw new FunctionException(
@@ -122,18 +122,21 @@ public class MemberFunctionExecutor extends AbstractExecution {
     if (dest.size() == 1 && dest.contains(localVM)) {
       localOnly = true;
     }
+
+
     final MemberFunctionResultSender resultSender =
         new MemberFunctionResultSender(dm, localRC, function, localOnly, remoteOnly, sender);
     if (dest.contains(localVM)) {
       // if member is local VM
       dest.remove(localVM);
-      final FunctionContext context = new FunctionContextImpl(function.getId(),
-          getArgumentsForMember(localVM.getId()), resultSender);
+
       boolean isTx = false;
       InternalCache cache = GemFireCacheImpl.getInstance();
       if (cache != null) {
         isTx = cache.getTxManager().getTXState() == null ? false : true;
       }
+      final FunctionContext context = new FunctionContextImpl(cache, function.getId(),
+          getArgumentsForMember(localVM.getId()), resultSender);
       executeFunctionOnLocalNode(function, context, resultSender, dm, isTx);
     }
 

@@ -14,6 +14,11 @@
  */
 package org.apache.geode.cache.client.internal.locator.wan;
 
+import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.WanLocatorDiscoverer;
 import org.apache.geode.distributed.internal.tcpserver.TcpClient;
@@ -23,15 +28,11 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.net.*;
 import org.apache.geode.internal.tcp.ConnectionException;
-import org.apache.logging.log4j.Logger;
-
-import java.io.IOException;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This class represent a runnable task which exchange the locator information with local
  * locators(within the site) as well as remote locators (across the site)
- * 
+ *
  * @since GemFire 7.0
  */
 public class LocatorDiscovery {
@@ -131,8 +132,8 @@ public class LocatorDiscovery {
     while (!getDiscoverer().isStopped()) {
       try {
         RemoteLocatorJoinResponse response =
-            (RemoteLocatorJoinResponse) locatorClient.requestToServer(locatorId.getHost(),
-                locatorId.getPort(), request, WanLocatorDiscoverer.WAN_LOCATOR_CONNECTION_TIMEOUT);
+            (RemoteLocatorJoinResponse) locatorClient.requestToServer(locatorId.getHost(), request,
+                WanLocatorDiscoverer.WAN_LOCATOR_CONNECTION_TIMEOUT, true);
         if (response != null) {
           LocatorHelper.addExchangedLocators(response.getLocators(), this.locatorListener);
           logger.info(LocalizedMessage.create(
@@ -181,8 +182,7 @@ public class LocatorDiscovery {
       try {
         response =
             (RemoteLocatorJoinResponse) locatorClient.requestToServer(remoteLocator.getHost(),
-                remoteLocator.getPort(), request,
-                WanLocatorDiscoverer.WAN_LOCATOR_CONNECTION_TIMEOUT);
+                request, WanLocatorDiscoverer.WAN_LOCATOR_CONNECTION_TIMEOUT, true);
         if (response != null) {
           LocatorHelper.addExchangedLocators(response.getLocators(), this.locatorListener);
           logger.info(LocalizedMessage.create(
@@ -193,8 +193,7 @@ public class LocatorDiscovery {
             Thread.sleep(WAN_LOCATOR_PING_INTERVAL);
             RemoteLocatorPingResponse pingResponse =
                 (RemoteLocatorPingResponse) locatorClient.requestToServer(remoteLocator.getHost(),
-                    remoteLocator.getPort(), pingRequest,
-                    WanLocatorDiscoverer.WAN_LOCATOR_CONNECTION_TIMEOUT);
+                    pingRequest, WanLocatorDiscoverer.WAN_LOCATOR_CONNECTION_TIMEOUT, true);
             if (pingResponse != null) {
               continue;
             }

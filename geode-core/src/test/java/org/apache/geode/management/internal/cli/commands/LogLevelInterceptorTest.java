@@ -18,42 +18,40 @@ package org.apache.geode.management.internal.cli.commands;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import org.apache.geode.management.cli.Result;
-import org.apache.geode.management.internal.cli.AbstractCliAroundInterceptor;
-import org.apache.geode.management.internal.cli.GfshParseResult;
-import org.apache.geode.test.junit.categories.UnitTest;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.Mockito;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import org.apache.geode.management.cli.Result;
+import org.apache.geode.management.internal.cli.AbstractCliAroundInterceptor;
+import org.apache.geode.management.internal.cli.GfshParseResult;
+import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
 public class LogLevelInterceptorTest {
   private List<AbstractCliAroundInterceptor> interceptors = new ArrayList<>();
   private GfshParseResult parseResult;
-  private Map<String, String> arguments;
   private Result result;
 
   @Before
   public void before() {
     interceptors.add(new ExportLogsInterceptor());
-    interceptors.add(new ConfigCommands.AlterRuntimeInterceptor());
-    interceptors.add(new MiscellaneousCommands.ChangeLogLevelInterceptor());
-
+    interceptors.add(new AlterRuntimeConfigCommand.AlterRuntimeInterceptor());
+    interceptors.add(new ChangeLogLevelCommand.ChangeLogLevelCommandInterceptor());
     parseResult = Mockito.mock(GfshParseResult.class);
-    arguments = new HashMap<>();
-    when(parseResult.getParamValueStrings()).thenReturn(arguments);
+    when(parseResult.getParamValue("logs-only")).thenReturn(true);
+    when(parseResult.getParamValue("stats-only")).thenReturn(false);
+
   }
 
   @Test
   public void testInvalidLogLevel() {
-    arguments.put("log-level", "test");
-    arguments.put("loglevel", "test");
+    when(parseResult.getParamValueAsString("log-level")).thenReturn("test");
+    when(parseResult.getParamValueAsString("loglevel")).thenReturn("test");
     for (AbstractCliAroundInterceptor interceptor : interceptors) {
       result = interceptor.preExecution(parseResult);
       assertThat(result.nextLine()).contains("Invalid log level: test");
@@ -62,8 +60,8 @@ public class LogLevelInterceptorTest {
 
   @Test
   public void testGeodeLogLevel() {
-    arguments.put("log-level", "fine");
-    arguments.put("loglevel", "fine");
+    when(parseResult.getParamValueAsString("log-level")).thenReturn("fine");
+    when(parseResult.getParamValueAsString("loglevel")).thenReturn("fine");
     for (AbstractCliAroundInterceptor interceptor : interceptors) {
       result = interceptor.preExecution(parseResult);
       assertThat(result.nextLine()).isEmpty();
@@ -72,8 +70,8 @@ public class LogLevelInterceptorTest {
 
   @Test
   public void testLog4JLevel() {
-    arguments.put("log-level", "trace");
-    arguments.put("loglevel", "trace");
+    when(parseResult.getParamValueAsString("log-level")).thenReturn("trace");
+    when(parseResult.getParamValueAsString("loglevel")).thenReturn("trace");
     for (AbstractCliAroundInterceptor interceptor : interceptors) {
       result = interceptor.preExecution(parseResult);
       assertThat(result.nextLine()).isEmpty();

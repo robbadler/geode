@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.CacheClosedException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionStats;
@@ -86,17 +86,16 @@ public class ManageBackupBucketMessage extends PartitionMessage {
 
   @Override
   public int getProcessorType() {
-    return DistributionManager.WAITING_POOL_EXECUTOR;
+    return ClusterDistributionManager.WAITING_POOL_EXECUTOR;
   }
 
   /**
    * Sends a PartitionedRegion manage bucket request to the recipient
-   * 
+   *
    * @param recipient the member to which the bucket manage request is sent
    * @param r the PartitionedRegion to which the bucket belongs
    * @param bucketId the unique identifier of the bucket
    * @param isRebalance true if directed by full rebalance operation
-   * @param replaceOfflineData
    * @param moveSource If this is a bucket move.
    * @param forceCreation ignore checks which may cause the bucket not to be created
    * @return the processor used to fetch the returned Node if any
@@ -110,6 +109,7 @@ public class ManageBackupBucketMessage extends PartitionMessage {
     NodeResponse p = new NodeResponse(r.getSystem(), recipient);
     ManageBackupBucketMessage m = new ManageBackupBucketMessage(recipient, r.getPRId(), p, bucketId,
         isRebalance, replaceOfflineData, moveSource, forceCreation);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
 
     p.enableSevereAlertProcessing();
 
@@ -128,10 +128,11 @@ public class ManageBackupBucketMessage extends PartitionMessage {
    * indefinitely for the acknowledgement
    */
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion r,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion r,
       long startTime) {
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.trace(LogMarker.DM, "ManageBucketMessage operateOnRegion: {}", r.getFullPath());
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace(LogMarker.DM_VERBOSE, "ManageBucketMessage operateOnRegion: {}",
+          r.getFullPath());
     }
 
     // This is to ensure that initialization is complete before bucket creation request is
@@ -190,9 +191,8 @@ public class ManageBackupBucketMessage extends PartitionMessage {
 
   /**
    * Assists the toString method in reporting the contents of this message
-   * 
+   *
    * @see PartitionMessage#toString()
-   * @param buff
    */
   @Override
   protected void appendFields(StringBuilder buff) {
@@ -214,7 +214,7 @@ public class ManageBackupBucketMessage extends PartitionMessage {
   /**
    * A class that contains the reply to a {@link ManageBackupBucketMessage} message which contains
    * the {@link Node} that has accepted to manage the bucket.
-   * 
+   *
    * @since GemFire 5.0
    */
   public static class ManageBackupBucketReplyMessage extends ReplyMessage {
@@ -241,12 +241,13 @@ public class ManageBackupBucketMessage extends PartitionMessage {
 
     /**
      * Refuse the request to manage the bucket
-     * 
+     *
      * @param recipient the requesting node
      * @param processorId the identity of the processor the requesting node is waiting on
      * @param dm the distribution manager used to send the refusal
      */
-    public static void sendRefusal(InternalDistributedMember recipient, int processorId, DM dm) {
+    public static void sendRefusal(InternalDistributedMember recipient, int processorId,
+        DistributionManager dm) {
       Assert.assertTrue(recipient != null, "ManageBackupBucketReplyMessage NULL reply message");
       ManageBackupBucketReplyMessage m =
           new ManageBackupBucketReplyMessage(processorId, false, false);
@@ -256,13 +257,13 @@ public class ManageBackupBucketMessage extends PartitionMessage {
 
     /**
      * Refuse the request to manage the bucket because the region is still being initialized
-     * 
+     *
      * @param recipient the requesting node
      * @param processorId the identity of the processor the requesting node is waiting on
      * @param dm the distribution manager used to send the acceptance message
      */
     public static void sendStillInitializing(InternalDistributedMember recipient, int processorId,
-        DM dm) {
+        DistributionManager dm) {
       ManageBackupBucketReplyMessage m =
           new ManageBackupBucketReplyMessage(processorId, false, true);
       m.setRecipient(recipient);
@@ -271,12 +272,13 @@ public class ManageBackupBucketMessage extends PartitionMessage {
 
     /**
      * Accept the request to manage the bucket
-     * 
+     *
      * @param recipient the requesting node
      * @param processorId the identity of the processor the requesting node is waiting on
      * @param dm the distribution manager used to send the acceptance message
      */
-    public static void sendAcceptance(InternalDistributedMember recipient, int processorId, DM dm) {
+    public static void sendAcceptance(InternalDistributedMember recipient, int processorId,
+        DistributionManager dm) {
       Assert.assertTrue(recipient != null, "ManageBackupBucketReplyMessage NULL reply message");
       ManageBackupBucketReplyMessage m =
           new ManageBackupBucketReplyMessage(processorId, true, false);
@@ -286,28 +288,28 @@ public class ManageBackupBucketMessage extends PartitionMessage {
 
     /**
      * Processes this message. This method is invoked by the receiver of the message.
-     * 
+     *
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    public void process(final DM dm, final ReplyProcessor21 processor) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 processor) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "ManageBackupBucketReplyMessage process invoking reply processor with processorId: {}",
             this.processorId);
       }
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "ManageBackupBucketReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "ManageBackupBucketReplyMessage processor not found");
         }
         return;
       }
       processor.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} processed {}", processor, this);
       }
       dm.getStats().incReplyMessageTime(DistributionStats.getStatTime() - startTime);
     }
@@ -341,10 +343,10 @@ public class ManageBackupBucketMessage extends PartitionMessage {
 
   /**
    * A processor to capture the {@link Node} returned by {@link ManageBackupBucketMessage}
-   * 
+   *
    * @since GemFire 5.0
    */
-  static public class NodeResponse extends ReplyProcessor21 {
+  public static class NodeResponse extends ReplyProcessor21 {
     /**
      * the message that triggers return from waitForAcceptance. This will be null if the target
      * member exited
@@ -361,8 +363,8 @@ public class ManageBackupBucketMessage extends PartitionMessage {
         if (m instanceof ManageBackupBucketReplyMessage) {
           ManageBackupBucketReplyMessage reply = (ManageBackupBucketReplyMessage) m;
           this.msg = reply;
-          if (logger.isTraceEnabled(LogMarker.DM)) {
-            logger.trace(LogMarker.DM, "NodeResponse return value is {} isInitializng={}",
+          if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+            logger.trace(LogMarker.DM_VERBOSE, "NodeResponse return value is {} isInitializng={}",
                 reply.acceptedBucket, reply.notYetInitialized);
           }
         } else {
@@ -382,7 +384,7 @@ public class ManageBackupBucketMessage extends PartitionMessage {
 
     /**
      * Wait for the response to a {@link ManageBackupBucketMessage} request.
-     * 
+     *
      * @return true if the node sent the request is managing the bucket
      * @see org.apache.geode.internal.cache.PartitionedRegionDataStore#handleManageBucketRequest(int,
      *      int, InternalDistributedMember, boolean)
@@ -411,7 +413,7 @@ public class ManageBackupBucketMessage extends PartitionMessage {
           logger.debug(m, t);
           throw (ForceReattemptException) t;
         }
-        e.handleAsUnexpected();
+        e.handleCause();
       }
       return (this.msg != null) && this.msg.acceptedBucket;
     }

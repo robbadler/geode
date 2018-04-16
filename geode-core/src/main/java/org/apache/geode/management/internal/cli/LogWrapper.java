@@ -16,12 +16,12 @@ package org.apache.geode.management.internal.cli;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.text.BreakIterator;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.FileHandler;
-import java.util.logging.Filter;
 import java.util.logging.Formatter;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -41,35 +41,28 @@ import org.apache.geode.management.internal.cli.shell.GfshConfig;
  */
 public class LogWrapper {
   private static Object INSTANCE_LOCK = new Object();
-  private volatile static LogWrapper INSTANCE = null;
+  private static volatile LogWrapper INSTANCE = null;
 
   private Logger logger;
 
-  private LogWrapper() {
+  private LogWrapper(Cache cache) {
     logger = Logger.getLogger(this.getClass().getCanonicalName());
 
-    Cache cache = CliUtil.getCacheIfExists();
     if (cache != null && !cache.isClosed()) {
-      // TODO - Abhishek how to set different log levels for different handlers???
       logger.addHandler(cache.getLogger().getHandler());
       CommandResponseWriterHandler handler = new CommandResponseWriterHandler();
-      handler.setFilter(new Filter() {
-        @Override
-        public boolean isLoggable(LogRecord record) {
-          return record.getLevel().intValue() >= Level.FINE.intValue();
-        }
-      });
+      handler.setFilter(record -> record.getLevel().intValue() >= Level.FINE.intValue());
       handler.setLevel(Level.FINE);
       logger.addHandler(handler);
     }
     logger.setUseParentHandlers(false);
   }
 
-  public static LogWrapper getInstance() {
+  public static LogWrapper getInstance(Cache cache) {
     if (INSTANCE == null) {
       synchronized (INSTANCE_LOCK) {
         if (INSTANCE == null) {
-          INSTANCE = new LogWrapper();
+          INSTANCE = new LogWrapper(cache);
         }
       }
     }
@@ -81,14 +74,12 @@ public class LogWrapper {
     if (config.isLoggingEnabled()) {
       try {
         FileHandler fileHandler = new FileHandler(config.getLogFilePath(),
-            config.getLogFileSizeLimit(), config.getLogFileCount(), true /* append */);
+            config.getLogFileSizeLimit(), config.getLogFileCount(), true);
         fileHandler.setFormatter(new GemFireFormatter());
         fileHandler.setLevel(config.getLogLevel());
         logger.addHandler(fileHandler);
         logger.setLevel(config.getLogLevel());
-      } catch (SecurityException e) {
-        addDefaultConsoleHandler(logger, e.getMessage(), config.getLogFilePath());
-      } catch (IOException e) {
+      } catch (SecurityException | IOException e) {
         addDefaultConsoleHandler(logger, e.getMessage(), config.getLogFilePath());
       }
     }
@@ -164,8 +155,7 @@ public class LogWrapper {
     return logger.getLevel();
   }
 
-  // TODO - Abhishek - ideally shouldn't be exposed outside.
-  /* package */ Logger getLogger() {
+  Logger getLogger() {
     return logger;
   }
 
@@ -184,19 +174,6 @@ public class LogWrapper {
       logger.log(Level.SEVERE, message, t);
     }
   }
-
-  // TODO - Abhishek - Check whether we can use GemFireLevel.ERROR
-  // public boolean errorEnabled() {
-  // return severeEnabled();
-  // }
-  //
-  // public void error(String message) {
-  // logger.severe(message);
-  // }
-  //
-  // public void error(String message, Throwable t) {
-  // logger.log(Level.SEVERE, message, t);
-  // }
 
   public boolean warningEnabled() {
     return logger.isLoggable(Level.WARNING);
@@ -298,15 +275,14 @@ public class LogWrapper {
    *
    * @since GemFire 7.0
    */
-  // Formatter code "copied" from LogWriterImpl
   static class GemFireFormatter extends Formatter {
-    private final static String FORMAT = "yyyy/MM/dd HH:mm:ss.SSS z";
+    private static final String FORMAT = "yyyy/MM/dd HH:mm:ss.SSS z";
 
     private SimpleDateFormat sdf = new SimpleDateFormat(FORMAT);
 
     @Override
     public synchronized String format(LogRecord record) {
-      java.io.StringWriter sw = new java.io.StringWriter();
+      StringWriter sw = new StringWriter();
       PrintWriter pw = new PrintWriter(sw);
 
       pw.println();
@@ -348,10 +324,9 @@ public class LogWrapper {
       pw.close();
       try {
         sw.close();
-      } catch (java.io.IOException ignore) {
+      } catch (IOException ignore) {
       }
-      String result = sw.toString();
-      return result;
+      return sw.toString();
     }
 
     private void formatText(PrintWriter writer, String target, int initialLength) {

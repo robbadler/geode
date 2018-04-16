@@ -14,31 +14,23 @@
  */
 package org.apache.geode.cache.lucene.internal.cli;
 
-import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Map.Entry;
-import org.apache.geode.cache.lucene.internal.LuceneIndexImpl;
-
-import org.apache.lucene.analysis.Analyzer;
-
 public class LuceneIndexInfo extends LuceneFunctionSerializable {
   private static final long serialVersionUID = 1L;
 
   private final String[] searchableFieldNames;
   private final String[] fieldAnalyzers;
+  private final String serializer;
 
   public LuceneIndexInfo(final String indexName, final String regionPath,
-      final String[] searchableFieldNames, String[] fieldAnalyzers) {
+      final String[] searchableFieldNames, String[] fieldAnalyzers, String serializer) {
     super(indexName, regionPath);
     this.searchableFieldNames = searchableFieldNames;
     this.fieldAnalyzers = fieldAnalyzers;
+    this.serializer = serializer;
   }
 
   public LuceneIndexInfo(final String indexName, final String regionPath) {
-    this(indexName, regionPath, null, null);
+    this(indexName, regionPath, null, null, null);
   }
 
   public String[] getSearchableFieldNames() {
@@ -47,5 +39,9 @@ public class LuceneIndexInfo extends LuceneFunctionSerializable {
 
   public String[] getFieldAnalyzers() {
     return fieldAnalyzers;
+  }
+
+  public String getSerializer() {
+    return serializer;
   }
 }

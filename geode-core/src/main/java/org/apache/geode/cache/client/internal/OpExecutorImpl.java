@@ -14,12 +14,36 @@
  */
 package org.apache.geode.cache.client.internal;
 
-import org.apache.geode.*;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.NotSerializableException;
+import java.net.ConnectException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.nio.BufferUnderflowException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.CancelCriterion;
+import org.apache.geode.CancelException;
+import org.apache.geode.CopyException;
+import org.apache.geode.GemFireException;
+import org.apache.geode.GemFireIOException;
+import org.apache.geode.SerializationException;
 import org.apache.geode.cache.CacheRuntimeException;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.SynchronizationCommitConflictException;
 import org.apache.geode.cache.TransactionException;
-import org.apache.geode.cache.client.*;
+import org.apache.geode.cache.client.NoAvailableServersException;
+import org.apache.geode.cache.client.ServerConnectivityException;
+import org.apache.geode.cache.client.ServerOperationException;
+import org.apache.geode.cache.client.ServerRefusedConnectionException;
+import org.apache.geode.cache.client.SubscriptionNotEnabledException;
 import org.apache.geode.cache.client.internal.ExecuteFunctionOp.ExecuteFunctionOpImpl;
 import org.apache.geode.cache.client.internal.ExecuteRegionFunctionOp.ExecuteRegionFunctionOpImpl;
 import org.apache.geode.cache.client.internal.QueueManager.QueueConnections;
@@ -31,8 +55,6 @@ import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.ServerLocation;
 import org.apache.geode.internal.cache.PoolManagerImpl;
 import org.apache.geode.internal.cache.PutAllPartialResultException;
-import org.apache.geode.internal.cache.TXManagerImpl;
-import org.apache.geode.internal.cache.TXStateProxy;
 import org.apache.geode.internal.cache.execute.InternalFunctionInvocationTargetException;
 import org.apache.geode.internal.cache.tier.BatchException;
 import org.apache.geode.internal.cache.tier.sockets.MessageTooLargeException;
@@ -41,21 +63,11 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 import org.apache.geode.security.AuthenticationRequiredException;
 import org.apache.geode.security.GemFireSecurityException;
-import org.apache.logging.log4j.Logger;
-
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.NotSerializableException;
-import java.net.ConnectException;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
-import java.nio.BufferUnderflowException;
-import java.util.*;
 
 /**
  * Called from the client and execute client to server requests against servers. Handles retrying to
  * different servers, and marking servers dead if we get exception from them.
- * 
+ *
  * @since GemFire 5.7
  */
 public class OpExecutorImpl implements ExecutablePool {
@@ -209,7 +221,7 @@ public class OpExecutorImpl implements ExecutablePool {
   /**
    * execute the given op on the given server. If the server cannot be reached, sends a
    * TXFailoverOp, then retries the given op
-   * 
+   *
    * @param loc the server to execute the op on
    * @param op the op to execute
    * @return the result of execution
@@ -250,21 +262,8 @@ public class OpExecutorImpl implements ExecutablePool {
     int transactionId = absOp.getMessage().getTransactionId();
     // for CommitOp we do not have transactionId in AbstractOp
     // so set it explicitly for TXFailoverOp
-    try {
-      TXFailoverOp.execute(this.pool, transactionId);
-    } catch (TransactionException e) {
-      // If this is the first operation in the transaction then
-      // do not throw TransactionDataNodeHasDeparted back to the
-      // user, re-try the op instead. fixes bug 44375. NOTE: TXFailoverOp
-      // is sent even after first op, as it is not known if the first
-      // operation has established a TXState already
-      TXStateProxy txState = TXManagerImpl.getCurrentTXState();
-      if (txState == null) {
-        throw e;
-      } else if (txState.operationCount() > 1) {
-        throw e;
-      }
-    }
+    TXFailoverOp.execute(this.pool, transactionId);
+
     if (op instanceof ExecuteRegionFunctionOpImpl) {
       op = new ExecuteRegionFunctionOpImpl((ExecuteRegionFunctionOpImpl) op,
           (byte) 1/* isReExecute */, new HashSet<String>());
@@ -316,7 +315,7 @@ public class OpExecutorImpl implements ExecutablePool {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.client.internal.OpExecutor#executeOn(org.apache.geode.distributed.
    * internal.ServerLocation, org.apache.geode.cache.client.internal.Op)
    */
@@ -341,7 +340,7 @@ public class OpExecutorImpl implements ExecutablePool {
     return executeOnServer(server, op, accessed, onlyUseExistingCnx);
   }
 
-  private Object executeOnServer(ServerLocation p_server, Op op, boolean accessed,
+  protected Object executeOnServer(ServerLocation p_server, Op op, boolean accessed,
       boolean onlyUseExistingCnx) {
     ServerLocation server = p_server;
     boolean returnCnx = true;
@@ -411,7 +410,7 @@ public class OpExecutorImpl implements ExecutablePool {
    * gets a connection to the given serverLocation either by looking up the threadLocal
    * {@link #localConnectionMap}. If a connection does not exist (or has been destroyed) we borrow
    * one from connectionManager.
-   * 
+   *
    * @return the activated connection
    */
   private Connection getActivatedThreadLocalConnectionForSingleHop(ServerLocation server,
@@ -460,7 +459,7 @@ public class OpExecutorImpl implements ExecutablePool {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.cache.client.internal.ExecutablePool#executeOnPrimary(org.apache.geode.cache.
    * client.internal.Op)
@@ -528,7 +527,7 @@ public class OpExecutorImpl implements ExecutablePool {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.cache.client.internal.ExecutablePool#executeOnAllQueueServers(org.apache.geode
    * .cache.client.internal.Op)
@@ -540,8 +539,8 @@ public class OpExecutorImpl implements ExecutablePool {
     QueueConnections connections = queueManager.getAllConnections();
 
     List backups = connections.getBackups();
-    if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER)) {
-      logger.trace(LogMarker.BRIDGE_SERVER, "sending {} to backups: {}", op, backups);
+    if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER_VERBOSE)) {
+      logger.trace(LogMarker.BRIDGE_SERVER_VERBOSE, "sending {} to backups: {}", op, backups);
     }
     for (int i = backups.size() - 1; i >= 0; i--) {
       Connection conn = (Connection) backups.get(i);
@@ -556,13 +555,13 @@ public class OpExecutorImpl implements ExecutablePool {
     HashSet attemptedPrimaries = new HashSet();
     while (true) {
       try {
-        if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER)) {
-          logger.trace(LogMarker.BRIDGE_SERVER, "sending {} to primary: {}", op, primary);
+        if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER_VERBOSE)) {
+          logger.trace(LogMarker.BRIDGE_SERVER_VERBOSE, "sending {} to primary: {}", op, primary);
         }
         return executeWithPossibleReAuthentication(primary, op);
       } catch (Exception e) {
-        if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER)) {
-          logger.trace(LogMarker.BRIDGE_SERVER, "caught exception sending to primary {}",
+        if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER_VERBOSE)) {
+          logger.trace(LogMarker.BRIDGE_SERVER_VERBOSE, "caught exception sending to primary {}",
               e.getMessage(), e);
         }
         boolean finalAttempt = !attemptedPrimaries.add(primary.getServer());
@@ -710,20 +709,6 @@ public class OpExecutorImpl implements ExecutablePool {
       title = "connection was asynchronously destroyed";
       cause = null;
     } else if (e instanceof java.io.EOFException) {
-      /*
-       * // it is still listening so make this into a timeout exception invalidateServer = false;
-       * title = "socket closed on server"; SocketTimeoutException ste = new
-       * SocketTimeoutException(title); ste.setStackTrace(e.getStackTrace()); e = ste; cause = null;
-       */
-
-      /*
-       * note: the old code in ConnectionProxyImpl used to create a new socket here to the server to
-       * determine if it really crashed. We may have to add this back in for some reason, but
-       * hopefully not.
-       * 
-       * note 05/21/08: an attempt to address this was made by increasing the time waited on server
-       * before closing timeoutd clients see ServerConnection.hasBeenTimedOutOnClient
-       */
       title = "closed socket on server";
     } else if (e instanceof IOException) {
       title = "IOException";
@@ -928,4 +913,3 @@ public class OpExecutorImpl implements ExecutablePool {
   }
 
 }
-

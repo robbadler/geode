@@ -16,7 +16,6 @@ package org.apache.geode.internal.cache.execute;
 
 import java.util.Set;
 
-import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.client.Pool;
 import org.apache.geode.cache.client.ServerConnectivityException;
 import org.apache.geode.cache.client.internal.ExecuteFunctionNoAckOp;
@@ -34,10 +33,6 @@ import org.apache.geode.internal.cache.TXManagerImpl;
 import org.apache.geode.internal.cache.execute.util.SynchronizedResultCollector;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 
-/**
- * 
- *
- */
 public class ServerFunctionExecutor extends AbstractExecution {
 
   private PoolImpl pool;
@@ -90,7 +85,7 @@ public class ServerFunctionExecutor extends AbstractExecution {
     try {
       if (proxyCache != null) {
         if (this.proxyCache.isClosed()) {
-          throw new CacheClosedException("Cache is closed for this user.");
+          throw proxyCache.getCacheClosedException("Cache is closed for this user.");
         }
         UserAttributes.userAttributes.set(this.proxyCache.getUserAttributes());
       }
@@ -119,7 +114,7 @@ public class ServerFunctionExecutor extends AbstractExecution {
     try {
       if (proxyCache != null) {
         if (this.proxyCache.isClosed()) {
-          throw new CacheClosedException("Cache is closed for this user.");
+          throw proxyCache.getCacheClosedException("Cache is closed for this user.");
         }
         UserAttributes.userAttributes.set(this.proxyCache.getUserAttributes());
       }
@@ -284,7 +279,7 @@ public class ServerFunctionExecutor extends AbstractExecution {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.execute.AbstractExecution#validateExecution(org.apache.geode.
    * cache.execute.Function, java.util.Set)
@@ -320,85 +315,4 @@ public class ServerFunctionExecutor extends AbstractExecution {
     }
   }
 
-  public ResultCollector execute(String functionName, boolean hasResult) throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    this.isFnSerializationReqd = false;
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      return executeFunction(functionName, hasResult, hasResult, false);
-    } else {
-      byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-          functionObject.hasResult(), functionObject.optimizeForWrite());
-
-      byte functionState = AbstractExecution.getFunctionState(hasResult, hasResult, false);
-      if (registeredFunctionState != functionState) {
-        throw new FunctionException(
-            LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-                .toLocalizedString(functionName));
-      }
-      return executeFunction(functionObject);
-    }
-  }
-
-  public ResultCollector execute(String functionName, boolean hasResult, boolean isHA)
-      throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    this.isFnSerializationReqd = false;
-    if (isHA && !hasResult) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH.toLocalizedString());
-    }
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      return executeFunction(functionName, hasResult, isHA, false);
-    } else {
-      byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-          functionObject.hasResult(), functionObject.optimizeForWrite());
-
-      byte functionState = AbstractExecution.getFunctionState(isHA, hasResult, false);
-      if (registeredFunctionState != functionState) {
-        throw new FunctionException(
-            LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-                .toLocalizedString(functionName));
-      }
-      return executeFunction(functionObject);
-    }
-  }
-
-  public ResultCollector execute(String functionName, boolean hasResult, boolean isHA,
-      boolean isOptimizeForWrite) throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    this.isFnSerializationReqd = false;
-    if (isHA && !hasResult) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH.toLocalizedString());
-    }
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      return executeFunction(functionName, hasResult, isHA, isOptimizeForWrite);
-    } else {
-      byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-          functionObject.hasResult(), functionObject.optimizeForWrite());
-
-      byte functionState = AbstractExecution.getFunctionState(isHA, hasResult, isOptimizeForWrite);
-      if (registeredFunctionState != functionState) {
-        throw new FunctionException(
-            LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-                .toLocalizedString(functionName));
-      }
-      return executeFunction(functionObject);
-    }
-  }
 }

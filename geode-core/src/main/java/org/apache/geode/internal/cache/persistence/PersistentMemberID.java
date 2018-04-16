@@ -18,15 +18,11 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.UUID;
 
 import org.apache.geode.DataSerializable;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.internal.cache.versions.VersionSource;
 
-/**
- *
- */
 public class PersistentMemberID implements DataSerializable {
   private static final long serialVersionUID = 7037022320499508045L;
 
@@ -63,7 +59,7 @@ public class PersistentMemberID implements DataSerializable {
   /**
    * Indicate that this persistent member id is from the same disk store, and is older than, or
    * equal to, the passed in disk store.
-   * 
+   *
    * This is an older version if it has an older timestamp, or the same timestamp and an older
    * version
    */

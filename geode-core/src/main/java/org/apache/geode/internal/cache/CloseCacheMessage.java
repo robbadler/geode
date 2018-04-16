@@ -22,17 +22,12 @@ import java.io.IOException;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.SystemFailure;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.HighPriorityDistributionMessage;
 import org.apache.geode.distributed.internal.MessageWithReply;
 import org.apache.geode.distributed.internal.ReplyMessage;
 import org.apache.geode.internal.logging.LogService;
 
-
-/**
- *
- *
- */
 
 /** Creates a new instance of CloseCacheMessage */
 public class CloseCacheMessage extends HighPriorityDistributionMessage implements MessageWithReply {
@@ -51,13 +46,13 @@ public class CloseCacheMessage extends HighPriorityDistributionMessage implement
   }
 
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     // Now that Cache.close calls close on each region we don't need
     // any of the following code so we can just do an immediate ack.
     boolean systemError = false;
     try {
       try {
-        PartitionedRegionHelper.cleanUpMetaDataOnNodeFailure(getSender());
+        PartitionedRegionHelper.cleanUpMetaDataOnNodeFailure(dm.getCache(), getSender());
       } catch (VirtualMachineError err) {
         systemError = true;
         SystemFailure.initiateFailure(err);
@@ -108,4 +103,3 @@ public class CloseCacheMessage extends HighPriorityDistributionMessage implement
     out.writeInt(this.processorId);
   }
 }
-

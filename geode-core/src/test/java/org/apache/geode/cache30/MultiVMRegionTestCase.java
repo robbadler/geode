@@ -56,7 +56,6 @@ import org.apache.geode.cache.AttributesMutator;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheEvent;
 import org.apache.geode.cache.CacheException;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.CacheListener;
 import org.apache.geode.cache.CacheLoader;
 import org.apache.geode.cache.CacheLoaderException;
@@ -86,6 +85,8 @@ import org.apache.geode.cache.TransactionListener;
 import org.apache.geode.cache.partition.PartitionRegionHelper;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.cache.util.CacheListenerAdapter;
+import org.apache.geode.cache.util.TxEventTestUtil;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.distributed.internal.DMStats;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
@@ -152,6 +153,14 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
   @Override
   protected final void postTearDownRegionTestCase() throws Exception {
     CCRegion = null;
+  }
+
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties properties = super.getDistributedSystemProperties();
+    properties.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.cache30.MultiVMRegionTestCase$DeltaValue");
+    return properties;
   }
 
   /**
@@ -365,103 +374,74 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
   }
 
   /**
-   * Tests that distributed updates are delivered in order
+   * Verifies that distributed updates are delivered in order.
    *
-   * <P>
-   *
+   * <p>
    * Note that this test does not make sense for regions that are {@link Scope#DISTRIBUTED_NO_ACK}
    * for which we do not guarantee the ordering of updates for a single producer/single consumer.
-   *
-   * DISABLED 4-16-04 - the current implementation assumes events are processed synchronously, which
-   * is no longer true.
    */
-  @Ignore("TODO: test is DISABLED 4-16-04 - the current implementation assumes events are processed synchronously, which is no longer true")
   @Test
   public void testOrderedUpdates() throws Exception {
     assumeFalse(getRegionAttributes().getScope() == Scope.DISTRIBUTED_NO_ACK);
 
-    final String name = this.getUniqueName();
-    final Object key = "KEY";
-    final int lastNumber = 10;
+    final String regionName = getUniqueName();
+    final String key = "KEY";
+    final int lastValue = 10;
 
-    Host host = Host.getHost(0);
-    VM vm0 = host.getVM(0);
-    VM vm1 = host.getVM(1);
+    VM vm0 = Host.getHost(0).getVM(0);
+    VM vm1 = Host.getHost(0).getVM(1);
 
-    SerializableRunnable create = new CacheSerializableRunnable("Create region entry") {
-      @Override
-      public void run2() throws CacheException {
-        Region region = createRegion(name);
-        region.create(key, null);
-      }
-    };
-
-    vm0.invoke(create);
-    vm1.invoke(create);
-
-    vm1.invoke(new CacheSerializableRunnable("Set listener") {
-      @Override
-      public void run2() throws CacheException {
-        Region region = getRootRegion().getSubregion(name);
-        region.setUserAttribute(new LinkedBlockingQueue());
-        region.getAttributesMutator().addCacheListener(new CacheListenerAdapter() {
-          @Override
-          public void afterUpdate(EntryEvent e) {
-            Region region2 = e.getRegion();
-            LinkedBlockingQueue queue = (LinkedBlockingQueue) region2.getUserAttribute();
-            Object value = e.getNewValue();
-            assertNotNull(value);
-            try {
-              org.apache.geode.test.dunit.LogWriterUtils.getLogWriter().info("++ Adding " + value);
-              queue.put(value);
-
-            } catch (InterruptedException ex) {
-              fail("Why was I interrupted?", ex);
-            }
-          }
-        });
-        flushIfNecessary(region);
-      }
+    vm0.invoke("Create region", () -> {
+      createRegion(regionName);
     });
-    AsyncInvocation ai1 = vm1.invokeAsync(new CacheSerializableRunnable("Verify") {
-      @Override
-      public void run2() throws CacheException {
-        Region region = getRootRegion().getSubregion(name);
-        LinkedBlockingQueue queue = (LinkedBlockingQueue) region.getUserAttribute();
-        for (int i = 0; i <= lastNumber; i++) {
+
+    vm1.invoke("Create region and region entry", () -> {
+      Region<String, Integer> region = createRegion(regionName);
+      region.create(key, null);
+    });
+
+    vm1.invoke("Set listener", () -> {
+      Region<String, Integer> region = getRootRegion().getSubregion(regionName);
+      region.setUserAttribute(new LinkedBlockingQueue());
+
+      region.getAttributesMutator().addCacheListener(new CacheListenerAdapter<String, Integer>() {
+        @Override
+        public void afterUpdate(EntryEvent<String, Integer> event) {
+          Region<String, Integer> region = event.getRegion();
+          LinkedBlockingQueue<Integer> queue = (LinkedBlockingQueue) region.getUserAttribute();
+          int value = event.getNewValue();
           try {
-            org.apache.geode.test.dunit.LogWriterUtils.getLogWriter().info("++ Waiting for " + i);
-            Integer value = (Integer) queue.take();
-            org.apache.geode.test.dunit.LogWriterUtils.getLogWriter().info("++ Got " + value);
-            assertEquals(i, value.intValue());
-
-          } catch (InterruptedException ex) {
-            fail("Why was I interrupted?", ex);
+            queue.put(value);
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
           }
         }
-      }
+      });
+      flushIfNecessary(region);
     });
 
-    AsyncInvocation ai0 = vm0.invokeAsync(new CacheSerializableRunnable("Populate") {
-      @Override
-      public void run2() throws CacheException {
-        Region region = getRootRegion().getSubregion(name);
-        for (int i = 0; i <= lastNumber; i++) {
-          // org.apache.geode.internal.GemFireVersion.waitForJavaDebugger(getLogWriter());
-          region.put(key, new Integer(i));
+    AsyncInvocation verify = vm1.invokeAsync("Verify", () -> {
+      Region<String, Integer> region = getRootRegion().getSubregion(regionName);
+      LinkedBlockingQueue<Integer> queue = (LinkedBlockingQueue) region.getUserAttribute();
+      for (int i = 0; i <= lastValue; i++) {
+        try {
+          int value = queue.take();
+          assertEquals(i, value);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
         }
       }
     });
 
-    ThreadUtils.join(ai0, 30 * 1000);
-    ThreadUtils.join(ai1, 30 * 1000);
+    AsyncInvocation populate = vm0.invokeAsync("Populate", () -> {
+      Region<String, Integer> region = getRootRegion().getSubregion(regionName);
+      for (int i = 0; i <= lastValue; i++) {
+        region.put(key, i);
+      }
+    });
 
-    if (ai0.exceptionOccurred()) {
-      fail("ai0 failed", ai0.getException());
-
-    } else if (ai1.exceptionOccurred()) {
-      fail("ai1 failed", ai1.getException());
-    }
+    populate.await();
+    verify.await();
   }
 
   /**
@@ -623,7 +603,6 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
     SerializableRunnable create = new CacheSerializableRunnable("Create Region") {
       @Override
       public void run2() throws CacheException {
-        // DebuggerSupport.waitForJavaDebugger(getLogWriter(), " about to create region");
         Region region = createRegion(name);
         assertTrue(!region.isDestroyed());
         Region root = region.getParentRegion();
@@ -647,7 +626,6 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
     SerializableRunnable put = new CacheSerializableRunnable("Put key/value") {
       @Override
       public void run2() throws CacheException {
-        // DebuggerSupport.waitForJavaDebugger(getLogWriter(), " about to put");
         Region region = getRootRegion().getSubregion(name);
         region.put(key, value);
         assertTrue(!region.isDestroyed());
@@ -667,7 +645,6 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
         assertTrue(!root.isDestroyed());
         Region region = root.getSubregion(name);
         assertTrue(!region.isDestroyed());
-        // DebuggerSupport.waitForJavaDebugger(getLogWriter(), " about to get");
         assertEquals(value, region.getEntry(key).getValue());
       }
     };
@@ -1441,7 +1418,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
 
   /**
    * Indicate whether this region supports netload
-   * 
+   *
    * @return true if it supports netload
    */
   protected boolean supportsNetLoad() {
@@ -1940,7 +1917,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
           LocalRegion reRegion;
           reRegion = (LocalRegion) region;
           RegionEntry re = reRegion.getRegionEntry(key2);
-          StoredObject so = (StoredObject) re._getValue();
+          StoredObject so = (StoredObject) re.getValue();
           assertEquals(1, so.getRefCount());
           assertEquals(1, ma.getStats().getObjects());
         }
@@ -2028,7 +2005,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
           assertEquals(2, ma.getStats().getObjects());
           LocalRegion reRegion;
           reRegion = (LocalRegion) region;
-          StoredObject so = (StoredObject) reRegion.getRegionEntry(key)._getValue();
+          StoredObject so = (StoredObject) reRegion.getRegionEntry(key).getValue();
           assertEquals(1, so.getRefCount());
         }
       }
@@ -2095,7 +2072,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
             assertEquals(2, ma.getStats().getObjects());
             LocalRegion reRegion;
             reRegion = (LocalRegion) region;
-            StoredObject so = (StoredObject) reRegion.getRegionEntry(key)._getValue();
+            StoredObject so = (StoredObject) reRegion.getRegionEntry(key).getValue();
             assertEquals(1, so.getRefCount());
           }
         }
@@ -2695,7 +2672,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
           }, getRepeatTimeoutMs());
 
     } catch (Exception e) {
-      CacheFactory.getInstance(getSystem()).close();
+      getCache().close();
       getSystem().getLogWriter().fine("testDistributedPut: Caused exception in createRegion");
       throw e;
     }
@@ -2805,7 +2782,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
 
   /**
    * Indicate whether replication/GII supported
-   * 
+   *
    * @return true if replication is supported
    */
   protected boolean supportsReplication() {
@@ -3932,8 +3909,8 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
                       ((InternalDistributedSystem) (region.getCache().getDistributedSystem()))
                           .getClock().getStopTime();
                   logger.info("DEBUG: waiting for expire destroy expirationTime= "
-                      + eet.getExpirationTime() + " now=" + eet.getNow() + " stopTime=" + stopTime
-                      + " currentTimeMillis=" + System.currentTimeMillis());
+                      + eet.getExpirationTime() + " now=" + eet.calculateNow() + " stopTime="
+                      + stopTime + " currentTimeMillis=" + System.currentTimeMillis());
                 } else {
                   logger.info("DEBUG: waiting for expire destroy but expiry task is null");
                 }
@@ -3947,8 +3924,8 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
               try {
                 EntryExpiryTask eet = getEntryExpiryTask(region, key);
                 if (eet != null) {
-                  expiryInfo = "expirationTime= " + eet.getExpirationTime() + " now=" + eet.getNow()
-                      + " currentTimeMillis=" + System.currentTimeMillis();
+                  expiryInfo = "expirationTime= " + eet.getExpirationTime() + " now="
+                      + eet.calculateNow() + " currentTimeMillis=" + System.currentTimeMillis();
                 }
               } catch (EntryNotFoundException ex) {
                 expiryInfo = "EntryNotFoundException when getting expiry task";
@@ -4860,8 +4837,6 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
               // at magical number 301, do a region invalidation, then continue
               // as before
               if (i == 301) {
-                // DebuggerSupport.waitForJavaDebugger(getLogWriter(), "About to invalidate
-                // region");
                 // wait for previous updates to be processed
                 flushIfNecessary(region);
                 region.invalidateRegion();
@@ -4876,12 +4851,6 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
                   // this works without enabling statistics
                   Object value = new Long(System.currentTimeMillis());
                   region.put(key, value);
-                  // no longer safe since get is not allowed to member doing GII
-                  // if (getRegionAttributes().getScope().isDistributedAck()) {
-                  // // do a nonblocking netSearch
-                  // region.localInvalidate(key);
-                  // assertIndexDetailsEquals(value, region.get(key));
-                  // }
                   break;
                 case 3: // INVALIDATE
                   region.invalidate(key);
@@ -5927,12 +5896,11 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
     }
   }
 
-  public static void assertCacheCallbackEvents(String regionName, TransactionId txId, Object key,
+  private void assertCacheCallbackEvents(String regionName, TransactionId txId, Object key,
       Object oldValue, Object newValue) {
-    Cache johnnyCash = CacheFactory.getAnyInstance();
-    Region re = johnnyCash.getRegion("root").getSubregion(regionName);
+    Region re = getCache().getRegion("root").getSubregion(regionName);
     MyTransactionListener tl =
-        (MyTransactionListener) johnnyCash.getCacheTransactionManager().getListeners()[0];
+        (MyTransactionListener) getCache().getCacheTransactionManager().getListeners()[0];
     tl.expectedTxId = txId;
     assertNotNull("Cannot assert TX Callout Events with a null Region: " + regionName, re);
     final CountingDistCacheListener cdcl =
@@ -6058,200 +6026,221 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       long cmtMsgs = dmStats.getSentCommitMessages();
       long commitWaits = dmStats.getCommitWaits();
 
-      txMgr.begin();
-      rgn.put("key", "value");
-      TransactionId txId = txMgr.getTransactionId();
-      txMgr.commit();
-      assertEquals(cmtMsgs + 1, dmStats.getSentCommitMessages());
-      if (rgn.getAttributes().getScope().isAck()) {
-        assertEquals(commitWaits + 1, dmStats.getCommitWaits());
-      } else {
-        assertEquals(commitWaits, dmStats.getCommitWaits());
-      }
-      getSystem().getLogWriter().info("testTXSimpleOps: Create/Put Value");
-      Invoke.invokeInEveryVM(MultiVMRegionTestCase.class, "assertCacheCallbackEvents",
-          new Object[] {rgnName, txId, "key", null, "value"});
-      Invoke.invokeInEveryVMRepeatingIfNecessary(
-          new CacheSerializableRunnable("testTXSimpleOps: Verify Received Value") {
-            @Override
-            public void run2() {
-              Region rgn1 = getRootRegion().getSubregion(rgnName);
-              assertNotNull("Could not find entry for 'key'", rgn1.getEntry("key"));
-              assertEquals("value", rgn1.getEntry("key").getValue());
-              CacheTransactionManager txMgr2 = getCache().getCacheTransactionManager();
-              MyTransactionListener tl = (MyTransactionListener) txMgr2.getListeners()[0];
-              tl.checkAfterCommitCount(1);
-              assertEquals(0, tl.afterFailedCommitCount);
-              assertEquals(0, tl.afterRollbackCount);
-              assertEquals(0, tl.closeCount);
-              assertEquals(rgn1.getCache(), tl.lastEvent.getCache());
-              {
-                Collection events;
-                RegionAttributes attr = getRegionAttributes();
-                if (!attr.getDataPolicy().withReplication() || attr.getConcurrencyChecksEnabled()) {
-                  events = tl.lastEvent.getPutEvents();
-                } else {
-                  events = tl.lastEvent.getCreateEvents();
+      {
+        txMgr.begin();
+        rgn.put("key", "value");
+        final TransactionId txId = txMgr.getTransactionId();
+        txMgr.commit();
+        assertEquals(cmtMsgs + 1, dmStats.getSentCommitMessages());
+        if (rgn.getAttributes().getScope().isAck()) {
+          assertEquals(commitWaits + 1, dmStats.getCommitWaits());
+        } else {
+          assertEquals(commitWaits, dmStats.getCommitWaits());
+        }
+        getSystem().getLogWriter().info("testTXSimpleOps: Create/Put Value");
+        Invoke.invokeInEveryVM(new SerializableRunnable() {
+          public void run() {
+            assertCacheCallbackEvents(rgnName, txId, "key", null, "value");
+          }
+        });
+        Invoke.invokeInEveryVMRepeatingIfNecessary(
+            new CacheSerializableRunnable("testTXSimpleOps: Verify Received Value") {
+              @Override
+              public void run2() {
+                Region rgn1 = getRootRegion().getSubregion(rgnName);
+                assertNotNull("Could not find entry for 'key'", rgn1.getEntry("key"));
+                assertEquals("value", rgn1.getEntry("key").getValue());
+                CacheTransactionManager txMgr2 = getCache().getCacheTransactionManager();
+                MyTransactionListener tl = (MyTransactionListener) txMgr2.getListeners()[0];
+                tl.checkAfterCommitCount(1);
+                assertEquals(0, tl.afterFailedCommitCount);
+                assertEquals(0, tl.afterRollbackCount);
+                assertEquals(0, tl.closeCount);
+                assertEquals(rgn1.getCache(), tl.lastEvent.getCache());
+                {
+                  Collection events;
+                  RegionAttributes attr = getRegionAttributes();
+                  if (!attr.getDataPolicy().withReplication()
+                      || attr.getConcurrencyChecksEnabled()) {
+                    events = TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents());
+                  } else {
+                    events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
+                  }
+                  assertEquals(1, events.size());
+                  EntryEvent ev = (EntryEvent) events.iterator().next();
+                  assertEquals(tl.expectedTxId, ev.getTransactionId());
+                  assertTrue(ev.getRegion() == rgn1);
+                  assertEquals("key", ev.getKey());
+                  assertEquals("value", ev.getNewValue());
+                  assertEquals(null, ev.getOldValue());
+                  assertTrue(!ev.getOperation().isLocalLoad());
+                  assertTrue(!ev.getOperation().isNetLoad());
+                  assertTrue(!ev.getOperation().isLoad());
+                  assertTrue(!ev.getOperation().isNetSearch());
+                  assertTrue(!ev.getOperation().isExpiration());
+                  assertEquals(null, ev.getCallbackArgument());
+                  assertEquals(true, ev.isCallbackArgumentAvailable());
+                  assertTrue(ev.isOriginRemote());
+                  assertTrue(ev.getOperation().isDistributed());
                 }
-                assertEquals(1, events.size());
-                EntryEvent ev = (EntryEvent) events.iterator().next();
-                assertEquals(tl.expectedTxId, ev.getTransactionId());
-                assertTrue(ev.getRegion() == rgn1);
-                assertEquals("key", ev.getKey());
-                assertEquals("value", ev.getNewValue());
-                assertEquals(null, ev.getOldValue());
-                assertTrue(!ev.getOperation().isLocalLoad());
-                assertTrue(!ev.getOperation().isNetLoad());
-                assertTrue(!ev.getOperation().isLoad());
-                assertTrue(!ev.getOperation().isNetSearch());
-                assertTrue(!ev.getOperation().isExpiration());
-                assertEquals(null, ev.getCallbackArgument());
-                assertEquals(true, ev.isCallbackArgumentAvailable());
-                assertTrue(ev.isOriginRemote());
-                assertTrue(ev.getOperation().isDistributed());
+                CountingDistCacheListener cdcL =
+                    (CountingDistCacheListener) rgn1.getAttributes().getCacheListeners()[0];
+                cdcL.assertCount(0, 1, 0, 0);
+
               }
-              CountingDistCacheListener cdcL =
-                  (CountingDistCacheListener) rgn1.getAttributes().getCacheListeners()[0];
-              cdcL.assertCount(0, 1, 0, 0);
+            }, getRepeatTimeoutMs());
+      }
 
-            }
-          }, getRepeatTimeoutMs());
+      {
+        txMgr.begin();
+        rgn.put("key", "value2");
+        final TransactionId txId = txMgr.getTransactionId();
+        txMgr.commit();
+        getSystem().getLogWriter().info("testTXSimpleOps: Put(update) Value2");
+        Invoke.invokeInEveryVM(new SerializableRunnable() {
+          public void run() {
+            assertCacheCallbackEvents(rgnName, txId, "key", "value", "value2");
+          }
+        });
+        Invoke.invokeInEveryVMRepeatingIfNecessary(
+            new CacheSerializableRunnable("testTXSimpleOps: Verify Received Value") {
+              @Override
+              public void run2() {
+                Region rgn1 = getRootRegion().getSubregion(rgnName);
+                assertNotNull("Could not find entry for 'key'", rgn1.getEntry("key"));
+                assertEquals("value2", rgn1.getEntry("key").getValue());
+                CacheTransactionManager txMgr2 = getCache().getCacheTransactionManager();
+                MyTransactionListener tl = (MyTransactionListener) txMgr2.getListeners()[0];
+                tl.checkAfterCommitCount(2);
+                assertEquals(rgn1.getCache(), tl.lastEvent.getCache());
+                {
+                  Collection events = TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents());
+                  assertEquals(1, events.size());
+                  EntryEvent ev = (EntryEvent) events.iterator().next();
+                  assertEquals(tl.expectedTxId, ev.getTransactionId());
+                  assertTrue(ev.getRegion() == rgn1);
+                  assertEquals("key", ev.getKey());
+                  assertEquals("value2", ev.getNewValue());
+                  assertEquals("value", ev.getOldValue());
+                  assertTrue(!ev.getOperation().isLocalLoad());
+                  assertTrue(!ev.getOperation().isNetLoad());
+                  assertTrue(!ev.getOperation().isLoad());
+                  assertTrue(!ev.getOperation().isNetSearch());
+                  assertTrue(!ev.getOperation().isExpiration());
+                  assertEquals(null, ev.getCallbackArgument());
+                  assertEquals(true, ev.isCallbackArgumentAvailable());
+                  assertTrue(ev.isOriginRemote());
+                  assertTrue(ev.getOperation().isDistributed());
+                }
+                CountingDistCacheListener cdcL =
+                    (CountingDistCacheListener) rgn1.getAttributes().getCacheListeners()[0];
+                cdcL.assertCount(0, 2, 0, 0);
 
-      txMgr.begin();
-      rgn.put("key", "value2");
-      txId = txMgr.getTransactionId();
-      txMgr.commit();
-      getSystem().getLogWriter().info("testTXSimpleOps: Put(update) Value2");
-      Invoke.invokeInEveryVM(MultiVMRegionTestCase.class, "assertCacheCallbackEvents",
-          new Object[] {rgnName, txId, "key", "value", "value2"});
-      Invoke.invokeInEveryVMRepeatingIfNecessary(
-          new CacheSerializableRunnable("testTXSimpleOps: Verify Received Value") {
-            @Override
-            public void run2() {
-              Region rgn1 = getRootRegion().getSubregion(rgnName);
-              assertNotNull("Could not find entry for 'key'", rgn1.getEntry("key"));
-              assertEquals("value2", rgn1.getEntry("key").getValue());
-              CacheTransactionManager txMgr2 = getCache().getCacheTransactionManager();
-              MyTransactionListener tl = (MyTransactionListener) txMgr2.getListeners()[0];
-              tl.checkAfterCommitCount(2);
-              assertEquals(rgn1.getCache(), tl.lastEvent.getCache());
-              {
-                Collection events = tl.lastEvent.getPutEvents();
-                assertEquals(1, events.size());
-                EntryEvent ev = (EntryEvent) events.iterator().next();
-                assertEquals(tl.expectedTxId, ev.getTransactionId());
-                assertTrue(ev.getRegion() == rgn1);
-                assertEquals("key", ev.getKey());
-                assertEquals("value2", ev.getNewValue());
-                assertEquals("value", ev.getOldValue());
-                assertTrue(!ev.getOperation().isLocalLoad());
-                assertTrue(!ev.getOperation().isNetLoad());
-                assertTrue(!ev.getOperation().isLoad());
-                assertTrue(!ev.getOperation().isNetSearch());
-                assertTrue(!ev.getOperation().isExpiration());
-                assertEquals(null, ev.getCallbackArgument());
-                assertEquals(true, ev.isCallbackArgumentAvailable());
-                assertTrue(ev.isOriginRemote());
-                assertTrue(ev.getOperation().isDistributed());
               }
-              CountingDistCacheListener cdcL =
-                  (CountingDistCacheListener) rgn1.getAttributes().getCacheListeners()[0];
-              cdcL.assertCount(0, 2, 0, 0);
+            }, getRepeatTimeoutMs());
+      }
 
-            }
-          }, getRepeatTimeoutMs());
+      {
+        txMgr.begin();
+        rgn.invalidate("key");
+        final TransactionId txId = txMgr.getTransactionId();
+        txMgr.commit();
+        getSystem().getLogWriter().info("testTXSimpleOps: invalidate key");
+        // validate each of the CacheListeners EntryEvents
+        Invoke.invokeInEveryVM(new SerializableRunnable() {
+          public void run() {
+            assertCacheCallbackEvents(rgnName, txId, "key", "value2", null);
+          }
+        });
+        Invoke.invokeInEveryVMRepeatingIfNecessary(
+            new CacheSerializableRunnable("testTXSimpleOps: Verify Received Value") {
+              @Override
+              public void run2() {
+                Region rgn1 = getRootRegion().getSubregion(rgnName);
+                assertNotNull("Could not find entry for 'key'", rgn1.getEntry("key"));
+                assertTrue(rgn1.containsKey("key"));
+                assertTrue(!rgn1.containsValueForKey("key"));
+                CacheTransactionManager txMgr2 = getCache().getCacheTransactionManager();
+                MyTransactionListener tl = (MyTransactionListener) txMgr2.getListeners()[0];
+                tl.checkAfterCommitCount(3);
+                assertEquals(rgn1.getCache(), tl.lastEvent.getCache());
+                {
+                  Collection events = TxEventTestUtil.getInvalidateEvents(tl.lastEvent.getEvents());
+                  assertEquals(1, events.size());
+                  EntryEvent ev = (EntryEvent) events.iterator().next();
+                  assertEquals(tl.expectedTxId, ev.getTransactionId());
+                  assertTrue(ev.getRegion() == rgn1);
+                  assertEquals("key", ev.getKey());
+                  assertEquals(null, ev.getNewValue());
+                  assertEquals("value2", ev.getOldValue());
+                  assertTrue(!ev.getOperation().isLocalLoad());
+                  assertTrue(!ev.getOperation().isNetLoad());
+                  assertTrue(!ev.getOperation().isLoad());
+                  assertTrue(!ev.getOperation().isNetSearch());
+                  assertTrue(!ev.getOperation().isExpiration());
+                  assertEquals(null, ev.getCallbackArgument());
+                  assertEquals(true, ev.isCallbackArgumentAvailable());
+                  assertTrue(ev.isOriginRemote());
+                  assertTrue(ev.getOperation().isDistributed());
+                }
+                CountingDistCacheListener cdcL =
+                    (CountingDistCacheListener) rgn1.getAttributes().getCacheListeners()[0];
+                cdcL.assertCount(0, 2, 1, 0);
 
-      txMgr.begin();
-      rgn.invalidate("key");
-      txId = txMgr.getTransactionId();
-      txMgr.commit();
-      getSystem().getLogWriter().info("testTXSimpleOps: invalidate key");
-      // validate each of the CacheListeners EntryEvents
-      Invoke.invokeInEveryVM(MultiVMRegionTestCase.class, "assertCacheCallbackEvents",
-          new Object[] {rgnName, txId, "key", "value2", null});
-      Invoke.invokeInEveryVMRepeatingIfNecessary(
-          new CacheSerializableRunnable("testTXSimpleOps: Verify Received Value") {
-            @Override
-            public void run2() {
-              Region rgn1 = getRootRegion().getSubregion(rgnName);
-              assertNotNull("Could not find entry for 'key'", rgn1.getEntry("key"));
-              assertTrue(rgn1.containsKey("key"));
-              assertTrue(!rgn1.containsValueForKey("key"));
-              CacheTransactionManager txMgr2 = getCache().getCacheTransactionManager();
-              MyTransactionListener tl = (MyTransactionListener) txMgr2.getListeners()[0];
-              tl.checkAfterCommitCount(3);
-              assertEquals(rgn1.getCache(), tl.lastEvent.getCache());
-              {
-                Collection events = tl.lastEvent.getInvalidateEvents();
-                assertEquals(1, events.size());
-                EntryEvent ev = (EntryEvent) events.iterator().next();
-                assertEquals(tl.expectedTxId, ev.getTransactionId());
-                assertTrue(ev.getRegion() == rgn1);
-                assertEquals("key", ev.getKey());
-                assertEquals(null, ev.getNewValue());
-                assertEquals("value2", ev.getOldValue());
-                assertTrue(!ev.getOperation().isLocalLoad());
-                assertTrue(!ev.getOperation().isNetLoad());
-                assertTrue(!ev.getOperation().isLoad());
-                assertTrue(!ev.getOperation().isNetSearch());
-                assertTrue(!ev.getOperation().isExpiration());
-                assertEquals(null, ev.getCallbackArgument());
-                assertEquals(true, ev.isCallbackArgumentAvailable());
-                assertTrue(ev.isOriginRemote());
-                assertTrue(ev.getOperation().isDistributed());
               }
-              CountingDistCacheListener cdcL =
-                  (CountingDistCacheListener) rgn1.getAttributes().getCacheListeners()[0];
-              cdcL.assertCount(0, 2, 1, 0);
+            }, getRepeatTimeoutMs());
+      }
 
-            }
-          }, getRepeatTimeoutMs());
-
-      txMgr.begin();
-      rgn.destroy("key");
-      txId = txMgr.getTransactionId();
-      txMgr.commit();
-      getSystem().getLogWriter().info("testTXSimpleOps: destroy key");
-      // validate each of the CacheListeners EntryEvents
-      Invoke.invokeInEveryVM(MultiVMRegionTestCase.class, "assertCacheCallbackEvents",
-          new Object[] {rgnName, txId, "key", null, null});
-      Invoke.invokeInEveryVMRepeatingIfNecessary(
-          new CacheSerializableRunnable("testTXSimpleOps: Verify Received Value") {
-            @Override
-            public void run2() {
-              Region rgn1 = getRootRegion().getSubregion(rgnName);
-              assertTrue(!rgn1.containsKey("key"));
-              CacheTransactionManager txMgr2 = getCache().getCacheTransactionManager();
-              MyTransactionListener tl = (MyTransactionListener) txMgr2.getListeners()[0];
-              tl.checkAfterCommitCount(4);
-              assertEquals(rgn1.getCache(), tl.lastEvent.getCache());
-              {
-                Collection events = tl.lastEvent.getDestroyEvents();
-                assertEquals(1, events.size());
-                EntryEvent ev = (EntryEvent) events.iterator().next();
-                assertEquals(tl.expectedTxId, ev.getTransactionId());
-                assertTrue(ev.getRegion() == rgn1);
-                assertEquals("key", ev.getKey());
-                assertEquals(null, ev.getNewValue());
-                assertEquals(null, ev.getOldValue());
-                assertTrue(!ev.getOperation().isLocalLoad());
-                assertTrue(!ev.getOperation().isNetLoad());
-                assertTrue(!ev.getOperation().isLoad());
-                assertTrue(!ev.getOperation().isNetSearch());
-                assertTrue(!ev.getOperation().isExpiration());
-                assertEquals(null, ev.getCallbackArgument());
-                assertEquals(true, ev.isCallbackArgumentAvailable());
-                assertTrue(ev.isOriginRemote());
-                assertTrue(ev.getOperation().isDistributed());
+      {
+        txMgr.begin();
+        rgn.destroy("key");
+        TransactionId txId = txMgr.getTransactionId();
+        txMgr.commit();
+        getSystem().getLogWriter().info("testTXSimpleOps: destroy key");
+        // validate each of the CacheListeners EntryEvents
+        Invoke.invokeInEveryVM(new SerializableRunnable() {
+          public void run() {
+            assertCacheCallbackEvents(rgnName, txId, "key", null, null);
+          }
+        });
+        Invoke.invokeInEveryVMRepeatingIfNecessary(
+            new CacheSerializableRunnable("testTXSimpleOps: Verify Received Value") {
+              @Override
+              public void run2() {
+                Region rgn1 = getRootRegion().getSubregion(rgnName);
+                assertTrue(!rgn1.containsKey("key"));
+                CacheTransactionManager txMgr2 = getCache().getCacheTransactionManager();
+                MyTransactionListener tl = (MyTransactionListener) txMgr2.getListeners()[0];
+                tl.checkAfterCommitCount(4);
+                assertEquals(rgn1.getCache(), tl.lastEvent.getCache());
+                {
+                  Collection events = TxEventTestUtil.getDestroyEvents(tl.lastEvent.getEvents());
+                  assertEquals(1, events.size());
+                  EntryEvent ev = (EntryEvent) events.iterator().next();
+                  assertEquals(tl.expectedTxId, ev.getTransactionId());
+                  assertTrue(ev.getRegion() == rgn1);
+                  assertEquals("key", ev.getKey());
+                  assertEquals(null, ev.getNewValue());
+                  assertEquals(null, ev.getOldValue());
+                  assertTrue(!ev.getOperation().isLocalLoad());
+                  assertTrue(!ev.getOperation().isNetLoad());
+                  assertTrue(!ev.getOperation().isLoad());
+                  assertTrue(!ev.getOperation().isNetSearch());
+                  assertTrue(!ev.getOperation().isExpiration());
+                  assertEquals(null, ev.getCallbackArgument());
+                  assertEquals(true, ev.isCallbackArgumentAvailable());
+                  assertTrue(ev.isOriginRemote());
+                  assertTrue(ev.getOperation().isDistributed());
+                }
+                CountingDistCacheListener cdcL =
+                    (CountingDistCacheListener) rgn1.getAttributes().getCacheListeners()[0];
+                cdcL.assertCount(0, 2, 1, 1);
               }
-              CountingDistCacheListener cdcL =
-                  (CountingDistCacheListener) rgn1.getAttributes().getCacheListeners()[0];
-              cdcL.assertCount(0, 2, 1, 1);
-            }
-          }, getRepeatTimeoutMs());
+            }, getRepeatTimeoutMs());
+      }
 
     } catch (Exception e) {
-      CacheFactory.getInstance(getSystem()).close();
+      getCache().close();
       getSystem().getLogWriter().fine("testTXSimpleOps: Caused exception in createRegion");
       throw e;
     }
@@ -6260,7 +6249,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
 
   /**
    * Indicate whether this region supports transactions
-   * 
+   *
    * @return true if it supports transactions
    */
   protected boolean supportsTransactions() {
@@ -6276,7 +6265,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
   public void testTXUpdateLoadNoConflict() throws Exception {
     /*
      * this no longer holds true - we have load conflicts now
-     * 
+     *
      */
     if (true) {
       return;
@@ -6342,10 +6331,10 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       vm0.invoke(create);
 
       {
-        TXStateProxy tx = ((TXManagerImpl) txMgr).internalSuspend();
+        TXStateProxy tx = ((TXManagerImpl) txMgr).pauseTransaction();
         assertTrue(rgn.containsKey("key"));
         assertEquals("LV 1", rgn.getEntry("key").getValue());
-        ((TXManagerImpl) txMgr).internalResume(tx);
+        ((TXManagerImpl) txMgr).unpauseTransaction(tx);
       }
       // make sure transactional view is still correct
       assertEquals("txValue", rgn.getEntry("key").getValue());
@@ -6354,7 +6343,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       getSystem().getLogWriter().info("testTXUpdateLoadNoConflict: did commit");
       assertEquals("txValue", rgn.getEntry("key").getValue());
       {
-        Collection events = tl.lastEvent.getCreateEvents();
+        Collection events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
         assertEquals(1, events.size());
         EntryEvent ev = (EntryEvent) events.iterator().next();
         assertEquals(myTXId, ev.getTransactionId());
@@ -6390,11 +6379,11 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       rgn.create("key3", "txValue3");
 
       {
-        TXStateProxy tx = ((TXManagerImpl) txMgr).internalSuspend();
+        TXStateProxy tx = ((TXManagerImpl) txMgr).pauseTransaction();
         // do a get outside of the transaction to force a net load
         Object v3 = rgn.get("key3");
         assertEquals("LV 3", v3);
-        ((TXManagerImpl) txMgr).internalResume(tx);
+        ((TXManagerImpl) txMgr).unpauseTransaction(tx);
       }
       // make sure transactional view is still correct
       assertEquals("txValue3", rgn.getEntry("key3").getValue());
@@ -6403,7 +6392,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       getSystem().getLogWriter().info("testTXUpdateLoadNoConflict: did commit");
       assertEquals("txValue3", rgn.getEntry("key3").getValue());
       {
-        Collection events = tl.lastEvent.getCreateEvents();
+        Collection events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
         assertEquals(1, events.size());
         EntryEvent ev = (EntryEvent) events.iterator().next();
         assertEquals(myTXId, ev.getTransactionId());
@@ -6448,11 +6437,11 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       rgn.put("key", "new txValue");
 
       {
-        TXStateProxy tx = ((TXManagerImpl) txMgr).internalSuspend();
+        TXStateProxy tx = ((TXManagerImpl) txMgr).pauseTransaction();
         // do a get outside of the transaction to force a netsearch
         assertEquals("txValue", rgn.get("key")); // does a netsearch
         assertEquals("txValue", rgn.getEntry("key").getValue());
-        ((TXManagerImpl) txMgr).internalResume(tx);
+        ((TXManagerImpl) txMgr).unpauseTransaction(tx);
       }
       // make sure transactional view is still correct
       assertEquals("new txValue", rgn.getEntry("key").getValue());
@@ -6462,7 +6451,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       getSystem().getLogWriter().info("testTXUpdateLoadNoConflict: did commit");
       assertEquals("new txValue", rgn.getEntry("key").getValue());
       {
-        Collection events = tl.lastEvent.getPutEvents();
+        Collection events = TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents());
         assertEquals(1, events.size());
         EntryEvent ev = (EntryEvent) events.iterator().next();
         assertEquals(myTXId, ev.getTransactionId());
@@ -6508,7 +6497,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       txMgr.rollback();
       assertSame(localCmtValue, rgn.getEntry("key").getValue());
     } catch (Exception e) {
-      CacheFactory.getInstance(getSystem()).close();
+      getCache().close();
       getSystem().getLogWriter()
           .fine("testTXUpdateLoadNoConflict: Caused exception in createRegion");
       throw e;
@@ -6636,9 +6625,9 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
           Collection events;
           RegionAttributes attr = getRegionAttributes();
           if (!attr.getDataPolicy().withReplication() || attr.getConcurrencyChecksEnabled()) {
-            events = tl.lastEvent.getPutEvents();
+            events = TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents());
           } else {
-            events = tl.lastEvent.getCreateEvents();
+            events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
           }
           assertEquals(2, events.size());
           ArrayList eventList = new ArrayList(events);
@@ -6713,9 +6702,9 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
           Collection events;
           RegionAttributes attr = getRegionAttributes();
           if (!attr.getDataPolicy().withReplication() || attr.getConcurrencyChecksEnabled()) {
-            events = tl.lastEvent.getPutEvents();
+            events = TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents());
           } else {
-            events = tl.lastEvent.getCreateEvents();
+            events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
           }
           assertEquals(2, events.size());
           ArrayList eventList = new ArrayList(events);
@@ -6784,9 +6773,9 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
           Collection events;
           RegionAttributes attr = getRegionAttributes();
           if (!attr.getDataPolicy().withReplication() || attr.getConcurrencyChecksEnabled()) {
-            events = tl.lastEvent.getPutEvents();
+            events = TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents());
           } else {
-            events = tl.lastEvent.getCreateEvents();
+            events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
           }
           assertEquals(1, events.size());
           EntryEvent ev = (EntryEvent) events.iterator().next();
@@ -6824,9 +6813,9 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
           Collection events;
           RegionAttributes attr = getRegionAttributes();
           if (!attr.getDataPolicy().withReplication() || attr.getConcurrencyChecksEnabled()) {
-            events = tl.lastEvent.getPutEvents();
+            events = TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents());
           } else {
-            events = tl.lastEvent.getCreateEvents();
+            events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
           }
           assertEquals(1, events.size());
           EntryEvent ev = (EntryEvent) events.iterator().next();
@@ -6864,9 +6853,9 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
           Collection events;
           RegionAttributes attr = getRegionAttributes();
           if (!attr.getDataPolicy().withReplication() || attr.getConcurrencyChecksEnabled()) {
-            events = tl.lastEvent.getPutEvents();
+            events = TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents());
           } else {
-            events = tl.lastEvent.getCreateEvents();
+            events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
           }
           assertEquals(1, events.size());
           EntryEvent ev = (EntryEvent) events.iterator().next();
@@ -7267,7 +7256,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       rgn2.destroyRegion();
       rgn3.destroyRegion();
     } catch (Exception e) {
-      CacheFactory.getInstance(getSystem()).close();
+      getCache().close();
       getSystem().getLogWriter().fine("testTXMultiRegion: Caused exception in createRegion");
       throw e;
     }
@@ -7333,7 +7322,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
         assertEquals(0, tl.closeCount);
         assertEquals(rgn.getCache(), tl.lastEvent.getCache());
         {
-          Collection events = tl.lastEvent.getCreateEvents();
+          Collection events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
           assertEquals(1, events.size());
           EntryEvent ev = (EntryEvent) events.iterator().next();
           // assertIndexDetailsEquals(tl.expectedTxId, ev.getTransactionId());
@@ -7366,8 +7355,8 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
         assertEquals(0, tl.afterFailedCommitCount);
         assertEquals(0, tl.afterRollbackCount);
         assertEquals(0, tl.closeCount);
-        assertEquals(0, tl.lastEvent.getCreateEvents().size());
-        assertEquals(0, tl.lastEvent.getPutEvents().size());
+        assertEquals(0, TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents()).size());
+        assertEquals(0, TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents()).size());
         assertEquals(rgn.getCache(), tl.lastEvent.getCache());
       }
     };
@@ -7405,7 +7394,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       // Make sure that a remote put, that modifies an existing entry,
       // done in a tx is dropped in a remote mirror that does not have the entry.
     } catch (Exception e) {
-      CacheFactory.getInstance(getSystem()).close();
+      getCache().close();
       getSystem().getLogWriter().fine("textTXRmtMirror: Caused exception in createRegion");
       throw e;
     }
@@ -7485,9 +7474,9 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
             Collection events;
             RegionAttributes attr = getRegionAttributes();
             if (!attr.getDataPolicy().withReplication() || attr.getConcurrencyChecksEnabled()) {
-              events = tl.lastEvent.getPutEvents();
+              events = TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents());
             } else {
-              events = tl.lastEvent.getCreateEvents();
+              events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
             }
             assertEquals(1, events.size());
             EntryEvent ev = (EntryEvent) events.iterator().next();
@@ -7511,7 +7500,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       assertEquals("value2", rgn.getEntry("key").getValue());
       {
         localTl.assertCounts(1, 0, 0, 0);
-        Collection events = localTl.lastEvent.getCreateEvents();
+        Collection events = TxEventTestUtil.getCreateEvents(localTl.lastEvent.getEvents());
         assertEquals(myTXId, localTl.lastEvent.getTransactionId());
         assertEquals(1, events.size());
         EntryEvent ev = (EntryEvent) events.iterator().next();
@@ -7564,9 +7553,9 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
                 Collection events;
                 RegionAttributes attr = getRegionAttributes();
                 if (!attr.getDataPolicy().withReplication() || attr.getConcurrencyChecksEnabled()) {
-                  events = tl.lastEvent.getPutEvents();
+                  events = TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents());
                 } else {
-                  events = tl.lastEvent.getCreateEvents();
+                  events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
                 }
                 assertEquals(1, events.size());
                 EntryEvent ev = (EntryEvent) events.iterator().next();
@@ -7591,7 +7580,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       assertTrue(!rgn.containsValueForKey("key"));
       localTl.assertCounts(2, 0, 0, 0);
       {
-        Collection events = localTl.lastEvent.getCreateEvents();
+        Collection events = TxEventTestUtil.getCreateEvents(localTl.lastEvent.getEvents());
         assertEquals(myTXId, localTl.lastEvent.getTransactionId());
         assertEquals(1, events.size());
         EntryEvent ev = (EntryEvent) events.iterator().next();
@@ -7670,7 +7659,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
         assertNull(rgn.getEntry("key").getValue());
         localTl.assertCounts(3, 0, 0, 0);
         {
-          Collection events = localTl.lastEvent.getInvalidateEvents();
+          Collection events = TxEventTestUtil.getInvalidateEvents(localTl.lastEvent.getEvents());
           assertEquals(1, events.size());
           EntryEvent ev = (EntryEvent) events.iterator().next();
           assertEquals(myTXId, ev.getTransactionId());
@@ -7717,7 +7706,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
           assertTrue(!rgn1.containsValueForKey("key"));
           tl.assertCounts(3, 0, 0, 0);
           {
-            Collection events = tl.lastEvent.getDestroyEvents();
+            Collection events = TxEventTestUtil.getDestroyEvents(tl.lastEvent.getEvents());
             assertEquals(1, events.size());
             EntryEvent ev = (EntryEvent) events.iterator().next();
             // assertIndexDetailsEquals(tl.expectedTxId, ev.getTransactionId());
@@ -7781,9 +7770,9 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
                 Collection events;
                 RegionAttributes attr = getRegionAttributes();
                 if (!attr.getDataPolicy().withReplication() || attr.getConcurrencyChecksEnabled()) {
-                  events = tl.lastEvent.getPutEvents();
+                  events = TxEventTestUtil.getPutEvents(tl.lastEvent.getEvents());
                 } else {
-                  events = tl.lastEvent.getCreateEvents();
+                  events = TxEventTestUtil.getCreateEvents(tl.lastEvent.getEvents());
                 }
                 assertEquals(1, events.size());
                 EntryEvent ev = (EntryEvent) events.iterator().next();
@@ -7808,7 +7797,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       assertTrue(!rgn.containsValueForKey("key"));
       localTl.assertCounts(4, 0, 0, 0);
       {
-        Collection events = localTl.lastEvent.getCreateEvents();
+        Collection events = TxEventTestUtil.getCreateEvents(localTl.lastEvent.getEvents());
         assertEquals(myTXId, localTl.lastEvent.getTransactionId());
         assertEquals(1, events.size());
         EntryEvent ev = (EntryEvent) events.iterator().next();
@@ -7854,7 +7843,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       assertEquals("value2", rgn.getEntry("key").getValue());
       localTl.assertCounts(5, 0, 0, 0);
       {
-        Collection events = localTl.lastEvent.getCreateEvents();
+        Collection events = TxEventTestUtil.getCreateEvents(localTl.lastEvent.getEvents());
         assertEquals(myTXId, localTl.lastEvent.getTransactionId());
         assertEquals(1, events.size());
         EntryEvent ev = (EntryEvent) events.iterator().next();
@@ -7878,7 +7867,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
 
 
     } catch (Exception e) {
-      CacheFactory.getInstance(getSystem()).close();
+      getCache().close();
       getSystem().getLogWriter().fine("testTXAlgebra: Caused exception in createRegion");
       throw e;
     }
@@ -9174,8 +9163,7 @@ public abstract class MultiVMRegionTestCase extends RegionTestCase {
       try {
         org.apache.geode.distributed.internal.SerialAckedMessage msg =
             new org.apache.geode.distributed.internal.SerialAckedMessage();
-        msg.send(InternalDistributedSystem.getConnectedInstance().getDM()
-            .getNormalDistributionManagerIds(), false);
+        msg.send(getCache().getDistributionManager().getNormalDistributionManagerIds(), false);
       } catch (Exception e) {
         throw new RuntimeException("Unable to send serial message due to exception", e);
       }

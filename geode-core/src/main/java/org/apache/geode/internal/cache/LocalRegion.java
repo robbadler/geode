@@ -17,6 +17,45 @@ package org.apache.geode.internal.cache;
 import static org.apache.geode.internal.lang.SystemUtils.getLineSeparator;
 import static org.apache.geode.internal.offheap.annotations.OffHeapIdentifier.ENTRY_EVENT_NEW_VALUE;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.AbstractSet;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.transaction.RollbackException;
+import javax.transaction.Status;
+import javax.transaction.SystemException;
+import javax.transaction.Transaction;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.CancelCriterion;
 import org.apache.geode.CancelException;
 import org.apache.geode.CopyHelper;
@@ -27,6 +66,7 @@ import org.apache.geode.DeltaSerializationException;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.LogWriter;
+import org.apache.geode.Statistics;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.admin.internal.SystemMemberCacheEventProcessor;
 import org.apache.geode.cache.AttributesMutator;
@@ -105,11 +145,10 @@ import org.apache.geode.cache.query.internal.index.IndexUtils;
 import org.apache.geode.cache.util.ObjectSizer;
 import org.apache.geode.cache.wan.GatewaySender;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.DistributionAdvisor;
 import org.apache.geode.distributed.internal.DistributionAdvisor.Profile;
 import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionStats;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.ResourceEvent;
@@ -131,15 +170,21 @@ import org.apache.geode.internal.cache.control.InternalResourceManager.ResourceT
 import org.apache.geode.internal.cache.control.MemoryEvent;
 import org.apache.geode.internal.cache.control.MemoryThresholds;
 import org.apache.geode.internal.cache.control.ResourceListener;
+import org.apache.geode.internal.cache.entries.DiskEntry;
+import org.apache.geode.internal.cache.event.EventTracker;
+import org.apache.geode.internal.cache.event.NonDistributedEventTracker;
+import org.apache.geode.internal.cache.eviction.EvictableEntry;
+import org.apache.geode.internal.cache.eviction.EvictionController;
+import org.apache.geode.internal.cache.eviction.EvictionCounters;
 import org.apache.geode.internal.cache.execute.DistributedRegionFunctionExecutor;
 import org.apache.geode.internal.cache.execute.DistributedRegionFunctionResultSender;
 import org.apache.geode.internal.cache.execute.LocalResultCollector;
 import org.apache.geode.internal.cache.execute.RegionFunctionContextImpl;
 import org.apache.geode.internal.cache.execute.ServerToClientFunctionResultSender;
 import org.apache.geode.internal.cache.ha.ThreadIdentifier;
-import org.apache.geode.internal.cache.lru.LRUEntry;
 import org.apache.geode.internal.cache.partitioned.Bucket;
 import org.apache.geode.internal.cache.partitioned.RedundancyAlreadyMetException;
+import org.apache.geode.internal.cache.persistence.DefaultDiskDirs;
 import org.apache.geode.internal.cache.persistence.DiskExceptionHandler;
 import org.apache.geode.internal.cache.persistence.DiskRecoveryStore;
 import org.apache.geode.internal.cache.persistence.DiskRegionView;
@@ -152,7 +197,6 @@ import org.apache.geode.internal.cache.tier.sockets.ClientHealthMonitor;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
 import org.apache.geode.internal.cache.tier.sockets.ClientTombstoneMessage;
 import org.apache.geode.internal.cache.tier.sockets.ClientUpdateMessage;
-import org.apache.geode.internal.cache.tier.sockets.HandShake;
 import org.apache.geode.internal.cache.tier.sockets.VersionedObjectList;
 import org.apache.geode.internal.cache.versions.ConcurrentCacheModificationException;
 import org.apache.geode.internal.cache.versions.RegionVersionHolder;
@@ -163,6 +207,7 @@ import org.apache.geode.internal.cache.versions.VersionTag;
 import org.apache.geode.internal.cache.wan.AbstractGatewaySender;
 import org.apache.geode.internal.cache.wan.GatewaySenderEventCallbackArgument;
 import org.apache.geode.internal.i18n.LocalizedStrings;
+import org.apache.geode.internal.lang.SystemPropertyHelper;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.logging.log4j.LogMarker;
@@ -174,49 +219,12 @@ import org.apache.geode.internal.offheap.annotations.Released;
 import org.apache.geode.internal.offheap.annotations.Retained;
 import org.apache.geode.internal.offheap.annotations.Unretained;
 import org.apache.geode.internal.sequencelog.EntryLogger;
+import org.apache.geode.internal.util.concurrent.CopyOnWriteHashMap;
 import org.apache.geode.internal.util.concurrent.FutureResult;
 import org.apache.geode.internal.util.concurrent.StoppableCountDownLatch;
 import org.apache.geode.internal.util.concurrent.StoppableReadWriteLock;
 import org.apache.geode.pdx.JSONFormatter;
 import org.apache.geode.pdx.PdxInstance;
-import org.apache.logging.log4j.Logger;
-
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.AbstractSet;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import javax.transaction.RollbackException;
-import javax.transaction.Status;
-import javax.transaction.SystemException;
-import javax.transaction.Transaction;
 
 /**
  * Implementation of a local scoped-region. Note that this class has a different meaning starting
@@ -233,7 +241,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Internal interface used to simulate failures when performing entry operations
-   * 
+   *
    * @since GemFire 5.7
    */
   public interface TestCallable {
@@ -326,13 +334,10 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    */
   private final boolean supportsTX;
 
-  /** tracks threadID->seqno information for this region */
-  EventTracker eventTracker;
-
   /**
    * tracks region-level version information for members
    */
-  private RegionVersionVector versionVector;
+  private final RegionVersionVector versionVector;
 
   private static final Pattern[] QUERY_PATTERNS = new Pattern[] {
       Pattern.compile("^\\(*select .*",
@@ -440,6 +445,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   private final ImageState imageState;
 
+  private final EventTracker eventTracker;
+
   /**
    * Register interest count to track if any register interest is in progress for this region. This
    * count will be incremented when register interest starts and decremented when register interest
@@ -469,7 +476,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * <p>
    * TODO: move this to ClientMetadataService into {@code Map<Region, Lock>}
    */
-  public final Lock clientMetaDataLock = new ReentrantLock();
+  private final Lock clientMetaDataLock = new ReentrantLock();
 
   /**
    * There seem to be cases where a region can be created and yet the distributed system is not yet
@@ -518,14 +525,14 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * ThreadLocal used to set the current region being initialized.
-   * 
+   *
    * Currently used by the OpLog layer.
    */
   private static final ThreadLocal<LocalRegion> initializingRegion = new ThreadLocal<LocalRegion>();
 
   /**
    * Get the current initializing region as set in the ThreadLocal.
-   * 
+   *
    * Note that this value is cleared after the initialization of LocalRegion is done so is valid
    * only for the duration of region creation and initialization.
    */
@@ -533,11 +540,13 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return initializingRegion.get();
   }
 
+  @Override
   public CancelCriterion getCancelCriterion() {
     return this.stopper;
   }
 
-  Map<String, CacheServiceProfile> cacheServiceProfiles;
+  private final CopyOnWriteHashMap<String, CacheServiceProfile> cacheServiceProfiles =
+      new CopyOnWriteHashMap<>();
 
   private static String calcFullPath(String regionName, LocalRegion parentRegion) {
     StringBuilder buf = null;
@@ -630,9 +639,9 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     this.isUsedForParallelGatewaySenderQueue =
         internalRegionArgs.isUsedForParallelGatewaySenderQueue();
     this.serialGatewaySender = internalRegionArgs.getSerialGatewaySender();
-    this.cacheServiceProfiles =
-        internalRegionArgs.getCacheServiceProfiles() == null ? Collections.emptyMap()
-            : Collections.unmodifiableMap(internalRegionArgs.getCacheServiceProfiles());
+    if (internalRegionArgs.getCacheServiceProfiles() != null) {
+      this.cacheServiceProfiles.putAll(internalRegionArgs.getCacheServiceProfiles());
+    }
 
     if (!isUsedForMetaRegion && !isUsedForPartitionedRegionAdmin
         && !isUsedForPartitionedRegionBucket && !isUsedForSerialGatewaySenderQueue
@@ -646,13 +655,18 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
         getDataPolicy().withReplication() || getDataPolicy().isPreloaded(),
         getAttributes().getDataPolicy().withPersistence(), this.stopper);
 
-    createEventTracker();
-
     // prevent internal regions from participating in a TX, bug 38709
     this.supportsTX = !isSecret() && !isUsedForPartitionedRegionAdmin() && !isUsedForMetaRegion()
         || isMetaRegionWithTransactions();
 
     this.testCallable = internalRegionArgs.getTestCallable();
+    eventTracker = createEventTracker();
+
+    versionVector = createRegionVersionVector();
+  }
+
+  protected EventTracker createEventTracker() {
+    return NonDistributedEventTracker.getInstance();
   }
 
   private RegionMap createRegionMap(InternalRegionArguments internalRegionArgs) {
@@ -676,37 +690,22 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   /**
-   * initialize the event tracker. Not all region implementations want or need one of these. Regions
-   * that require one should reimplement this method and create one like so:
-   *
-   * <pre>
-   * {@code
-   * this.eventTracker = new EventTracker(this.cache);
-   * this.eventTracker.start();
-   * }
-   * </pre>
+   * Other region classes may track events using different mechanisms than EventTrackers or may not
+   * track events at all
    */
-  void createEventTracker() {
-    // if LocalRegion is changed to have an event tracker, then the initialize()
-    // method should be changed to set it to "initialized" state when the
-    // region finishes initialization
-  }
-
-  /**
-   * Other region classes may track events using different mechanisms than EventTrackers
-   */
-  EventTracker getEventTracker() {
-    return this.eventTracker;
+  public EventTracker getEventTracker() {
+    return eventTracker;
   }
 
   /** returns the regions version-vector */
+  @Override
   public RegionVersionVector getVersionVector() {
     return this.versionVector;
   }
 
   /** returns object used to guard the size() operation during tombstone removal */
   Object getSizeGuard() {
-    if (!this.concurrencyChecksEnabled) {
+    if (!this.getConcurrencyChecksEnabled()) {
       return new Object();
     } else {
       return this.fullPath; // avoids creating another sync object - could be anything unique to
@@ -714,24 +713,32 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     }
   }
 
-  /** initializes a new version vector for this region */
-  void createVersionVector() {
-    this.versionVector = RegionVersionVector.create(getVersionMember(), this);
+  protected RegionVersionVector createRegionVersionVector() {
+    if (getConcurrencyChecksEnabled()) {
+      return createVersionVector();
+    }
+    return null;
+  }
 
-    if (this.dataPolicy.withPersistence()) {
+  /** initializes a new version vector for this region */
+  private RegionVersionVector createVersionVector() {
+    RegionVersionVector regionVersionVector = RegionVersionVector.create(getVersionMember(), this);
+
+    if (this.getDataPolicy().withPersistence()) {
       // copy the versions that we have recovered from disk into
       // the version vector.
-      RegionVersionVector diskVector = this.diskRegion.getRegionVersionVector();
-      this.versionVector.recordVersions(diskVector.getCloneForTransmission());
-    } else if (!this.dataPolicy.withStorage()) {
+      RegionVersionVector diskVector = diskRegion.getRegionVersionVector();
+      regionVersionVector.recordVersions(diskVector.getCloneForTransmission());
+    } else if (!this.getDataPolicy().withStorage()) {
       // version vectors are currently only necessary in empty regions for
       // tracking canonical member IDs
-      this.versionVector.turnOffRecordingForEmptyRegion();
+      regionVersionVector.turnOffRecordingForEmptyRegion();
     }
-    if (this.serverRegionProxy != null) {
-      this.versionVector.setIsClientVector();
+    if (serverRegionProxy != null) {
+      regionVersionVector.setIsClientVector();
     }
-    this.cache.getDistributionManager().addMembershipListener(this.versionVector);
+    cache.getDistributionManager().addMembershipListener(regionVersionVector);
+    return regionVersionVector;
   }
 
   @Override
@@ -753,7 +760,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Test hook - returns the version stamp for an entry in the form of a version tag
-   * 
+   *
    * @return the entry version information
    */
   public VersionTag getVersionTag(Object key) {
@@ -789,10 +796,12 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   private final InternalDataView sharedDataView;
 
+  @Override
   public ServerRegionProxy getServerProxy() {
     return this.serverRegionProxy;
   }
 
+  @Override
   public boolean hasServerProxy() {
     return this.serverRegionProxy != null;
   }
@@ -844,12 +853,13 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * @since GemFire 5.0
    */
   @Override
-  protected InternalDistributedMember getMyId() {
+  public InternalDistributedMember getMyId() {
     return this.cache.getInternalDistributedSystem().getDistributedMember();
   }
 
+  @Override
   public VersionSource getVersionMember() {
-    if (this.dataPolicy.withPersistence()) {
+    if (this.getDataPolicy().withPersistence()) {
       return getDiskStore().getDiskStoreID();
     } else {
       return this.cache.getInternalDistributedSystem().getDistributedMember();
@@ -857,6 +867,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   // TODO: createSubregion method is too complex for IDE to analyze
+  @Override
   public Region createSubregion(String subregionName, RegionAttributes attrs,
       InternalRegionArguments internalRegionArgs)
       throws RegionExistsException, TimeoutException, IOException, ClassNotFoundException {
@@ -1120,7 +1131,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   @Retained
   EntryEventImpl newDestroyEntryEvent(Object key, Object aCallbackArgument) {
     validateKey(key);
-    validateCallbackArg(aCallbackArgument);
     checkReadiness();
     checkForLimitedOrNoAccess();
 
@@ -1131,20 +1141,13 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   @Override
   public void destroyRegion(Object aCallbackArgument)
       throws CacheWriterException, TimeoutException {
+    this.cache.invokeBeforeDestroyed(this);
     getDataView().checkSupportsRegionDestroy();
     checkForLimitedOrNoAccess();
 
     RegionEventImpl event = new RegionEventImpl(this, Operation.REGION_DESTROY, aCallbackArgument,
         false, getMyId(), generateEventID());
     basicDestroyRegion(event, true);
-  }
-
-  protected void invokeBeforeRegionDestroyInServices() {
-    for (CacheService service : this.cache.getServices()) {
-      if (service instanceof RegionService) {
-        ((RegionService) service).beforeRegionDestroyed(this);
-      }
-    }
   }
 
   public InternalDataView getDataView() {
@@ -1157,7 +1160,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Fetch the de-serialized value from non-transactional state.
-   * 
+   *
    * @param keyInfo to which the value is associated
    * @param updateStats true if the entry stats should be updated.
    * @param disableCopyOnRead if true then disable copy on read
@@ -1325,7 +1328,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * The result of this operation may be an off-heap reference that the caller must release.
-   * 
+   *
    * @param opScopeIsLocal if true then just check local storage for a value; if false then try to
    *        find the value if it is not local
    */
@@ -1349,7 +1352,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       boolean retainResult) throws TimeoutException, CacheLoaderException {
     assert !retainResult || preferCD;
     validateKey(key);
-    validateCallbackArg(aCallbackArgument);
     checkReadiness();
     checkForNoAccess();
     discoverJTA();
@@ -1394,7 +1396,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Update region and potentially entry stats for the miss case
-   * 
+   *
    * @param re optional region entry, fetched if null
    * @param key the key used to fetch the region entry
    */
@@ -1413,7 +1415,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * optimized to only allow one thread to do a search/load, other threads wait on a future
-   * 
+   *
    * @param isCreate true if call found no entry; false if updating an existing entry
    * @param localValue the value retrieved from the region for this object.
    * @param disableCopyOnRead if true then do not make a copy
@@ -1563,7 +1565,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   @Override
   public void invalidateRegion(Object aCallbackArgument) throws TimeoutException {
     getDataView().checkSupportsRegionInvalidate();
-    validateCallbackArg(aCallbackArgument);
     checkReadiness();
     checkForLimitedOrNoAccess();
     RegionEventImpl event = new RegionEventImpl(this, Operation.REGION_INVALIDATE,
@@ -1680,7 +1681,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
           if (!extractDelta && ClientHealthMonitor.getInstance() != null) {
             extractDelta = ClientHealthMonitor.getInstance().hasDeltaClients();
           }
-        } else if (HandShake.isDeltaEnabledOnServer()) {
+        } else if (getSystem().isDeltaEnabledOnServer()) {
           // This is a client region
           extractDelta = true;
         }
@@ -1747,7 +1748,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * Just like getEntry but also updates the stats that get would have depending on a flag. See bug
    * 42410. Also skips discovering JTA
-   * 
+   *
    * @return the entry if it exists; otherwise null.
    */
   public Entry accessEntry(Object key, boolean updateStats) {
@@ -1805,9 +1806,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return new NonTXEntry(re);
   }
 
-  /**
-   * @return boolean
-   */
   protected boolean isClosed() {
     return this.cache.isClosed();
   }
@@ -1817,7 +1815,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * {@link #isDestroyed()} this method will not return true if the cache is closing but has not yet
    * started closing this region.
    */
-  boolean isThisRegionBeingClosedOrDestroyed() {
+  @Override
+  public boolean isThisRegionBeingClosedOrDestroyed() {
     return this.isDestroyed;
   }
 
@@ -1844,7 +1843,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   /** a variant of subregions() that does not perform a readiness check */
-  Set basicSubregions(boolean recursive) {
+  @Override
+  public Set basicSubregions(boolean recursive) {
     return new SubregionsSet(recursive);
   }
 
@@ -1858,6 +1858,9 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   public Set entrySet(boolean recursive) {
     checkReadiness();
     checkForNoAccess();
+    if (!restoreSetOperationTransactionBehavior) {
+      discoverJTA();
+    }
     return basicEntries(recursive);
   }
 
@@ -1868,7 +1871,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Flavor of keys that will not do repeatable read
-   * 
+   *
    * @since GemFire 5.5
    */
   public Set testHookKeys() {
@@ -1880,12 +1883,15 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   public Set keys() {
     checkReadiness();
     checkForNoAccess();
+    if (!restoreSetOperationTransactionBehavior) {
+      discoverJTA();
+    }
     return new EntriesSet(this, false, IteratorType.KEYS, false);
   }
 
   /**
    * return a set of the keys in this region
-   * 
+   *
    * @param allowTombstones whether destroyed entries should be included
    * @return the keys
    */
@@ -1899,6 +1905,9 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   public Collection values() {
     checkReadiness();
     checkForNoAccess();
+    if (!restoreSetOperationTransactionBehavior) {
+      discoverJTA();
+    }
     return new EntriesSet(this, false, IteratorType.VALUES, false);
   }
 
@@ -1923,7 +1932,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   public boolean containsTombstone(Object key) {
     checkReadiness();
     checkForNoAccess();
-    if (!this.concurrencyChecksEnabled) {
+    if (!this.getConcurrencyChecksEnabled()) {
       return false;
     } else {
       try {
@@ -2001,7 +2010,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * Convenience method to get region name for logging/exception messages. if this region is an
    * instanceof bucket region, it returns the bucket region name
-   * 
+   *
    * @return name of the region or the owning partitioned region
    */
   public String getDisplayName() {
@@ -2035,12 +2044,12 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * @return size after considering imageState
    */
-  protected int getRegionSize() {
+  public int getRegionSize() {
     synchronized (getSizeGuard()) {
       int result = getRegionMap().size();
       // if this is a client with no tombstones then we subtract the number
       // of entries being affected by register-interest refresh
-      if (this.imageState.isClient() && !this.concurrencyChecksEnabled) {
+      if (this.imageState.isClient() && !this.getConcurrencyChecksEnabled()) {
         return result - this.imageState.getDestroyedEntriesCount();
       }
       return result - this.tombstoneCount.get();
@@ -2054,6 +2063,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    *
    * @since GemFire 3.2
    */
+  @Override
   public DiskRegion getDiskRegion() {
     return this.diskRegion;
   }
@@ -2265,21 +2275,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   /**
-   * Look up the LocalRegion with the specified full path.
-   *
-   * @param system the distributed system whose cache contains the root of interest
-   * @return the LocalRegion or null if not found
-   */
-  static LocalRegion getRegionFromPath(DistributedSystem system, String path) {
-    Cache cache = GemFireCacheImpl.getInstance();
-    if (cache == null) {
-      return null;
-    } else {
-      return (LocalRegion) cache.getRegion(path);
-    }
-  }
-
-  /**
    * Do any extra initialization required. Region is already visible in parent's subregion map. This
    * method releases the initialization Latches, so subclasses should call this super method last
    * after performing additional initialization.
@@ -2288,7 +2283,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * @see DistributedRegion#initialize(InputStream, InternalDistributedMember,
    *      InternalRegionArguments)
    */
-  protected void initialize(InputStream snapshotInputStream, InternalDistributedMember imageTarget,
+  @Override
+  public void initialize(InputStream snapshotInputStream, InternalDistributedMember imageTarget,
       InternalRegionArguments internalRegionArgs)
       throws TimeoutException, IOException, ClassNotFoundException {
     if (!isInternalRegion()) {
@@ -2299,10 +2295,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       }
     }
 
-    // if we're versioning entries we need a region-level version vector
-    if (this.concurrencyChecksEnabled && this.versionVector == null) {
-      createVersionVector();
-    }
     // if not local, then recovery happens in InitialImageOperation
     if (this.scope.isLocal()) {
       createOQLIndexes(internalRegionArgs);
@@ -2384,7 +2376,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     List oqlIndexes = internalRegionArgs.getIndexes();
 
     if (this.indexManager == null) {
-      this.indexManager = IndexUtils.getIndexManager(this, true);
+      this.indexManager = IndexUtils.getIndexManager(cache, this, true);
     }
     DiskRegion dr = this.getDiskRegion();
     boolean isOverflowToDisk = false;
@@ -2441,13 +2433,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
           logger.info("Failed to create index {} on region {} with exception: {}",
               icd.getIndexName(), this.getFullPath(), ex);
 
-          // Check if the region index creation is from cache.xml, in that case throw exception.
-          // Other case is when bucket regions are created dynamically, in that case ignore the
-          // exception.
-          if (internalRegionArgs.getDeclarativeIndexCreation()) {
-            throw new InternalGemFireError(LocalizedStrings.GemFireCache_INDEX_CREATION_EXCEPTION_1
-                .toLocalizedString(icd.getIndexName(), this.getFullPath()), ex);
-          }
         }
       }
     } finally {
@@ -2562,11 +2547,9 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       }
     }
 
-    if (this.eventTracker != null) {
-      this.eventTracker.stop();
-    }
-    if (logger.isTraceEnabled(LogMarker.RVV) && getVersionVector() != null) {
-      logger.trace(LogMarker.RVV, "version vector for {} is {}", getName(),
+    getEventTracker().stop();
+    if (logger.isTraceEnabled(LogMarker.RVV_VERBOSE) && getVersionVector() != null) {
+      logger.trace(LogMarker.RVV_VERBOSE, "version vector for {} is {}", getName(),
           getVersionVector().fullToString());
     }
     cancelTTLExpiryTask();
@@ -2669,9 +2652,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       }
       this.cache.setRegionByPath(getFullPath(), null);
 
-      if (this.eventTracker != null) {
-        this.eventTracker.stop();
-      }
+      getEventTracker().stop();
 
       if (this.diskRegion != null) {
         this.diskRegion.prepareForClose(this);
@@ -2708,7 +2689,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       } else {
         closeAllCallbacks();
       }
-      if (this.concurrencyChecksEnabled && this.dataPolicy.withReplication()
+      if (this.getConcurrencyChecksEnabled() && this.getDataPolicy().withReplication()
           && !this.cache.isClosed()) {
         this.cache.getTombstoneService().unscheduleTombstones(this);
       }
@@ -2719,11 +2700,11 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   public void closeEntries() {
-    this.entries.close();
+    this.entries.close(null);
   }
 
   public Set<VersionSource> clearEntries(RegionVersionVector rvv) {
-    return this.entries.clear(rvv);
+    return this.entries.clear(rvv, null);
   }
 
   @Override
@@ -2735,10 +2716,11 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * This method should be called when the caller cannot locate an entry and that condition is
    * unexpected. This will first double check the cache and region state before throwing an
    * EntryNotFoundException. EntryNotFoundException should be a last resort exception.
-   * 
+   *
    * @param entryKey the missing entry's key.
    */
-  void checkEntryNotFound(Object entryKey) {
+  @Override
+  public void checkEntryNotFound(Object entryKey) {
     checkReadiness();
     // Localized string for partitioned region is generic enough for general use
     throw new EntryNotFoundException(
@@ -2746,11 +2728,11 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   /**
-   * 
+   *
    * Search for the value in a server (if one exists), then try a loader.
-   * 
+   *
    * If we find a value, we put it in the cache.
-   * 
+   *
    * @param preferCD return the CacheDeserializable, if that's what the value is.
    * @param requestingClient the client making the request, if any
    * @param clientEvent the client's event, if any. If not null, we set the version tag
@@ -2784,14 +2766,11 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       // copy into local var to prevent race condition
       CacheLoader loader = basicGetLoader();
       if (loader != null) {
-        final LoaderHelper loaderHelper =
-            this.loaderHelperFactory.createLoaderHelper(key, aCallbackArgument,
-                false /* netSearchAllowed */, true /* netloadAllowed */, null /* searcher */);
+        fromServer = false;
         CachePerfStats stats = getCachePerfStats();
         long statStart = stats.startLoad();
         try {
-          value = loader.load(loaderHelper);
-          fromServer = false;
+          value = callCacheLoader(loader, key, aCallbackArgument, preferCD);
         } finally {
           stats.endLoad(statStart);
         }
@@ -2800,7 +2779,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
     // don't allow tombstones into a client cache if it doesn't
     // have concurrency checks enabled
-    if (fromServer && value == Token.TOMBSTONE && !this.concurrencyChecksEnabled) {
+    if (fromServer && value == Token.TOMBSTONE && !this.getConcurrencyChecksEnabled()) {
       value = null;
     }
 
@@ -2877,6 +2856,16 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return value;
   }
 
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  protected Object callCacheLoader(CacheLoader loader, final Object key,
+      final Object aCallbackArgument, boolean preferCD) {
+    LoaderHelper loaderHelper = this.loaderHelperFactory.createLoaderHelper(key, aCallbackArgument,
+        false /* netSearchAllowed */, true /* netloadAllowed */, null /* searcher */);
+    Object result = loader.load(loaderHelper);
+    result = this.getCache().convertPdxInstanceIfNeeded(result, preferCD);
+    return result;
+  }
+
   protected boolean isMemoryThresholdReachedForLoad() {
     return this.memoryThresholdReached.get();
   }
@@ -2885,7 +2874,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * Returns true if the cache already has this key as an invalid entry with a version >= the one in
    * the given event. This is used in cache-miss processing to avoid overwriting the entry when it
    * is not necessary, so that we avoid invoking cache listeners.
-   * 
+   *
    * @return whether the entry is already invalid
    */
   private boolean alreadyInvalid(Object key, EntryEventImpl event) {
@@ -2914,7 +2903,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * @return true if cacheWrite was performed
    * @see DistributedRegion#cacheWriteBeforeDestroy(EntryEventImpl, Object)
    */
-  boolean cacheWriteBeforeDestroy(EntryEventImpl event, Object expectedOldValue)
+  @Override
+  public boolean cacheWriteBeforeDestroy(EntryEventImpl event, Object expectedOldValue)
       throws CacheWriterException, EntryNotFoundException, TimeoutException {
     boolean result = false;
     // copy into local var to prevent race condition
@@ -2922,9 +2912,11 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     if (writer != null && event.getOperation() != Operation.REMOVE
         && !event.inhibitAllNotifications()) {
       final long start = getCachePerfStats().startCacheWriterCall();
+      event.setReadOldValueFromDisk(true);
       try {
         writer.beforeDestroy(event);
       } finally {
+        event.setReadOldValueFromDisk(false);
         getCachePerfStats().endCacheWriterCall(start);
       }
       result = true;
@@ -2934,7 +2926,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   /** @return true if this was a client region; false if not */
-  boolean bridgeWriteBeforeDestroy(EntryEventImpl event, Object expectedOldValue)
+  @Override
+  public boolean bridgeWriteBeforeDestroy(EntryEventImpl event, Object expectedOldValue)
       throws CacheWriterException, EntryNotFoundException, TimeoutException {
     if (hasServerProxy()) {
       serverDestroy(event, expectedOldValue);
@@ -3036,7 +3029,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Destroy an entry on the server given its event.
-   * 
+   *
    * @since GemFire 5.7
    */
   void serverDestroy(EntryEventImpl event, Object expectedOldValue) {
@@ -3102,6 +3095,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     if (!isPutIfAbsentOrReplace && localWriter != null && !event.inhibitAllNotifications()) {
       final long start = getCachePerfStats().startCacheWriterCall();
       final boolean newEntry = event.getOperation().isCreate();
+      event.setReadOldValueFromDisk(true);
       try {
         if (!newEntry) {
           localWriter.beforeUpdate(event);
@@ -3109,6 +3103,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
           localWriter.beforeCreate(event);
         }
       } finally {
+        event.setReadOldValueFromDisk(false);
         getCachePerfStats().endCacheWriterCall(start);
       }
     }
@@ -3118,8 +3113,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   protected void validateArguments(Object key, Object value, Object aCallbackArgument) {
     validateKey(key);
     validateValue(value);
-    validateCallbackArg(aCallbackArgument);
-
   }
 
   void validateKey(Object key) {
@@ -3139,15 +3132,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     // We don't need to check that the key is Serializable. Instead,
     // we let the lower-level (data) serialization mechanism take care
     // of this for us. See bug 32394.
-  }
-
-  /**
-   * Starting in 3.5, we don't check to see if the callback argument is {@code Serializable}. We
-   * instead rely on the actual serialization (which happens in-thread with the put) to tell us if
-   * there are any problems. TODO: delete method validateCallbackArg
-   */
-  void validateCallbackArg(Object aCallbackArgument) {
-    // do nothing
   }
 
   /**
@@ -3216,7 +3200,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   /** regions track the number of tombstones their map holds for size calculations */
-  void incTombstoneCount(int delta) {
+  public void incTombstoneCount(int delta) {
     this.tombstoneCount.addAndGet(delta);
     this.cachePerfStats.incTombstoneCount(delta);
 
@@ -3229,7 +3213,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return this.tombstoneCount.get();
   }
 
-  void scheduleTombstone(RegionEntry entry, VersionTag destroyedVersion) {
+  @Override
+  public void scheduleTombstone(RegionEntry entry, VersionTag destroyedVersion) {
     scheduleTombstone(entry, destroyedVersion, false);
   }
 
@@ -3243,37 +3228,34 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       incTombstoneCount(1);
     }
 
-    if (logger.isTraceEnabled(LogMarker.TOMBSTONE_COUNT)) {
-      logger.trace(LogMarker.TOMBSTONE_COUNT,
+    if (logger.isTraceEnabled(LogMarker.TOMBSTONE_COUNT_VERBOSE)) {
+      logger.trace(LogMarker.TOMBSTONE_COUNT_VERBOSE,
           "{} tombstone for {} version={} count is {} entryMap size is {}",
           reschedule ? "rescheduling" : "scheduling", entry.getKey(),
           entry.getVersionStamp().asVersionTag(), this.tombstoneCount.get(),
           this.entries.size()/* , new Exception("stack trace") */);
-      // this can be useful for debugging tombstone count problems if there aren't a lot of
-      // concurrent threads
-      // if (TombstoneService.DEBUG_TOMBSTONE_COUNT && this.entries instanceof AbstractRegionMap) {
-      // ((AbstractRegionMap)this.entries).verifyTombstoneCount(tombstoneCount);
-      // }
     }
     getGemFireCache().getTombstoneService().scheduleTombstone(this, entry, destroyedVersion);
   }
 
-  void rescheduleTombstone(RegionEntry entry, VersionTag version) {
+  @Override
+  public void rescheduleTombstone(RegionEntry entry, VersionTag version) {
     scheduleTombstone(entry, version, true);
   }
 
-  void unscheduleTombstone(RegionEntry entry) {
+  @Override
+  public void unscheduleTombstone(RegionEntry entry) {
     unscheduleTombstone(entry, true);
   }
 
   private void unscheduleTombstone(RegionEntry entry, boolean validate) {
     incTombstoneCount(-1);
-    if (logger.isTraceEnabled(LogMarker.TOMBSTONE)) {
-      logger.trace(LogMarker.TOMBSTONE,
+    if (logger.isTraceEnabled(LogMarker.TOMBSTONE_VERBOSE)) {
+      logger.trace(LogMarker.TOMBSTONE_VERBOSE,
           "unscheduling tombstone for {} count is {} entryMap size is {}", entry.getKey(),
           this.tombstoneCount.get(), this.entries.size()/* , new Exception("stack trace") */);
     }
-    if (logger.isTraceEnabled(LogMarker.TOMBSTONE_COUNT) && validate) {
+    if (logger.isTraceEnabled(LogMarker.TOMBSTONE_COUNT_VERBOSE) && validate) {
       if (this.entries instanceof AbstractRegionMap) {
         ((AbstractRegionMap) this.entries).verifyTombstoneCount(this.tombstoneCount);
       }
@@ -3286,13 +3268,13 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * remove any tombstones from the given member that are <= the given version
-   * 
+   *
    * @param eventID event identifier for the GC operation
    * @param clientRouting routing info (if null a routing is computed)
    */
   public void expireTombstones(Map<VersionSource, Long> regionGCVersions, EventID eventID,
       FilterInfo clientRouting) {
-    if (!this.concurrencyChecksEnabled) {
+    if (!this.getConcurrencyChecksEnabled()) {
       return;
     }
     Set<Object> keys = null;
@@ -3310,7 +3292,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   public void expireTombstoneKeys(Set<Object> tombstoneKeys) {
-    if (this.concurrencyChecksEnabled) {
+    if (this.getConcurrencyChecksEnabled()) {
       this.cache.getTombstoneService().gcTombstoneKeys(this, tombstoneKeys);
     }
   }
@@ -3321,7 +3303,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * pass tombstone garbage-collection info to clients
-   * 
+   *
    * @param eventID the ID of the event (see bug #50683)
    * @param routing routing info (routing is computed if this is null)
    */
@@ -3354,24 +3336,23 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     if (this.getDataPolicy().withPersistence()) {
       return true;
     } else {
-      return this.concurrencyChecksEnabled
-          && (entry.getVersionStamp().hasValidVersion() || this.dataPolicy.withReplication());
+      return this.getConcurrencyChecksEnabled()
+          && (entry.getVersionStamp().hasValidVersion() || this.getDataPolicy().withReplication());
     }
   }
 
   protected void enableConcurrencyChecks() {
-    this.concurrencyChecksEnabled = true;
-    if (this.dataPolicy.withStorage()) {
+    this.setConcurrencyChecksEnabled(true);
+    if (this.getDataPolicy().withStorage()) {
       RegionEntryFactory versionedEntryFactory = this.entries.getEntryFactory().makeVersioned();
       Assert.assertTrue(this.entries.isEmpty(),
           "RegionMap should be empty but was of size:" + this.entries.size());
       this.entries.setEntryFactory(versionedEntryFactory);
-      createVersionVector();
     }
   }
 
   protected boolean getEnableConcurrencyChecks() {
-    return this.concurrencyChecksEnabled;
+    return this.getConcurrencyChecksEnabled();
   }
 
   /**
@@ -3405,6 +3386,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    *
    * @since GemFire 3.2
    */
+  @Override
   public Object getValueInVM(Object key) throws EntryNotFoundException {
     return basicGetValueInVM(key, true);
   }
@@ -3440,7 +3422,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * This is a test hook method used to find out what keys the current tx has read or written.
-   * 
+   *
    * @return an unmodifiable set of keys that have been read or written by the transaction on this
    *         thread.
    * @throws IllegalStateException if not tx in progress
@@ -3475,6 +3457,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    *
    * @since GemFire 3.2
    */
+  @Override
   public Object getValueOnDisk(Object key) throws EntryNotFoundException {
     // Ok for this to ignore tx state
     RegionEntry re = this.entries.getEntry(key);
@@ -3520,7 +3503,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * Does a get that attempts to not fault values in from disk or make the entry the most recent in
    * the LRU.
-   * 
+   *
    * @param adamant fault in and affect LRU as a last resort
    * @param allowTombstone also return Token.TOMBSTONE if the entry is deleted
    * @param serializedFormOkay if the serialized form can be returned
@@ -3761,10 +3744,14 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
         case InterestType.KEY:
           if (key instanceof String && key.equals("ALL_KEYS")) {
+            logger.warn(
+                "Usage of registerInterest('ALL_KEYS') has been deprecated.  Please use registerInterestForAllKeys()");
             serverKeys = proxy.registerInterest(".*", InterestType.REGULAR_EXPRESSION,
                 interestResultPolicy, isDurable, receiveUpdatesAsInvalidates, regionDataPolicy);
           } else {
             if (key instanceof List) {
+              logger.warn(
+                  "Usage of registerInterest(List) has been deprecated. Please use registerInterestForKeys(Iterable)");
               serverKeys = proxy.registerInterestList((List) key, interestResultPolicy, isDurable,
                   receiveUpdatesAsInvalidates, regionDataPolicy);
             } else {
@@ -4300,7 +4287,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
             Object val = entry.getObject();
             boolean isBytes = entry.isBytes();
             boolean isKeyOnServer = !entry.isKeyNotOnServer();
-            boolean isTombstone = this.concurrencyChecksEnabled && entry.isKeyNotOnServer()
+            boolean isTombstone = this.getConcurrencyChecksEnabled() && entry.isKeyNotOnServer()
                 && entry.getVersionTag() != null;
             final VersionTag tag = entry.getVersionTag();
             if (val instanceof Throwable) {
@@ -4319,7 +4306,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
             }
 
             if (val instanceof byte[] && !isBytes) {
-              val = CachedDeserializableFactory.create((byte[]) val);
+              val = CachedDeserializableFactory.create((byte[]) val, getCache());
             }
 
             if (isTombstone) {
@@ -4552,7 +4539,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
         // If versioning is enabled, we will give the entry a "fake" version.
         VersionTag tag = null;
-        if (this.concurrencyChecksEnabled) {
+        if (this.getConcurrencyChecksEnabled()) {
           tag = VersionTag.create(getVersionMember());
         }
         map.initialImagePut(key, cacheTimeMillis(), value, false, false, tag, null, false);
@@ -4569,7 +4556,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * @param destroyedRegionOk true if it is okay to return a region that isDestroyed
    * @see DestroyRegionOperation
    */
-  Region getSubregion(String path, boolean destroyedRegionOk) {
+  @Override
+  public Region getSubregion(String path, boolean destroyedRegionOk) {
     if (destroyedRegionOk) {
       checkCacheClosed();
     } else if (isDestroyed()) {
@@ -4646,7 +4634,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * Called by a thread that is doing region initialization. Causes the initialization Latch to be
    * bypassed by this thread.
    *
-   * @return oldLevel
    */
   public static int setThreadInitLevelRequirement(int level) {
     int oldLevel = threadInitLevelRequirement();
@@ -4673,7 +4660,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return initLevel;
   }
 
-  boolean checkForInitialization() {
+  @Override
+  public boolean checkForInitialization() {
     if (this.initialized) {
       return true;
     }
@@ -4695,6 +4683,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   /** wait on the initialization Latch based on thread requirements */
+  @Override
   public void waitOnInitialization() {
     if (this.initialized) {
       return;
@@ -4764,7 +4753,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    *
    * @see DistributedRegion#basicInvalidate(EntryEventImpl)
    */
-  void basicInvalidate(EntryEventImpl event) throws EntryNotFoundException {
+  public void basicInvalidate(EntryEventImpl event) throws EntryNotFoundException {
     basicInvalidate(event, isInitialized()/* for bug 35214 */);
   }
 
@@ -4819,7 +4808,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   @Override
   public void recordRecoveredVersonHolder(VersionSource member, RegionVersionHolder versionHolder,
       boolean latestOplog) {
-    if (this.concurrencyChecksEnabled) {
+    if (this.getConcurrencyChecksEnabled()) {
       // We need to update the RVV in memory
       this.versionVector.initRecoveredVersion(member, versionHolder, latestOplog);
       DiskRegion region = this.getDiskRegion();
@@ -4832,7 +4821,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   @Override
   public void recordRecoveredVersionTag(VersionTag tag) {
-    if (this.concurrencyChecksEnabled) {
+    if (this.getConcurrencyChecksEnabled()) {
       this.versionVector.recordVersion(tag.getMemberID(), tag.getRegionVersion());
       DiskRegion region = this.getDiskRegion();
       // We also need to update the RVV that represents what we have persisted on disk
@@ -4844,7 +4833,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   @Override
   public void setRVVTrusted(boolean rvvTrusted) {
-    if (this.concurrencyChecksEnabled) {
+    if (this.getConcurrencyChecksEnabled()) {
       DiskRegion region = this.getDiskRegion();
       // Update whether or not the RVV we have recovered is trusted (accurately represents what we
       // have on disk).
@@ -4868,23 +4857,23 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * Fix up our RVV by iterating over the entries in the region and making sure they are applied to
    * the RVV.
-   * 
+   *
    * If we failed to do a GII, we may have applied the RVV from a remote member. That RVV may not
    * have seen some of the events in our local RVV. Those entries were supposed to be replaced with
    * the results of the GII. However, if we failed the GII, those entries may still be in the cache,
    * but are no longer reflected in the local RVV. This method iterates over those keys and makes
    * sure their versions are applied to the local RVV.
-   * 
+   *
    * TODO - this method should probably rebuild the RVV from scratch, instead of starting with the
    * existing RVV. By starting with the existing RVV, we may claim to have entries that we actually
    * don't have. Unfortunately, we can't really rebuild the RVV from scratch because we will end up
    * with huge exception lists.
-   * 
+   *
    * However, if we are in the state of recovering from disk with an untrusted RVV, we must be newer
    * than any other surviving members. So they shouldn't have any entries in their cache that match
    * entries that we failed to receive through the GII but are reflected in our current RVV. So it
    * should be safe to start with the current RVV.
-   * 
+   *
    */
   void repairRVV() {
     RegionVersionVector rvv = this.getVersionVector();
@@ -4938,11 +4927,11 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     }
 
     if (hasSeenEvent(event)) {
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "LR.basicInvalidate: this cache has already seen this event {}",
-            event);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
+            "LR.basicInvalidate: this cache has already seen this event {}", event);
       }
-      if (this.concurrencyChecksEnabled && event.getVersionTag() != null
+      if (this.getConcurrencyChecksEnabled() && event.getVersionTag() != null
           && !event.getVersionTag().isRecorded()) {
         getVersionVector().recordVersion((InternalDistributedMember) event.getDistributedMember(),
             event.getVersionTag());
@@ -4985,6 +4974,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * invoke callbacks for an invalidation
    */
+  @Override
   public void invokeInvalidateCallbacks(final EnumListenerEvent eventType,
       final EntryEventImpl event, final boolean callDispatchListenerEvent) {
     // Notify bridge clients (if this is a CacheServer)
@@ -5051,7 +5041,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * @return false if ifNew is true and there is an existing key or if ifOld is true and
    *         expectedOldValue does not match the current value in the cache. Otherwise return true.
    */
-  protected boolean basicPut(EntryEventImpl event, boolean ifNew, boolean ifOld,
+  public boolean basicPut(EntryEventImpl event, boolean ifNew, boolean ifOld,
       Object expectedOldValue, boolean requireOldValue)
       throws TimeoutException, CacheWriterException {
     return getDataView().putEntry(event, ifNew, ifOld, expectedOldValue, requireOldValue, 0L,
@@ -5270,11 +5260,12 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * expectations
    */
   private void concurrencyConfigurationCheck(VersionTag tag) {
-    if (!this.concurrencyMessageIssued && tag == null && this.concurrencyChecksEnabled) {
+    if (!this.concurrencyMessageIssued && tag == null && this.getConcurrencyChecksEnabled()) {
       this.concurrencyMessageIssued = true;
       logger.info(LocalizedMessage.create(
           LocalizedStrings.LocalRegion_SERVER_HAS_CONCURRENCY_CHECKS_ENABLED_0_BUT_CLIENT_HAS_1_FOR_REGION_2,
-          new Object[] {!this.concurrencyChecksEnabled, this.concurrencyChecksEnabled, this}));
+          new Object[] {!this.getConcurrencyChecksEnabled(), this.getConcurrencyChecksEnabled(),
+              this}));
     }
   }
 
@@ -5369,7 +5360,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
         // callbacks.
         if (processedMarker) {
           // changed to force new entry creation for consistency
-          final boolean forceNewEntry = this.concurrencyChecksEnabled;
+          final boolean forceNewEntry = this.getConcurrencyChecksEnabled();
           basicInvalidate(event, true, forceNewEntry);
           if (event.isConcurrencyConflict()) {
             // bug #45520 - we must throw this for the CacheClientUpdater
@@ -5438,7 +5429,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Clear the region from a server request.
-   * 
+   *
    * @param callbackArgument The callback argument. This is currently null since
    *        {@link java.util.Map#clear} supports no parameters.
    * @param processedMarker Whether the marker has been processed (for durable clients)
@@ -5559,11 +5550,11 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   void basicUpdateEntryVersion(EntryEventImpl event) throws EntryNotFoundException {
     if (hasSeenEvent(event)) {
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "LR.basicDestroy: this cache has already seen this event {}",
-            event);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
+            "LR.basicDestroy: this cache has already seen this event {}", event);
       }
-      if (this.concurrencyChecksEnabled && event.getVersionTag() != null
+      if (this.getConcurrencyChecksEnabled() && event.getVersionTag() != null
           && !event.getVersionTag().isRecorded()) {
         getVersionVector().recordVersion((InternalDistributedMember) event.getDistributedMember(),
             event.getVersionTag());
@@ -5636,13 +5627,15 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
         logger.debug("caught concurrent modification attempt when applying {}", event);
       }
       notifyBridgeClients(event);
+      notifyGatewaySender(event.getOperation().isUpdate() ? EnumListenerEvent.AFTER_UPDATE
+          : EnumListenerEvent.AFTER_CREATE, event);
       return false;
     }
 
     // for EMPTY clients, see if a concurrent map operation had an entry on the server
     ServerRegionProxy mySRP = getServerProxy();
 
-    if (mySRP != null && this.dataPolicy == DataPolicy.EMPTY) {
+    if (mySRP != null && this.getDataPolicy() == DataPolicy.EMPTY) {
       if (originalOp == Operation.PUT_IF_ABSENT) {
         return !event.hasOldValue();
       }
@@ -5673,7 +5666,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * Checks to see if the event should be rejected because of sick state either due to exceeding
    * local critical threshold or a remote member exceeding critical threshold
-   * 
+   *
    * @param key the key for the operation
    * @throws LowMemoryException if the target member for this operation is sick
    */
@@ -5801,7 +5794,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * To lower latency, PRs generate the local filter routing in DistributedCacheOperation after
    * message distribution and before waiting for responses.
-   * 
+   *
    * Warning: Even if you comment out bucket condition in following method, getLocalRoutingInfo()
    * does NOT process CQs for bucket regions internally. See
    * {@link FilterProfile#getFilterRoutingInfoPart2(FilterRoutingInfo, CacheEvent)} .
@@ -5854,7 +5847,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * This notifies all WAN sites about updated timestamp on local site.
    */
-  void notifyTimestampsToGateways(EntryEventImpl event) {
+  @Override
+  public void notifyTimestampsToGateways(EntryEventImpl event) {
     // Create updateTimeStampEvent from event.
     VersionTagHolder updateTimeStampEvent = new VersionTagHolder(event.getVersionTag());
     updateTimeStampEvent.setOperation(Operation.UPDATE_VERSION_STAMP);
@@ -5902,6 +5896,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     }
   }
 
+  @Override
   public void invokePutCallbacks(final EnumListenerEvent eventType, final EntryEventImpl event,
       final boolean callDispatchListenerEvent, boolean notifyGateways) {
 
@@ -5937,31 +5932,26 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * is installed in the receiver of the image.
    */
   public Map<? extends DataSerializable, ? extends DataSerializable> getEventState() {
-    if (this.eventTracker != null) {
-      return this.eventTracker.getState();
-    } else {
-      return null;
-    }
+    return getEventTracker().getState();
   }
 
   /**
    * Record the event state encapsulated in the given Map.
    * <p>
    * This is intended for state transfer during GII.
-   * 
+   *
    * @param provider the member that provided this state
    * @param state a Map obtained from getEventState()
    */
   protected void recordEventState(InternalDistributedMember provider, Map state) {
-    if (this.eventTracker != null) {
-      this.eventTracker.recordState(provider, state);
-    }
+    getEventTracker().recordState(provider, state);
   }
 
   /**
    * generate version tag if it does not exist and set it into the event.
    */
-  void generateAndSetVersionTag(InternalCacheEvent event, RegionEntry entry) {
+  @Override
+  public void generateAndSetVersionTag(InternalCacheEvent event, RegionEntry entry) {
     if (entry != null && event.getOperation().isEntry()) {
       EntryEventImpl entryEvent = (EntryEventImpl) event;
       if (!entryEvent.isOriginRemote() && shouldGenerateVersionTag(entry, entryEvent)) {
@@ -5978,91 +5968,36 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * record the event's sequenceId in Region's event state to prevent replay.
    */
+  @Override
   public void recordEvent(InternalCacheEvent event) {
-    if (this.eventTracker != null) {
-      this.eventTracker.recordEvent(event);
-    }
+    getEventTracker().recordEvent(event);
   }
 
   /**
    * has the Region's event state seen this event?
-   * 
+   *
    * @return true if the Region's event state has seen the event
    */
   public boolean hasSeenEvent(EntryEventImpl event) {
-    boolean isDuplicate = false;
-
-    if (this.eventTracker != null) {
-      // bug 41289 - wait for event tracker to be initialized before checkin
-      // so that an operation intended for a previous version of a bucket
-      // is not prematurely applied to a new version of the bucket
-      if (this.isUsedForPartitionedRegionBucket()) {
-        try {
-          this.eventTracker.waitOnInitialization();
-        } catch (InterruptedException ie) {
-          this.stopper.checkCancelInProgress(ie);
-          Thread.currentThread().interrupt();
-        }
-      }
-
-      isDuplicate = this.eventTracker.hasSeenEvent(event);
-      if (isDuplicate) {
-        event.setPossibleDuplicate(true);
-        if (getConcurrencyChecksEnabled() && event.getVersionTag() == null) {
-          if (event.isBulkOpInProgress()) {
-            event.setVersionTag(findVersionTagForClientBulkOp(event.getEventId()));
-          } else {
-            event.setVersionTag(findVersionTagForClientEvent(event.getEventId()));
-          }
-        }
-      } else {
-        // bug #48205 - a retried PR operation may already have a version assigned to it
-        // in another VM
-        if (event.isPossibleDuplicate() && event.getRegion().concurrencyChecksEnabled
-            && event.getVersionTag() == null && event.getEventId() != null) {
-          boolean isBulkOp = event.getOperation().isPutAll() || event.getOperation().isRemoveAll();
-          VersionTag tag = FindVersionTagOperation.findVersionTag(event.getRegion(),
-              event.getEventId(), isBulkOp);
-          event.setVersionTag(tag);
-        }
-      }
-    }
-
-    return isDuplicate;
+    return getEventTracker().hasSeenEvent(event);
   }
 
   /**
-   * tries to find the version tag for a replayed client event
-   * 
+   * tries to find the version tag for a event
+   *
    * @return the version tag, if known. Null if not
    */
-  public VersionTag findVersionTagForClientEvent(EventID eventId) {
-    if (this.eventTracker != null) {
-      return this.eventTracker.findVersionTag(eventId);
-    }
-    return null;
-  }
-
-  public VersionTag findVersionTagForGatewayEvent(EventID eventId) {
-    if (this.eventTracker != null) {
-      return this.eventTracker.findVersionTagForGateway(eventId);
-    }
-    return null;
+  public VersionTag findVersionTagForEvent(EventID eventId) {
+    return getEventTracker().findVersionTagForSequence(eventId);
   }
 
   /**
    * tries to find the version tag for a replayed client event
-   * 
+   *
    * @return the version tag, if known. Null if not
    */
   public VersionTag findVersionTagForClientBulkOp(EventID eventId) {
-    if (eventId == null) {
-      return null;
-    }
-    if (this.eventTracker != null) {
-      return this.eventTracker.findVersionTagForBulkOp(eventId);
-    }
-    return null;
+    return getEventTracker().findVersionTagForBulkOp(eventId);
   }
 
   /**
@@ -6070,52 +6005,30 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * Event, not an ID, but with transactions we do not have an event at the time the check needs to
    * be made. Consequently, this method may cause events to be recorded that would otherwise be
    * ignored.
-   * 
+   *
    * @param eventID the identifier of the event
    * @return true if the Region's event state has seen the event
    */
   public boolean hasSeenEvent(EventID eventID) {
-    if (eventID == null) {
-      return false;
-    }
-    boolean isDuplicate = false;
-    if (this.eventTracker != null) {
-      // bug 41289 - wait for event tracker to be initialized before checkin
-      // so that an operation intended for a previous version of a bucket
-      // is not prematurely applied to a new version of the bucket
-      if (this.isUsedForPartitionedRegionBucket()) {
-        try {
-          this.eventTracker.waitOnInitialization();
-        } catch (InterruptedException ie) {
-          this.stopper.checkCancelInProgress(ie);
-          Thread.currentThread().interrupt();
-        }
-      }
-      isDuplicate = this.eventTracker.hasSeenEvent(eventID, null);
-    }
-    return isDuplicate;
+    return getEventTracker().hasSeenEvent(eventID);
   }
 
   /**
    * A routine to provide synchronization running based on <memberShipID, threadID> of the
    * requesting client for the region's event state
-   * 
+   *
    * @param task - a Runnable to wrap the processing of the bulk op
    * @param eventId - the base event ID of the bulk op
    *
    * @since GemFire 5.7
    */
-  void syncBulkOp(Runnable task, EventID eventId) {
-    if (this.eventTracker != null && !isTX()) {
-      this.eventTracker.syncBulkOp(task, eventId);
-    } else {
-      task.run();
-    }
+  public void syncBulkOp(Runnable task, EventID eventId) {
+    getEventTracker().syncBulkOp(task, eventId, isTX());
   }
 
   public void recordBulkOpStart(ThreadIdentifier membershipID, EventID eventID) {
-    if (this.eventTracker != null && !isTX()) {
-      this.eventTracker.recordBulkOpStart(membershipID, eventID);
+    if (!isTX()) {
+      getEventTracker().recordBulkOpStart(eventID, membershipID);
     }
   }
 
@@ -6199,8 +6112,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   protected void notifyGatewaySender(EnumListenerEvent operation, EntryEventImpl event) {
-    if (isPdxTypesRegion() || event.isConcurrencyConflict()) {
-      // isConcurrencyConflict is usually a concurrent cache modification problem
+    if (isPdxTypesRegion()) {
       return;
     }
 
@@ -6254,7 +6166,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       boolean callbackEvents) throws CacheWriterException, TimeoutException {
     preDestroyChecks();
 
-    final TXStateProxy tx = this.cache.getTXMgr().internalSuspend();
+    final TXStateProxy tx = this.cache.getTXMgr().pauseTransaction();
     try {
       boolean acquiredLock = false;
       if (lock) {
@@ -6369,7 +6281,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       }
 
     } finally {
-      this.cache.getTXMgr().internalResume(tx);
+      this.cache.getTXMgr().unpauseTransaction(tx);
     }
   }
 
@@ -6390,7 +6302,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    *
    * @see DistributedRegion#postDestroyRegion(boolean, RegionEventImpl)
    */
-  protected void postCreateRegion() {
+  @Override
+  public void postCreateRegion() {
     if (getEvictionAttributes().getAlgorithm().isLRUHeap()) {
       final LogWriter logWriter = this.cache.getLogger();
       float evictionPercentage = DEFAULT_HEAPLRU_EVICTION_HEAP_PERCENTAGE;
@@ -6485,11 +6398,11 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
     if (hasSeenEvent(event)) {
       assert getJTAEnlistedTX() == null;
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "LR.basicDestroy: this cache has already seen this event {}",
-            event);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
+            "LR.basicDestroy: this cache has already seen this event {}", event);
       }
-      if (this.concurrencyChecksEnabled && event.getVersionTag() != null
+      if (this.getConcurrencyChecksEnabled() && event.getVersionTag() != null
           && !event.getVersionTag().isRecorded()) {
         getVersionVector().recordVersion((InternalDistributedMember) event.getDistributedMember(),
             event.getVersionTag());
@@ -6505,10 +6418,13 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     getDataView().destroyExistingEntry(event, cacheWrite, expectedOldValue);
   }
 
+  protected final boolean restoreSetOperationTransactionBehavior =
+      SystemPropertyHelper.restoreSetOperationTransactionBehavior();
+
   /**
    * Do the expensive work of discovering an existing JTA transaction Only needs to be called at
    * Region.Entry entry points e.g. Region.put, Region.invalidate, etc.
-   * 
+   *
    * @since GemFire tx
    */
   void discoverJTA() {
@@ -6516,6 +6432,16 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       // prevent internal regions from participating in a TX
       getJTAEnlistedTX();
     }
+  }
+
+  private boolean isTransactionPaused() {
+    TXManagerImpl txMgr = (TXManagerImpl) getCache().getCacheTransactionManager();
+    return txMgr.isTransactionPaused();
+  }
+
+  private boolean isJTAPaused() {
+    TXManagerImpl txMgr = (TXManagerImpl) getCache().getCacheTransactionManager();
+    return txMgr.isJTAPaused();
   }
 
   /**
@@ -6576,6 +6502,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       // Notify clients only if its NOT a gateway event.
       if (event.getVersionTag() != null && !event.getVersionTag().isGatewayTag()) {
         notifyBridgeClients(event);
+        notifyGatewaySender(EnumListenerEvent.AFTER_DESTROY, event);
       }
       return true; // event was elided
 
@@ -6653,7 +6580,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * Creates an event for EVICT_DESTROY operations. It is intended that this method be overridden to
    * allow for special handling of Partitioned Regions.
-   * 
+   *
    * @param key - the key that this event is related to
    * @return an event for EVICT_DESTROY
    */
@@ -6673,7 +6600,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * @return true if the evict destroy was done; false if it was not needed
    */
-  boolean evictDestroy(LRUEntry entry) {
+  boolean evictDestroy(EvictableEntry entry) {
     checkReadiness();
 
     @Released
@@ -6713,7 +6640,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * @param event the event describing the destroy operation
    * @since GemFire 5.1
    */
-  protected void basicDestroyBeforeRemoval(RegionEntry entry, EntryEventImpl event) {
+  @Override
+  public void basicDestroyBeforeRemoval(RegionEntry entry, EntryEventImpl event) {
     // do nothing
   }
 
@@ -6721,7 +6649,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * Called by lower levels, while still holding the write sync lock, and the low level has
    * completed its part of the basic destroy
    */
-  void basicDestroyPart2(RegionEntry re, EntryEventImpl event, boolean inTokenMode,
+  @Override
+  public void basicDestroyPart2(RegionEntry re, EntryEventImpl event, boolean inTokenMode,
       boolean conflictWithClear, boolean duringRI, boolean invokeCallbacks) {
     if (!(this instanceof HARegion)) {
       if (logger.isTraceEnabled()) {
@@ -6737,7 +6666,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
      * completes. RI does not create Tombstones because it would flood the TombstoneService with
      * unnecessary work.
      */
-    if (inTokenMode && !(this.concurrencyChecksEnabled || event.isFromRILocalDestroy())) {
+    if (inTokenMode && !(this.getConcurrencyChecksEnabled() || event.isFromRILocalDestroy())) {
       if (re.isDestroyed()) {
         getImageState().addDestroyedEntry(event.getKey());
         if (!(this instanceof HARegion)) {
@@ -6747,7 +6676,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
         }
       }
     } else {
-      if (this.concurrencyChecksEnabled && !(this instanceof HARegion)) {
+      if (this.getConcurrencyChecksEnabled() && !(this instanceof HARegion)) {
         if (logger.isDebugEnabled()) {
           logger.debug("basicDestroyPart2: {}, version={}", event.getKey(), v);
         }
@@ -6788,7 +6717,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * distribution and callback notification are done in part2 inside entry lock for maintaining the
    * order of events.
    */
-  void basicDestroyPart3(RegionEntry re, EntryEventImpl event, boolean inTokenMode,
+  @Override
+  public void basicDestroyPart3(RegionEntry re, EntryEventImpl event, boolean inTokenMode,
       boolean duringRI, boolean invokeCallbacks, Object expectedOldValue) {
 
     if (invokeCallbacks) {
@@ -6818,6 +6748,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     }
   }
 
+  @Override
   public void invokeDestroyCallbacks(final EnumListenerEvent eventType, final EntryEventImpl event,
       final boolean callDispatchListenerEvent, boolean notifyGateways) {
 
@@ -6917,7 +6848,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   void basicInvalidateRegion(RegionEventImpl event) {
-    final TXStateProxy tx = this.cache.getTXMgr().internalSuspend();
+    final TXStateProxy tx = this.cache.getTXMgr().pauseTransaction();
     try {
       this.regionInvalid = true;
       getImageState().setRegionInvalidated(true);
@@ -6961,7 +6892,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       }
 
     } finally {
-      this.cache.getTXMgr().internalResume(tx);
+      this.cache.getTXMgr().unpauseTransaction(tx);
     }
   }
 
@@ -6986,7 +6917,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return expTime != 0 && expTime <= cacheTimeMillis();
   }
 
-  void dispatchListenerEvent(EnumListenerEvent op, InternalCacheEvent event) {
+  @Override
+  public void dispatchListenerEvent(EnumListenerEvent op, InternalCacheEvent event) {
     // Return if the inhibit all notifications flag is set
     boolean isEntryEvent = event instanceof EntryEventImpl;
     if (isEntryEvent) {
@@ -7049,6 +6981,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   /** @return true if initialization is complete */
+  @Override
   public boolean isInitialized() {
     if (this.initialized) {
       return true;
@@ -7072,14 +7005,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * @return true if event state has been transfered to this region from another cache
    */
   boolean isEventTrackerInitialized() {
-    return this.eventTracker != null && this.eventTracker.isInitialized();
-  }
-
-  /**
-   * @return true if this region has an event tracker
-   */
-  boolean hasEventTracker() {
-    return this.eventTracker != null;
+    return getEventTracker().isInitialized();
   }
 
   public void acquireDestroyLock() {
@@ -7116,7 +7042,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * Cleans up any resources that may have been allocated for this region during its initialization.
    */
-  void cleanupFailedInitialization() {
+  @Override
+  public void cleanupFailedInitialization() {
     // mark as destroyed fixes 49555.
     this.isDestroyed = true;
 
@@ -7129,9 +7056,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     this.destroyedSubregionSerialNumbers = collectSubregionSerialNumbers();
 
     try {
-      if (this.eventTracker != null) {
-        this.eventTracker.stop();
-      }
+      getEventTracker().stop();
 
       if (this.diskRegion != null) {
         // This was needed to fix bug 30937
@@ -7143,6 +7068,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
         }
       }
 
+      // Clean up region in RegionListeners
+      this.cache.invokeCleanupFailedInitialization(this);
     } finally {
       // make sure any waiters on initializing Latch are released
       this.releaseLatches();
@@ -7173,11 +7100,12 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    *
    * @return the actual lastModifiedTime used.
    */
-  long updateStatsForPut(RegionEntry entry, long lastModified, boolean lruRecentUse) {
+  @Override
+  public long updateStatsForPut(RegionEntry entry, long lastModified, boolean lruRecentUse) {
     long lastAccessed = cacheTimeMillis();
     if (lruRecentUse) {
       // fix for bug 31102
-      entry.setRecentlyUsed();
+      entry.setRecentlyUsed(this);
     }
     if (lastModified == 0L) {
       lastModified = lastAccessed;
@@ -7217,7 +7145,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       if (logger.isDebugEnabled()) {
         logger.debug("Trying reinitializing region, fullPath={}", thePath);
       }
-      region = this.cache.getReinitializingRegion(thePath);
+      region = (LocalRegion) this.cache.getReinitializingRegion(thePath);
       if (logger.isDebugEnabled()) {
         logger.debug("Reinitialized region is {}", region);
       }
@@ -7278,7 +7206,10 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   protected void closeCallbacksExceptListener() {
     closeCacheCallback(getCacheLoader());
     closeCacheCallback(getCacheWriter());
-    closeCacheCallback(getEvictionController());
+    EvictionController evictionController = getEvictionController();
+    if (evictionController != null) {
+      evictionController.close();
+    }
   }
 
   /** This is only done when the cache is closed. */
@@ -7294,7 +7225,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Release the client connection pool if we have one
-   * 
+   *
    * @since GemFire 5.7
    */
   private void detachPool() {
@@ -7344,7 +7275,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * Called when the cache is closed. Behaves just like a Region.close except the operation is
    * CACHE_CLOSE
    */
-  void handleCacheClose(Operation operation) {
+  @Override
+  public void handleCacheClose(Operation operation) {
     RegionEventImpl event =
         new RegionEventImpl(this, operation, null, false, getMyId(), generateEventID());
     if (!this.isDestroyed) { // don't destroy if already destroyed
@@ -7376,11 +7308,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
         }
       }
     }
-  }
-
-  void cleanUpOnIncompleteOp(EntryEventImpl event, RegionEntry regionEntry) {
-    // Ok to remove entry as index has not been modified yet by the operation
-    this.entries.removeEntry(event.getKey(), regionEntry, false);
   }
 
   public static void validateRegionName(String name, InternalRegionArguments internalRegionArgs) {
@@ -7442,7 +7369,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       if (this.reinitialized_old) {
         regionDestroyedException = new RegionReinitializedException(toString(), getFullPath());
       } else if (this.cache.isCacheAtShutdownAll()) {
-        throw new CacheClosedException("Cache is being closed by ShutdownAll");
+        throw cache.getCacheClosedException("Cache is being closed by ShutdownAll");
       } else {
         regionDestroyedException = new RegionDestroyedException(toString(), getFullPath());
       }
@@ -7466,7 +7393,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * For each region entry in this region call the callback
-   * 
+   *
    * @since GemFire prPersistSprint2
    */
   @Override
@@ -7478,7 +7405,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Used by {@link #foreachRegionEntry}.
-   * 
+   *
    * @since GemFire prPersistSprint2
    */
   public interface RegionEntryCallback {
@@ -7577,7 +7504,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    */
   private boolean useDefaultDiskStore() {
     assert getDiskStoreName() == null;
-    if (!Arrays.equals(getDiskDirs(), DiskStoreFactory.DEFAULT_DISK_DIRS)) {
+    if (!Arrays.equals(getDiskDirs(), DefaultDiskDirs.getDefaultDiskDirs())) {
       return false;
     }
     if (!Arrays.equals(getDiskDirSizes(), DiskStoreFactory.DEFAULT_DISK_DIR_SIZES)) {
@@ -7691,7 +7618,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Returns the object sizer on this region or null if it has no sizer.
-   * 
+   *
    * @since GemFire 6.1.2.9
    */
   public ObjectSizer getObjectSizer() {
@@ -7869,24 +7796,23 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     if (!isInitialized()) {
       return; // don't schedule expiration until region is initialized (bug
     }
+    if (!isEntryExpiryPossible()) {
+      return;
+    }
     // OK to ignore transaction since Expiry only done non-tran
     Iterator<RegionEntry> it = this.entries.regionEntries().iterator();
     if (it.hasNext()) {
-      try {
-        if (isEntryExpiryPossible()) {
-          ExpiryTask.setNow();
-        }
+      ExpiryTask.doWithNowSet(this, () -> {
         while (it.hasNext()) {
           addExpiryTask(it.next());
         }
-      } finally {
-        ExpiryTask.clearNow();
-      }
+      });
     }
   }
 
-  void addExpiryTaskIfAbsent(RegionEntry re) {
-    addExpiryTask(re, true);
+  @Override
+  public void addExpiryTaskIfAbsent(RegionEntry entry) {
+    addExpiryTask(entry, true);
   }
 
   void addExpiryTask(RegionEntry re) {
@@ -7955,7 +7881,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     /**
      * Returns the entry's RegionEntry if it "checks" out. The check is to see if the region entry
      * still exists.
-     * 
+     *
      * @throws EntryNotFoundException if the RegionEntry has been removed.
      */
     private RegionEntry getCheckedRegionEntry() throws EntryNotFoundException {
@@ -8112,12 +8038,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     }
   }
 
-  /**
-   * Used by unit tests to get access to the EntryExpiryTask of the given key. Returns null if the
-   * entry exists but does not have an expiry task.
-   * 
-   * @throws EntryNotFoundException if no entry exists key.
-   */
+  @Override
   public EntryExpiryTask getEntryExpiryTask(Object key) {
     RegionEntry re = this.getRegionEntry(key);
     if (re == null) {
@@ -8211,7 +8132,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     }
   }
 
-  void cancelExpiryTask(RegionEntry regionEntry) {
+  @Override
+  public void cancelExpiryTask(RegionEntry regionEntry) {
     cancelExpiryTask(regionEntry, null);
   }
 
@@ -8253,7 +8175,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * get the ImageState for this region
    */
-  ImageState getImageState() {
+  @Override
+  public ImageState getImageState() {
     return this.imageState;
   }
 
@@ -8351,9 +8274,9 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       try {
         synchronized (regionEntry) {
           if (!regionEntry.isRemoved()) {
-            if (regionEntry instanceof DiskEntry && regionEntry instanceof LRUEntry) {
-              LRUEntry le = (LRUEntry) regionEntry;
-              if (le.testEvicted()) {
+            if (regionEntry instanceof DiskEntry && regionEntry instanceof EvictableEntry) {
+              EvictableEntry le = (EvictableEntry) regionEntry;
+              if (le.isEvicted()) {
                 // Handle the case where we fault in a disk entry
                 txLRUStart();
                 needsLRUCleanup = true;
@@ -8405,6 +8328,10 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
           Transaction jtaTransaction = this.cache.getJTATransactionManager().getTransaction();
           if (jtaTransaction == null
               || jtaTransaction.getStatus() == Status.STATUS_NO_TRANSACTION) {
+            return null;
+          }
+          if (isTransactionPaused() || isJTAPaused()) {
+            // Do not bootstrap JTA again, if the transaction has been paused.
             return null;
           }
           txState = this.cache.getTXMgr().beginJTA();
@@ -8483,9 +8410,11 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return names;
   }
 
-  /*****************************************************************************
-   * INNER CLASSES
-   ****************************************************************************/
+  @Override
+  public void incRecentlyUsed() {
+    // nothing
+    this.entries.incRecentlyUsed();
+  }
 
   // package-private to avoid synthetic accessor
   static void dispatchEvent(LocalRegion region, InternalCacheEvent event,
@@ -8540,6 +8469,10 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       }
     }
   }
+
+  /*****************************************************************************
+   * INNER CLASSES
+   ****************************************************************************/
 
   class EventDispatcher implements Runnable {
     /**
@@ -8619,6 +8552,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
           return this.currentIterator != null && this.currentIterator.hasNext();
         }
 
+        @Override
         public Object next() {
           return next(false);
         }
@@ -8780,7 +8714,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
     /**
      * To get the value from region in serialized form
-     * 
+     *
      * @return {@link VMCachedDeserializable}
      */
     public Object getRawValue() {
@@ -8864,6 +8798,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * For internal use only.
    */
+  @Override
   public RegionMap getRegionMap() {
     // OK to ignore tx state
     return this.entries;
@@ -8900,7 +8835,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * returns an estimate of the number of entries in this region. This method should be preferred
    * over size() for hdfs regions where an accurate size is not needed. This method is not supported
    * on a client
-   * 
+   *
    * @return the estimated size of this region
    */
   public int sizeEstimate() {
@@ -9030,7 +8965,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   // TODO: what does cmn refer to?
   void cmnClearRegion(RegionEventImpl regionEvent, boolean cacheWrite, boolean useRVV) {
     RegionVersionVector rvv = null;
-    if (useRVV && this.dataPolicy.withReplication() && this.concurrencyChecksEnabled) {
+    if (useRVV && this.getDataPolicy().withReplication() && this.getConcurrencyChecksEnabled()) {
       rvv = this.versionVector.getCloneForTransmission();
     }
     clearRegionLocally(regionEvent, cacheWrite, rvv);
@@ -9046,22 +8981,23 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    */
   void clearRegionLocally(RegionEventImpl regionEvent, boolean cacheWrite,
       RegionVersionVector vector) {
-    final boolean isRvvDebugEnabled = logger.isTraceEnabled(LogMarker.RVV);
+    final boolean isRvvDebugEnabled = logger.isTraceEnabled(LogMarker.RVV_VERBOSE);
 
     RegionVersionVector rvv = vector;
     if (this.serverRegionProxy != null) {
       // clients and local regions do not maintain a full RVV. can't use it with clear()
       rvv = null;
     }
-    if (rvv != null && this.dataPolicy.withStorage()) {
+    if (rvv != null && this.getDataPolicy().withStorage()) {
       if (isRvvDebugEnabled) {
-        logger.trace(LogMarker.RVV, "waiting for my version vector to dominate{}mine={}{} other={}",
-            getLineSeparator(), getLineSeparator(), this.versionVector.fullToString(), rvv);
+        logger.trace(LogMarker.RVV_VERBOSE,
+            "waiting for my version vector to dominate{}mine={}{} other={}", getLineSeparator(),
+            getLineSeparator(), this.versionVector.fullToString(), rvv);
       }
       boolean result = this.versionVector.waitToDominate(rvv, this);
       if (!result) {
         if (isRvvDebugEnabled) {
-          logger.trace(LogMarker.RVV, "incrementing clearTimeouts for {} rvv={}", getName(),
+          logger.trace(LogMarker.RVV_VERBOSE, "incrementing clearTimeouts for {} rvv={}", getName(),
               this.versionVector.fullToString());
         }
         getCachePerfStats().incClearTimeouts();
@@ -9089,7 +9025,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     RegionVersionVector myVector = getVersionVector();
     if (myVector != null) {
       if (isRvvDebugEnabled) {
-        logger.trace(LogMarker.RVV, "processing version information for {}", regionEvent);
+        logger.trace(LogMarker.RVV_VERBOSE, "processing version information for {}", regionEvent);
       }
       if (!regionEvent.isOriginRemote() && !regionEvent.getOperation().isLocal()) {
         // generate a new version for the operation
@@ -9097,14 +9033,14 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
         tag.setVersionTimeStamp(cacheTimeMillis());
         tag.setRegionVersion(myVector.getNextVersionWhileLocked());
         if (isRvvDebugEnabled) {
-          logger.trace(LogMarker.RVV, "generated version tag for clear: {}", tag);
+          logger.trace(LogMarker.RVV_VERBOSE, "generated version tag for clear: {}", tag);
         }
         regionEvent.setVersionTag(tag);
       } else {
         VersionTag tag = regionEvent.getVersionTag();
         if (tag != null) {
           if (isRvvDebugEnabled) {
-            logger.trace(LogMarker.RVV, "recording version tag for clear: {}", tag);
+            logger.trace(LogMarker.RVV_VERBOSE, "recording version tag for clear: {}", tag);
           }
           // clear() events always have the ID in the tag
           myVector.recordVersion(tag.getMemberID(), tag);
@@ -9139,7 +9075,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       if (this.getDataPolicy().withPersistence()) {
         // null means not to change dr.rvvTrust
         if (isRvvDebugEnabled) {
-          logger.trace(LogMarker.RVV, "Clear: Saved current rvv: {}",
+          logger.trace(LogMarker.RVV_VERBOSE, "Clear: Saved current rvv: {}",
               this.diskRegion.getRegionVersionVector());
         }
         this.diskRegion.writeRVV(this, null);
@@ -9156,7 +9092,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       txClearRegion();
       // Now clear the map of committed entries
       Set<VersionSource> remainingIDs = clearEntries(rvv);
-      if (!this.dataPolicy.withPersistence()) {
+      if (!this.getDataPolicy().withPersistence()) {
         // persistent regions do not reap IDs
         if (myVector != null) {
           myVector.removeOldMembers(remainingIDs);
@@ -9274,7 +9210,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
           // in 8.0 we added transfer of tombstones with RI/getAll results for bug #40791
           boolean createTombstone = false;
           if (notOnServer) {
-            createTombstone = entry.getVersionTag() != null && this.concurrencyChecksEnabled;
+            createTombstone = entry.getVersionTag() != null && this.getConcurrencyChecksEnabled();
             allResults.put(key, null);
             if (isDebugEnabled) {
               logger.debug("Added remote result for missing key: {}", key);
@@ -9312,7 +9248,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
             if (!alreadyInvalid(key, event)) {
               // bug #47716 - don't update if it's already here & invalid
-              TXStateProxy txState = this.cache.getTXMgr().internalSuspend();
+              TXStateProxy txState = this.cache.getTXMgr().pauseTransaction();
               try {
                 basicPutEntry(event, 0L);
               } catch (ConcurrentCacheModificationException e) {
@@ -9322,7 +9258,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
                       key, e);
                 }
               } finally {
-                this.cache.getTXMgr().internalResume(txState);
+                this.cache.getTXMgr().unpauseTransaction(txState);
               }
               getCachePerfStats().endPut(startPut, event.isOriginRemote());
             }
@@ -9388,7 +9324,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Called on a bridge server when it has a received a putAll command from a client.
-   * 
+   *
    * @param map a map of key->value for the entries we are putting
    * @param retryVersions a map of key->version tag. If any of the entries are the result of a
    *        retried client event, we need to make sure we send the original version tag along with
@@ -9426,7 +9362,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Called on a bridge server when it has a received a removeAll command from a client.
-   * 
+   *
    * @param keys a collection of the keys we are putting
    * @param retryVersions a collection of version tags. If the client is retrying a key then that
    *        keys slot will be non-null in this collection. Note that keys and retryVersions are
@@ -9595,13 +9531,13 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     }
 
     final VersionedObjectList succeeded =
-        new VersionedObjectList(map.size(), true, this.concurrencyChecksEnabled);
+        new VersionedObjectList(map.size(), true, this.getConcurrencyChecksEnabled());
 
     // if this is a transactional putAll, we will not have version information as it is only
     // generated at commit
     // so treat transactional putAll as if the server is not versioned
     final boolean serverIsVersioned = proxyResult != null && proxyResult.regionIsVersioned()
-        && !isTX() && this.dataPolicy != DataPolicy.EMPTY;
+        && !isTX() && this.getDataPolicy() != DataPolicy.EMPTY;
     if (!serverIsVersioned && !partialResult) {
       // we don't need server information if it isn't versioned or if the region is empty
       proxyResult = null;
@@ -9648,8 +9584,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
                 if (isDebugEnabled) {
                   logger.debug("putAll key {} -> {} version={}", key, value, versionTag);
                 }
-                if (versionTag == null && serverIsVersioned && concurrencyChecksEnabled
-                    && dataPolicy.withStorage()) {
+                if (versionTag == null && serverIsVersioned && getConcurrencyChecksEnabled()
+                    && getDataPolicy().withStorage()) {
                   // server was unable to determine the version for this operation.
                   // I'm not sure this can still happen as described below on a pr.
                   // But it can happen on the server if NORMAL or PRELOADED. See bug 51644.
@@ -9811,7 +9747,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     }
 
     final VersionedObjectList succeeded =
-        new VersionedObjectList(keys.size(), true, this.concurrencyChecksEnabled);
+        new VersionedObjectList(keys.size(), true, this.getConcurrencyChecksEnabled());
 
     // If this is a transactional removeAll, we will not have version information as it is only
     // generated at commit
@@ -9987,7 +9923,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       testHook.beforeBulkLock(this);
     }
 
-    if (this.versionVector != null && this.dataPolicy.withReplication()) {
+    if (this.versionVector != null && this.getDataPolicy().withReplication()) {
       this.versionVector.lockForCacheModification(this);
     }
 
@@ -10002,7 +9938,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       testHook.beforeBulkRelease(this);
     }
 
-    if (this.versionVector != null && this.dataPolicy.withReplication()) {
+    if (this.versionVector != null && this.getDataPolicy().withReplication()) {
       this.versionVector.releaseCacheModificationLock(this);
     }
 
@@ -10060,7 +9996,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * This performs the putAll operation for a specific key and value
-   * 
+   *
    * @param key the cache key
    * @param value the cache value
    * @param putallOp the DistributedPutAllOperation associated with the event
@@ -10137,7 +10073,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       discoverJTA();
 
       /*
-       * If this is tx, do removeEntry, unless it is a local region?
+       * If this is tx, do destroyEntry, unless it is a local region?
        */
       try {
         performRemoveAllEntry(event);
@@ -10168,7 +10104,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   public void postPutAllFireEvents(DistributedPutAllOperation putAllOp,
       VersionedObjectList successfulPuts) {
 
-    if (!this.dataPolicy.withStorage() && this.concurrencyChecksEnabled
+    if (!this.getDataPolicy().withStorage() && this.getConcurrencyChecksEnabled()
         && putAllOp.getBaseEvent().isBridgeEvent()) {
       // if there is no local storage we need to transfer version information
       // to the successfulPuts list for transmission back to the client
@@ -10202,7 +10138,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   public void postRemoveAllFireEvents(DistributedRemoveAllOperation removeAllOp,
       VersionedObjectList successfulOps) {
 
-    if (!this.dataPolicy.withStorage() && this.concurrencyChecksEnabled
+    if (!this.getDataPolicy().withStorage() && this.getConcurrencyChecksEnabled()
         && removeAllOp.getBaseEvent().isBridgeEvent()) {
       // if there is no local storage we need to transfer version information
       // to the successfulOps list for transmission back to the client
@@ -10328,29 +10264,27 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     // nothing needs to be done here since LocalRegion does not have an advisor.
   }
 
-  /**
-   * @return Returns the isUsedForPartitionedRegionAdmin.
-   */
-  boolean isUsedForPartitionedRegionAdmin() {
+  @Override
+  public boolean isUsedForPartitionedRegionAdmin() {
     return this.isUsedForPartitionedRegionAdmin;
   }
 
   /**
    * This method determines whether this region should synchronize with peer replicated regions when
    * the given member has crashed.
-   * 
+   *
    * @param id the crashed member
    * @return true if synchronization should be attempted
    */
   public boolean shouldSyncForCrashedMember(InternalDistributedMember id) {
-    return this.concurrencyChecksEnabled && this.dataPolicy.withReplication()
+    return this.getConcurrencyChecksEnabled() && this.getDataPolicy().withReplication()
         && !this.isUsedForPartitionedRegionAdmin && !this.isUsedForMetaRegion
         && !this.isUsedForSerialGatewaySenderQueue;
   }
 
   /**
    * forces the diskRegion to switch the oplog
-   * 
+   *
    * @since GemFire 5.1
    */
   @Override
@@ -10362,7 +10296,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * TODO: return value is never used
-   * 
+   *
    * @deprecated as of prPersistSprint1 use forceCompaction instead
    */
   @Deprecated
@@ -10376,7 +10310,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   FilterProfile filterProfile;
 
   /**
-   * 
+   *
    * @return int array containing the IDs of the oplogs which will potentially get rolled else null
    *         if no oplogs were available at the time of signal or region is not having disk
    *         persistence. Pls note that the actual number of oplogs rolled may be more than what is
@@ -10419,6 +10353,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * @return Returns the isUsedForPartitionedRegionBucket.
    */
+  @Override
   public boolean isUsedForPartitionedRegionBucket() {
     return this.isUsedForPartitionedRegionBucket;
   }
@@ -10451,7 +10386,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * A convenience method to get the PartitionedRegion for a Bucket
-   * 
+   *
    * @return If this is an instance of {@link BucketRegion}, returns the {@link PartitionedRegion}
    *         otherwise throws an IllegalArgumentException
    */
@@ -10465,6 +10400,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * @return Returns the isUsedForMetaRegion.
    */
+  @Override
   public boolean isUsedForMetaRegion() {
     return this.isUsedForMetaRegion;
   }
@@ -10476,13 +10412,18 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * @return true if this is not a user visible region
    */
+  @Override
   public boolean isInternalRegion() {
     return isSecret() || isUsedForMetaRegion() || isUsedForPartitionedRegionAdmin()
         || isUsedForPartitionedRegionBucket();
   }
 
   Map<String, CacheServiceProfile> getCacheServiceProfiles() {
-    return Collections.unmodifiableMap(this.cacheServiceProfiles);
+    return this.cacheServiceProfiles.getSnapshot();
+  }
+
+  public void addCacheServiceProfile(CacheServiceProfile profile) {
+    this.cacheServiceProfiles.put(profile.getId(), profile);
   }
 
   @Override
@@ -10541,7 +10482,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * Used to indicate that this region is used for internal purposes
    */
-  protected boolean isSecret() {
+  @Override
+  public boolean isSecret() {
     return false;
   }
 
@@ -10550,7 +10492,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    */
   @Override
   public boolean supportsConcurrencyChecks() {
-    return !isSecret() || this.dataPolicy.withPersistence();
+    return !isSecret() || this.getDataPolicy().withPersistence();
   }
 
   /**
@@ -10575,10 +10517,11 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Called by ccn when a client goes away
-   * 
+   *
    * @since GemFire 5.7
    */
-  void cleanupForClient(CacheClientNotifier clientNotifier, ClientProxyMembershipID client) {
+  @Override
+  public void cleanupForClient(CacheClientNotifier clientNotifier, ClientProxyMembershipID client) {
     if (this.cache.isClosed() || this.isDestroyed) {
       return;
     }
@@ -10594,6 +10537,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * Returns the CQ/interest profile for this region
    */
+  @Override
   public FilterProfile getFilterProfile() {
     return this.filterProfile;
   }
@@ -10711,7 +10655,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * Execute the provided named function in all locations that contain the given keys. So function
    * can be executed on just one fabric node, executed in parallel on a subset of nodes in parallel
    * across all the nodes.
-   * 
+   *
    * @since GemFire 5.8Beta
    */
   public ResultCollector executeFunction(final DistributedRegionFunctionExecutor execution,
@@ -10728,12 +10672,12 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     }
     final LocalResultCollector<?, ?> resultCollector =
         execution.getLocalResultCollector(function, rc);
-    final DM dm = getDistributionManager();
+    final DistributionManager dm = getDistributionManager();
     execution.setExecutionNodes(Collections.singleton(getMyId()));
 
     final DistributedRegionFunctionResultSender resultSender =
         new DistributedRegionFunctionResultSender(dm, resultCollector, function, sender);
-    final RegionFunctionContextImpl context = new RegionFunctionContextImpl(function.getId(),
+    final RegionFunctionContextImpl context = new RegionFunctionContextImpl(cache, function.getId(),
         LocalRegion.this, args, filter, null, null, resultSender, execution.isReExecute());
     execution.executeFunctionOnLocalNode(function, context, resultSender, dm, isTX());
     return resultCollector;
@@ -10798,12 +10742,13 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     // Only needed by BucketRegion
   }
 
-  void updateSizeOnRemove(Object key, int oldSize) {
+  public void updateSizeOnRemove(Object key, int oldSize) {
     // Only needed by BucketRegion
   }
 
   // TODO: return value is never used
-  int updateSizeOnEvict(Object key, int oldSize) {
+  @Override
+  public int updateSizeOnEvict(Object key, int oldSize) {
     // Only needed by BucketRegion
     return 0;
   }
@@ -10880,7 +10825,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * Fetch the Region which stores the given key The resulting Region will be used for a read
    * operation e.g. Region.get
-   * 
+   *
    * @param entryKey key to evaluate to determine the returned region
    * @return region that stores the key
    */
@@ -10891,7 +10836,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * Fetch the Region which stores the given key. The resulting Region will be used for a write
    * operation e.g. Region.put
-   * 
+   *
    * @param entryKey key to evaluate to determine the returned region
    * @return region that stores the key
    */
@@ -10913,7 +10858,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Used to bootstrap txState.
-   * 
+   *
    * @return localMember for local and distributedRegions, member with parimary bucket for
    *         partitionedRegions
    */
@@ -10924,6 +10869,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * @return the wrapped {@link KeyInfo}
    */
+  @Override
   public KeyInfo getKeyInfo(Object key) {
     return new KeyInfo(key, null, null);
   }
@@ -10943,7 +10889,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return basicGetEntry(keyInfo.getKey());
   }
 
-  void senderCreated() {
+  @Override
+  public void senderCreated() {
     distributeUpdatedProfileOnSenderCreation();
   }
 
@@ -11528,25 +11475,29 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   private void checkIfConcurrentMapOpsAllowed() {
     // This check allows NORMAL with local scope to fix bug 44856
     if (this.serverRegionProxy == null
-        && (this.dataPolicy == DataPolicy.NORMAL && this.scope.isDistributed()
-            || this.dataPolicy == DataPolicy.EMPTY)) {
+        && (this.getDataPolicy() == DataPolicy.NORMAL && this.scope.isDistributed()
+            || this.getDataPolicy() == DataPolicy.EMPTY)) {
       // the functional spec says these data policies do not support concurrent map
       // operations
       throw new UnsupportedOperationException();
     }
   }
 
+  public boolean canStoreDataLocally() {
+    return this.getDataPolicy().withStorage();
+  }
+
   /**
    * If the specified key is not already associated with a value, associate it with the given value.
    * This is equivalent to
-   * 
+   *
    * <pre>
    * if (!region.containsKey(key))
    *   return region.put(key, value);
    * else
    *   return region.get(key);
    * </pre>
-   * 
+   *
    * Except that the action is performed atomically.
    *
    * <i>Note that if this method returns null then there is no way to determine definitely whether
@@ -11633,7 +11584,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   public boolean remove(Object key, Object value, Object callbackArg) {
     checkIfConcurrentMapOpsAllowed();
     validateKey(key);
-    validateCallbackArg(callbackArg);
     checkReadiness();
     checkForLimitedOrNoAccess();
 
@@ -12028,10 +11978,10 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
   /**
    * Return an IndexMap that is persisted to the disk store used by this region.
-   * 
+   *
    * This IndexMap should be used as the backing map for any regions that are using the Soplog
    * persistence.
-   * 
+   *
    * Calling this method may create a branch new index map on disk, or it may recover an index map
    * that was previously persisted, depending on whether the index previously existed.
    *
@@ -12040,14 +11990,14 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * @param indexName the name of the index
    * @param indexedExpression the index expression
    * @param fromClause the from clause.
-   * 
+   *
    * @return The index map.
-   * 
+   *
    * @throws IllegalStateException if this region is not using soplog persistence
-   * 
+   *
    * @throws IllegalStateException if this index was previously persisted with a different
    *         expression or from clause.
-   * 
+   *
    */
   public IndexMap getIndexMap(String indexName, String indexedExpression, String fromClause) {
     return new IndexMapImpl();
@@ -12131,4 +12081,102 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return result;
   }
 
+  /**
+   * Send a message to all other members that can have this same region entry and return the latest
+   * last access time.
+   */
+  public long getLatestLastAccessTimeFromOthers(Object key) {
+    // local regions have no other members so return 0.
+    return 0L;
+  }
+
+  /**
+   * Returns the number of LRU evictions done by this region.
+   */
+  @Override
+  public long getTotalEvictions() {
+    return this.entries.getEvictions();
+  }
+
+  public void incBucketEvictions() {
+    // nothing needed by default
+    // override this method on BucketRegion
+  }
+
+  @Override
+  public long getEvictionCounter() {
+    long result = 0L;
+    EvictionController evictionController = getEvictionController();
+    if (evictionController != null) {
+      EvictionCounters es = evictionController.getCounters();
+      if (es != null) {
+        result = es.getCounter();
+      }
+    }
+    return result;
+  }
+
+  public long getEvictionLimit() {
+    long result = 0L;
+    EvictionController evictionController = getEvictionController();
+    if (evictionController != null) {
+      EvictionCounters es = evictionController.getCounters();
+      if (es != null) {
+        result = es.getLimit();
+      }
+    }
+    return result;
+  }
+
+  public long getEvictionDestroys() {
+    long result = 0;
+    EvictionController evictionController = getEvictionController();
+    if (evictionController != null) {
+      EvictionCounters es = evictionController.getCounters();
+      if (es != null) {
+        result = es.getDestroys();
+      }
+    }
+    return result;
+  }
+
+  public EvictionController getEvictionController() {
+    return getRegionMap().getEvictionController();
+  }
+
+  @Override
+  public void setEvictionMaximum(int maximum) {
+    EvictionController evictionController = getEvictionController();
+    if (evictionController != null) {
+      evictionController.setLimit(maximum);
+    }
+  }
+
+  @Override
+  public Statistics getEvictionStatistics() {
+    Statistics result = null;
+    EvictionController evictionController = getEvictionController();
+    if (evictionController != null) {
+      EvictionCounters es = evictionController.getCounters();
+      if (es != null) {
+        result = es.getStatistics();
+      }
+    }
+    return result;
+  }
+
+  @Override
+  public EvictionController getExistingController(InternalRegionArguments internalArgs) {
+    return null;
+  }
+
+  @Override
+  public String getNameForStats() {
+    return getFullPath();
+  }
+
+  @Override
+  public Lock getClientMetaDataLock() {
+    return clientMetaDataLock;
+  }
 }

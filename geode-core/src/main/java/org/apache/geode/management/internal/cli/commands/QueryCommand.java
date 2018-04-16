@@ -18,6 +18,7 @@ package org.apache.geode.management.internal.cli.commands;
 import java.io.File;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
@@ -26,17 +27,19 @@ import org.apache.shiro.subject.Subject;
 import org.springframework.shell.core.annotation.CliCommand;
 import org.springframework.shell.core.annotation.CliOption;
 
-import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.execute.FunctionService;
+import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.cache.query.QueryInvalidException;
 import org.apache.geode.cache.query.internal.CompiledValue;
 import org.apache.geode.cache.query.internal.QCompiler;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.security.IntegratedSecurityService;
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.ConverterHint;
 import org.apache.geode.management.cli.Result;
+import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.internal.cli.domain.DataCommandRequest;
 import org.apache.geode.management.internal.cli.domain.DataCommandResult;
 import org.apache.geode.management.internal.cli.functions.DataCommandFunction;
@@ -44,8 +47,10 @@ import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.management.internal.cli.remote.CommandExecutionContext;
 import org.apache.geode.management.internal.cli.result.CompositeResultData;
 import org.apache.geode.management.internal.cli.result.ResultBuilder;
+import org.apache.geode.security.ResourcePermission.Operation;
+import org.apache.geode.security.ResourcePermission.Resource;
 
-public class QueryCommand implements GfshCommand {
+public class QueryCommand extends InternalGfshCommand {
   private static final Logger logger = LogService.getLogger();
 
   @CliCommand(value = "query", help = CliStrings.QUERY__HELP)
@@ -63,7 +68,7 @@ public class QueryCommand implements GfshCommand {
   }
 
   private DataCommandResult select(String query) {
-    InternalCache cache = (InternalCache) CacheFactory.getAnyInstance();
+    Cache cache = getCache();
     DataCommandResult dataResult;
 
     if (StringUtils.isEmpty(query)) {
@@ -72,8 +77,6 @@ public class QueryCommand implements GfshCommand {
       return dataResult;
     }
 
-    Object array[] = DataCommands.replaceGfshEnvVar(query, CommandExecutionContext.getShellEnv());
-    query = (String) array[1];
     boolean limitAdded = false;
 
     if (!StringUtils.containsIgnoreCase(query, " limit")
@@ -92,23 +95,23 @@ public class QueryCommand implements GfshCommand {
 
       // authorize data read on these regions
       for (String region : regions) {
-        IntegratedSecurityService.getSecurityService().authorizeRegionRead(region);
+        authorize(Resource.DATA, Operation.READ, region);
       }
 
       regionsInQuery = Collections.unmodifiableSet(regions);
       if (regionsInQuery.size() > 0) {
         Set<DistributedMember> members =
-            DataCommands.getQueryRegionsAssociatedMembers(regionsInQuery, cache, false);
+            CliUtil.getQueryRegionsAssociatedMembers(regionsInQuery, (InternalCache) cache, false);
         if (members != null && members.size() > 0) {
           DataCommandFunction function = new DataCommandFunction();
           DataCommandRequest request = new DataCommandRequest();
           request.setCommand(CliStrings.QUERY);
           request.setQuery(query);
-          Subject subject = IntegratedSecurityService.getSecurityService().getSubject();
+          Subject subject = getSubject();
           if (subject != null) {
             request.setPrincipal(subject.getPrincipal());
           }
-          dataResult = DataCommands.callFunctionForRegion(request, function, members);
+          dataResult = callFunctionForRegion(request, function, members);
           dataResult.setInputQuery(query);
           if (limitAdded) {
             dataResult.setLimit(CommandExecutionContext.getShellFetchSize());
@@ -128,6 +131,50 @@ public class QueryCommand implements GfshCommand {
       logger.error("{} Failed Error {}", query, qe.getMessage(), qe);
       return DataCommandResult.createSelectInfoResult(null, null, -1, null,
           CliStrings.format(CliStrings.QUERY__MSG__INVALID_QUERY, qe.getMessage()), false);
+    }
+  }
+
+  public static DataCommandResult callFunctionForRegion(DataCommandRequest request,
+      DataCommandFunction putfn, Set<DistributedMember> members) {
+
+    if (members.size() == 1) {
+      DistributedMember member = members.iterator().next();
+      ResultCollector collector =
+          FunctionService.onMember(member).setArguments(request).execute(putfn);
+      List list = (List) collector.getResult();
+      Object object = list.get(0);
+      if (object instanceof Throwable) {
+        Throwable error = (Throwable) object;
+        DataCommandResult result = new DataCommandResult();
+        result.setErorr(error);
+        result.setErrorString(error.getMessage());
+        return result;
+      }
+      DataCommandResult result = (DataCommandResult) list.get(0);
+      result.aggregate(null);
+      return result;
+    } else {
+      ResultCollector collector =
+          FunctionService.onMembers(members).setArguments(request).execute(putfn);
+      List list = (List) collector.getResult();
+      DataCommandResult result = null;
+      for (Object object : list) {
+        if (object instanceof Throwable) {
+          Throwable error = (Throwable) object;
+          result = new DataCommandResult();
+          result.setErorr(error);
+          result.setErrorString(error.getMessage());
+          return result;
+        }
+
+        if (result == null) {
+          result = (DataCommandResult) object;
+          result.aggregate(null);
+        } else {
+          result.aggregate((DataCommandResult) object);
+        }
+      }
+      return result;
     }
   }
 }

@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -14,41 +14,31 @@
  */
 package org.apache.geode.cache.lucene.internal;
 
-import static org.junit.Assert.*;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Matchers.any;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.when;
 
-import org.apache.geode.cache.lucene.internal.repository.serializer.HeterogeneousLuceneSerializer;
-import org.apache.geode.distributed.internal.locks.DLockService;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
-import org.apache.geode.internal.cache.PartitionedRegion;
-import org.apache.geode.internal.cache.PartitionedRegionDataStore;
-import org.apache.geode.internal.cache.PartitionedRegionHelper;
-import org.apache.geode.test.fake.Fakes;
-import org.apache.geode.test.junit.rules.DiskDirRule;
+import java.util.concurrent.Executors;
+
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import org.apache.geode.cache.lucene.internal.repository.IndexRepositoryImpl;
+import org.apache.geode.cache.lucene.internal.repository.serializer.HeterogeneousLuceneSerializer;
 import org.apache.geode.internal.cache.BucketNotFoundException;
 import org.apache.geode.internal.cache.BucketRegion;
-
-import java.io.File;
+import org.apache.geode.internal.cache.PartitionedRegion;
+import org.apache.geode.internal.cache.PartitionedRegionDataStore;
+import org.apache.geode.test.fake.Fakes;
 
 public class RawLuceneRepositoryManagerJUnitTest extends PartitionedRepositoryManagerJUnitTest {
-
-  @Rule
-  public DiskDirRule diskDirRule = new DiskDirRule();
 
   @Before
   public void setUp() {
@@ -58,7 +48,7 @@ public class RawLuceneRepositoryManagerJUnitTest extends PartitionedRepositoryMa
     userDataStore = Mockito.mock(PartitionedRegionDataStore.class);
     when(userRegion.getDataStore()).thenReturn(userDataStore);
     when(cache.getRegion("/testRegion")).thenReturn(userRegion);
-    serializer = new HeterogeneousLuceneSerializer(new String[] {"a", "b"});
+    serializer = new HeterogeneousLuceneSerializer();
     createIndexAndRepoManager();
   }
 
@@ -67,6 +57,7 @@ public class RawLuceneRepositoryManagerJUnitTest extends PartitionedRepositoryMa
     ((RawLuceneRepositoryManager) repoManager).close();
   }
 
+  @Override
   protected void createIndexAndRepoManager() {
     LuceneServiceImpl.luceneIndexFactory = new LuceneRawIndexFactory();
 
@@ -77,8 +68,9 @@ public class RawLuceneRepositoryManagerJUnitTest extends PartitionedRepositoryMa
     when(indexForPR.getCache()).thenReturn(cache);
     when(indexForPR.getRegionPath()).thenReturn("/testRegion");
     when(indexForPR.withPersistence()).thenReturn(true);
-    repoManager = new RawLuceneRepositoryManager(indexForPR, serializer);
-    repoManager.setUserRegionForRepositoryManager();
+    repoManager =
+        new RawLuceneRepositoryManager(indexForPR, serializer, Executors.newSingleThreadExecutor());
+    repoManager.setUserRegionForRepositoryManager(userRegion);
     repoManager.allowRepositoryComputation();
   }
 
@@ -89,7 +81,7 @@ public class RawLuceneRepositoryManagerJUnitTest extends PartitionedRepositoryMa
   }
 
   @Override
-  protected void checkRepository(IndexRepositoryImpl repo0, int bucketId) {
+  protected void checkRepository(IndexRepositoryImpl repo0, int... bucketId) {
     IndexWriter writer0 = repo0.getWriter();
     Directory dir0 = writer0.getDirectory();
     assertTrue(dir0 instanceof NIOFSDirectory);
@@ -115,5 +107,6 @@ public class RawLuceneRepositoryManagerJUnitTest extends PartitionedRepositoryMa
 
     assertNotNull(repoManager.getRepository(userRegion, 0, null));
   }
+
 
 }

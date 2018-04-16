@@ -17,12 +17,11 @@ package org.apache.geode.management.internal.beans;
 import javax.management.NotificationBroadcasterSupport;
 
 import org.apache.geode.management.AsyncEventQueueMXBean;
-import org.apache.geode.management.internal.beans.stats.StatsKey;
 
 /**
  * Concrete implementation of AsyncEventQueueMXBean
- * 
- * 
+ *
+ *
  */
 public class AsyncEventQueueMBean extends NotificationBroadcasterSupport
     implements AsyncEventQueueMXBean {
@@ -105,6 +104,21 @@ public class AsyncEventQueueMBean extends NotificationBroadcasterSupport
   @Override
   public int getEventQueueSize() {
     return bridge.getEventQueueSize();
+  }
+
+  @Override
+  public float getLRUEvictionsRate() {
+    return bridge.getLRUEvictionsRate();
+  }
+
+  @Override
+  public long getEntriesOverflowedToDisk() {
+    return bridge.getEntriesOverflowedToDisk();
+  }
+
+  @Override
+  public long getBytesOverflowedToDisk() {
+    return bridge.getBytesOverflowedToDisk();
   }
 
   public void stopMonitor() {

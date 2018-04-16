@@ -29,7 +29,6 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.cache.DiskAccessException;
 import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.LoggingThreadGroup;
@@ -38,9 +37,6 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 
 public class DiskStoreMonitor {
   private static final Logger logger = LogService.getLogger();
-
-  private static final boolean DISABLE_MONITOR =
-      Boolean.getBoolean(DistributionConfig.GEMFIRE_PREFIX + "DISK_USAGE_DISABLE_MONITORING");
 
   private static final int USAGE_CHECK_INTERVAL = Integer
       .getInteger(DistributionConfig.GEMFIRE_PREFIX + "DISK_USAGE_POLLING_INTERVAL_MILLIS", 10000);
@@ -64,7 +60,7 @@ public class DiskStoreMonitor {
 
   /**
    * Validates the warning percent.
-   * 
+   *
    * @param val the value to check
    */
   public static void checkWarning(float val) {
@@ -77,7 +73,7 @@ public class DiskStoreMonitor {
 
   /**
    * Validates the critical percent.
-   * 
+   *
    * @param val the value to check
    */
   public static void checkCritical(float val) {
@@ -87,6 +83,11 @@ public class DiskStoreMonitor {
               .toLocalizedString(val));
     }
   }
+
+  static final String DISK_USAGE_DISABLE_MONITORING =
+      DistributionConfig.GEMFIRE_PREFIX + "DISK_USAGE_DISABLE_MONITORING";
+
+  private final boolean disableMonitor = Boolean.getBoolean(DISK_USAGE_DISABLE_MONITORING);
 
   private final ScheduledExecutorService exec;
 
@@ -100,20 +101,20 @@ public class DiskStoreMonitor {
     void handleDiskStateChange(DiskState state);
   }
 
-  public DiskStoreMonitor() {
+  public DiskStoreMonitor(File logFile) {
     disks = new ConcurrentHashMap<DiskStoreImpl, Set<DirectoryHolderUsage>>();
-    logDisk = new LogUsage(getLogDir());
+    logDisk = new LogUsage(getLogDir(logFile));
 
-    if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR)) {
-      logger.trace(LogMarker.DISK_STORE_MONITOR, "Disk monitoring is {}",
-          (DISABLE_MONITOR ? "disabled" : "enabled"));
-      logger.trace(LogMarker.DISK_STORE_MONITOR, "Log directory usage warning is set to {}%",
-          LOG_WARNING_THRESHOLD_PCT);
-      logger.trace(LogMarker.DISK_STORE_MONITOR, "Scheduling disk usage checks every {} ms",
+    if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR_VERBOSE)) {
+      logger.trace(LogMarker.DISK_STORE_MONITOR_VERBOSE, "Disk monitoring is {}",
+          (disableMonitor ? "disabled" : "enabled"));
+      logger.trace(LogMarker.DISK_STORE_MONITOR_VERBOSE,
+          "Log directory usage warning is set to {}%", LOG_WARNING_THRESHOLD_PCT);
+      logger.trace(LogMarker.DISK_STORE_MONITOR_VERBOSE, "Scheduling disk usage checks every {} ms",
           USAGE_CHECK_INTERVAL);
     }
 
-    if (DISABLE_MONITOR) {
+    if (disableMonitor) {
       exec = null;
     } else {
       final ThreadGroup tg = LoggingThreadGroup.createThreadGroup(
@@ -141,9 +142,14 @@ public class DiskStoreMonitor {
     }
   }
 
+  LogUsage getLogDisk() {
+    return logDisk;
+  }
+
   public void addDiskStore(DiskStoreImpl ds) {
-    if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR)) {
-      logger.trace(LogMarker.DISK_STORE_MONITOR, "Now monitoring disk store {}", ds.getName());
+    if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR_VERBOSE)) {
+      logger.trace(LogMarker.DISK_STORE_MONITOR_VERBOSE, "Now monitoring disk store {}",
+          ds.getName());
     }
 
     Set<DirectoryHolderUsage> du = new HashSet<DirectoryHolderUsage>();
@@ -154,8 +160,8 @@ public class DiskStoreMonitor {
   }
 
   public void removeDiskStore(DiskStoreImpl ds) {
-    if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR)) {
-      logger.trace(LogMarker.DISK_STORE_MONITOR, "No longer monitoring disk store {}",
+    if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR_VERBOSE)) {
+      logger.trace(LogMarker.DISK_STORE_MONITOR_VERBOSE, "No longer monitoring disk store {}",
           ds.getName());
     }
 
@@ -178,22 +184,14 @@ public class DiskStoreMonitor {
 
   public void close() {
     // only shutdown if we're not waiting for the critical disk to return to normal
-    if (exec != null /* && criticalDisk == null */) {
+    if (exec != null) {
       exec.shutdownNow();
     }
     disks.clear();
   }
 
   private void checkUsage() {
-    // // 1) Check critical disk if needed
-    // if (criticalDisk != null) {
-    // criticalDisk.update(
-    // criticalDisk.disk.getDiskUsageWarningPercentage(),
-    // criticalDisk.disk.getDiskUsageCriticalPercentage());
-    // return;
-    // }
-
-    // 2) Check disk stores / dirs
+    // Check disk stores / dirs
     for (Entry<DiskStoreImpl, Set<DirectoryHolderUsage>> entry : disks.entrySet()) {
       DiskStoreImpl ds = entry.getKey();
       for (DiskUsage du : entry.getValue()) {
@@ -205,31 +203,21 @@ public class DiskStoreMonitor {
       }
     }
 
-    // 3) Check log dir
+    // Check log dir
     logDisk.update(LOG_WARNING_THRESHOLD_PCT, 100);
   }
 
-  private File getLogDir() {
-    File log = null;
-    InternalCache internalCache = GemFireCacheImpl.getInstance();
-    if (internalCache != null) {
-      InternalDistributedSystem ds = internalCache.getInternalDistributedSystem();
-      if (ds != null) {
-        DistributionConfig conf = ds.getConfig();
-        if (conf != null) {
-          log = conf.getLogFile();
-          if (log != null) {
-            log = log.getParentFile();
-          }
-        }
-      }
+  private static File getLogDir(File logFile) {
+    File logDir = null;
+    if (logFile != null) {
+      logDir = logFile.getParentFile();
     }
 
-    if (log == null) {
+    if (logDir == null) {
       // assume current directory
-      log = new File(".");
+      logDir = new File(".");
     }
-    return log;
+    return logDir;
   }
 
   abstract static class DiskUsage {
@@ -255,18 +243,19 @@ public class DiskStoreMonitor {
       }
 
       if (!dir().exists()) {
-        if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR)) {
-          logger.trace(LogMarker.DISK_STORE_MONITOR, "Skipping check of non-existent directory {}",
-              dir().getAbsolutePath());
+        if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR_VERBOSE)) {
+          logger.trace(LogMarker.DISK_STORE_MONITOR_VERBOSE,
+              "Skipping check of non-existent directory {}", dir().getAbsolutePath());
         }
         return current;
       }
 
-      long min = getMinimumSpace();
-      if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR)) {
-        logger.trace(LogMarker.DISK_STORE_MONITOR,
+      long minMegabytes = getMinimumSpace();
+      final long minBytes = minMegabytes * 1024 * 1024;
+      if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR_VERBOSE)) {
+        logger.trace(LogMarker.DISK_STORE_MONITOR_VERBOSE,
             "Checking usage for directory {}, minimum free space is {} MB", dir().getAbsolutePath(),
-            min);
+            minMegabytes);
       }
 
       long start = System.nanoTime();
@@ -278,13 +267,13 @@ public class DiskStoreMonitor {
       recordStats(total, remaining, elapsed);
 
       String pct = Math.round(use) + "%";
-      if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR)) {
-        logger.trace(LogMarker.DISK_STORE_MONITOR,
+      if (logger.isTraceEnabled(LogMarker.DISK_STORE_MONITOR_VERBOSE)) {
+        logger.trace(LogMarker.DISK_STORE_MONITOR_VERBOSE,
             "Directory {} has {} bytes free out of {} ({} usage)", dir().getAbsolutePath(),
             remaining, total, pct);
       }
 
-      boolean belowMin = remaining < 1024 * 1024 * min;
+      boolean belowMin = remaining < minBytes;
       DiskState next = DiskState.select(use, warning, critical, belowMin);
       if (next == current) {
         return next;
@@ -294,7 +283,17 @@ public class DiskStoreMonitor {
         state = next;
       }
 
-      handleStateChange(next, pct);
+      String criticalMessage = null;
+      if (next == DiskState.CRITICAL) {
+        if (belowMin) {
+          criticalMessage = "the file system only has " + remaining
+              + " bytes free which is below the minimum of " + minBytes + ".";
+        } else {
+          criticalMessage = "the file system is " + pct
+              + " full, which exceeds the critical threshold of " + critical + "%.";
+        }
+      }
+      handleStateChange(next, pct, criticalMessage);
       return next;
     }
 
@@ -304,7 +303,7 @@ public class DiskStoreMonitor {
 
     protected abstract void recordStats(long total, long free, long elapsed);
 
-    protected abstract void handleStateChange(DiskState next, String pct);
+    protected abstract void handleStateChange(DiskState next, String pct, String criticalMessage);
   }
 
   static class LogUsage extends DiskUsage {
@@ -314,17 +313,17 @@ public class DiskStoreMonitor {
       this.dir = dir;
     }
 
-    protected void handleStateChange(DiskState next, String pct) {
+    protected void handleStateChange(DiskState next, String pct, String critcalMessage) {
       Object[] args = new Object[] {dir.getAbsolutePath(), pct};
       switch (next) {
         case NORMAL:
-          logger.info(LogMarker.DISK_STORE_MONITOR,
+          logger.info(LogMarker.DISK_STORE_MONITOR_MARKER,
               LocalizedMessage.create(LocalizedStrings.DiskStoreMonitor_LOG_DISK_NORMAL, args));
           break;
 
         case WARN:
         case CRITICAL:
-          logger.warn(LogMarker.DISK_STORE_MONITOR,
+          logger.warn(LogMarker.DISK_STORE_MONITOR_MARKER,
               LocalizedMessage.create(LocalizedStrings.DiskStoreMonitor_LOG_DISK_WARNING, args));
           break;
       }
@@ -353,38 +352,29 @@ public class DiskStoreMonitor {
       this.dir = dir;
     }
 
-    protected void handleStateChange(DiskState next, String pct) {
+    protected void handleStateChange(DiskState next, String pct, String criticalMessage) {
       if (_testAction != null) {
-        logger.info(LogMarker.DISK_STORE_MONITOR, "Invoking test handler for state change to {}",
-            next);
+        logger.info(LogMarker.DISK_STORE_MONITOR_MARKER,
+            "Invoking test handler for state change to {}", next);
         _testAction.handleDiskStateChange(next);
       }
 
       Object[] args = new Object[] {dir.getDir(), disk.getName(), pct};
-      String msg = "Critical disk usage threshold exceeded for volume "
-          + dir.getDir().getAbsolutePath() + ": " + pct + " full";
 
       switch (next) {
         case NORMAL:
-          logger.warn(LogMarker.DISK_STORE_MONITOR,
+          logger.warn(LogMarker.DISK_STORE_MONITOR_MARKER,
               LocalizedMessage.create(LocalizedStrings.DiskStoreMonitor_DISK_NORMAL, args));
-
-          // // try to restart cache after we return to normal operations
-          // if (AUTO_RECONNECT && this == criticalDisk) {
-          // performReconnect(msg);
-          // }
           break;
-
         case WARN:
-          logger.warn(LogMarker.DISK_STORE_MONITOR,
+          logger.warn(LogMarker.DISK_STORE_MONITOR_MARKER,
               LocalizedMessage.create(LocalizedStrings.DiskStoreMonitor_DISK_WARNING, args));
           break;
-
         case CRITICAL:
-          logger.error(LogMarker.DISK_STORE_MONITOR,
+          logger.error(LogMarker.DISK_STORE_MONITOR_MARKER,
               LocalizedMessage.create(LocalizedStrings.DiskStoreMonitor_DISK_CRITICAL, args));
-
-          // TODO: this is weird...
+          String msg = "Critical disk usage threshold exceeded for volume "
+              + dir.getDir().getAbsolutePath() + ": " + criticalMessage;
           disk.handleDiskAccessException(new DiskAccessException(msg, disk));
           break;
       }

@@ -18,6 +18,8 @@ import java.util.Date;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
+
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsType;
 import org.apache.geode.cache.CacheWriterException;
@@ -34,7 +36,6 @@ import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.offheap.annotations.Released;
-import org.apache.geode.management.internal.cli.CliUtil;
 
 /**
  * This class publishes the client statistics using the admin region.
@@ -43,7 +44,7 @@ public class ClientStatsManager {
 
   /**
    * Last cache that was initialized
-   * 
+   *
    * GuardedBy ClientStatsManager.class
    */
   private static InternalCache lastInitializedCache = null;
@@ -60,7 +61,7 @@ public class ClientStatsManager {
 
   /**
    * This method publishes the client stats using the admin region.
-   * 
+   *
    * @param pool Connection pool which may be used for admin region.
    */
   public static synchronized void publishClientStats(PoolImpl pool) {
@@ -180,7 +181,7 @@ public class ClientStatsManager {
   /**
    * This method queries the client stats & prepares the client health stats object to be published
    * to the server.
-   * 
+   *
    * @return the client health stats object to be published to the server.
    */
   private static ClientHealthStats getClientHealthStats(InternalCache currentCache, PoolImpl pool) {
@@ -255,7 +256,7 @@ public class ClientStatsManager {
 
     } catch (Exception e) {
       logger.fine("Exception in getting pool stats in  getClientHealthStats "
-          + CliUtil.stackTraceAsString(e));
+          + ExceptionUtils.getStackTrace(e));
     }
 
     stats.setUpdateTime(new Date());

@@ -14,17 +14,7 @@
  */
 package org.apache.geode.internal.cache.wan.misc;
 
-import org.apache.geode.test.dunit.IgnoredException;
-import org.junit.Ignore;
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.FlakyTest;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -35,6 +25,10 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.GemFireConfigException;
 import org.apache.geode.IncompatibleSystemException;
 import org.apache.geode.internal.AvailablePortHelper;
@@ -43,9 +37,13 @@ import org.apache.geode.internal.cache.wan.WANTestBase;
 import org.apache.geode.test.dunit.Assert;
 import org.apache.geode.test.dunit.AsyncInvocation;
 import org.apache.geode.test.dunit.Host;
+import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.LogWriterUtils;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class WanAutoDiscoveryDUnitTest extends WANTestBase {
 
 
@@ -82,8 +80,7 @@ public class WanAutoDiscoveryDUnitTest extends WANTestBase {
    * causes other below tests to fail. In this test, VM1 is throwing IncompatibleSystemException
    * after startInitLocator. I think, after throwing this exception, locator is not stopped properly
    * and hence other tests are failing.
-   * 
-   * @throws Exception
+   *
    */
   @Ignore
   @Test
@@ -104,8 +101,7 @@ public class WanAutoDiscoveryDUnitTest extends WANTestBase {
   /**
    * Test to validate that multiple locators added on LN site and multiple locators on Ny site
    * recognizes each other
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void test_NY_Recognises_ALL_LN_Locators() throws Exception {
@@ -235,7 +231,7 @@ public class WanAutoDiscoveryDUnitTest extends WANTestBase {
     vm2.invoke(() -> WANTestBase.checkAllSiteMetaData(dsVsPort));
   }
 
-  @Category(FlakyTest.class) // GEODE-1920
+  @Category({FlakyTest.class, WanTest.class}) // GEODE-1920
   @Test
   public void test_NY_Recognises_TK_AND_HK_Simultaneously() {
     Map<Integer, Set<InetSocketAddress>> dsVsPort = new HashMap<>();
@@ -293,43 +289,50 @@ public class WanAutoDiscoveryDUnitTest extends WANTestBase {
 
   @Test
   public void test_LN_Sender_recognises_ALL_NY_Locators() {
+    IgnoredException ie = IgnoredException
+        .addIgnoredException("could not get remote locator information for remote site");
+    try {
+      Integer lnLocPort1 = (Integer) vm0.invoke(() -> WANTestBase.createFirstLocatorWithDSId(1));
 
-    Integer lnLocPort1 = (Integer) vm0.invoke(() -> WANTestBase.createFirstLocatorWithDSId(1));
+      Integer lnLocPort2 =
+          (Integer) vm5.invoke(() -> WANTestBase.createSecondLocator(1, lnLocPort1));
 
-    Integer lnLocPort2 = (Integer) vm5.invoke(() -> WANTestBase.createSecondLocator(1, lnLocPort1));
+      vm2.invoke(() -> WANTestBase.createCache(lnLocPort1, lnLocPort2));
 
-    vm2.invoke(() -> WANTestBase.createCache(lnLocPort1, lnLocPort2));
+      vm2.invoke(() -> WANTestBase.createSender("ln", 2, false, 100, 10, false, false, null, true));
 
-    vm2.invoke(() -> WANTestBase.createSender("ln", 2, false, 100, 10, false, false, null, true));
+      Integer nyLocPort1 =
+          (Integer) vm1.invoke(() -> WANTestBase.createFirstRemoteLocator(2, lnLocPort1));
 
-    Integer nyLocPort1 =
-        (Integer) vm1.invoke(() -> WANTestBase.createFirstRemoteLocator(2, lnLocPort1));
+      vm2.invoke(() -> WANTestBase.startSender("ln"));
 
-    vm2.invoke(() -> WANTestBase.startSender("ln"));
+      // Since to fix Bug#46289, we have moved call to initProxy in getConnection which will be
+      // called
+      // only when batch is getting dispatched.
+      // So for locator discovery callback to work, its now expected that atleast try to send a
+      // batch
+      // so that proxy will be initialized
+      vm2.invoke(
+          () -> WANTestBase.createReplicatedRegion(getTestMethodName() + "_RR", "ln", isOffHeap()));
 
-    // Since to fix Bug#46289, we have moved call to initProxy in getConnection which will be called
-    // only when batch is getting dispatched.
-    // So for locator discovery callback to work, its now expected that atleast try to send a batch
-    // so that proxy will be initialized
-    vm2.invoke(
-        () -> WANTestBase.createReplicatedRegion(getTestMethodName() + "_RR", "ln", isOffHeap()));
+      vm2.invoke(() -> WANTestBase.doPuts(getTestMethodName() + "_RR", 10));
 
-    vm2.invoke(() -> WANTestBase.doPuts(getTestMethodName() + "_RR", 10));
+      Integer nyLocPort2 = (Integer) vm3
+          .invoke(() -> WANTestBase.createSecondRemoteLocator(2, nyLocPort1, lnLocPort1));
 
-    Integer nyLocPort2 = (Integer) vm3
-        .invoke(() -> WANTestBase.createSecondRemoteLocator(2, nyLocPort1, lnLocPort1));
+      InetSocketAddress locatorToWaitFor = new InetSocketAddress("localhost", nyLocPort2);
 
-    InetSocketAddress locatorToWaitFor = new InetSocketAddress("localhost", nyLocPort2);
+      vm2.invoke(() -> WANTestBase.checkLocatorsinSender("ln", locatorToWaitFor));
 
-    vm2.invoke(() -> WANTestBase.checkLocatorsinSender("ln", locatorToWaitFor));
+      Integer nyLocPort3 = (Integer) vm4
+          .invoke(() -> WANTestBase.createSecondRemoteLocator(2, nyLocPort1, lnLocPort1));
 
-    Integer nyLocPort3 = (Integer) vm4
-        .invoke(() -> WANTestBase.createSecondRemoteLocator(2, nyLocPort1, lnLocPort1));
+      InetSocketAddress locatorToWaitFor2 = new InetSocketAddress("localhost", nyLocPort3);
 
-    InetSocketAddress locatorToWaitFor2 = new InetSocketAddress("localhost", nyLocPort3);
-
-    vm2.invoke(() -> WANTestBase.checkLocatorsinSender("ln", locatorToWaitFor2));
-
+      vm2.invoke(() -> WANTestBase.checkLocatorsinSender("ln", locatorToWaitFor2));
+    } finally {
+      ie.remove();
+    }
   }
 
   @Test
@@ -603,6 +606,7 @@ public class WanAutoDiscoveryDUnitTest extends WANTestBase {
     testRemoteLocators(remoteLocators, true, 1);
   }
 
+  // pool has been created even though locator address is not valid
   @Test
   public void testInvalidHostRemoteLocators() {
     IgnoredException ie = IgnoredException
@@ -610,7 +614,8 @@ public class WanAutoDiscoveryDUnitTest extends WANTestBase {
     try {
       Set<String> remoteLocators = new HashSet();
       addUnknownHost(remoteLocators);
-      testRemoteLocators(remoteLocators, false, 0);
+      // now we don't validata address upfront
+      testRemoteLocators(remoteLocators, true, 1);
     } finally {
       ie.remove();
     }
@@ -621,7 +626,8 @@ public class WanAutoDiscoveryDUnitTest extends WANTestBase {
     Set<String> remoteLocators = new HashSet();
     remoteLocators.add("localhost[12345]");
     addUnknownHost(remoteLocators);
-    testRemoteLocators(remoteLocators, true, 1);
+    // now we add the locator to pool, because we don't validate locator address
+    testRemoteLocators(remoteLocators, true, 2);
   }
 
   private void addUnknownHost(Set<String> remoteLocators) {

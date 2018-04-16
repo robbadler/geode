@@ -16,23 +16,23 @@ package org.apache.geode.management.internal.cli.functions;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import org.apache.commons.lang.exception.ExceptionUtils;
+
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.internal.InternalEntity;
-import org.apache.geode.management.internal.cli.CliUtil;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.management.internal.cli.util.BytesToString;
 
 /**
- * 
+ *
  * Class for Garbage collection function
- * 
- * 
- * 
+ *
+ *
+ *
  */
-public class GarbageCollectionFunction implements Function, InternalEntity {
+public class GarbageCollectionFunction implements InternalFunction {
   public static final String ID = GarbageCollectionFunction.class.getName();
 
   private static final long serialVersionUID = 1L;
@@ -43,7 +43,7 @@ public class GarbageCollectionFunction implements Function, InternalEntity {
 
     Map<String, String> resultMap = null;
     try {
-      Cache cache = CacheFactory.getAnyInstance();
+      Cache cache = context.getCache();
       DistributedMember member = cache.getDistributedSystem().getDistributedMember();
       long freeMemoryBeforeGC = Runtime.getRuntime().freeMemory();
       long totalMemoryBeforeGC = Runtime.getRuntime().totalMemory();
@@ -60,7 +60,7 @@ public class GarbageCollectionFunction implements Function, InternalEntity {
       resultMap.put("HeapSizeAfterGC", bytesToString.of(totalMemoryAfterGC - freeMemoryAfterGC));
       resultMap.put("TimeSpentInGC", String.valueOf(timeAfterGC - timeBeforeGC));
     } catch (Exception ex) {
-      String message = "Exception in GC:" + ex.getMessage() + CliUtil.stackTraceAsString(ex);
+      String message = "Exception in GC:" + ex.getMessage() + ExceptionUtils.getStackTrace(ex);
 
       context.getResultSender().lastResult(message);
     }
@@ -77,5 +77,3 @@ public class GarbageCollectionFunction implements Function, InternalEntity {
     return false;
   }
 }
-
-

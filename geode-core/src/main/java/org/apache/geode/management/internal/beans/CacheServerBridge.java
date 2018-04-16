@@ -57,11 +57,11 @@ import org.apache.geode.management.ClientHealthStatus;
 import org.apache.geode.management.ClientQueueDetail;
 import org.apache.geode.management.ServerLoadData;
 import org.apache.geode.management.internal.ManagementConstants;
+import org.apache.geode.management.internal.beans.stats.MBeanStatsMonitor;
 import org.apache.geode.management.internal.beans.stats.StatType;
 import org.apache.geode.management.internal.beans.stats.StatsAverageLatency;
 import org.apache.geode.management.internal.beans.stats.StatsKey;
 import org.apache.geode.management.internal.beans.stats.StatsRate;
-import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.membership.ClientMembershipListener;
 
 /**
@@ -101,7 +101,7 @@ public class CacheServerBridge extends ServerBridge {
     }
   }
 
-  public CacheServerBridge(CacheServer cacheServer, InternalCache cache) {
+  public CacheServerBridge(final InternalCache cache, final CacheServer cacheServer) {
     super(cacheServer);
     this.cacheServer = cacheServer;
     this.cache = cache;
@@ -110,7 +110,18 @@ public class CacheServerBridge extends ServerBridge {
     initializeCacheServerStats();
   }
 
-  // Dummy constructor for testing purpose only TODO why is this public then?
+  // For testing only
+  public CacheServerBridge(final InternalCache cache, final CacheServer cacheServer,
+      final AcceptorImpl acceptor, final MBeanStatsMonitor monitor) {
+    super(acceptor, monitor);
+    this.cacheServer = cacheServer;
+    this.cache = cache;
+    this.qs = cache.getQueryService();
+
+    initializeCacheServerStats();
+  }
+
+  // For testing only
   public CacheServerBridge() {
     super();
     initializeCacheServerStats();
@@ -523,8 +534,7 @@ public class CacheServerBridge extends ServerBridge {
 
   /**
    * closes a continuous query and releases all the resources associated with it.
-   * 
-   * @param queryName
+   *
    */
   public void closeContinuousQuery(String queryName) throws Exception {
     CqService cqService = cache.getCqService();
@@ -547,8 +557,7 @@ public class CacheServerBridge extends ServerBridge {
 
   /**
    * Execute a continuous query
-   * 
-   * @param queryName
+   *
    */
   public void executeContinuousQuery(String queryName) throws Exception {
     CqService cqService = cache.getCqService();
@@ -569,8 +578,7 @@ public class CacheServerBridge extends ServerBridge {
 
   /**
    * Stops a given query witout releasing any of the resources associated with it.
-   * 
-   * @param queryName
+   *
    */
   public void stopContinuousQuery(String queryName) throws Exception {
     CqService cqService = cache.getCqService();
@@ -594,8 +602,7 @@ public class CacheServerBridge extends ServerBridge {
 
   /**
    * remove a given index
-   * 
-   * @param indexName
+   *
    */
   public void removeIndex(String indexName) throws Exception {
     try {
@@ -648,7 +655,7 @@ public class CacheServerBridge extends ServerBridge {
   }
 
   public int getNumSubscriptions() {
-    Map clientProxyMembershipIDMap = InternalClientMembership.getClientQueueSizes();
+    Map clientProxyMembershipIDMap = InternalClientMembership.getClientQueueSizes(cache);
     return clientProxyMembershipIDMap.keySet().size();
   }
 
@@ -701,7 +708,7 @@ public class CacheServerBridge extends ServerBridge {
     if (!p.isConnected() && !proxyID.isDurable()) {
       return null;
     }
-    queueDetail.setClientId(CliUtil.getClientIdFromCacheClientProxy(p));
+    queueDetail.setClientId(getClientIdFromCacheClientProxy(p));
 
     HARegionQueue queue = p.getHARegionQueue();
     if (queue == null) {
@@ -725,7 +732,7 @@ public class CacheServerBridge extends ServerBridge {
         Collection<CacheClientProxy> clientProxies =
             acceptor.getCacheClientNotifier().getClientProxies();
         for (CacheClientProxy p : clientProxies) {
-          String buffer = CliUtil.getClientIdFromCacheClientProxy(p);
+          String buffer = getClientIdFromCacheClientProxy(p);
           if (buffer.equals(clientId)) {
             ClientQueueDetail queueDetail = getClientQueueDetail(p);
             return queueDetail;
@@ -736,6 +743,17 @@ public class CacheServerBridge extends ServerBridge {
       throw new Exception(e.getMessage());
     }
     return null;
+  }
+
+
+  private static String getClientIdFromCacheClientProxy(CacheClientProxy p) {
+    if (p == null) {
+      return null;
+    }
+    StringBuffer buffer = new StringBuffer();
+    buffer.append("[").append(p.getProxyID()).append(":port=").append(p.getRemotePort())
+        .append(":primary=").append(p.isPrimary()).append("]");
+    return buffer.toString();
   }
 
 }

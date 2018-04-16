@@ -14,17 +14,19 @@
  */
 package org.apache.geode.internal.cache.tier.sockets;
 
+import org.apache.geode.internal.cache.tier.CommunicationMode;
+
 /**
  * A ConnectionListener that does nothing.
- * 
+ *
  * @since GemFire 5.7
  *
  */
 public class ConnectionListenerAdapter implements ConnectionListener {
 
-  public void connectionClosed(boolean lastConnection, byte communicationMode) {}
+  public void connectionClosed(boolean lastConnection, CommunicationMode communicationMode) {}
 
-  public void connectionOpened(boolean firstConnection, byte communicationMode) {}
+  public void connectionOpened(boolean firstConnection, CommunicationMode communicationMode) {}
 
   public void queueAdded(ClientProxyMembershipID id) {}
 

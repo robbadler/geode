@@ -14,6 +14,17 @@
  */
 package org.apache.geode;
 
+import static org.apache.geode.distributed.ConfigurationProperties.*;
+import static org.junit.Assert.*;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Properties;
+
+import org.junit.After;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.*;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -21,16 +32,6 @@ import org.apache.geode.distributed.internal.LonerDistributionManager;
 import org.apache.geode.internal.OSProcess;
 import org.apache.geode.internal.PureJavaMode;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.junit.After;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.Properties;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.junit.Assert.*;
 
 /**
  * This class makes sure an isolated "loner" distribution manager can be created and do some cache
@@ -170,29 +171,14 @@ public class LonerDMJUnitTest {
     cfg.setProperty(ENABLE_NETWORK_PARTITION_DETECTION, "false");
     DistributedSystem ds = DistributedSystem.connect(cfg);
     System.out.println("MemberId = " + ds.getMemberId());
-    assertEquals(host.toString(), ds.getDistributedMember().getHost());
     assertEquals(OSProcess.getId(), ds.getDistributedMember().getProcessId());
     if (!PureJavaMode.isPure()) {
       String pid = String.valueOf(OSProcess.getId());
       assertTrue(ds.getMemberId().indexOf(pid) > -1);
     }
     assertTrue(ds.getMemberId().indexOf(name) > -1);
-    String memberid = ds.getMemberId();
-    String shortname = shortName(host);
-    assertTrue("'" + memberid + "' does not contain '" + shortname + "'",
-        memberid.indexOf(shortname) > -1);
     // make sure the loner port can be updated
     ((LonerDistributionManager) ((InternalDistributedSystem) ds).getDM()).updateLonerPort(100);
-  }
-
-  private String shortName(String hostname) {
-    assertNotNull(hostname);
-    int index = hostname.indexOf('.');
-
-    if (index > 0 && !Character.isDigit(hostname.charAt(0)))
-      return hostname.substring(0, index);
-    else
-      return hostname;
   }
 
 }

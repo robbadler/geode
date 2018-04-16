@@ -14,13 +14,19 @@
  */
 package org.apache.geode.admin.internal;
 
-import org.apache.geode.admin.*;
-import org.apache.geode.distributed.internal.DM;
+import static org.apache.geode.distributed.ConfigurationProperties.CACHE_XML_FILE;
+
+import org.apache.geode.admin.AdminException;
+import org.apache.geode.admin.CacheServer;
+import org.apache.geode.admin.CacheServerConfig;
+import org.apache.geode.admin.CacheVm;
+import org.apache.geode.admin.CacheVmConfig;
+import org.apache.geode.admin.ManagedEntityConfig;
+import org.apache.geode.admin.SystemMemberType;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.admin.GemFireVM;
 import org.apache.geode.internal.admin.remote.RemoteApplicationVM;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
 
 /**
  * Implements the administrative interface to a cache server.
@@ -96,7 +102,8 @@ public class CacheServerImpl extends ManagedSystemMemberImpl implements CacheVm,
   }
 
   public boolean isRunning() {
-    DM dm = ((AdminDistributedSystemImpl) getDistributedSystem()).getDistributionManager();
+    DistributionManager dm =
+        ((AdminDistributedSystemImpl) getDistributedSystem()).getDistributionManager();
     if (dm == null) {
       try {
         return this.controller.isRunning(this);
@@ -104,7 +111,7 @@ public class CacheServerImpl extends ManagedSystemMemberImpl implements CacheVm,
         return false;
       }
     }
-    return ((DistributionManager) dm).getDistributionManagerIdsIncludingAdmin()
+    return ((ClusterDistributionManager) dm).getDistributionManagerIdsIncludingAdmin()
         .contains(getDistributedMember());
   }
 
@@ -172,10 +179,10 @@ public class CacheServerImpl extends ManagedSystemMemberImpl implements CacheVm,
 
   /**
    * Find whether this server is primary for given client (durableClientId)
-   * 
+   *
    * @param durableClientId - durable-id of the client
    * @return true if the server is primary for given client
-   * 
+   *
    * @since GemFire 5.6
    */
   public boolean isPrimaryForDurableClient(String durableClientId) {

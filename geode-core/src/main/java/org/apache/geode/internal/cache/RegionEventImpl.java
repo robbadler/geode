@@ -18,25 +18,25 @@ package org.apache.geode.internal.cache;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.lang.ClassNotFoundException;
+
+import org.apache.geode.DataSerializer;
+import org.apache.geode.cache.*;
+import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.DistributedSystem;
+import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
+import org.apache.geode.internal.*;
 import org.apache.geode.internal.DataSerializableFixedID;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.Version;
-import org.apache.geode.DataSerializer;
-import org.apache.geode.cache.*;
-import org.apache.geode.internal.*;
 import org.apache.geode.internal.cache.FilterRoutingInfo.FilterInfo;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
 import org.apache.geode.internal.cache.versions.VersionTag;
 import org.apache.geode.internal.i18n.LocalizedStrings;
-import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 
 /**
  * Implementation of a region event
- * 
- * 
+ *
+ *
  */
 // must be public for DataSerializable to work
 public class RegionEventImpl
@@ -69,12 +69,7 @@ public class RegionEventImpl
 
   /**
    * Constructor which does not generate EventID
-   * 
-   * @param region
-   * @param op
-   * @param callbackArgument
-   * @param originRemote
-   * @param distributedMember
+   *
    */
   public RegionEventImpl(Region region, Operation op, Object callbackArgument, boolean originRemote,
       DistributedMember distributedMember) {
@@ -97,12 +92,7 @@ public class RegionEventImpl
 
   /**
    * Constructor which uses the eventID passed
-   * 
-   * @param region
-   * @param op
-   * @param callbackArgument
-   * @param originRemote
-   * @param distributedMember
+   *
    * @param eventID EventID used to create the RegionEvent
    */
   public RegionEventImpl(Region region, Operation op, Object callbackArgument, boolean originRemote,
@@ -120,7 +110,7 @@ public class RegionEventImpl
 
   /**
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.cache.CacheEvent#getRegion()
    */
   public Region getRegion() {
@@ -165,7 +155,7 @@ public class RegionEventImpl
   /**
    * Returns the value of the RegionEventImpl field. This is for internal use only. Customers should
    * always call {@link #getCallbackArgument}
-   * 
+   *
    * @since GemFire 5.7
    */
   public Object getRawCallbackArgument() {
@@ -240,8 +230,7 @@ public class RegionEventImpl
 
   /**
    * Returns the Operation type.
-   * 
-   * @return eventType
+   *
    */
   public EnumListenerEvent getEventType() {
     return this.eventType;
@@ -249,8 +238,7 @@ public class RegionEventImpl
 
   /**
    * Sets the operation type.
-   * 
-   * @param eventType
+   *
    */
   public void setEventType(EnumListenerEvent eventType) {
     this.eventType = eventType;

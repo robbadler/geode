@@ -12,47 +12,45 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-
 package org.apache.geode.security;
 
 import static org.apache.geode.distributed.ConfigurationProperties.SECURITY_MANAGER;
 import static org.apache.geode.distributed.ConfigurationProperties.SECURITY_POST_PROCESSOR;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.Region;
-import org.apache.geode.cache.RegionShortcut;
-import org.apache.geode.internal.security.SecurityService;
-import org.apache.geode.management.ManagementService;
-import org.apache.geode.management.internal.cli.i18n.CliStrings;
-import org.apache.geode.management.internal.cli.result.CommandResult;
-import org.apache.geode.pdx.SimpleClass;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.Locator;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
-import org.apache.geode.test.dunit.rules.MemberVM;
-import org.apache.geode.test.dunit.rules.Server;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.SecurityTest;
+import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+
 import org.awaitility.Awaitility;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.util.Properties;
-import java.util.concurrent.TimeUnit;
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.cache.Region;
+import org.apache.geode.cache.RegionShortcut;
+import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.management.ManagementService;
+import org.apache.geode.management.internal.cli.i18n.CliStrings;
+import org.apache.geode.pdx.SimpleClass;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
+import org.apache.geode.test.dunit.rules.MemberVM;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.SecurityTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 
 @Category({DistributedTest.class, SecurityTest.class})
 public class PDXGfshPostProcessorOnRemoteServerTest {
-  protected static final String REGION_NAME = "AuthRegion";
+
+  private static final String REGION_NAME = "AuthRegion";
 
   @Rule
-  public LocatorServerStartupRule lsRule = new LocatorServerStartupRule();
+  public ClusterStartupRule lsRule = new ClusterStartupRule();
 
   @Rule
-  public GfshShellConnectionRule gfsh = new GfshShellConnectionRule();
+  public GfshCommandRule gfsh = new GfshCommandRule();
 
   @Test
   public void testGfshCommand() throws Exception {
@@ -62,17 +60,24 @@ public class PDXGfshPostProcessorOnRemoteServerTest {
     locatorProps.setProperty(SECURITY_MANAGER, TestSecurityManager.class.getName());
     locatorProps.setProperty(SECURITY_POST_PROCESSOR, PDXPostProcessor.class.getName());
 
-    MemberVM<Locator> locatorVM = lsRule.startLocatorVM(0, locatorProps);
+    MemberVM locatorVM = lsRule.startLocatorVM(0, locatorProps);
 
-    Properties serverProps = new Properties();
+    Properties serverProps = new Properties(locatorProps);
     serverProps.setProperty(TestSecurityManager.SECURITY_JSON,
         "org/apache/geode/management/internal/security/clientServer.json");
+    serverProps.setProperty(SECURITY_MANAGER, TestSecurityManager.class.getName());
+    serverProps.setProperty(SECURITY_POST_PROCESSOR, PDXPostProcessor.class.getName());
     serverProps.setProperty("security-username", "super-user");
     serverProps.setProperty("security-password", "1234567");
-    MemberVM<Server> serverVM = lsRule.startServerVM(1, serverProps, locatorVM.getPort());
+
+    MemberVM serverVM = lsRule.startServerVM(1, serverProps, locatorVM.getPort());
 
     serverVM.invoke(() -> {
-      Cache cache = LocatorServerStartupRule.serverStarter.getCache();
+      InternalCache cache = ClusterStartupRule.getCache();
+      assertThat(cache.getSecurityService()).isNotNull();
+      assertThat(cache.getSecurityService().getSecurityManager()).isNotNull();
+      assertThat(cache.getSecurityService().getPostProcessor()).isNotNull();
+
       Region region = cache.createRegionFactory(RegionShortcut.REPLICATE).create(REGION_NAME);
       for (int i = 0; i < 5; i++) {
         SimpleClass obj = new SimpleClass(i, (byte) i);
@@ -82,7 +87,7 @@ public class PDXGfshPostProcessorOnRemoteServerTest {
 
     // wait until the region bean is visible
     locatorVM.invoke(() -> {
-      Awaitility.await().pollInterval(500, TimeUnit.MICROSECONDS).atMost(5, TimeUnit.SECONDS)
+      Awaitility.await().pollInterval(500, TimeUnit.MICROSECONDS).atMost(2, TimeUnit.MINUTES)
           .until(() -> {
             Cache cache = CacheFactory.getAnyInstance();
             Object bean = ManagementService.getManagementService(cache)
@@ -91,18 +96,18 @@ public class PDXGfshPostProcessorOnRemoteServerTest {
           });
     });
 
-    gfsh.connectAndVerify(locatorVM.getJmxPort(), GfshShellConnectionRule.PortType.jmxManger,
+    gfsh.connectAndVerify(locatorVM.getJmxPort(), GfshCommandRule.PortType.jmxManager,
         CliStrings.CONNECT__USERNAME, "dataUser", CliStrings.CONNECT__PASSWORD, "1234567");
 
     // get command
-    CommandResult result = gfsh.executeAndVerifyCommand("get --key=key1 --region=AuthRegion");
-    assertTrue(result.getContent().toString().contains(SimpleClass.class.getName()));
+    gfsh.executeAndAssertThat("get --key=key1 --region=AuthRegion").statusIsSuccess()
+        .containsOutput(SimpleClass.class.getName());
 
-    gfsh.executeAndVerifyCommand("query --query=\"select * from /AuthRegion\"");
+    gfsh.executeAndAssertThat("query --query=\"select * from /AuthRegion\"").statusIsSuccess();
 
     serverVM.invoke(() -> {
       PDXPostProcessor pp =
-          (PDXPostProcessor) SecurityService.getSecurityService().getPostProcessor();
+          (PDXPostProcessor) ClusterStartupRule.getCache().getSecurityService().getPostProcessor();
       // verify that the post processor is called 6 times. (5 for the query, 1 for the get)
       assertEquals(pp.getCount(), 6);
     });

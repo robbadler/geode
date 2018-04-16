@@ -29,7 +29,7 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
 /**
  * Implements a thread that monitors the health of the vm it lives in.
- * 
+ *
  * @since GemFire 3.5
  */
 public class HealthMonitorImpl implements HealthMonitor, Runnable {
@@ -37,7 +37,7 @@ public class HealthMonitorImpl implements HealthMonitor, Runnable {
 
   private final InternalDistributedMember owner;
   private final int id;
-  private final DistributionManager dm;
+  private final ClusterDistributionManager dm;
   private final GemFireHealthEvaluator eval;
 
   /**
@@ -56,7 +56,7 @@ public class HealthMonitorImpl implements HealthMonitor, Runnable {
    * Creates a health monitor given its owner, configuration, and its dm
    */
   public HealthMonitorImpl(InternalDistributedMember owner, GemFireHealthConfig config,
-      DistributionManager dm) {
+      ClusterDistributionManager dm) {
     this.owner = owner;
     this.id = getNewId();
     this.dm = dm;

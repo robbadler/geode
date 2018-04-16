@@ -33,11 +33,10 @@ import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.wan.GatewayEventFilter;
 import org.apache.geode.cache.wan.GatewayQueueEvent;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.PooledDistributionMessage;
 import org.apache.geode.internal.cache.AbstractBucketRegionQueue;
 import org.apache.geode.internal.cache.ForceReattemptException;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
@@ -50,7 +49,7 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
 /**
  * Removes a batch of events from the remote secondary queues
- * 
+ *
  * @since GemFire 8.0
  */
 public class ParallelQueueRemovalMessage extends PooledDistributionMessage {
@@ -71,10 +70,9 @@ public class ParallelQueueRemovalMessage extends PooledDistributionMessage {
   }
 
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     final boolean isDebugEnabled = logger.isDebugEnabled();
-    final InternalCache cache;
-    cache = GemFireCacheImpl.getInstance();
+    final InternalCache cache = dm.getCache();
     if (cache != null) {
       int oldLevel = LocalRegion.setThreadInitLevelRequirement(LocalRegion.BEFORE_INITIAL_IMAGE);
       try {

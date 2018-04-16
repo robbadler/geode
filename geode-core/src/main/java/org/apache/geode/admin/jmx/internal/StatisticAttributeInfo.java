@@ -14,12 +14,12 @@
  */
 package org.apache.geode.admin.jmx.internal;
 
-import org.apache.geode.admin.Statistic;
-import org.apache.geode.internal.Assert;
-
 import javax.management.Descriptor;
 import javax.management.modelmbean.DescriptorSupport;
 import javax.management.modelmbean.ModelMBeanAttributeInfo;
+
+import org.apache.geode.admin.Statistic;
+import org.apache.geode.internal.Assert;
 
 /**
  * Subclass of AttributeInfo with {@link org.apache.geode.admin.Statistic} added for use as the
@@ -43,7 +43,6 @@ class StatisticAttributeInfo extends org.apache.commons.modeler.AttributeInfo {
   }
 
   public void setStat(Statistic stat) {
-    // System.out.println(">> stat = " + stat);
     Assert.assertTrue(stat != null, "Attempting to set stat to null");
     this.stat = stat;
   }
@@ -68,4 +67,3 @@ class StatisticAttributeInfo extends org.apache.commons.modeler.AttributeInfo {
     return info;
   }
 }
-

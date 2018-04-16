@@ -14,6 +14,12 @@
  */
 package org.apache.geode.cache.client.internal;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.cache.client.ServerConnectivityException;
 import org.apache.geode.cache.client.ServerOperationException;
@@ -36,16 +42,10 @@ import org.apache.geode.internal.cache.tier.sockets.Part;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
-import org.apache.logging.log4j.Logger;
-
 /**
  * Executes the function on server (possibly without region/cache).<br>
  * Also gets the result back from the server
- * 
+ *
  * @since GemFire 5.8
  */
 
@@ -65,7 +65,7 @@ public class ExecuteFunctionOp {
   /**
    * Does a execute Function on a server using connections from the given pool to communicate with
    * the server.
-   * 
+   *
    * @param pool the pool to use to communicate with the server.
    * @param function of the function to be executed
    * @param args specified arguments to the application function
@@ -556,7 +556,6 @@ public class ExecuteFunctionOp {
                 result = resultResponse;
               }
               if (result instanceof FunctionException) {
-                // String s = "While performing a remote " + getOpName();
                 FunctionException ex = ((FunctionException) result);
                 if (ex instanceof InternalFunctionException || getIgnoreFailedMembers()) {
                   Throwable cause = ex.getCause() == null ? ex : ex.getCause();
@@ -573,7 +572,6 @@ public class ExecuteFunctionOp {
                 exception = new ServerOperationException(s, (Throwable) result);
                 // Get the exception toString part.
                 // This was added for c++ thin client and not used in java
-                // Part exceptionToStringPart = msg.getPart(1);
               } else {
                 DistributedMember memberID =
                     (DistributedMember) ((ArrayList) resultResponse).get(1);

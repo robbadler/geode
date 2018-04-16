@@ -23,7 +23,7 @@ import java.util.Set;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.SystemFailure;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionStats;
@@ -39,7 +39,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 
 /**
  * A message sent to determine the most recent PartitionedRegion identity
- * 
+ *
  * @since GemFire 5.0
  */
 public class IdentityRequestMessage extends DistributionMessage implements MessageWithReply {
@@ -60,7 +60,7 @@ public class IdentityRequestMessage extends DistributionMessage implements Messa
 
   /**
    * Method public for test reasons
-   * 
+   *
    * @return the latest identity
    */
   public static synchronized int getLatestId() {
@@ -81,10 +81,10 @@ public class IdentityRequestMessage extends DistributionMessage implements Messa
   }
 
   @Override
-  protected void process(DistributionManager dm) {
+  protected void process(ClusterDistributionManager dm) {
     try {
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{}: processing message {}", getClass().getName(), this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{}: processing message {}", getClass().getName(), this);
       }
 
       IdentityReplyMessage.send(getSender(), getProcessorId(), dm);
@@ -112,15 +112,14 @@ public class IdentityRequestMessage extends DistributionMessage implements Messa
 
   @Override
   public int getProcessorType() {
-    return DistributionManager.HIGH_PRIORITY_EXECUTOR;
+    return ClusterDistributionManager.HIGH_PRIORITY_EXECUTOR;
   }
 
   /**
    * Sends a <code>IdentityRequest</code> to each <code>PartitionedRegion</code>
    * {@link org.apache.geode.internal.cache.Node}. The <code>IdentityResponse</code> is used to
    * fetch the highest current identity value.
-   * 
-   * @param recipients
+   *
    * @return the response object to wait upon
    */
   public static IdentityResponse send(Set recipients, InternalDistributedSystem is) {
@@ -163,7 +162,7 @@ public class IdentityRequestMessage extends DistributionMessage implements Messa
   /**
    * The message that contains the <code>Integer</code> identity response to the
    * {@link IdentityRequestMessage}
-   * 
+   *
    * @since GemFire 5.0
    */
   public static class IdentityReplyMessage extends HighPriorityDistributionMessage {
@@ -182,7 +181,8 @@ public class IdentityRequestMessage extends DistributionMessage implements Messa
       this.Id = IdentityRequestMessage.getLatestId();
     }
 
-    public static void send(InternalDistributedMember recipient, int processorId, DM dm) {
+    public static void send(InternalDistributedMember recipient, int processorId,
+        DistributionManager dm) {
       Assert.assertTrue(recipient != null, "IdentityReplyMessage NULL reply message");
       IdentityReplyMessage m = new IdentityReplyMessage(processorId);
       m.setRecipient(recipient);
@@ -190,25 +190,26 @@ public class IdentityRequestMessage extends DistributionMessage implements Messa
     }
 
     @Override
-    protected void process(final DistributionManager dm) {
+    protected void process(final ClusterDistributionManager dm) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} process invoking reply processor with processorId:{}",
-            getClass().getName(), this.processorId);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
+            "{} process invoking reply processor with processorId:{}", getClass().getName(),
+            this.processorId);
       }
 
       ReplyProcessor21 processor = ReplyProcessor21.getProcessor(this.processorId);
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "Processor not found: {}", getClass().getName());
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "Processor not found: {}", getClass().getName());
         }
         return;
       }
       processor.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} Processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} Processed {}", processor, this);
       }
       dm.getStats().incReplyMessageTime(DistributionStats.getStatTime() - startTime);
     }
@@ -240,7 +241,7 @@ public class IdentityRequestMessage extends DistributionMessage implements Messa
 
     /**
      * Fetch the current Identity number
-     * 
+     *
      * @return the identity Integer from the sender or null if the sender did not have the Integer
      *         initialized
      */
@@ -255,7 +256,7 @@ public class IdentityRequestMessage extends DistributionMessage implements Messa
   /**
    * The response to a {@link IdentityRequestMessage} use {@link #waitForId()} to capture the
    * identity
-   * 
+   *
    * @since GemFire 5.0
    */
   public static class IdentityResponse extends ReplyProcessor21 {
@@ -286,8 +287,8 @@ public class IdentityRequestMessage extends DistributionMessage implements Messa
               }
             }
           }
-          if (logger.isTraceEnabled(LogMarker.DM)) {
-            logger.trace(LogMarker.DM, "{} return value is {}", getClass().getName(),
+          if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+            logger.trace(LogMarker.DM_VERBOSE, "{} return value is {}", getClass().getName(),
                 this.returnValue);
           }
         }
@@ -299,10 +300,10 @@ public class IdentityRequestMessage extends DistributionMessage implements Messa
     /**
      * Fetch the next <code>PartitionedRegion</code> identity, used to uniquely identify (globally)
      * each instance of a <code>PartitionedRegion</code>
-     * 
+     *
      * @return the next highest Integer for the <code>PartitionedRegion</code> or null if this is
      *         the first identity
-     * 
+     *
      * @see PartitionMessage#getRegionId()
      */
     public Integer waitForId() {

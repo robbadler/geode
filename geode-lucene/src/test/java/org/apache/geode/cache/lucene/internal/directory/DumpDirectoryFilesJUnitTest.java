@@ -14,26 +14,10 @@
  */
 package org.apache.geode.cache.lucene.internal.directory;
 
-import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import java.io.File;
 import java.util.Collections;
-
-import org.apache.geode.cache.Region;
-import org.apache.geode.cache.execute.RegionFunctionContext;
-import org.apache.geode.cache.execute.ResultSender;
-import org.apache.geode.cache.lucene.LuceneService;
-import org.apache.geode.cache.lucene.internal.InternalLuceneIndex;
-import org.apache.geode.cache.lucene.internal.InternalLuceneService;
-import org.apache.geode.cache.lucene.internal.filesystem.FileSystem;
-import org.apache.geode.cache.lucene.internal.repository.IndexRepository;
-import org.apache.geode.cache.lucene.internal.repository.RepositoryManager;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
-import org.apache.geode.internal.cache.BucketNotFoundException;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
-import org.apache.geode.test.fake.Fakes;
-import org.apache.geode.test.junit.categories.UnitTest;
 
 import org.apache.lucene.index.IndexWriter;
 import org.junit.Before;
@@ -42,7 +26,21 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.ExpectedException;
 
-@Category(UnitTest.class)
+import org.apache.geode.cache.Region;
+import org.apache.geode.cache.execute.RegionFunctionContext;
+import org.apache.geode.cache.execute.ResultSender;
+import org.apache.geode.cache.lucene.internal.InternalLuceneIndex;
+import org.apache.geode.cache.lucene.internal.InternalLuceneService;
+import org.apache.geode.cache.lucene.internal.filesystem.FileSystem;
+import org.apache.geode.cache.lucene.internal.repository.IndexRepository;
+import org.apache.geode.cache.lucene.internal.repository.RepositoryManager;
+import org.apache.geode.internal.cache.BucketNotFoundException;
+import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.test.fake.Fakes;
+import org.apache.geode.test.junit.categories.LuceneTest;
+import org.apache.geode.test.junit.categories.UnitTest;
+
+@Category({UnitTest.class, LuceneTest.class})
 public class DumpDirectoryFilesJUnitTest {
 
   private RegionFunctionContext context;

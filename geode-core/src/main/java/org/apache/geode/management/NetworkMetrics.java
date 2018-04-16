@@ -14,11 +14,10 @@
  */
 package org.apache.geode.management;
 
-import org.apache.geode.cache.DiskStore;
 
 /**
  * Composite data type used to distribute network related metrics for a member.
- * 
+ *
  * @since GemFire 7.0
  *
  */

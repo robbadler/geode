@@ -26,15 +26,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.PooledDistributionMessage;
 import org.apache.geode.internal.cache.CacheServerImpl;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.logging.LogService;
 
 /**
  * Distribution message for dropping client from blacklist.
- * 
+ *
  * @since GemFire 6.0
  *
  */
@@ -45,23 +44,8 @@ public class RemoveClientFromBlacklistMessage extends PooledDistributionMessage 
   private ClientProxyMembershipID proxyID;
 
   @Override
-  protected void process(DistributionManager dm) {
-    final Cache cache;
-    try {
-      // use GemFireCache.getInstance to avoid blocking during cache.xml
-      // processing.
-      cache = GemFireCacheImpl.getInstance();
-    } catch (Exception ignore) {
-      DistributedSystem ds = dm.getSystem();
-      if (ds != null) {
-        if (logger.isTraceEnabled()) {
-          logger.trace("The node does not contain cache & so QDM Message will return.", ignore);
-        }
-      }
-      return;
-    }
-
-    Cache c = GemFireCacheImpl.getInstance();
+  protected void process(ClusterDistributionManager dm) {
+    Cache c = dm.getCache();
     if (c != null) {
       List l = c.getCacheServers();
       if (l != null) {

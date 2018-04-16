@@ -14,6 +14,17 @@
  */
 package org.apache.geode.internal.statistics;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.Statistics;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
@@ -29,22 +40,11 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 import org.apache.geode.internal.statistics.platform.OsStatisticsFactory;
 import org.apache.geode.internal.statistics.platform.ProcessStats;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.apache.logging.log4j.Logger;
-
 /**
  * GemFireStatSampler adds listeners and rolling archives to HostStatSampler.
  * <p>
  * The StatisticsManager is implemented by DistributedSystem.
- * 
+ *
  */
 public class GemFireStatSampler extends HostStatSampler {
 
@@ -248,12 +248,12 @@ public class GemFireStatSampler extends HostStatSampler {
   protected void initProcessStats(long id) {
     if (PureJavaMode.osStatsAreAvailable()) {
       if (osStatsDisabled()) {
-        logger.info(LogMarker.STATISTICS, LocalizedMessage.create(
+        logger.info(LogMarker.STATISTICS_MARKER, LocalizedMessage.create(
             LocalizedStrings.GemFireStatSampler_OS_STATISTIC_COLLECTION_DISABLED_BY_OSSTATSDISABLED_SYSTEM_PROPERTY));
       } else {
         int retVal = HostStatHelper.initOSStats();
         if (retVal != 0) {
-          logger.error(LogMarker.STATISTICS, LocalizedMessage.create(
+          logger.error(LogMarker.STATISTICS_MARKER, LocalizedMessage.create(
               LocalizedStrings.GemFireStatSampler_OS_STATISTICS_FAILED_TO_INITIALIZE_PROPERLY_SOME_STATS_MAY_BE_MISSING_SEE_BUGNOTE_37160));
         }
         HostStatHelper.newSystem(getOsStatisticsFactory());
@@ -319,7 +319,7 @@ public class GemFireStatSampler extends HostStatSampler {
     return result;
   }
 
-  protected static abstract class StatListenerImpl {
+  protected abstract static class StatListenerImpl {
     protected Statistics stats;
     protected StatisticDescriptorImpl stat;
     protected boolean oldValueInitialized = false;
@@ -336,7 +336,7 @@ public class GemFireStatSampler extends HostStatSampler {
     protected abstract double getBitsAsDouble(long bits);
   }
 
-  protected static abstract class LocalStatListenerImpl extends StatListenerImpl {
+  protected abstract static class LocalStatListenerImpl extends StatListenerImpl {
     private LocalStatListener listener;
 
     public LocalStatListener getListener() {
@@ -410,7 +410,7 @@ public class GemFireStatSampler extends HostStatSampler {
   /**
    * Used to register a StatListener.
    */
-  protected static abstract class RemoteStatListenerImpl extends StatListenerImpl {
+  protected abstract static class RemoteStatListenerImpl extends StatListenerImpl {
     private int listenerId;
     private InternalDistributedMember recipient;
 

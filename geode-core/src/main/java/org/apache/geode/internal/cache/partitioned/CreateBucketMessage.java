@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.PartitionedRegionStorageException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionStats;
@@ -82,12 +82,12 @@ public class CreateBucketMessage extends PartitionMessage {
 
   @Override
   public int getProcessorType() {
-    return DistributionManager.WAITING_POOL_EXECUTOR;
+    return ClusterDistributionManager.WAITING_POOL_EXECUTOR;
   }
 
   /**
    * Sends a PartitionedRegion manage bucket request to the recipient
-   * 
+   *
    * @param recipient the member to which the bucket manage request is sent
    * @param r the PartitionedRegion to which the bucket belongs
    * @param bucketId the unique identifier of the bucket
@@ -101,6 +101,7 @@ public class CreateBucketMessage extends PartitionMessage {
     NodeResponse p = new NodeResponse(r.getSystem(), recipient);
     CreateBucketMessage m =
         new CreateBucketMessage(recipient, r.getPRId(), p, bucketId, bucketSize);
+    m.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
 
     p.enableSevereAlertProcessing();
 
@@ -119,10 +120,11 @@ public class CreateBucketMessage extends PartitionMessage {
    * indefinitely for the acknowledgement
    */
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion r,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion r,
       long startTime) {
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.trace(LogMarker.DM, "CreateBucketMessage operateOnRegion: {}", r.getFullPath());
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace(LogMarker.DM_VERBOSE, "CreateBucketMessage operateOnRegion: {}",
+          r.getFullPath());
     }
 
     // This is to ensure that initialization is complete before bucket creation request is
@@ -170,9 +172,8 @@ public class CreateBucketMessage extends PartitionMessage {
 
   /**
    * Assists the toString method in reporting the contents of this message
-   * 
+   *
    * @see PartitionMessage#toString()
-   * @param buff
    */
   @Override
   protected void appendFields(StringBuilder buff) {
@@ -191,7 +192,7 @@ public class CreateBucketMessage extends PartitionMessage {
   /**
    * A class that contains the reply to a {@link CreateBucketMessage} message which contains the
    * {@link Node} that has accepted to manage the bucket.
-   * 
+   *
    * @since GemFire 5.0
    */
   public static class CreateBucketReplyMessage extends ReplyMessage {
@@ -213,13 +214,13 @@ public class CreateBucketMessage extends PartitionMessage {
 
     /**
      * Accept the request to manage the bucket
-     * 
+     *
      * @param recipient the requesting node
      * @param processorId the identity of the processor the requesting node is waiting on
      * @param dm the distribution manager used to send the acceptance message
      */
-    public static void sendResponse(InternalDistributedMember recipient, int processorId, DM dm,
-        InternalDistributedMember primary) {
+    public static void sendResponse(InternalDistributedMember recipient, int processorId,
+        DistributionManager dm, InternalDistributedMember primary) {
       Assert.assertTrue(recipient != null, "CreateBucketReplyMessage NULL reply message");
       CreateBucketReplyMessage m = new CreateBucketReplyMessage(processorId, primary);
       m.setRecipient(recipient);
@@ -228,28 +229,28 @@ public class CreateBucketMessage extends PartitionMessage {
 
     /**
      * Processes this message. This method is invoked by the receiver of the message.
-     * 
+     *
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    public void process(final DM dm, final ReplyProcessor21 processor) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 processor) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "CreateBucketReplyMessage process invoking reply processor with processorId:"
                 + this.processorId);
       }
 
       if (processor == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "CreateBucketReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "CreateBucketReplyMessage processor not found");
         }
         return;
       }
       processor.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM, "{} processed {}", processor, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} processed {}", processor, this);
       }
       dm.getStats().incReplyMessageTime(DistributionStats.getStatTime() - startTime);
     }
@@ -287,10 +288,10 @@ public class CreateBucketMessage extends PartitionMessage {
 
   /**
    * A processor to capture the {@link Node} returned by {@link CreateBucketMessage}
-   * 
+   *
    * @since GemFire 5.0
    */
-  static public class NodeResponse extends ReplyProcessor21 {
+  public static class NodeResponse extends ReplyProcessor21 {
     /**
      * the message that triggers return from waitForAcceptance. This will be null if the target
      * member exited
@@ -307,8 +308,8 @@ public class CreateBucketMessage extends PartitionMessage {
         if (msg instanceof CreateBucketReplyMessage) {
           CreateBucketReplyMessage reply = (CreateBucketReplyMessage) msg;
           this.msg = reply;
-          if (logger.isTraceEnabled(LogMarker.DM)) {
-            logger.debug("NodeResponse return value is ");
+          if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+            logger.trace(LogMarker.DM_VERBOSE, "NodeResponse return value is ");
           }
         } else {
           Assert.assertTrue(msg instanceof ReplyMessage);
@@ -321,7 +322,7 @@ public class CreateBucketMessage extends PartitionMessage {
 
     /**
      * Wait for the response to a {@link CreateBucketMessage} request.
-     * 
+     *
      * @return true if the node sent the request is managing the bucket
      * @throws ForceReattemptException if the peer is no longer available
      */
@@ -351,7 +352,7 @@ public class CreateBucketMessage extends PartitionMessage {
         if (t instanceof PartitionedRegionStorageException) {
           throw new PartitionedRegionStorageException(t.getMessage(), t);
         }
-        e.handleAsUnexpected();
+        e.handleCause();
       }
       CreateBucketReplyMessage message = this.msg;
       if (message == null) {

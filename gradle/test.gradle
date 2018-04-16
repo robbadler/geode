@@ -43,15 +43,40 @@ subprojects {
     testCompile 'eu.codearte.catch-exception:catch-throwable:' + project.'catch-throwable.version'
     testCompile 'junit:junit:' + project.'junit.version'
     testCompile 'org.assertj:assertj-core:' + project.'assertj-core.version'
-    testCompile 'org.mockito:mockito-core:' + project.'mockito-core.version'
     testCompile 'org.hamcrest:hamcrest-all:' + project.'hamcrest-all.version'
     testCompile 'org.jmock:jmock-junit4:' + project.'jmock.version'
     testCompile 'org.jmock:jmock-legacy:' + project.'jmock.version'
+
+    testCompile 'org.mockito:mockito-core:' + project.'mockito-core.version'
+    testCompile 'org.powermock:powermock-core:' + project.'powermock.version'
+    testCompile 'org.powermock:powermock-module-junit4:' + project.'powermock.version'
+    testCompile 'org.powermock:powermock-api-mockito2:' + project.'powermock.version'
+
     testCompile 'pl.pragmatists:JUnitParams:' + project.'JUnitParams.version'
 
     testRuntime 'cglib:cglib:' + project.'cglib.version'
   }
-  
+
+  configurations {
+    apt
+  }
+
+  dependencies {
+    apt files("${rootProject.projectDir}/buildSrc/build/libs/buildSrc.jar")
+    apt(group: 'junit', name: 'junit', version: project.'junit.version') {
+      transitive = false
+    }
+    // Because EnsureCorrectRunsWithProcessor needs access to
+    // CategoryWithParameterizedRunnerFactory. The specific version of geode-junit is not important.
+    apt(group: 'org.apache.geode', name: 'geode-junit', version: '1.3.0') {
+      transitive = false
+    }
+  }
+
+  compileTestJava {
+    options.annotationProcessorPath = files(configurations['apt'])
+  }
+
   //This target does not run any tests. Rather, it validates that there are no
   //tests that are missing a category annotation
   task checkMissedTests(type: Test) {
@@ -64,6 +89,7 @@ subprojects {
       excludeCategories 'org.apache.geode.test.junit.categories.HydraTest'
       excludeCategories 'org.apache.geode.test.junit.categories.ContainerTest'
       excludeCategories 'org.apache.geode.test.junit.categories.UITest'
+      excludeCategories 'org.apache.geode.test.junit.categories.AcceptanceTest'
     }
 
     //Skip launching any DUnit VMs during this run. This will prevent
@@ -75,13 +101,11 @@ subprojects {
     }
   }
 
-
   test {
     useJUnit {
       includeCategories 'org.apache.geode.test.junit.categories.UnitTest'
-      excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
     }
-    
+
     doFirst {
       TestPropertiesWriter.writeTestProperties(buildDir, name)
     }
@@ -98,28 +122,28 @@ subprojects {
       TestPropertiesWriter.writeTestProperties(buildDir, name)
     }
   }
-  
+
   task distributedTest(type:Test) {
     useJUnit {
       includeCategories 'org.apache.geode.test.junit.categories.DistributedTest'
       excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
     }
-    forkEvery 30
+    forkEvery 1
   }
-  
+
   task flakyTest(type:Test) {
     useJUnit {
       includeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
     }
-    
+
     forkEvery 1
     doFirst {
       TestPropertiesWriter.writeTestProperties(buildDir, name)
     }
 
     reports.junitXml.destination = file "$buildDir/test-reports-flaky"
-    
   }
+
   task securityTest(type:Test) {
     useJUnit {
       includeCategories 'org.apache.geode.test.junit.categories.SecurityTest'
@@ -131,9 +155,7 @@ subprojects {
     }
 
     reports.junitXml.destination = file "$buildDir/test-reports-security"
-
   }
-
 
   task clientServerTest(type:Test) {
     useJUnit {
@@ -145,6 +167,7 @@ subprojects {
     }
     reports.junitXml.destination = file "$buildDir/test-reports-security"
   }
+
   task dlockTest(type:Test) {
     useJUnit {
       includeCategories 'org.apache.geode.test.junit.categories.DLockTest'
@@ -155,6 +178,61 @@ subprojects {
     }
     reports.junitXml.destination = file "$buildDir/test-reports-dlock"
   }
+
+  task backwardCompatibilityTest(type:Test) {
+    useJUnit {
+      includeCategories 'org.apache.geode.test.junit.categories.BackwardCompatibilityTest'
+      excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
+    }
+    doFirst {
+      TestPropertiesWriter.writeTestProperties(buildDir, name)
+    }
+    reports.junitXml.destination = file "$buildDir/test-reports-backwardcompatibility"
+  }
+
+  task clientSubscriptionTest(type:Test) {
+    useJUnit {
+      includeCategories 'org.apache.geode.test.junit.categories.ClientSubscriptionTest'
+      excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
+    }
+    doFirst {
+      TestPropertiesWriter.writeTestProperties(buildDir, name)
+    }
+    reports.junitXml.destination = file "$buildDir/test-reports-client-subscription"
+  }
+  task queryTest(type:Test) {
+    useJUnit {
+      includeCategories 'org.apache.geode.test.junit.categories.OQLQueryTest'
+      excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
+    }
+    doFirst {
+      TestPropertiesWriter.writeTestProperties(buildDir, name)
+    }
+    reports.junitXml.destination = file "$buildDir/test-reports-oql-query"
+  }
+
+  task indexTest(type:Test) {
+    useJUnit {
+      includeCategories 'org.apache.geode.test.junit.categories.OQLIndexTest'
+      excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
+    }
+    doFirst {
+      TestPropertiesWriter.writeTestProperties(buildDir, name)
+    }
+    reports.junitXml.destination = file "$buildDir/test-reports-oql-index"
+  }
+
+  task functionServiceTest(type:Test) {
+    useJUnit {
+      includeCategories 'org.apache.geode.test.junit.categories.FunctionServiceTest'
+      excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
+    }
+    doFirst {
+      TestPropertiesWriter.writeTestProperties(buildDir, name)
+    }
+    reports.junitXml.destination = file "$buildDir/test-reports-function-service"
+  }
+
   task membershipTest(type:Test) {
     useJUnit {
       includeCategories 'org.apache.geode.test.junit.categories.MembershipTest'
@@ -165,6 +243,52 @@ subprojects {
     }
     reports.junitXml.destination = file "$buildDir/test-reports-membership"
   }
+  task luceneTest(type:Test) {
+    useJUnit {
+      includeCategories 'org.apache.geode.test.junit.categories.LuceneTest'
+      excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
+    }
+    doFirst {
+      TestPropertiesWriter.writeTestProperties(buildDir, name)
+    }
+    reports.junitXml.destination = file "$buildDir/test-reports-lucene"
+  }
+
+  task aeqTest(type:Test) {
+    useJUnit {
+      includeCategories 'org.apache.geode.test.junit.categories.AEQTest'
+      excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
+    }
+    doFirst {
+      TestPropertiesWriter.writeTestProperties(buildDir, name)
+    }
+    reports.junitXml.destination = file "$buildDir/test-reports-aeq"
+  }
+
+
+  task sessionTest(type:Test) {
+    useJUnit {
+      includeCategories 'org.apache.geode.test.junit.categories.SessionTest'
+      excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
+    }
+    doFirst {
+      TestPropertiesWriter.writeTestProperties(buildDir, name)
+    }
+    reports.junitXml.destination = file "$buildDir/test-reports-session"
+  }
+
+  task wanTest(type:Test) {
+    useJUnit {
+      includeCategories 'org.apache.geode.test.junit.categories.WanTest'
+      excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
+    }
+    doFirst {
+      TestPropertiesWriter.writeTestProperties(buildDir, name)
+    }
+    reports.junitXml.destination = file "$buildDir/test-reports-wan"
+  }
+
+
   task restAPITest(type:Test) {
     useJUnit {
       includeCategories 'org.apache.geode.test.junit.categories.RestAPITest'
@@ -176,9 +300,10 @@ subprojects {
     forkEvery 1
     reports.junitXml.destination = file "$buildDir/test-reports-restAPI"
   }
+
   task serializationTest(type:Test) {
     useJUnit {
-      includeCategories 'org.apache.geode.test.junit.categories.serializationTest'
+      includeCategories 'org.apache.geode.test.junit.categories.SerializationTest'
       excludeCategories 'org.apache.geode.test.junit.categories.FlakyTest'
     }
     doFirst {
@@ -203,6 +328,13 @@ subprojects {
     forkEvery 30
   }
 
+  task acceptanceTest(type:Test) {
+    useJUnit {
+      includeCategories 'org.apache.geode.test.junit.categories.AcceptanceTest'
+    }
+    forkEvery 1
+  }
+
   // apply common test configuration
   gradle.taskGraph.whenReady( { graph ->
     tasks.withType(Test).each { test ->
@@ -213,18 +345,21 @@ subprojects {
         //force tests to be run every time by
         //saying the results are never up to date
         outputs.upToDateWhen { false }
-    
+
         def resultsDir = TestPropertiesWriter.testResultsDir(buildDir, test.name)
         workingDir resultsDir.absolutePath
-        
+
         reports.html.destination = file "$buildDir/reports/$name"
         testLogging {
           exceptionFormat = 'full'
         }
-        
+
         maxHeapSize '768m'
 //        jvmArgs = ['-XX:+HeapDumpOnOutOfMemoryError', '-ea',"-XX:+PrintGC", "-XX:+PrintGCDetails","-XX:+PrintGCTimeStamps"]
         jvmArgs = ['-XX:+HeapDumpOnOutOfMemoryError', '-ea']
+        if(!testJVM.trim().isEmpty()) {
+          executable="${testJVM}/bin/java"
+        }
 
         systemProperty 'gemfire.DEFAULT_MAX_OPLOG_SIZE', '10'
         systemProperty 'gemfire.disallowMcastDefaults', 'true'
@@ -238,6 +373,12 @@ subprojects {
           systemProperty 'log4j.configurationFile', log4jLocation
         }
 
+        // The distributed tests seem to need to use /tmp directly,
+        // so exclude them from using the supplied temp directory.
+        if (! test.name.contains("distributed")) {
+          systemProperty 'java.io.tmpdir', System.getProperty('java.io.tmpdir')
+        }
+
         def eol = System.getProperty('line.separator')
         def progress = new File(resultsDir, "$test.name-progress.txt")
         beforeTest { desc ->
@@ -248,7 +389,7 @@ subprojects {
           def now = new Date().format('yyyy-MM-dd HH:mm:ss.SSS Z')
           progress << "$now Completed test $desc.className $desc.name with result: ${result.resultType}$eol"
         }
-        
+
         doFirst {
           resultsDir.deleteDir()
           resultsDir.mkdirs()
@@ -258,12 +399,12 @@ subprojects {
   })
 
   // Make precheckin task run all validation tests for checking in code.
-  task precheckin (dependsOn: [ build, integrationTest, distributedTest, flakyTest ]) {
+  task precheckin (dependsOn: [ build, ":geode-assembly:acceptanceTest", integrationTest, distributedTest, flakyTest ]) {
     description 'Run this task before checking in code to validate changes. This task combines the following tasks: build, integrationTest, distributedTest, and flakyTest'
   }
 
   check.dependsOn checkMissedTests
 
-  combineReports.mustRunAfter check, test, integrationTest, distributedTest, flakyTest, checkMissedTests
-  [build, check, test, integrationTest, distributedTest, flakyTest, checkMissedTests].each {it.finalizedBy combineReports}
+  combineReports.mustRunAfter check, test, integrationTest, distributedTest, flakyTest, checkMissedTests, acceptanceTest
+  [build, check, test, integrationTest, distributedTest, flakyTest, checkMissedTests, acceptanceTest].each {it.finalizedBy combineReports}
 }

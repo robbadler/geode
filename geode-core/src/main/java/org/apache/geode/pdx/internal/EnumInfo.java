@@ -24,8 +24,6 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.geode.DataSerializer;
-import org.apache.geode.internal.ClassPathLoader;
-import org.apache.geode.internal.DSCODE;
 import org.apache.geode.internal.DataSerializableFixedID;
 import org.apache.geode.internal.HeapDataOutputStream;
 import org.apache.geode.internal.InternalDataSerializer;
@@ -235,7 +233,7 @@ public class EnumInfo implements DataSerializableFixedID {
       return getFieldNames().contains(fieldName);
     }
 
-    static private final List<String> fieldNames;
+    private static final List<String> fieldNames;
     static {
       ArrayList<String> tmp = new ArrayList<String>(2);
       tmp.add("name");

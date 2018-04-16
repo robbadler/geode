@@ -35,7 +35,7 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 /**
  * Does a Execution of function on server region It does not get the resul from the server (follows
  * Fire&Forget approch)
- * 
+ *
  * @since GemFire 5.8Beta
  */
 public class ExecuteRegionFunctionNoAckOp {
@@ -49,7 +49,7 @@ public class ExecuteRegionFunctionNoAckOp {
   /**
    * Does a execute Function on a server using connections from the given pool to communicate with
    * the server.
-   * 
+   *
    * @param pool the pool to use to communicate with the server.
    * @param region the name of the region to do the put on
    * @param function to be executed
@@ -131,9 +131,6 @@ public class ExecuteRegionFunctionNoAckOp {
       getMessage().addObjPart(memberMappedArg);
 
       this.executeOnBucketSet = serverRegionExecutor.getExecuteOnBucketSetFlag();
-      // byte flags = this.executeOnBucketSet ?
-      // (byte)(0x00 | Op.BUCKETS_AS_FILTER_MASK) : 0x00;
-      // flags = isReExecute == 1? (byte)(flags | Op.IS_REXECUTE_MASK) : flags;
       byte flags = ExecuteFunctionHelper.createFlags(executeOnBucketSet, isReExecute);
 
       getMessage().addBytesPart(new byte[] {flags});
@@ -162,9 +159,6 @@ public class ExecuteRegionFunctionNoAckOp {
       getMessage().addObjPart(args);
       getMessage().addObjPart(memberMappedArg);
       this.executeOnBucketSet = serverRegionExecutor.getExecuteOnBucketSetFlag();
-      // byte flags = this.executeOnBucketSet ?
-      // (byte)(0x00 | Op.BUCKETS_AS_FILTER_MASK) : 0x00;
-      // flags = isReExecute == 1? (byte)(flags | Op.IS_REXECUTE_MASK) : flags;
       byte flags = ExecuteFunctionHelper.createFlags(executeOnBucketSet, isReExecute);
 
       getMessage().addBytesPart(new byte[] {flags});

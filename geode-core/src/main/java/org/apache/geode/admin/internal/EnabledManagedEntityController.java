@@ -14,6 +14,18 @@
  */
 package org.apache.geode.admin.internal;
 
+import static org.apache.geode.distributed.ConfigurationProperties.CLUSTER_SSL_CIPHERS;
+import static org.apache.geode.distributed.ConfigurationProperties.CLUSTER_SSL_ENABLED;
+import static org.apache.geode.distributed.ConfigurationProperties.CLUSTER_SSL_PROTOCOLS;
+import static org.apache.geode.distributed.ConfigurationProperties.CLUSTER_SSL_REQUIRE_AUTHENTICATION;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+
+import java.io.File;
+import java.util.Iterator;
+import java.util.Properties;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.admin.AdminDistributedSystem;
 import org.apache.geode.admin.DistributedSystemConfig;
 import org.apache.geode.admin.ManagedEntity;
@@ -24,13 +36,6 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.LoggingThreadGroup;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
-import org.apache.logging.log4j.Logger;
-
-import java.io.File;
-import java.util.Iterator;
-import java.util.Properties;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
 
 /**
  * Implements the actual administration (starting, stopping, etc.) of GemFire
@@ -47,10 +52,6 @@ import static org.apache.geode.distributed.ConfigurationProperties.*;
  */
 class EnabledManagedEntityController implements ManagedEntityController {
   private static final Logger logger = LogService.getLogger();
-
-  // /** A lock to ensure that only entity is managed at a time. See bug
-  // * 31374. */
-  // private static Object startStopLock = new Object();
 
   /** Known strings found in output indicating error. */
   private static final String[] ERROR_OUTPUTS = new String[] {"No such file or directory",
@@ -165,11 +166,6 @@ class EnabledManagedEntityController implements ManagedEntityController {
     }
   }
 
-  // /** Returns true if the path is on Windows. */
-  // private boolean pathIsWindows(File path) {
-  // return pathIsWindows(path.toString());
-  // }
-
   /** Returns true if the path is on Windows. */
   private boolean pathIsWindows(String path) {
     if (path != null && path.length() > 1) {
@@ -219,7 +215,7 @@ class EnabledManagedEntityController implements ManagedEntityController {
         end = prefix.substring(hostIdx + HOST.length());
       }
       prefix = start + host + end;
-      cmdIdx = prefix.indexOf(CMD); // recalculate;
+      cmdIdx = prefix.indexOf(CMD); // recalculate
     }
 
     if (cmdIdx >= 0) {
@@ -251,7 +247,6 @@ class EnabledManagedEntityController implements ManagedEntityController {
     String productDirectory = entity.getEntityConfig().getProductDirectory();
     String path = null;
     File productDir = new File(productDirectory);
-    // if (productDir != null) (cannot be null)
     {
       path = productDir.getPath();
       if (!endsWithSeparator(path)) {
@@ -259,9 +254,6 @@ class EnabledManagedEntityController implements ManagedEntityController {
       }
       path += "bin" + File.separator;
     }
-    // else {
-    // path = "";
-    // }
 
     String bat = "";
     if (pathIsWindows(path)) {

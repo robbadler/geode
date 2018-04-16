@@ -49,11 +49,12 @@ import org.apache.geode.test.dunit.SerializableCallable;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
 /**
  * Test for #44807 to eliminate unnecessary serialization/deserialization in select * queries
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, OQLQueryTest.class})
 public class SelectStarQueryDUnitTest extends JUnit4CacheTestCase {
 
   /** Used for saving & restoring oldObserver without serialization */
@@ -1252,7 +1253,7 @@ public class SelectStarQueryDUnitTest extends JUnit4CacheTestCase {
       @Override
       public Object call() throws Exception {
         GemFireCacheImpl cache = (GemFireCacheImpl) getCache();
-        cache.setReadSerialized(true);
+        cache.setReadSerializedForTest(true);
         QueryService qs = null;
         try {
           qs = getCache().getQueryService();
@@ -1463,7 +1464,7 @@ public class SelectStarQueryDUnitTest extends JUnit4CacheTestCase {
       @Override
       public Object call() throws Exception {
         GemFireCacheImpl cache = (GemFireCacheImpl) getCache();
-        cache.setReadSerialized(true);
+        cache.setReadSerializedForTest(true);
         QueryService qs = null;
         try {
           qs = getCache().getQueryService();
@@ -1518,7 +1519,7 @@ public class SelectStarQueryDUnitTest extends JUnit4CacheTestCase {
     final int port = (Integer) server1.invoke(new SerializableCallable("Create Server1") {
       @Override
       public Object call() throws Exception {
-        ((GemFireCacheImpl) getCache()).setReadSerialized(true);
+        ((GemFireCacheImpl) getCache()).setReadSerializedForTest(true);
         Region r1 = getCache().createRegionFactory(RegionShortcut.REPLICATE).create(regName);
         CacheServer server = getCache().addCacheServer();
         int port = AvailablePortHelper.getRandomAvailablePortForDUnitSite();

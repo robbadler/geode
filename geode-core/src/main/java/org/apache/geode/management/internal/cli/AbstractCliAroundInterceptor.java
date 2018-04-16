@@ -14,14 +14,14 @@
  */
 package org.apache.geode.management.internal.cli;
 
-import org.apache.geode.management.internal.cli.shell.Gfsh;
+import org.apache.commons.lang.StringUtils;
 
-import java.io.IOException;
+import org.apache.geode.management.internal.cli.shell.Gfsh;
 
 /**
  * Semi-complete implementation of {@link CliAroundInterceptor} for convenience for implementors.
- * 
- * 
+ *
+ *
  * @since GemFire 7.0
  */
 public abstract class AbstractCliAroundInterceptor implements CliAroundInterceptor {
@@ -66,7 +66,7 @@ public abstract class AbstractCliAroundInterceptor implements CliAroundIntercept
     return gfsh != null && !gfsh.isQuietMode() && !gfsh.isHeadlessMode();
   }
 
-  protected String interact(String message) throws IOException {
+  protected String interact(String message) {
     return Gfsh.getCurrentInstance().interact(message);
   }
 
@@ -83,52 +83,15 @@ public abstract class AbstractCliAroundInterceptor implements CliAroundIntercept
 
     Response response = null;
     do {
-      try {
-        String userInput = interact(message);
+      String userInput = interact(message);
 
-        if (isNullOrEmpty(userInput)) {
-          return defaultResponse;
-        }
-        response = Response.fromString(userInput);
-
-      } catch (IOException ioex) {
-        severe("Could not read user response", ioex);
-        // What can you do except try again???
+      if (StringUtils.isEmpty(userInput)) {
+        return defaultResponse;
       }
+      response = Response.fromString(userInput);
 
     } while (response == null);
 
     return response;
-  }
-
-  protected boolean isNullOrEmpty(final String userInput) {
-    return userInput == null || userInput.isEmpty();
-  }
-
-  protected static void info(String msg, Throwable th) {
-    Gfsh gfsh = Gfsh.getCurrentInstance();
-    if (gfsh != null) {
-      gfsh.logInfo(msg, th);
-    } else {
-      LogWrapper.getInstance().info(msg, th);
-    }
-  }
-
-  protected static void warning(String msg, Throwable th) {
-    Gfsh gfsh = Gfsh.getCurrentInstance();
-    if (gfsh != null) {
-      gfsh.logWarning(msg, th);
-    } else {
-      LogWrapper.getInstance().warning(msg, th);
-    }
-  }
-
-  protected static void severe(String msg, Throwable th) {
-    Gfsh gfsh = Gfsh.getCurrentInstance();
-    if (gfsh != null) {
-      gfsh.logSevere(msg, th);
-    } else {
-      LogWrapper.getInstance().severe(msg, th);
-    }
   }
 }

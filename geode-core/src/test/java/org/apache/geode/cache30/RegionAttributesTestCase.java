@@ -14,24 +14,17 @@
  */
 package org.apache.geode.cache30;
 
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-
-import org.apache.geode.cache.*;
-import org.apache.geode.cache.Region.Entry;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Properties;
-// import org.apache.geode.cache.util.*;
-// import java.util.*;
+
+import org.junit.Test;
+
+import org.apache.geode.cache.*;
+import org.apache.geode.cache.Region.Entry;
 
 /**
  * An abstract class whose test methods test the functionality of a {@link RegionAttributes},
@@ -104,7 +97,7 @@ public abstract class RegionAttributesTestCase extends RegionTestCase {
     assertEquals(region, mutator.getRegion());
     assertSame(region, mutator);
 
-    mutator.setCacheListener(listener);
+    mutator.addCacheListener(listener);
     mutator.setCacheLoader(loader);
     mutator.setCacheWriter(writer);
     mutator.setEntryIdleTimeout(entryIdle);
@@ -140,7 +133,8 @@ public abstract class RegionAttributesTestCase extends RegionTestCase {
     ExpirationAttributes regionIdle2 = new ExpirationAttributes(7, ExpirationAction.DESTROY);
     ExpirationAttributes regionTTL2 = new ExpirationAttributes(8, ExpirationAction.INVALIDATE);
 
-    assertEquals(listener, mutator.setCacheListener(listener2));
+    mutator.initCacheListeners(new CacheListener[] {listener2});
+    assertEquals(listener2, attrs.getCacheListener());
     assertEquals(loader, mutator.setCacheLoader(loader2));
     assertEquals(writer, mutator.setCacheWriter(writer2));
     assertEquals(entryIdle, mutator.setEntryIdleTimeout(entryIdle2));

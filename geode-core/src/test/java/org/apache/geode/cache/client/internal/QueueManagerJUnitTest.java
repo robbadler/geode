@@ -14,6 +14,25 @@
  */
 package org.apache.geode.cache.client.internal;
 
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.*;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.CancelCriterion;
 import org.apache.geode.cache.NoSubscriptionServersAvailableException;
 import org.apache.geode.cache.RegionService;
@@ -30,28 +49,7 @@ import org.apache.geode.internal.logging.LocalLogWriter;
 import org.apache.geode.internal.util.StopWatch;
 import org.apache.geode.test.junit.categories.ClientServerTest;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
-import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
-import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
-import static org.junit.Assert.*;
-
-/**
- *
- */
 @Category({IntegrationTest.class, ClientServerTest.class})
 public class QueueManagerJUnitTest {
 
@@ -361,6 +359,10 @@ public class QueueManagerJUnitTest {
 
     public void destroy(boolean keepAlive) {}
 
+    public int getSocketConnectTimeout() {
+      return 0;
+    }
+
     public int getFreeConnectionTimeout() {
       return 0;
     }
@@ -488,6 +490,11 @@ public class QueueManagerJUnitTest {
       return 0;
     }
 
+    @Override
+    public int getSubscriptionTimeoutMultiplier() {
+      return 0;
+    }
+
     public RegionService createAuthenticatedCacheView(Properties properties) {
       return null;
     }
@@ -518,8 +525,9 @@ public class QueueManagerJUnitTest {
       nextConnections.add(null);
     }
 
-    public void addConnection(int epType, int queueSize, int port) throws UnknownHostException {
-      nextConnections.add(new DummyConnection(epType, queueSize, port));
+    public void addConnection(int endpointType, int queueSize, int port)
+        throws UnknownHostException {
+      nextConnections.add(new DummyConnection(endpointType, queueSize, port));
     }
 
     public ServerLocation findBestServer(ServerLocation currentServer, Set excludedServers) {
@@ -544,20 +552,26 @@ public class QueueManagerJUnitTest {
     public ClientUpdater createServerToClientConnection(Endpoint endpoint,
         QueueManager queueManager, boolean isPrimary, ClientUpdater failedUpdater) {
       return new ClientUpdater() {
+        @Override
         public void close() {}
 
+        @Override
         public boolean isAlive() {
           return true;
         }
 
+        @Override
         public void join(long wait) throws InterruptedException {}
 
+        @Override
         public void setFailedUpdater(ClientUpdater failedUpdater) {}
 
+        @Override
         public boolean isProcessing() {
           return true;
         }
 
+        @Override
         public boolean isPrimary() {
           return true;
         }
@@ -568,15 +582,18 @@ public class QueueManagerJUnitTest {
   private class DummySource implements ConnectionSource {
     int nextPort = 0;
 
+    @Override
     public ServerLocation findServer(Set excludedServers) {
       return new ServerLocation("localhost", nextPort++);
     }
 
+    @Override
     public ServerLocation findReplacementServer(ServerLocation currentServer,
         Set/* <ServerLocation> */ excludedServers) {
       return new ServerLocation("localhost", nextPort++);
     }
 
+    @Override
     public List findServersForQueue(Set excludedServers, int numServers,
         ClientProxyMembershipID proxyId, boolean findDurableQueue) {
       numServers =
@@ -588,12 +605,13 @@ public class QueueManagerJUnitTest {
       return locations;
     }
 
+    @Override
     public void start(InternalPool poolImpl) {}
 
-    public void stop() {
+    @Override
+    public void stop() {}
 
-    }
-
+    @Override
     public boolean isBalanced() {
       return false;
     }
@@ -615,74 +633,90 @@ public class QueueManagerJUnitTest {
     private ServerLocation location;
     private Endpoint endpoint;
 
-    public DummyConnection(int epType, int queueSize, int port) throws UnknownHostException {
+    public DummyConnection(int endpointType, int queueSize, int port) throws UnknownHostException {
       InternalDistributedMember member = new InternalDistributedMember("localhost", 555);
-      ServerQueueStatus status = new ServerQueueStatus((byte) epType, queueSize, member);
+      ServerQueueStatus status = new ServerQueueStatus((byte) endpointType, queueSize, member, 0);
       this.status = status;
       this.location = new ServerLocation("localhost", port);
       this.endpoint = endpoints.referenceEndpoint(location, member);
     }
 
-    public void internalDestroy() {}
-
+    @Override
     public void close(boolean keepAlive) throws Exception {}
 
+    @Override
     public void destroy() {}
 
+    @Override
     public Object execute(Op op) throws Exception {
       return null;
     }
 
+    @Override
     public int getDistributedSystemId() {
       return 0;
     }
 
+    @Override
     public ByteBuffer getCommBuffer() {
       return null;
     }
 
+    @Override
     public Endpoint getEndpoint() {
       return endpoint;
     }
 
+    @Override
     public ServerQueueStatus getQueueStatus() {
       return status;
     }
 
+    @Override
     public ServerLocation getServer() {
       return location;
     }
 
+    @Override
     public Socket getSocket() {
       return null;
     }
 
+    @Override
     public ConnectionStats getStats() {
       return null;
     }
 
+    @Override
     public boolean isDestroyed() {
       return false;
     }
 
+    @Override
     public void emergencyClose() {}
 
+    @Override
     public short getWanSiteVersion() {
       return -1;
     }
 
+    @Override
     public void setWanSiteVersion(short wanSiteVersion) {}
 
+    @Override
     public OutputStream getOutputStream() {
       return null;
     }
 
+    @Override
     public InputStream getInputStream() {
       return null;
     }
 
+    @Override
     public void setConnectionID(long id) {}
 
+    @Override
     public long getConnectionID() {
       return 0;
     }

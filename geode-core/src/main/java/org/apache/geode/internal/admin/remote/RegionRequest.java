@@ -16,16 +16,17 @@
 
 package org.apache.geode.internal.admin.remote;
 
-import org.apache.geode.distributed.internal.*;
+import java.io.*;
+
 import org.apache.geode.*;
 import org.apache.geode.cache.RegionAttributes;
+import org.apache.geode.distributed.internal.*;
 import org.apache.geode.internal.admin.*;
 import org.apache.geode.internal.i18n.LocalizedStrings;
-import java.io.*;
 
 /**
  * A message that is sent to a particular application to get the region for the specified path.
- * 
+ *
  * @since GemFire 3.5
  */
 public class RegionRequest extends AdminRequest {
@@ -110,6 +111,7 @@ public class RegionRequest extends AdminRequest {
 
   /**
    * Must return a proper response to this request.
+   *
    */
   @Override
   protected AdminResponse createResponse(DistributionManager dm) {

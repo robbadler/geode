@@ -14,14 +14,12 @@
  */
 package org.apache.geode.internal.cache;
 
-import org.junit.Ignore;
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
+import static org.apache.geode.distributed.ConfigurationProperties.*;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.apache.geode.test.dunit.LogWriterUtils.getDUnitLogLevel;
+import static org.apache.geode.test.dunit.LogWriterUtils.getLogWriter;
 import static org.junit.Assert.*;
-
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.FlakyTest;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,9 +37,11 @@ import javax.transaction.RollbackException;
 import javax.transaction.Synchronization;
 import javax.transaction.UserTransaction;
 
+import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.*;
 import org.apache.geode.cache.Region.Entry;
@@ -51,6 +51,7 @@ import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.cache.util.CacheListenerAdapter;
 import org.apache.geode.cache.util.CacheWriterAdapter;
 import org.apache.geode.cache.util.TransactionListenerAdapter;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -66,11 +67,8 @@ import org.apache.geode.internal.jta.TransactionImpl;
 import org.apache.geode.internal.jta.TransactionManagerImpl;
 import org.apache.geode.internal.jta.UserTransactionImpl;
 import org.apache.geode.test.dunit.*;
-
-import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
-import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
-import static org.apache.geode.test.dunit.LogWriterUtils.getDUnitLogLevel;
-import static org.apache.geode.test.dunit.LogWriterUtils.getLogWriter;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.FlakyTest;
 
 /**
  * Tests the basic client-server transaction functionality
@@ -97,6 +95,17 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
   }
 
   protected void postSetUpClientServerTransactionDUnitTest() throws Exception {}
+
+
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties result = super.getDistributedSystemProperties();
+    result.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        result.get(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER)
+            + ";org.apache.geode.internal.cache.ClientServerTransactionDUnitTest*"
+            + ";org.apache.geode.test.dunit.**" + ";org.apache.geode.test.junit.**");
+    return result;
+  }
 
 
   private Integer createRegionsAndStartServerWithTimeout(VM vm, boolean accessor,
@@ -217,7 +226,7 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.apache.geode.internal.cache.RemoteTransactionDUnitTest#getVMForTransactions(dunit.VM,
    * dunit.VM)
    */
@@ -243,7 +252,7 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
   }
 
   private void configureOffheapSystemProperty() {
-    Properties p = new Properties();
+    Properties p = getDistributedSystemProperties();
     // p.setProperty(LOG_LEVEL, "finer");
     p.setProperty(OFF_HEAP_MEMORY_SIZE, "1m");
     this.getSystem(p);
@@ -363,16 +372,9 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
       exceptionThrown = true;
     }
 
-    SerializableCallable disconnect = new SerializableCallable("disconnect") {
-      public Object call() throws Exception {
-        InternalDistributedSystem.getConnectedInstance().disconnect();
-        return null;
-      }
-    };
-
     cCache.close();
-    datastore1.invoke(disconnect);
-    datastore2.invoke(disconnect);
+    datastore1.invoke(() -> closeCache());
+    datastore2.invoke(() -> closeCache());
 
     if (!exceptionThrown) {
       fail("expected TransactionException to be thrown since two pools were used");
@@ -724,7 +726,7 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
         }
         org.apache.geode.test.dunit.LogWriterUtils.getLogWriter().info("suspending transaction");
         if (!useJTA) {
-          TXStateProxy tx = mgr.internalSuspend();
+          TXStateProxy tx = mgr.pauseTransaction();
           if (prePopulateData) {
             for (int i = 0; i < 5; i++) {
               CustId custId = new CustId(i);
@@ -738,7 +740,7 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
             assertNull(pr.get(new CustId(i)));
           }
           org.apache.geode.test.dunit.LogWriterUtils.getLogWriter().info("resuming transaction");
-          mgr.internalResume(tx);
+          mgr.unpauseTransaction(tx);
         }
         assertEquals("r sized should be " + MAX_ENTRIES + " but it is:" + r.size(), MAX_ENTRIES,
             r.size());
@@ -837,9 +839,9 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
     client.invoke(new SerializableCallable() {
       public Object call() throws Exception {
         TXManagerImpl mgr = getGemfireCache().getTxManager();
-        TXStateProxy tx = mgr.internalSuspend();
+        TXStateProxy tx = mgr.pauseTransaction();
         assertNotNull(tx);
-        mgr.internalResume(tx);
+        mgr.unpauseTransaction(tx);
         if (commit) {
           mgr.commit();
         } else {
@@ -883,6 +885,82 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
     }
   }
 
+  @Test
+  public void keySetFromClientRegionWillGetKeysFromServerIfTX() throws Exception {
+    Host host = Host.getHost(0);
+    VM server = host.getVM(0);
+    VM client = host.getVM(1);
+    VM client2 = host.getVM(2);
+    int port1 = createRegionsAndStartServer(server, false);
+    createClientRegionAndPopulateData(client, port1, false);
+    createClientRegion(client2, port1, false);
+
+    client2.invoke(new SerializableRunnable("verify client region with tx") {
+      public void run() throws Exception {
+        TXManagerImpl mgr = getGemfireCache().getTxManager();
+        Region<OrderId, Order> orderRegion = getCache().getRegion(ORDER);
+        LocalRegion lr = (LocalRegion) orderRegion;
+        assertEquals(DataPolicy.NORMAL, orderRegion.getAttributes().getDataPolicy());
+        CustId custId = new CustId(1);
+        OrderId orderId = new OrderId(1, custId);
+        Set setWithoutTX = orderRegion.keySet();
+        Iterator iterWithoutTX = setWithoutTX.iterator();
+        if (!iterWithoutTX.hasNext()) {
+          org.apache.geode.test.dunit.LogWriterUtils.getLogWriter().info("No keys in region");
+        } else {
+          org.apache.geode.test.dunit.LogWriterUtils.getLogWriter()
+              .info("Region size:" + orderRegion.size());
+        }
+        // without tx, the local region with NORMAL policy will get nothing from server
+        assertFalse(iterWithoutTX.hasNext());
+        assertEquals(0, orderRegion.size());
+        assertNull(lr.entries.getEntry(orderId));
+
+        org.apache.geode.test.dunit.LogWriterUtils.getLogWriter().info("Now check with TX");
+
+        mgr.begin();
+
+        Set setWithTX = orderRegion.keySet();
+        Iterator iterWithTX = setWithTX.iterator();
+        if (!iterWithTX.hasNext()) {
+          org.apache.geode.test.dunit.LogWriterUtils.getLogWriter().info("No keys in region");
+        } else {
+          org.apache.geode.test.dunit.LogWriterUtils.getLogWriter()
+              .info("Region size:" + orderRegion.size());
+        }
+        // with tx, the local region keySet() will get keys from server, but lr.entries is still
+        // empty
+        assertTrue(iterWithTX.hasNext());
+        assertEquals(5, orderRegion.size());
+
+        assertEquals(0, lr.entries.size());
+        Set aSet = lr.entries.keySet();
+        Iterator iter = aSet.iterator();
+        assertFalse(iter.hasNext());
+        assertNull(lr.entries.getEntry(orderId));
+        assertNotNull(lr.getEntry(orderId));
+
+        mgr.commit();
+      }
+    });
+
+    server.invoke(new SerializableCallable("verify tx") {
+      public Object call() throws Exception {
+        TXManagerImpl mgr = getGemfireCache().getTxManager();
+        Region<OrderId, Order> orderRegion = getCache().getRegion(ORDER);
+        mgr.begin();
+        CustId custId = new CustId(1);
+        OrderId orderId = new OrderId(1000, custId);
+        Order expectedOrder = new Order("fooOrder");
+        Map map = new HashMap();
+        map.put(orderId, expectedOrder);
+        orderRegion.putAll(map);
+        mgr.rollback();
+        assertNull(orderRegion.get(orderId));
+        return null;
+      }
+    });
+  }
 
   @Test
   public void testPutallRollbackInServer() throws Exception {
@@ -1619,10 +1697,10 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
         mgr.begin();
         pr.put(custId, new Customer("name10", "address10"));
         r.put(10, "value10");
-        TXStateProxy txState = mgr.internalSuspend();
+        TXStateProxy txState = mgr.pauseTransaction();
         assertNull(pr.get(custId));
         assertNull(r.get(10));
-        mgr.internalResume(txState);
+        mgr.unpauseTransaction(txState);
         mgr.commit();
         return null;
       }
@@ -1657,30 +1735,7 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
     final int port1 = createRegionsAndStartServer(server1, true);
     createRegionOnServer(server2);
 
-    client.invoke(new SerializableCallable() {
-      public Object call() throws Exception {
-        ClientCacheFactory ccf = new ClientCacheFactory();
-        setCCF(port1, ccf);
-        ClientCache cCache = getClientCache(ccf);
-        ClientRegionFactory<CustId, Customer> custrf =
-            cCache.createClientRegionFactory(ClientRegionShortcut.PROXY);
-        ClientRegionFactory<Integer, String> refrf =
-            cCache.createClientRegionFactory(ClientRegionShortcut.PROXY);
-        Region<Integer, String> r = refrf.create(D_REFERENCE);
-        Region<CustId, Customer> pr = custrf.create(CUSTOMER);
-        // Region<Integer, String> order = refrf.create(ORDER);
-
-        TXManagerImpl mgr = getGemfireCache().getTxManager();
-        mgr.begin();
-        for (int i = 0; i < 10; i++) {
-          CustId custId = new CustId(i);
-          Customer cust = new Customer("name" + i, "address" + i);
-          pr.put(custId, cust);
-          r.put(i, "value" + i);
-        }
-        return null;
-      }
-    });
+    TransactionId txId = client.invoke(() -> doTransactionPut(port1));
 
     SerializableCallable countActiveTx = new SerializableCallable() {
       public Object call() throws Exception {
@@ -1694,27 +1749,7 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
 
     assertEquals(2, serv1TxCount + serv2TxCount);
 
-    client.invoke(new SerializableCallable() {
-      public Object call() throws Exception {
-        TXManagerImpl mgr = getGemfireCache().getTxManager();
-        Region<Integer, String> r = getGemfireCache().getRegion(D_REFERENCE);
-        Region<CustId, Customer> pr = getGemfireCache().getRegion(CUSTOMER);
-        if (commit) {
-          mgr.commit();
-          for (int i = 0; i < 10; i++) {
-            assertEquals(new Customer("name" + i, "address" + i), pr.get(new CustId(i)));
-            assertEquals("value" + i, r.get(i));
-          }
-        } else {
-          mgr.rollback();
-          for (int i = 0; i < 10; i++) {
-            assertNull(pr.get(new CustId(i)));
-            assertNull(r.get(i));
-          }
-        }
-        return null;
-      }
-    });
+    client.invoke(() -> finishTransaction(commit, txId));
 
     serv1TxCount = (Integer) server1.invoke(countActiveTx);
     serv2TxCount = (Integer) server2.invoke(countActiveTx);
@@ -1723,8 +1758,6 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
 
   /**
    * there is one txState and zero or more txProxyStates
-   * 
-   * @throws Exception
    */
   @Test
   public void testConnectionAffinity() throws Exception {
@@ -2368,12 +2401,12 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
         assertEquals(new Customer("name0", "address0"), pr.get(new CustId(0)));
         assertEquals(new Customer("name10", "address10"), pr.get(new CustId(10)));
         assertEquals(new Customer("name10", "address10"), r.get(new CustId(10)));
-        TXStateProxy tx = mgr.internalSuspend();
+        TXStateProxy tx = mgr.pauseTransaction();
         assertEquals(new Customer("oldname0", "oldaddress0"), pr.get(new CustId(0)));
         assertEquals(new Customer("oldname1", "oldaddress1"), pr.get(new CustId(1)));
         assertNull(pr.get(new CustId(10)));
         assertNull(r.get(new CustId(10)));
-        mgr.internalResume(tx);
+        mgr.unpauseTransaction(tx);
         mgr.commit();
         assertEquals(new Customer("name0", "address0"), pr.get(new CustId(0)));
         assertEquals(new Customer("name1", "address1"), pr.get(new CustId(1)));
@@ -2434,13 +2467,14 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
         mgr.begin();
         pr.put(custId, new Customer("name10", "address10"));
         r.put(10, "value10");
-        final TXStateProxy txState = mgr.internalSuspend();
+
+        final TransactionId txId = mgr.suspend();
         assertNull(pr.get(custId));
         assertNull(r.get(10));
         final CountDownLatch latch = new CountDownLatch(1);
         Thread t = new Thread(new Runnable() {
           public void run() {
-            mgr.internalResume(txState);
+            mgr.resume(txId);
             mgr.commit();
             latch.countDown();
           }
@@ -2915,7 +2949,8 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
             Map<CustId, Customer> m = new HashMap<CustId, Customer>();
             m.put(new CustId(2), new Customer("name2", "address2"));
             r.putAll(m);
-            TXStateProxyImpl tx = (TXStateProxyImpl) mgr.internalSuspend();
+            TXStateProxyImpl tx = (TXStateProxyImpl) mgr.getTXState();
+            TransactionId txId = mgr.suspend();
             ClientTXStateStub txStub = (ClientTXStateStub) tx.getRealDeal(null, null);
             txStub.setAfterLocalLocks(new Runnable() {
               public void run() {
@@ -2927,7 +2962,7 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
                 }
               }
             });
-            mgr.internalResume(tx);
+            mgr.resume(txId);
             mgr.commit();
           }
         });
@@ -3064,7 +3099,7 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
         public Object call() throws Exception {
           System.setProperty(
               DistributionConfig.GEMFIRE_PREFIX + "bridge.disableShufflingOfEndpoints", "true");
-          ClientCacheFactory ccf = new ClientCacheFactory();
+          ClientCacheFactory ccf = new ClientCacheFactory(getDistributedSystemProperties());
           ccf.addPoolServer("localhost"/* getServerHostName(Host.getHost(0)) */, port);
           setCCF(port2, ccf);
           // these settings were used to manually check that tx operation stats were being updated
@@ -3865,7 +3900,7 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
       AbstractRegionMap arm = (AbstractRegionMap) ((LocalRegion) br).entries;
       arm.setARMLockTestHook(new ARMLockTestHookAdapter() {
         @Override
-        public void beforeLock(LocalRegion owner, CacheEvent event) {
+        public void beforeLock(InternalRegion owner, CacheEvent event) {
           List<Integer> ids =
               ((PartitionedRegion) getCache().getRegion(regionName)).getLocalBucketsListTestOnly();
           assertFalse(ids.isEmpty());
@@ -3988,8 +4023,16 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
 
   private void verifyTXStateEmpty(DistributedMember clientId) {
     TXManagerImpl txmgr = getGemfireCache().getTxManager();
-    Set<TXId> states = txmgr.getTransactionsForClient((InternalDistributedMember) clientId);
-    assertEquals(0, states.size()); // both transactions should be rolled back.
+    // both transactions should be rolled back.
+    // Server sends reply with CommitMessage back to client before removing the TXState from its
+    // hostedTXStates map. Client finishes the JTA once it gets the reply from server.
+    // There exists a race that TXState is yet to be removed when client JTA tx is finished.
+    // Add the wait before checking the TXState.
+    Awaitility.await().pollInterval(10, TimeUnit.MILLISECONDS).pollDelay(10, TimeUnit.MILLISECONDS)
+        .atMost(30, TimeUnit.SECONDS)
+        .until(() -> Assertions
+            .assertThat(txmgr.getTransactionsForClient((InternalDistributedMember) clientId).size())
+            .isEqualTo(0));
   }
 
   private SerializableCallable getClientDM() {
@@ -4054,6 +4097,216 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
     } catch (Exception e) {
       latch1.countDown();
       Assert.fail("Unexpected exception while doing JTA Transaction2 ", e);
+    }
+  }
+
+  @Test
+  public void testPartitionMessageSetsClientMemberIdAsTxMemberId() {
+    Host host = Host.getHost(0);
+    VM server1 = host.getVM(0);
+    VM client = host.getVM(2);
+    int totalBuckets = 50;
+    String regionName = "region";
+
+    setupRegionForClientTransactions(totalBuckets, regionName, false, null);
+
+    client.invokeAsync(() -> doKeySetOpTransaction(1, regionName, totalBuckets, false, null));
+
+    // Should cause TXId(server1, 1) to be executed on server2
+    server1.invoke(() -> doPutOpTransaction(regionName, totalBuckets));
+  }
+
+  private void doKeySetOpTransaction(int firstGetKey, String regionName, int totalBuckets,
+      boolean withReplicateRegion, String region2Name) {
+    Region<Integer, String> region = getCache().getRegion(regionName);
+    TXManagerImpl txMgr = (TXManagerImpl) getCache().getCacheTransactionManager();
+    txMgr.begin();
+    region.get(firstGetKey); // starts TXState on a server with the primary bucket of the key
+    verifyKeySetOp(totalBuckets, region);
+
+    if (withReplicateRegion) {
+      Region<Integer, String> region2 = getCache().getRegion(region2Name);
+      int num = totalBuckets + 1;
+      region2.put(num, "" + num);
+      verifyKeySetOp(num, region2);
+    }
+    txMgr.rollback();
+  }
+
+  private void verifyKeySetOp(int expected, Region<Integer, String> region) {
+    Set<Integer> keys = region.keySet();
+    assertEquals(expected, keys.size());
+    for (Integer key : keys) {
+      assertTrue(key <= expected);
+    }
+  }
+
+  private void doPutOpTransaction(String regionName, int totalBuckets) throws InterruptedException {
+    TXManagerImpl txMgr = (TXManagerImpl) getCache().getCacheTransactionManager();
+    Region<Integer, String> region = getCache().getRegion(regionName);
+    txMgr.begin();
+    region.put(2, "NEWVALUE");
+    Thread.currentThread().sleep(100);
+    txMgr.commit();
+  }
+
+  private void doSizeOpTransactions(String regionName, int totalBuckets, String region2Name) {
+    for (int i = 1; i <= totalBuckets; i++) {
+      doSizeOpTransaction(i, regionName, totalBuckets, region2Name);
+    }
+  }
+
+  private void doSizeOpTransaction(int key, String regionName, int totalBuckets,
+      String region2Name) {
+    Region<Integer, String> region = getCache().getRegion(regionName);
+    Region<Integer, String> region2 = getCache().getRegion(region2Name);
+    TXManagerImpl txMgr = (TXManagerImpl) getCache().getCacheTransactionManager();
+    txMgr.begin();
+    region.get(key); // starts TXState on different servers
+    assertEquals(totalBuckets, region.size());
+    int num = totalBuckets + 1;
+    region2.put(num, "" + num);
+    assertEquals(num, region2.size());
+    txMgr.rollback();
+  }
+
+  @Test
+  public void testSizeOpInTransaction() {
+    Host host = Host.getHost(0);
+    VM client = host.getVM(2);
+    String regionName = "region";
+    String region2Name = "region2";
+    int totalBuckets = 2;
+    setupRegionForClientTransactions(totalBuckets, regionName, true, region2Name);
+
+    client.invoke(() -> doSizeOpTransactions(regionName, totalBuckets, region2Name));
+  }
+
+  private void setupRegionForClientTransactions(int totalBuckets, String regionName,
+      boolean withReplicateRegion, String region2Name) {
+    Host host = Host.getHost(0);
+    VM server1 = host.getVM(0);
+    VM server2 = host.getVM(1);
+    VM client = host.getVM(2);
+    int port = createRegionsAndStartServer(server1, true);
+
+    createPRAndInitABucketOnServer1(totalBuckets, regionName, server1);
+
+    createPRAndInitOtherBucketsOnServer2(totalBuckets, regionName, server2);
+
+    if (withReplicateRegion) {
+      initReplicateRegion(totalBuckets, region2Name, server1, server2);
+    }
+
+    createRegionOnClient(regionName, withReplicateRegion, region2Name, client, port);
+  }
+
+  private void createRegionOnClient(String regionName, boolean withReplicateRegion,
+      String region2Name, VM client, int port) {
+    client.invoke(() -> {
+      createClient(port, regionName);
+      if (withReplicateRegion) {
+        createClient(port, region2Name);
+      }
+    });
+  }
+
+  private void initReplicateRegion(int totalBuckets, String region2Name, VM server1, VM server2) {
+    server1.invoke(() -> createReplicateRegion(region2Name));
+    server2.invoke(() -> {
+      createReplicateRegion(region2Name);
+      Region<Integer, String> region = getCache().getRegion(region2Name);
+      for (int i = totalBuckets; i > 0; i--) {
+        region.put(i, "" + i);
+      }
+    });
+  }
+
+  private void createPRAndInitOtherBucketsOnServer2(int totalBuckets, String regionName,
+      VM server2) {
+    createRegionOnServer(server2);
+    server2.invoke(() -> {
+      createSubscriptionRegion(false, regionName, 0, totalBuckets);
+      Region<Integer, String> region = getCache().getRegion(regionName);
+      for (int i = totalBuckets; i > 1; i--) {
+        region.put(i, "VALUE-" + i);
+      }
+    });
+  }
+
+  private void createPRAndInitABucketOnServer1(int totalBuckets, String regionName, VM server1) {
+    server1.invoke(() -> {
+      createSubscriptionRegion(false, regionName, 0, totalBuckets);
+      Region<Integer, String> region = getCache().getRegion(regionName);
+      // should create first bucket on server1
+      region.put(1, "VALUE-1");
+    });
+  }
+
+  @Test
+  public void testKeySetOpInTransaction() {
+    Host host = Host.getHost(0);
+    VM client = host.getVM(2);
+    String regionName = "region";
+    String region2Name = "region2";
+    int totalBuckets = 2;
+    setupRegionForClientTransactions(totalBuckets, regionName, true, region2Name);
+
+    client.invoke(() -> doKeySetOpTransactions(regionName, totalBuckets, true, region2Name));
+  }
+
+  private void doKeySetOpTransactions(String regionName, int totalBuckets,
+      boolean withReplicateRegion, String region2Name) {
+    for (int i = 1; i <= totalBuckets; i++) {
+      doKeySetOpTransaction(i, regionName, totalBuckets, withReplicateRegion, region2Name);
+    }
+  }
+
+  private void createReplicateRegion(String regionName) {
+    RegionFactory rf = getCache().createRegionFactory(RegionShortcut.REPLICATE);
+    Region<Integer, String> region = rf.create(regionName);
+  }
+
+  private TransactionId doTransactionPut(final int port1) {
+    ClientCacheFactory ccf = new ClientCacheFactory();
+    setCCF(port1, ccf);
+    ClientCache cCache = getClientCache(ccf);
+    ClientRegionFactory<CustId, Customer> custrf =
+        cCache.createClientRegionFactory(ClientRegionShortcut.PROXY);
+    ClientRegionFactory<Integer, String> refrf =
+        cCache.createClientRegionFactory(ClientRegionShortcut.PROXY);
+    Region<Integer, String> r = refrf.create(D_REFERENCE);
+    Region<CustId, Customer> pr = custrf.create(CUSTOMER);
+    // Region<Integer, String> order = refrf.create(ORDER);
+
+    TXManagerImpl mgr = getCache().getTxManager();
+    mgr.begin();
+    for (int i = 0; i < 10; i++) {
+      CustId custId = new CustId(i);
+      Customer cust = new Customer("name" + i, "address" + i);
+      pr.put(custId, cust);
+      r.put(i, "value" + i);
+    }
+    return mgr.suspend();
+  }
+
+  private void finishTransaction(final boolean commit, TransactionId txId) {
+    TXManagerImpl mgr = getCache().getTxManager();
+    Region<Integer, String> r = getCache().getRegion(D_REFERENCE);
+    Region<CustId, Customer> pr = getCache().getRegion(CUSTOMER);
+    mgr.resume(txId);
+    if (commit) {
+      mgr.commit();
+      for (int i = 0; i < 10; i++) {
+        assertEquals(new Customer("name" + i, "address" + i), pr.get(new CustId(i)));
+        assertEquals("value" + i, r.get(i));
+      }
+    } else {
+      mgr.rollback();
+      for (int i = 0; i < 10; i++) {
+        assertNull(pr.get(new CustId(i)));
+        assertNull(r.get(i));
+      }
     }
   }
 }

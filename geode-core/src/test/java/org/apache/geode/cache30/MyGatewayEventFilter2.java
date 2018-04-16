@@ -16,7 +16,6 @@ package org.apache.geode.cache30;
 
 import java.util.Properties;
 
-import org.apache.geode.cache.asyncqueue.AsyncEvent;
 import org.apache.geode.cache.util.GatewayEvent;
 import org.apache.geode.cache.wan.GatewayEventFilter;
 import org.apache.geode.cache.wan.GatewayQueueEvent;
@@ -41,7 +40,7 @@ public class MyGatewayEventFilter2 implements GatewayEventFilter, Declarable2 {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.cache.wan.GatewayEventFilter#afterAcknowledgement(org.apache.geode.cache.util.
    * GatewayEvent)

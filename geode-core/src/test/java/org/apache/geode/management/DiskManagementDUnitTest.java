@@ -14,8 +14,8 @@
  */
 package org.apache.geode.management;
 
-import static java.util.concurrent.TimeUnit.*;
-import static org.assertj.core.api.Assertions.*;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.Serializable;
@@ -293,7 +293,7 @@ public class DiskManagementDUnitTest implements Serializable {
       DiskBackupStatus status = bean.backupAllMembers(backupDir.getAbsolutePath(), null);
 
       assertThat(status.getBackedUpDiskStores().keySet().size()).isEqualTo(memberCount);
-      assertThat(status.getOfflineDiskStores()).isEqualTo(null); // TODO: fix GEODE-1946
+      assertThat(status.getOfflineDiskStores()).isEmpty(); // TODO: fix GEODE-1946
     });
   }
 

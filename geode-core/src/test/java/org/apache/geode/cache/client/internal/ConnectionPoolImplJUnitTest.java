@@ -14,6 +14,21 @@
  */
 package org.apache.geode.cache.client.internal;
 
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.net.InetSocketAddress;
+import java.net.SocketTimeoutException;
+import java.util.Properties;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.client.Pool;
@@ -27,22 +42,7 @@ import org.apache.geode.internal.AvailablePort;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.test.junit.categories.ClientServerTest;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
-import java.net.InetSocketAddress;
-import java.net.SocketTimeoutException;
-import java.util.Properties;
-
-import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
-import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
-import static org.junit.Assert.*;
-
-/**
- *
- */
 @Category({IntegrationTest.class, ClientServerTest.class})
 public class ConnectionPoolImplJUnitTest {
 
@@ -101,6 +101,7 @@ public class ConnectionPoolImplJUnitTest {
     PoolImpl pool = (PoolImpl) cpf.create("myfriendlypool");
 
     // check defaults
+    assertEquals(PoolFactory.DEFAULT_SOCKET_CONNECT_TIMEOUT, pool.getSocketConnectTimeout());
     assertEquals(PoolFactory.DEFAULT_FREE_CONNECTION_TIMEOUT, pool.getFreeConnectionTimeout());
     assertEquals(PoolFactory.DEFAULT_SOCKET_BUFFER_SIZE, pool.getSocketBufferSize());
     assertEquals(PoolFactory.DEFAULT_READ_TIMEOUT, pool.getReadTimeout());
@@ -131,14 +132,17 @@ public class ConnectionPoolImplJUnitTest {
   @Test
   public void testProperties() throws Exception {
     int readTimeout = 234234;
+    int socketTimeout = 123123;
 
     PoolFactory cpf = PoolManager.createFactory();
-    cpf.addServer("localhost", port).setReadTimeout(readTimeout).setThreadLocalConnections(true);
+    cpf.addServer("localhost", port).setSocketConnectTimeout(socketTimeout)
+        .setReadTimeout(readTimeout).setThreadLocalConnections(true);
 
     PoolImpl pool = (PoolImpl) cpf.create("myfriendlypool");
 
     // check non default
     assertEquals("myfriendlypool", pool.getName());
+    assertEquals(socketTimeout, pool.getSocketConnectTimeout());
     assertEquals(readTimeout, pool.getReadTimeout());
     assertEquals(true, pool.getThreadLocalConnections());
     assertEquals(1, pool.getServers().size());
@@ -261,5 +265,4 @@ public class ConnectionPoolImplJUnitTest {
     assertEquals(location1, pool.executeOnPrimary(testOp));
     assertEquals(location1, pool.executeOnQueuesAndReturnPrimaryResult(testOp));
   }
-
 }

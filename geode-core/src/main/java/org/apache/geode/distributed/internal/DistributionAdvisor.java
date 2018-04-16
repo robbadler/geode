@@ -14,6 +14,23 @@
  */
 package org.apache.geode.distributed.internal;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.CancelException;
 import org.apache.geode.GemFireIOException;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
@@ -31,22 +48,6 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 import org.apache.geode.internal.util.ArrayUtils;
-import org.apache.logging.log4j.Logger;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Provides advice on sending distribution messages. For a given operation, this advisor will
@@ -116,7 +117,7 @@ public class DistributionAdvisor {
 
   /**
    * Incrementing serial number used to identify order of region creation
-   * 
+   *
    * @see Profile#getVersion()
    */
   private final AtomicInteger profileVersionSequencer = new AtomicInteger(START_VERSION_NUMBER);
@@ -144,7 +145,7 @@ public class DistributionAdvisor {
 
   /**
    * the version of the profile set
-   * 
+   *
    * @since GemFire 5.1
    */
   private long membershipVersion;
@@ -214,15 +215,17 @@ public class DistributionAdvisor {
     this.advisee = advisee;
     this.ml = new MembershipListener() {
 
-      public void memberJoined(InternalDistributedMember id) {
+      public void memberJoined(DistributionManager distributionManager,
+          InternalDistributedMember id) {
         // Ignore
       }
 
-      public void quorumLost(Set<InternalDistributedMember> failures,
-          List<InternalDistributedMember> remaining) {}
+      public void quorumLost(DistributionManager distributionManager,
+          Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
       @SuppressWarnings("synthetic-access")
-      public void memberDeparted(final InternalDistributedMember id, boolean crashed) {
+      public void memberDeparted(DistributionManager distributionManager,
+          final InternalDistributedMember id, boolean crashed) {
         boolean shouldSync = crashed && shouldSyncForCrashedMember(id);
         final Profile profile = getProfile(id);
         boolean removed =
@@ -235,8 +238,8 @@ public class DistributionAdvisor {
         }
       }
 
-      public void memberSuspect(InternalDistributedMember id,
-          InternalDistributedMember whoSuspected, String reason) {}
+      public void memberSuspect(DistributionManager distributionManager,
+          InternalDistributedMember id, InternalDistributedMember whoSuspected, String reason) {}
 
     };
   }
@@ -258,8 +261,7 @@ public class DistributionAdvisor {
 
   /**
    * determine whether a delta-gii synchronization should be performed for this lost member
-   * 
-   * @param id
+   *
    * @return true if a delta-gii should be performed
    */
   public boolean shouldSyncForCrashedMember(InternalDistributedMember id) {
@@ -347,7 +349,7 @@ public class DistributionAdvisor {
 
   /**
    * Increment and get next profile version from {@link #profileVersionSequencer}.
-   * 
+   *
    * @return next profile version number
    */
   protected int incrementAndGetVersion() {
@@ -373,8 +375,16 @@ public class DistributionAdvisor {
     }
   }
 
-  public DM getDistributionManager() {
+  public DistributionManager getDistributionManager() {
     return getAdvisee().getDistributionManager();
+  }
+
+  /**
+   * Like getDistributionManager but does not check
+   * that the DistributedSystem is still connected
+   */
+  private DistributionManager getDistributionManagerWithNoCheck() {
+    return getAdvisee().getSystem().getDM();
   }
 
   public DistributionAdvisee getAdvisee() {
@@ -383,7 +393,7 @@ public class DistributionAdvisor {
 
   /**
    * Free up resources used by this advisor once it is no longer being used.
-   * 
+   *
    * @since GemFire 3.5
    */
   public void close() {
@@ -434,7 +444,7 @@ public class DistributionAdvisor {
 
   /**
    * Remove listener from the list to receive notification when a provile is added or removed.
-   * 
+   *
    * @return true if listener was in the list
    */
   public boolean removeMembershipListener(MembershipListener listener) {
@@ -472,7 +482,7 @@ public class DistributionAdvisor {
   /**
    * Polls the isInitialized state. Unlike {@link #isInitialized} it will not wait for it to become
    * initialized if it is in the middle of being initialized.
-   * 
+   *
    * @since GemFire 5.7
    */
   public boolean pollIsInitialized() {
@@ -481,7 +491,7 @@ public class DistributionAdvisor {
 
   /**
    * Dumps out all profiles in this advisor.
-   * 
+   *
    * @param infoMsg prefix message to log
    */
 
@@ -512,7 +522,7 @@ public class DistributionAdvisor {
 
   /**
    * Create or update a profile for a remote counterpart.
-   * 
+   *
    * @param profile the profile, referenced by this advisor after this method returns.
    */
   public boolean putProfile(Profile profile) {
@@ -523,8 +533,9 @@ public class DistributionAdvisor {
     try {
       return doPutProfile(newProfile, forceProfile);
     } finally {
-      if (logger.isTraceEnabled(LogMarker.DA)) {
-        logger.trace(LogMarker.DA, "putProfile exiting {}", toStringWithProfiles());
+      if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+        logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE, "putProfile exiting {}",
+            toStringWithProfiles());
       }
     }
   }
@@ -532,7 +543,7 @@ public class DistributionAdvisor {
   /**
    * Return true if the memberId on the specified Profile is a current member of the distributed
    * system.
-   * 
+   *
    * @since GemFire 5.7
    */
   protected boolean isCurrentMember(Profile p) {
@@ -544,11 +555,11 @@ public class DistributionAdvisor {
    * {@link DistributionAdvisor#getAdvisee()}. Profile information is versioned via
    * {@link Profile#getVersion()} and may be ignored if an older version is received after newer
    * versions.
-   * 
+   *
    * @param newProfile the profile to add
    * @param forceProfile true will force profile to be added even if member is not in distributed
    *        view (should only ever be true for tests that need to inject a bad profile)
-   * 
+   *
    * @return true if the profile was applied, false if the profile was ignored
    */
   private synchronized boolean doPutProfile(Profile newProfile, boolean forceProfile) {
@@ -557,8 +568,9 @@ public class DistributionAdvisor {
     if (!forceProfile) {
       // ensure member is in distributed system view
       if (!isCurrentMember(newProfile)) {
-        if (logger.isTraceEnabled(LogMarker.DA)) {
-          logger.trace(LogMarker.DA, "putProfile: ignoring {}; not in current view for {}",
+        if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+          logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
+              "putProfile: ignoring {}; not in current view for {}",
               newProfile.getDistributedMember(), getAdvisee().getFullPath());
         }
 
@@ -572,8 +584,8 @@ public class DistributionAdvisor {
     if (removedSerialNumber != null
         && !isNewerSerialNumber(newProfile.getSerialNumber(), removedSerialNumber.intValue())) {
       // removedProfile exists and newProfile is NOT newer so do nothing
-      if (logger.isTraceEnabled(LogMarker.DA)) {
-        logger.trace(LogMarker.DA,
+      if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+        logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
             "putProfile: Skipping putProfile: {} is not newer than serialNumber {} for {}",
             newProfile, removedSerialNumber, getAdvisee().getFullPath());
       }
@@ -582,16 +594,17 @@ public class DistributionAdvisor {
 
     // compare newProfile to oldProfile if one is found
     Profile oldProfile = getProfile(newProfile.getId());
-    final boolean isDebugEnabled_DA = logger.isTraceEnabled(LogMarker.DA);
-    if (isDebugEnabled_DA) {
-      logger.trace(LogMarker.DA,
+    final boolean isTraceEnabled_DistributionAdvisor =
+        logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE);
+    if (isTraceEnabled_DistributionAdvisor) {
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
           "putProfile: Updating existing profile: {} with new profile: {} for {}", oldProfile,
           newProfile, getAdvisee().getFullPath());
     }
     if (oldProfile != null && !isNewerProfile(newProfile, oldProfile)) {
       // oldProfile exists and newProfile is NOT newer so do nothing
-      if (isDebugEnabled_DA) {
-        logger.trace(LogMarker.DA,
+      if (isTraceEnabled_DistributionAdvisor) {
+        logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
             "putProfile: Ignoring {} because it's older than or same as {} for {}", newProfile,
             oldProfile, getAdvisee().getFullPath());
       }
@@ -605,9 +618,9 @@ public class DistributionAdvisor {
       } else {
         if (!membershipClosed) {
           membershipVersion++;
-          if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP)) {
-            logger.trace(LogMarker.STATE_FLUSH_OP, "StateFlush incremented membership version: {}",
-                membershipVersion);
+          if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP_VERBOSE)) {
+            logger.trace(LogMarker.STATE_FLUSH_OP_VERBOSE,
+                "StateFlush incremented membership version: {}", membershipVersion);
           }
           newProfile.initialMembershipVersion = membershipVersion;
           synchronized (this.opCountLock) {
@@ -620,8 +633,9 @@ public class DistributionAdvisor {
       forceNewMembershipVersion();
     }
 
-    if (isDebugEnabled_DA) {
-      logger.trace(LogMarker.DA, "DistributionAdvisor ({}) putProfile: {}", this, newProfile);
+    if (isTraceEnabled_DistributionAdvisor) {
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
+          "DistributionAdvisor ({}) putProfile: {}", this, newProfile);
     }
     boolean doAddOrUpdate = evaluateProfiles(newProfile, oldProfile);
     if (!doAddOrUpdate) {
@@ -640,9 +654,7 @@ public class DistributionAdvisor {
 
   /**
    * A callback to sub-classes for extra validation logic
-   * 
-   * @param oldProfile
-   * @param newProfile
+   *
    * @return true if the change from old to new is valid
    */
   protected boolean evaluateProfiles(Profile newProfile, Profile oldProfile) {
@@ -655,7 +667,7 @@ public class DistributionAdvisor {
    * number being compared is above {@link #ROLLOVER_THRESHOLD_UPPER} and the new versioning number
    * is below {@link #ROLLOVER_THRESHOLD_LOWER} then a rollover is assumed to have occurred, which
    * means the new versioning number is newer.
-   * 
+   *
    * @param newProfile the newer profile
    * @param oldProfile the older profile
    * @return true if newProfile is newer than oldProfile
@@ -693,12 +705,10 @@ public class DistributionAdvisor {
 
   /**
    * Compare two serial numbers
-   * 
-   * @param newSerialNumber
-   * @param oldSerialNumber
+   *
    * @return return true if the first serial number (newSerialNumber) is more recent
    */
-  static public boolean isNewerSerialNumber(int newSerialNumber, int oldSerialNumber) {
+  public static boolean isNewerSerialNumber(int newSerialNumber, int oldSerialNumber) {
     boolean serialRolled =
         oldSerialNumber > ROLLOVER_THRESHOLD_UPPER && newSerialNumber < ROLLOVER_THRESHOLD_LOWER;
     return serialRolled || oldSerialNumber < newSerialNumber;
@@ -707,21 +717,21 @@ public class DistributionAdvisor {
   /**
    * Create a new version of the membership profile set. This is used in flushing state out of the
    * VM for previous versions of the set.
-   * 
+   *
    * @since GemFire 5.1
    */
   public synchronized void forceNewMembershipVersion() {
     if (!membershipClosed) {
       membershipVersion++;
-      if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP)) {
-        logger.trace(LogMarker.STATE_FLUSH_OP, "StateFlush forced new membership version: {}",
-            membershipVersion);
+      if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP_VERBOSE)) {
+        logger.trace(LogMarker.STATE_FLUSH_OP_VERBOSE,
+            "StateFlush forced new membership version: {}", membershipVersion);
       }
       synchronized (this.opCountLock) {
         previousVersionOpCount += currentVersionOpCount;
         currentVersionOpCount = 0;
-        if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_STATE_FLUSH_OP)) {
-          logger.trace(LogMarker.DISTRIBUTION_STATE_FLUSH_OP,
+        if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_STATE_FLUSH_VERBOSE)) {
+          logger.trace(LogMarker.DISTRIBUTION_STATE_FLUSH_VERBOSE,
               "advisor for {} forced new membership version to {} previousOpCount={}", getAdvisee(),
               membershipVersion, previousVersionOpCount);
         }
@@ -733,20 +743,20 @@ public class DistributionAdvisor {
    * this method must be invoked at the start of every operation that can modify the state of
    * resource. The return value must be recorded and sent to the advisor in an endOperation message
    * when messages for the operation have been put in the DistributionManager's outgoing "queue".
-   * 
+   *
    * @return the current membership version for this advisor
    * @since GemFire 5.1
    */
   public synchronized long startOperation() {
-    if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_STATE_FLUSH_OP)) {
-      logger.trace(LogMarker.DISTRIBUTION_STATE_FLUSH_OP,
+    if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_STATE_FLUSH_VERBOSE)) {
+      logger.trace(LogMarker.DISTRIBUTION_STATE_FLUSH_VERBOSE,
           "startOperation() op count is now {} in view version {}", currentVersionOpCount + 1,
           membershipVersion);
     }
     synchronized (this.opCountLock) {
       currentVersionOpCount++;
-      if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP)) {
-        logger.trace(LogMarker.STATE_FLUSH_OP, "StateFlush current opcount incremented: {}",
+      if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP_VERBOSE)) {
+        logger.trace(LogMarker.STATE_FLUSH_OP_VERBOSE, "StateFlush current opcount incremented: {}",
             currentVersionOpCount);
       }
     }
@@ -756,7 +766,7 @@ public class DistributionAdvisor {
   /**
    * This method must be invoked when messages for an operation have been put in the
    * DistributionManager's outgoing queue.
-   * 
+   *
    * @param version The membership version returned by startOperation
    * @since GemFire 5.1
    */
@@ -764,15 +774,15 @@ public class DistributionAdvisor {
     synchronized (this.opCountLock) {
       if (version == membershipVersion) {
         currentVersionOpCount--;
-        if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP)) {
-          logger.trace(LogMarker.STATE_FLUSH_OP, "StateFlush current opcount deccremented: {}",
-              currentVersionOpCount);
+        if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP_VERBOSE)) {
+          logger.trace(LogMarker.STATE_FLUSH_OP_VERBOSE,
+              "StateFlush current opcount deccremented: {}", currentVersionOpCount);
         }
       } else {
         previousVersionOpCount--;
-        if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP)) {
-          logger.trace(LogMarker.STATE_FLUSH_OP, "StateFlush previous opcount incremented: {}",
-              previousVersionOpCount);
+        if (logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP_VERBOSE)) {
+          logger.trace(LogMarker.STATE_FLUSH_OP_VERBOSE,
+              "StateFlush previous opcount incremented: {}", previousVersionOpCount);
         }
       }
     }
@@ -788,7 +798,7 @@ public class DistributionAdvisor {
   /**
    * wait for the current operations being sent on views prior to the joining of the given member to
    * be placed on communication channels before returning
-   * 
+   *
    * @since GemFire 5.1
    */
   public void waitForCurrentOperations(long timeout) {
@@ -801,7 +811,8 @@ public class DistributionAdvisor {
     long warnTime = startTime + timeout;
     long quitTime = warnTime + timeout - 1000L;
     boolean warned = false;
-    final boolean isDebugEnabled_STATE_FLUSH_OP = logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP);
+    final boolean isDebugEnabled_STATE_FLUSH_OP =
+        logger.isTraceEnabled(LogMarker.STATE_FLUSH_OP_VERBOSE);
     while (true) {
       long opCount;
       synchronized (this.opCountLock) {
@@ -814,8 +825,8 @@ public class DistributionAdvisor {
       // must not terminate due to cache closure until that happens.
       // See bug 34361 comment 79
       if (isDebugEnabled_STATE_FLUSH_OP) {
-        logger.trace(LogMarker.STATE_FLUSH_OP, "Waiting for current operations to finish({})",
-            opCount);
+        logger.trace(LogMarker.STATE_FLUSH_OP_VERBOSE,
+            "Waiting for current operations to finish({})", opCount);
       }
       try {
         Thread.sleep(50);
@@ -836,7 +847,7 @@ public class DistributionAdvisor {
     }
     if (this.membershipClosed) {
       if (isDebugEnabled_STATE_FLUSH_OP) {
-        logger.trace(LogMarker.STATE_FLUSH_OP,
+        logger.trace(LogMarker.STATE_FLUSH_OP_VERBOSE,
             "State Flush stopped waiting for operations to distribute because advisor has been closed");
       }
     }
@@ -845,10 +856,10 @@ public class DistributionAdvisor {
   /**
    * Bypass the distribution manager and ask the membership manager directly if a given member is
    * still in the view.
-   * 
+   *
    * We need this because we're asking membership questions from within listeners, and we don't know
    * whether the DM's membership listener fires before or after our own.
-   * 
+   *
    * @param id member we are asking about
    * @return true if we are still in the JGroups view (must return false if id == null)
    */
@@ -864,30 +875,32 @@ public class DistributionAdvisor {
 
   /**
    * Given member is no longer pertinent to this advisor; remove it.
-   * 
+   *
    * This is often overridden in subclasses, but they need to defer to their superclass at some
    * point in their re-implementation.
-   * 
+   *
    * @param memberId the member to remove
    * @param crashed true if the member did not leave normally
    * @return true if it was being tracked
    */
   private boolean basicRemoveId(ProfileId memberId, boolean crashed, boolean destroyed) {
-    final boolean isDebugEnabled = logger.isTraceEnabled(LogMarker.DA);
+    final boolean isDebugEnabled = logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE);
     if (isDebugEnabled) {
-      logger.trace(LogMarker.DA, "DistributionAdvisor ({}) removeId {}", this, memberId);
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE, "DistributionAdvisor ({}) removeId {}",
+          this, memberId);
     }
 
     Profile profileRemoved = basicRemoveMemberId(memberId);
     if (profileRemoved == null) {
       if (isDebugEnabled) {
-        logger.trace(LogMarker.DA, "DistributionAdvisor.removeId: no profile to remove for {}",
-            memberId);
+        logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
+            "DistributionAdvisor.removeId: no profile to remove for {}", memberId);
       }
       return false;
     }
     if (isDebugEnabled) {
-      logger.trace(LogMarker.DA, "DistributionAdvisor.removeId: removed profile for {}", memberId);
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
+          "DistributionAdvisor.removeId: removed profile for {}", memberId);
     }
     profileRemoved(profileRemoved);
     notifyListenersProfileRemoved(profileRemoved, destroyed);
@@ -898,7 +911,7 @@ public class DistributionAdvisor {
 
   /**
    * Removes the specified profile if it is registered with this advisor.
-   * 
+   *
    * @return true if it was registered; false if not.
    * @since GemFire 5.7
    */
@@ -908,10 +921,9 @@ public class DistributionAdvisor {
 
   /**
    * Removes the profile for the given member. This method is meant to be overriden by subclasses.
-   * 
+   *
    * @param memberId the member whose profile should be removed
    * @param crashed true if the member crashed
-   * @param destroyed
    * @param fromMembershipListener true if this call is a result of MembershipEvent invocation
    *        (fixes #42000)
    * @return true when the profile was removed, false otherwise
@@ -922,8 +934,9 @@ public class DistributionAdvisor {
     try {
       result = doRemoveId(memberId, crashed, destroyed, fromMembershipListener);
     } finally {
-      if (logger.isTraceEnabled(LogMarker.DA)) {
-        logger.trace(LogMarker.DA, "removeId {} exiting {}", memberId, toStringWithProfiles());
+      if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+        logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE, "removeId {} exiting {}", memberId,
+            toStringWithProfiles());
       }
     }
     return result;
@@ -931,10 +944,10 @@ public class DistributionAdvisor {
 
   private boolean doRemoveId(ProfileId memberId, boolean crashed, boolean destroyed,
       boolean fromMembershipListener) {
-    final boolean isDebugEnabled_DA = logger.isTraceEnabled(LogMarker.DA);
+    final boolean isDebugEnabled_DA = logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE);
     if (isDebugEnabled_DA) {
-      logger.trace(LogMarker.DA, "removeId: removing member {} from resource {}", memberId,
-          getAdvisee().getFullPath());
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
+          "removeId: removing member {} from resource {}", memberId, getAdvisee().getFullPath());
     }
     synchronized (this) {
       // If the member has disappeared, completely remove
@@ -947,7 +960,8 @@ public class DistributionAdvisor {
         while (profileToRemove != null) {
           result = true;
           if (isDebugEnabled_DA) {
-            logger.trace(LogMarker.DA, "removeId: tracking removal of {}", profileToRemove);
+            logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE, "removeId: tracking removal of {}",
+                profileToRemove);
           }
           this.removedProfiles.put(profileToRemove.getDistributedMember(),
               Integer.valueOf(profileToRemove.getSerialNumber()));
@@ -969,15 +983,15 @@ public class DistributionAdvisor {
 
   /**
    * Removes the profile for the specified member and serial number
-   * 
+   *
    * @param memberId the member to remove the profile for
    * @param serialNum specific serial number to remove
    * @return true if a matching profile for the member was found
    */
   public boolean removeIdWithSerial(InternalDistributedMember memberId, int serialNum,
       boolean regionDestroyed) {
-    if (logger.isTraceEnabled(LogMarker.DA)) {
-      logger.trace(LogMarker.DA,
+    if (logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE)) {
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
           "removeIdWithSerial: removing member {} with serial {} from resource {}", memberId,
           serialNum, getAdvisee().getName());
     }
@@ -988,16 +1002,16 @@ public class DistributionAdvisor {
   /**
    * Update the list of removed profiles based on given serial number, and ensure that the given
    * member is no longer in the list of bucket owners.
-   * 
+   *
    * @param memberId member to remove
    * @param serialNum serial number
    * @return true if this member was an owner
    */
   private synchronized boolean updateRemovedProfiles(InternalDistributedMember memberId,
       int serialNum, boolean regionDestroyed) {
-    final boolean isDebugEnabled_DA = logger.isTraceEnabled(LogMarker.DA);
+    final boolean isDebugEnabled_DA = logger.isTraceEnabled(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE);
     if (isDebugEnabled_DA) {
-      logger.trace(LogMarker.DA,
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
           "updateRemovedProfiles: ensure member {} with serial {} is removed from region {}",
           memberId, serialNum, getAdvisee().getFullPath());
     }
@@ -1011,7 +1025,7 @@ public class DistributionAdvisor {
       if (profileToRemove != null) {
         if (isNewerSerialNumber(profileToRemove.serialNumber, serialNum)) {
           if (isDebugEnabled_DA) {
-            logger.trace(LogMarker.DA,
+            logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
                 "updateRemovedProfiles: member {} has profile {} which is newer than serial {}",
                 memberId, profileToRemove, serialNum);
           }
@@ -1031,7 +1045,7 @@ public class DistributionAdvisor {
         Integer oldSerial = (Integer) this.removedProfiles.get(memberId);
         if (oldSerial != null && isNewerSerialNumber(oldSerial.intValue(), serialNum)) {
           if (isDebugEnabled_DA) {
-            logger.trace(LogMarker.DA,
+            logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
                 "updateRemovedProfiles: member {} sent removal of serial {} but we hae already removed {}",
                 memberId, serialNum, oldSerial);
           }
@@ -1041,7 +1055,7 @@ public class DistributionAdvisor {
 
       if (isNews) {
         if (isDebugEnabled_DA) {
-          logger.trace(LogMarker.DA,
+          logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
               "updateRemovedProfiles: adding serial {} for member {} to removedProfiles", serialNum,
               memberId);
         }
@@ -1058,7 +1072,8 @@ public class DistributionAdvisor {
     else {
       // If the member has disappeared, completely remove (garbage collect)
       if (isDebugEnabled_DA) {
-        logger.trace(LogMarker.DA, "updateRemovedProfiles: garbage collecting member {}", memberId);
+        logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE,
+            "updateRemovedProfiles: garbage collecting member {}", memberId);
       }
       this.removedProfiles.remove(memberId);
 
@@ -1067,7 +1082,8 @@ public class DistributionAdvisor {
     }
 
     if (isDebugEnabled_DA) {
-      logger.trace(LogMarker.DA, "updateRemovedProfiles: removedId = {}", removedId);
+      logger.trace(LogMarker.DISTRIBUTION_ADVISOR_VERBOSE, "updateRemovedProfiles: removedId = {}",
+          removedId);
     }
 
     return removedId;
@@ -1075,7 +1091,7 @@ public class DistributionAdvisor {
 
   /**
    * Indicate whether given member is being tracked
-   * 
+   *
    * @param memberId the member
    * @return true if the member was being tracked
    */
@@ -1083,18 +1099,6 @@ public class DistributionAdvisor {
     return (indexOfMemberId(memberId) > -1);
   }
 
-  // /**
-  // * get the profile for a specific member
-  // * @since GemFire 5.1
-  // * @return the Profile or null
-  // */
-  // synchronized public Profile getProfile(InternalDistributedMember memberId) {
-  // int index = indexOfMemberId(memberId);
-  // if (index >= 0) {
-  // return profiles[index];
-  // }
-  // return null;
-  // }
 
   public synchronized int getNumProfiles() {
     return this.numActiveProfiles;
@@ -1148,7 +1152,7 @@ public class DistributionAdvisor {
   /**
    * Provide recipient information for any other operation. Returns the set of members that have
    * remote counterparts.
-   * 
+   *
    * @return Set of Serializable members; no reference to Set kept by advisor so caller is free to
    *         modify it
    */
@@ -1183,7 +1187,7 @@ public class DistributionAdvisor {
 
   /**
    * Returns a set of the members this advisor should distribute to by default
-   * 
+   *
    * @since GemFire 5.7
    */
   @SuppressWarnings("unchecked")
@@ -1207,10 +1211,9 @@ public class DistributionAdvisor {
     Iterator it = membershipListeners.keySet().iterator();
     while (it.hasNext()) {
       try {
-        ((MembershipListener) it.next()).memberJoined(member);
+        ((MembershipListener) it.next()).memberJoined(getDistributionManagerWithNoCheck(), member);
       } catch (Exception e) {
-        logger.fatal(
-            LocalizedMessage.create(LocalizedStrings.DistributionAdvisor_UNEXPECTED_EXCEPTION), e);
+        logger.warn("Ignoring exception during member joined listener notification", e);
       }
     }
   }
@@ -1219,10 +1222,10 @@ public class DistributionAdvisor {
     Iterator it = membershipListeners.keySet().iterator();
     while (it.hasNext()) {
       try {
-        ((MembershipListener) it.next()).memberDeparted(member, crashed);
+        ((MembershipListener) it.next()).memberDeparted(getDistributionManagerWithNoCheck(), member,
+            crashed);
       } catch (Exception e) {
-        logger.fatal(
-            LocalizedMessage.create(LocalizedStrings.DistributionAdvisor_UNEXPECTED_EXCEPTION), e);
+        logger.warn("Ignoring exception during member departed listener notification", e);
       }
     }
   }
@@ -1251,7 +1254,7 @@ public class DistributionAdvisor {
   /**
    * Template method for sub-classes to override. Method is invoked after a new profile is
    * created/added to profiles.
-   * 
+   *
    * @param profile the created profile
    */
   protected void profileCreated(Profile profile) {}
@@ -1259,7 +1262,7 @@ public class DistributionAdvisor {
   /**
    * Template method for sub-classes to override. Method is invoked after a profile is updated in
    * profiles.
-   * 
+   *
    * @param profile the updated profile
    */
   protected void profileUpdated(Profile profile) {}
@@ -1267,7 +1270,7 @@ public class DistributionAdvisor {
   /**
    * Template method for sub-classes to override. Method is invoked after a profile is removed from
    * profiles.
-   * 
+   *
    * @param profile the removed profile
    */
   protected void profileRemoved(Profile profile) {}
@@ -1301,7 +1304,7 @@ public class DistributionAdvisor {
 
   /**
    * This method calls filter->include on every profile until include returns true.
-   * 
+   *
    * @return false if all filter->include calls returns false; otherwise true.
    **/
   protected boolean satisfiesFilter(Filter f) {
@@ -1328,18 +1331,18 @@ public class DistributionAdvisor {
    * an arbitrary aggregator that has been passed to the {@link #visit} method. In addition this is
    * public for use by other classes.
    */
-  public static interface ProfileVisitor<T> {
+  public interface ProfileVisitor<T> {
 
     /**
      * Visit a given {@link Profile} accumulating the results in the given aggregate. Returns false
      * when the visit has to be terminated.
-     * 
+     *
      * @param advisor the DistributionAdvisor that invoked this visitor
      * @param profile the profile being visited
      * @param profileIndex the index of current profile
      * @param numProfiles the total number of profiles being visited
      * @param aggregate result aggregated so far, if any
-     * 
+     *
      * @return false if the visit has to be terminated immediately and false otherwise
      */
     boolean visit(DistributionAdvisor advisor, Profile profile, int profileIndex, int numProfiles,
@@ -1351,14 +1354,14 @@ public class DistributionAdvisor {
    * {@link ProfileVisitor#visit} method returns false. Unlike the {@link #adviseFilter(Filter)}
    * method this does assume the return type to be a Set of qualifying members rather allows for
    * population of an arbitrary aggregator passed as the argument to this method.
-   * 
+   *
    * @param <T> the type of object used for aggregation of results
    * @param visitor the {@link ProfileVisitor} to use for the visit
    * @param aggregate an aggregate object that will be used to for aggregation of results by the
    *        {@link ProfileVisitor#visit} method; this allows the {@link ProfileVisitor} to not
    *        maintain any state so that in many situations a global static object encapsulating the
    *        required behaviour will work
-   * 
+   *
    * @return true if all the profiles were visited and false if the {@link ProfileVisitor#visit} cut
    *         it short by returning false
    */
@@ -1378,7 +1381,7 @@ public class DistributionAdvisor {
 
   /**
    * Get an unmodifiable list of the <code>Profile</code>s that match the given <code>Filter</code>.
-   * 
+   *
    * @since GemFire 5.7
    */
   protected List/* <Profile> */ fetchProfiles(Filter f) {
@@ -1409,7 +1412,7 @@ public class DistributionAdvisor {
 
   /**
    * Provide recipients for profile remove.
-   * 
+   *
    * @since GemFire 5.7
    */
   public Set adviseProfileRemove() {
@@ -1510,15 +1513,15 @@ public class DistributionAdvisor {
 
 
   /** Filter interface */
-  protected static interface Filter {
-    public boolean include(Profile profile);
+  protected interface Filter {
+    boolean include(Profile profile);
   }
 
   /**
    * Marker interface to designate on object that serves and the unique id that identifies a
    * Profile.
    */
-  public static interface ProfileId {
+  public interface ProfileId {
   }
   /**
    * Profile information for a remote counterpart.
@@ -1531,7 +1534,7 @@ public class DistributionAdvisor {
     public int serialNumber = ILLEGAL_SERIAL;
     /**
      * The DistributionAdvisor's membership version where this member was added
-     * 
+     *
      * @since GemFire 5.1
      */
     public transient long initialMembershipVersion;
@@ -1550,7 +1553,7 @@ public class DistributionAdvisor {
 
     /**
      * Return object that uniquely identifies this profile.
-     * 
+     *
      * @since GemFire 5.7
      */
     public ProfileId getId() {
@@ -1583,7 +1586,7 @@ public class DistributionAdvisor {
 
     /**
      * Return the DistributedMember associated with this profile
-     * 
+     *
      * @since GemFire 5.0
      */
     public InternalDistributedMember getDistributedMember() {
@@ -1610,8 +1613,8 @@ public class DistributionAdvisor {
     /**
      * Process add/remove/update of an incoming profile.
      */
-    public void processIncoming(DistributionManager dm, String adviseePath, boolean removeProfile,
-        boolean exchangeProfiles, final List<Profile> replyProfiles) {
+    public void processIncoming(ClusterDistributionManager dm, String adviseePath,
+        boolean removeProfile, boolean exchangeProfiles, final List<Profile> replyProfiles) {
       // nothing by default; just log that nothing was done
       if (logger.isDebugEnabled()) {
         logger.debug("While processing UpdateAttributes message ignored incoming profile: {}",
@@ -1622,7 +1625,7 @@ public class DistributionAdvisor {
     /**
      * Attempts to process this message with the specified {@link DistributionAdvisee}. Also if
      * exchange profiles then add the profile from {@link DistributionAdvisee} to reply.
-     * 
+     *
      * @param advisee the CacheDistributionAdvisee to apply this profile to
      * @param removeProfile true to remove profile else add profile
      * @param exchangeProfiles true to add the profile to reply

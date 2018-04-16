@@ -19,15 +19,10 @@ import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.File;
+import java.util.Properties;
+
 import org.apache.commons.io.FileUtils;
-import org.apache.geode.InternalGemFireException;
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.CacheXmlException;
-import org.apache.geode.cache.Region;
-import org.apache.geode.cache.RegionAttributes;
-import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.test.junit.categories.IntegrationTest;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -35,13 +30,21 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 
-import java.io.File;
-import java.util.Properties;
+import org.apache.geode.InternalGemFireException;
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.cache.CacheXmlException;
+import org.apache.geode.cache.Region;
+import org.apache.geode.cache.RegionAttributes;
+import org.apache.geode.distributed.DistributedSystem;
+import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
 /**
  * @since GemFire 6.6.1
  */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLIndexTest.class})
 public class NewDeclarativeIndexCreationJUnitTest {
 
   private static final String CACHE_XML_FILE_NAME = "cachequeryindex.xml";
@@ -75,7 +78,7 @@ public class NewDeclarativeIndexCreationJUnitTest {
   @Test
   public void testAsynchronousIndexCreatedOnRoot_PortfoliosRegion() {
     Region root = this.cache.getRegion("/root/portfolios");
-    IndexManager im = IndexUtils.getIndexManager(root, true);
+    IndexManager im = IndexUtils.getIndexManager((InternalCache) cache, root, true);
     assertThat(im.getIndexes()).isNotEmpty();
 
     RegionAttributes ra = root.getAttributes();
@@ -85,21 +88,21 @@ public class NewDeclarativeIndexCreationJUnitTest {
   @Test
   public void testSynchronousIndexCreatedOnRoot_StringRegion() {
     Region root = this.cache.getRegion("/root/string");
-    IndexManager im = IndexUtils.getIndexManager(root, true);
+    IndexManager im = IndexUtils.getIndexManager((InternalCache) cache, root, true);
     assertThat(im.getIndexes()).isNotEmpty();
 
     RegionAttributes ra = root.getAttributes();
     assertThat(ra.getIndexMaintenanceSynchronous()).isTrue();
 
     root = this.cache.getRegion("/root/string1");
-    im = IndexUtils.getIndexManager(root, true);
+    im = IndexUtils.getIndexManager((InternalCache) cache, root, true);
     assertThat(im.isIndexMaintenanceTypeSynchronous()).isTrue();
   }
 
   @Test
   public void testSynchronousIndexCreatedOnRootRegion() {
     Region root = this.cache.getRegion("/root");
-    IndexManager im = IndexUtils.getIndexManager(root, true);
+    IndexManager im = IndexUtils.getIndexManager((InternalCache) cache, root, true);
     assertThat(im.getIndexes()).isNotEmpty();
 
     RegionAttributes ra = root.getAttributes();
@@ -114,7 +117,7 @@ public class NewDeclarativeIndexCreationJUnitTest {
   @Test
   public void testAsynchronousIndexCreatedOnPortfoliosRegionWithNewDTD() {
     Region root = this.cache.getRegion("/root/portfolios2");
-    IndexManager im = IndexUtils.getIndexManager(root, true);
+    IndexManager im = IndexUtils.getIndexManager((InternalCache) cache, root, true);
     assertThat(im.getIndexes()).isNotEmpty();
 
     RegionAttributes ra = root.getAttributes();
@@ -124,14 +127,14 @@ public class NewDeclarativeIndexCreationJUnitTest {
   @Test
   public void testSynchronousIndexCreatedOnStringRegionWithNewDTD() {
     Region root = this.cache.getRegion("/root/string2");
-    IndexManager im = IndexUtils.getIndexManager(root, true);;
+    IndexManager im = IndexUtils.getIndexManager((InternalCache) cache, root, true);;
     assertThat(im.getIndexes()).isNotEmpty();
 
     RegionAttributes ra = root.getAttributes();
     assertThat(ra.getIndexMaintenanceSynchronous()).isTrue();
 
     root = this.cache.getRegion("/root/string1");
-    im = IndexUtils.getIndexManager(root, true);
+    im = IndexUtils.getIndexManager((InternalCache) cache, root, true);
     assertThat(im.isIndexMaintenanceTypeSynchronous()).isTrue();
   }
 

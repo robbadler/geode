@@ -14,8 +14,13 @@
  */
 package org.apache.geode.cache.query.dunit;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.apache.geode.test.dunit.Assert.*;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.apache.geode.test.dunit.Assert.assertEquals;
+import static org.apache.geode.test.dunit.Assert.assertFalse;
+import static org.apache.geode.test.dunit.Assert.assertNotNull;
+import static org.apache.geode.test.dunit.Assert.assertTrue;
+import static org.apache.geode.test.dunit.Assert.fail;
 
 import java.util.Iterator;
 import java.util.Properties;
@@ -23,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -51,7 +57,6 @@ import org.apache.geode.cache.query.SelectResults;
 import org.apache.geode.cache.query.TypeMismatchException;
 import org.apache.geode.cache.query.data.Portfolio;
 import org.apache.geode.cache.query.internal.DefaultQuery;
-import org.apache.geode.cache.query.internal.QueryMonitor;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.cache30.CacheSerializableRunnable;
 import org.apache.geode.cache30.ClientServerTestCase;
@@ -59,6 +64,7 @@ import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.cache.DistributedRegion;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.control.HeapMemoryMonitor;
 import org.apache.geode.internal.cache.control.InternalResourceManager;
@@ -67,6 +73,7 @@ import org.apache.geode.internal.cache.control.MemoryEvent;
 import org.apache.geode.internal.cache.control.ResourceListener;
 import org.apache.geode.internal.cache.control.TestMemoryThresholdListener;
 import org.apache.geode.internal.i18n.LocalizedStrings;
+import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.test.dunit.AsyncInvocation;
 import org.apache.geode.test.dunit.DistributedTestUtils;
 import org.apache.geode.test.dunit.Host;
@@ -77,14 +84,17 @@ import org.apache.geode.test.dunit.SerializableCallable;
 import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, OQLQueryTest.class})
 public class ResourceManagerWithQueryMonitorDUnitTest extends ClientServerTestCase {
+
+  private static final Logger logger = LogService.getLogger();
 
   private static int MAX_TEST_QUERY_TIMEOUT = 4000;
   private static int TEST_QUERY_TIMEOUT = 1000;
-  private final static int CRITICAL_HEAP_USED = 950;
-  private final static int NORMAL_HEAP_USED = 500;
+  private static final int CRITICAL_HEAP_USED = 950;
+  private static final int NORMAL_HEAP_USED = 500;
 
   @Override
   public final void postSetUpClientServerTestCase() throws Exception {
@@ -129,7 +139,10 @@ public class ResourceManagerWithQueryMonitorDUnitTest extends ClientServerTestCa
 
   private SerializableCallable resetQueryMonitor = new SerializableCallable() {
     public Object call() throws Exception {
-      QueryMonitor.setLowMemory(false, 0);
+      InternalCache cache = getCache();
+      if (cache.getQueryMonitor() != null) {
+        cache.getQueryMonitor().setLowMemory(false, 0);
+      }
       DefaultQuery.testHook = null;
       return null;
     }
@@ -176,6 +189,27 @@ public class ResourceManagerWithQueryMonitorDUnitTest extends ClientServerTestCa
   @Test
   public void testRMAndNoTimeoutSetOnServer() throws Exception {
     doCriticalMemoryHitTestOnServer("portfolios", false, 85/* crit threshold */, false, -1, true);
+  }
+
+  // Query directly on member with RM and QM set
+  @Test
+  public void whenTimeoutIsSetAndAQueryIsExecutedThenTimeoutMustStopTheQueryBeforeCriticalMemory()
+      throws Exception {
+    // Timeout is set along with critical heap but it be called after the timeout expires
+    // Timeout is set to 1ms which is very unrealistic time period for a query to be able to fetch
+    // 200 entries from the region successfully, hence a timeout is expected.
+    executeQueryWithTimeoutSetAndCriticalThreshold("portfolios", false, 85/* crit threshold */,
+        false, 1, true);
+  }
+
+  @Test
+  public void whenTimeoutIsSetAndAQueryIsExecutedFromClientThenTimeoutMustStopTheQueryBeforeCriticalMemory()
+      throws Exception {
+    // Timeout is set along with critical heap but it be called after the timeout expires
+    // Timeout is set to 1ms which is very unrealistic time period for a query to be able to fetch
+    // 200 entries from the region successfully, hence a timeout is expected.
+    executeQueryFromClientWithTimeoutSetAndCriticalThreshold("portfolios", false,
+        85/* crit threshold */, false, 1, true);
   }
 
   @Test
@@ -691,6 +725,54 @@ public class ResourceManagerWithQueryMonitorDUnitTest extends ClientServerTestCa
   }
 
 
+  private void executeQueryFromClientWithTimeoutSetAndCriticalThreshold(final String regionName,
+      boolean createPR, final int criticalThreshold, final boolean disabledQueryMonitorForLowMem,
+      final int queryTimeout, final boolean hitCriticalThreshold) throws Exception {
+    // create region on the server
+    final Host host = Host.getHost(0);
+    final VM server = host.getVM(0);
+    final VM client = host.getVM(1);
+    final int numObjects = 200;
+    try {
+      final int port = AvailablePortHelper.getRandomAvailableTCPPort();
+      startCacheServer(server, port, criticalThreshold, disabledQueryMonitorForLowMem, queryTimeout,
+          regionName, createPR, 0);
+      startClient(client, server, port, regionName);
+      populateData(server, regionName, numObjects);
+      executeQueryWithCriticalHeapCalledAfterTimeout(server, client, regionName, queryTimeout,
+          hitCriticalThreshold);
+      if (hitCriticalThreshold) {
+        vmRecoversFromCriticalHeap(server);
+      }
+
+    } finally {
+      stopServer(server);
+    }
+  }
+
+  private void executeQueryWithTimeoutSetAndCriticalThreshold(final String regionName,
+      boolean createPR, final int criticalThreshold, final boolean disabledQueryMonitorForLowMem,
+      final int queryTimeout, final boolean hitCriticalThreshold) throws Exception {
+    // create region on the server
+    final Host host = Host.getHost(0);
+    final VM server = host.getVM(0);
+    final int numObjects = 200;
+    try {
+      final int port = AvailablePortHelper.getRandomAvailableTCPPort();
+      startCacheServer(server, port, criticalThreshold, disabledQueryMonitorForLowMem, queryTimeout,
+          regionName, createPR, 0);
+      populateData(server, regionName, numObjects);
+      executeQueryWithCriticalHeapCalledAfterTimeout(server, server, regionName, queryTimeout,
+          hitCriticalThreshold);
+      if (hitCriticalThreshold) {
+        vmRecoversFromCriticalHeap(server);
+      }
+
+    } finally {
+      stopServer(server);
+    }
+  }
+
   // This helper method will set up a test hook
   // Execute a query on the server, pause due to the test hook
   // Execute a critical heap event
@@ -735,8 +817,78 @@ public class ResourceManagerWithQueryMonitorDUnitTest extends ClientServerTestCa
       assertEquals(0, queryExecution.getResult());
     } catch (Throwable e) {
       e.printStackTrace();
-      fail();
+      fail("queryExecution.getResult() threw Exception " + e.toString());
     }
+  }
+
+  private void executeQueryWithCriticalHeapCalledAfterTimeout(VM server, VM client,
+      final String regionName, final int queryTimeout, final boolean hitCriticalThreshold) {
+    createLatchTestHook(server);
+    AsyncInvocation queryExecution = executeQueryWithTimeout(client, regionName, queryTimeout);
+
+    // Wait till the timeout expires on the query
+    try {
+      Thread.sleep(queryTimeout + 1000);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+    // We simulate a low memory/critical heap percentage hit
+    // But by design of this test the query must have been already terminated because of a 1ms
+    // timeout
+    if (hitCriticalThreshold) {
+      vmHitsCriticalHeap(server);
+    }
+
+    releaseHook(server);
+
+    ThreadUtils.join(queryExecution, 60000);
+    // Make sure no exceptions were thrown during query testing
+    try {
+      assertEquals(0, queryExecution.getResult());
+    } catch (Throwable e) {
+      e.printStackTrace();
+      fail("queryExecution.getResult() threw Exception " + e.toString());
+    }
+  }
+
+  private AsyncInvocation executeQueryWithTimeout(VM client, final String regionName,
+      final int queryTimeout) {
+    return client.invokeAsync(new SerializableCallable("execute query from client") {
+      public Object call() throws CacheException {
+        QueryService qs = null;
+        try {
+          qs = getCache().getQueryService();
+          Query query = qs.newQuery("Select * From /" + regionName);
+          query.execute();
+
+        } catch (Exception e) {
+          e.printStackTrace();
+          if (e instanceof QueryExecutionTimeoutException) {
+            logger.info("Query Execution must be terminated by a timeout.");
+            return 0;
+          }
+          if (e instanceof ServerOperationException) {
+            ServerOperationException soe = (ServerOperationException) e;
+            if (soe.getRootCause() instanceof QueryException) {
+              QueryException qe = (QueryException) soe.getRootCause();
+              if (isExceptionDueToTimeout(qe, queryTimeout)) {
+                logger.info("Query Execution must be terminated by a timeout. Expected behavior");
+                return 0;
+              }
+            } else if (soe.getRootCause() instanceof QueryExecutionTimeoutException) {
+              logger.info("Query Execution must be terminated by a timeout.");
+              return 0;
+            }
+          }
+          e.printStackTrace();
+          throw new CacheException(
+              "The query should have been terminated by a timeout exception but instead hit a different exception :"
+                  + e) {};
+        }
+        return -1;
+      }
+    });
+
   }
 
   private AsyncInvocation invokeClientQuery(VM client, final String regionName,
@@ -946,7 +1098,7 @@ public class ResourceManagerWithQueryMonitorDUnitTest extends ClientServerTestCa
     server.invoke(new SerializableCallable() {
       public Object call() throws Exception {
         GemFireCacheImpl cache = (GemFireCacheImpl) getCache();
-        cache.testMaxQueryExecutionTime = -1;
+        cache.MAX_QUERY_EXECUTION_TIME = -1;
         return null;
       }
     });
@@ -971,9 +1123,9 @@ public class ResourceManagerWithQueryMonitorDUnitTest extends ClientServerTestCa
         GemFireCacheImpl cache = (GemFireCacheImpl) getCache();
 
         if (queryTimeout != -1) {
-          cache.testMaxQueryExecutionTime = queryTimeout;
+          cache.MAX_QUERY_EXECUTION_TIME = queryTimeout;
         } else {
-          cache.testMaxQueryExecutionTime = -1;
+          cache.MAX_QUERY_EXECUTION_TIME = -1;
         }
 
         if (criticalThreshold != 0) {

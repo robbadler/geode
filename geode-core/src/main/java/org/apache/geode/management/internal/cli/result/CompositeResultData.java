@@ -21,8 +21,8 @@ import org.apache.geode.management.internal.cli.json.GfJsonException;
 import org.apache.geode.management.internal.cli.json.GfJsonObject;
 
 /**
- * 
- * 
+ *
+ *
  * @since GemFire 7.0
  */
 public class CompositeResultData extends AbstractResultData {
@@ -30,11 +30,11 @@ public class CompositeResultData extends AbstractResultData {
 
   private int subsectionCount;
 
-  /* package */ CompositeResultData() {
+  CompositeResultData() {
     super();
   }
 
-  /* package */ CompositeResultData(GfJsonObject gfJsonObject) {
+  CompositeResultData(GfJsonObject gfJsonObject) {
     super(gfJsonObject);
   }
 
@@ -44,8 +44,7 @@ public class CompositeResultData extends AbstractResultData {
   }
 
   /**
-   * 
-   * @param headerText
+   *
    * @return this CompositeResultData
    * @throws ResultDataException If the value is non-finite number or if the key is null.
    */
@@ -54,8 +53,7 @@ public class CompositeResultData extends AbstractResultData {
   }
 
   /**
-   * 
-   * @param footerText
+   *
    * @return this CompositeResultData
    * @throws ResultDataException If the value is non-finite number or if the key is null.
    */
@@ -128,16 +126,16 @@ public class CompositeResultData extends AbstractResultData {
   }
 
   /**
-   * 
+   *
    * @since GemFire 7.0
    */
-  public static class SectionResultData /* extends AbstractResultData */ {
+  public static class SectionResultData {
     protected GfJsonObject sectionGfJsonObject;
 
     private int subsectionCount = 0;
     private int tablesCount = 0;
 
-    /* package */ SectionResultData() {
+    SectionResultData() {
       sectionGfJsonObject = new GfJsonObject();
     }
 
@@ -295,7 +293,7 @@ public class CompositeResultData extends AbstractResultData {
     }
 
     public String[] retrieveStringArray(String name) {
-      String[] stringArray = null;
+      String[] stringArray;
       Object retrievedObject = sectionGfJsonObject.get(name);
 
       if (retrievedObject instanceof GfJsonArray) {
@@ -317,11 +315,6 @@ public class CompositeResultData extends AbstractResultData {
     public static String generateTableKey(String keyToRetrieve) {
       return TABLE_DATA_ACCESSOR + "-" + keyToRetrieve;
     }
-
-    // @Override
-    // public String getType() {
-    // return TYPE_SECTION;
-    // }
   }
 
   public static void main(String[] args) {
@@ -362,10 +355,8 @@ public class CompositeResultData extends AbstractResultData {
         .accumulate("NumOfBuckets", 100);
 
     try {
-      System.out.println(crd.getGfJsonObject().toIndentedString(/* 2 */0));
+      System.out.println(crd.getGfJsonObject().toIndentedString(0));
 
-    } catch (GfJsonException e) {
-      e.printStackTrace();
     } catch (Exception e) {
       e.printStackTrace();
     }

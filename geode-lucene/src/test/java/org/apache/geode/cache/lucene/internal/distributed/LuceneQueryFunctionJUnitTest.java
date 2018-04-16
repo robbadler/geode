@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -22,6 +22,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.search.Query;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import org.apache.geode.CancelCriterion;
 import org.apache.geode.cache.CacheClosedException;
@@ -45,20 +56,10 @@ import org.apache.geode.cache.lucene.test.LuceneTestUtilities;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.execute.InternalFunctionInvocationTargetException;
 import org.apache.geode.internal.cache.execute.InternalRegionFunctionContext;
+import org.apache.geode.test.junit.categories.LuceneTest;
 import org.apache.geode.test.junit.categories.UnitTest;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.search.Query;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
-
-@Category(UnitTest.class)
+@Category({UnitTest.class, LuceneTest.class})
 public class LuceneQueryFunctionJUnitTest {
 
   private String regionPath = "/region";
@@ -95,7 +96,7 @@ public class LuceneQueryFunctionJUnitTest {
     when(mockContext.<TopEntriesCollector>getResultSender()).thenReturn(mockResultSender);
     when(mockRepoManager.getRepositories(eq(mockContext))).thenReturn(repos);
     doAnswer(invocation -> {
-      IndexResultCollector collector = invocation.getArgumentAt(2, IndexResultCollector.class);
+      IndexResultCollector collector = invocation.getArgument(2);
       collector.collect(r1_1.getKey(), r1_1.getScore());
       collector.collect(r1_2.getKey(), r1_2.getScore());
       collector.collect(r1_3.getKey(), r1_3.getScore());
@@ -104,7 +105,7 @@ public class LuceneQueryFunctionJUnitTest {
         any(IndexResultCollector.class));
 
     doAnswer(invocation -> {
-      IndexResultCollector collector = invocation.getArgumentAt(2, IndexResultCollector.class);
+      IndexResultCollector collector = invocation.getArgument(2);
       collector.collect(r2_1.getKey(), r2_1.getScore());
       collector.collect(r2_2.getKey(), r2_2.getScore());
       return null;
@@ -138,7 +139,7 @@ public class LuceneQueryFunctionJUnitTest {
     when(mockRepoManager.getRepositories(eq(mockContext))).thenReturn(repos);
 
     doAnswer(invocation -> {
-      IndexResultCollector collector = invocation.getArgumentAt(2, IndexResultCollector.class);
+      IndexResultCollector collector = invocation.getArgument(2);
       collector.collect(r1_1.getKey(), r1_1.getScore());
       collector.collect(r1_2.getKey(), r1_2.getScore());
       collector.collect(r1_3.getKey(), r1_3.getScore());
@@ -146,7 +147,7 @@ public class LuceneQueryFunctionJUnitTest {
     }).when(mockRepository1).query(eq(query), eq(3), any(IndexResultCollector.class));
 
     doAnswer(invocation -> {
-      IndexResultCollector collector = invocation.getArgumentAt(2, IndexResultCollector.class);
+      IndexResultCollector collector = invocation.getArgument(2);
       collector.collect(r2_1.getKey(), r2_1.getScore());
       collector.collect(r2_2.getKey(), r2_2.getScore());
       return null;
@@ -179,7 +180,7 @@ public class LuceneQueryFunctionJUnitTest {
     when(mockRepoManager.getRepositories(eq(mockContext))).thenReturn(repos);
     when(mockManager.newCollector(eq("repo2"))).thenReturn(mockCollector);
     when(mockManager.reduce(any(Collection.class))).thenAnswer(invocation -> {
-      Collection<IndexResultCollector> collectors = invocation.getArgumentAt(0, Collection.class);
+      Collection<IndexResultCollector> collectors = invocation.getArgument(0);
       assertEquals(1, collectors.size());
       assertEquals(mockCollector, collectors.iterator().next());
       return new TopEntriesCollector(null);
@@ -187,7 +188,7 @@ public class LuceneQueryFunctionJUnitTest {
     });
 
     doAnswer(invocation -> {
-      IndexResultCollector collector = invocation.getArgumentAt(2, IndexResultCollector.class);
+      IndexResultCollector collector = invocation.getArgument(2);
       collector.collect(r2_1.getKey(), r2_1.getScore());
       return null;
     }).when(mockRepository2).query(eq(query), eq(LuceneQueryFactory.DEFAULT_LIMIT),
@@ -362,4 +363,3 @@ public class LuceneQueryFunctionJUnitTest {
     query = queryProvider.getQuery(mockIndex);
   }
 }
-

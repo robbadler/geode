@@ -14,19 +14,20 @@
  */
 package org.apache.geode.cache.lucene.internal;
 
-import org.apache.geode.cache.lucene.LuceneIndex;
+import java.util.Map;
+
 import org.apache.lucene.analysis.Analyzer;
 
-import java.util.Map;
+import org.apache.geode.cache.lucene.LuceneIndex;
 
 public interface IndexListener {
 
-  public void beforeIndexCreated(final String indexName, String regionPath, final Analyzer analyzer,
+  void beforeIndexCreated(final String indexName, String regionPath, final Analyzer analyzer,
       final Map<String, Analyzer> fieldAnalyzers, final String... fields);
 
-  public void afterIndexCreated(LuceneIndex index);
+  void afterIndexCreated(LuceneIndex index);
 
-  public void beforeIndexDestroyed(LuceneIndex index);
+  void beforeIndexDestroyed(LuceneIndex index);
 
-  public void afterIndexDestroyed(LuceneIndex index);
+  void afterIndexDestroyed(LuceneIndex index);
 }

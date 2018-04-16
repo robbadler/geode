@@ -18,18 +18,18 @@ package org.apache.geode.internal.cache;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.Operation;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
 
-// import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
 
 /**
  * Class <code>ClientRegionEventImpl</code> is a region event with the client's host and port for
  * notification purposes.
- * 
- * 
+ *
+ *
  * @since GemFire 5.1
  */
 public class ClientRegionEventImpl extends RegionEventImpl {
@@ -43,12 +43,7 @@ public class ClientRegionEventImpl extends RegionEventImpl {
 
   /**
    * To be called from the Distributed Message without setting EventID
-   * 
-   * @param region
-   * @param op
-   * @param callbackArgument
-   * @param originRemote
-   * @param distributedMember
+   *
    */
   public ClientRegionEventImpl(LocalRegion region, Operation op, Object callbackArgument,
       boolean originRemote, DistributedMember distributedMember, ClientProxyMembershipID contx) {
@@ -66,7 +61,7 @@ public class ClientRegionEventImpl extends RegionEventImpl {
 
   /**
    * sets The membershipId originating this event
-   * 
+   *
    */
   protected void setContext(ClientProxyMembershipID contx) {
     this.context = contx;
@@ -74,7 +69,7 @@ public class ClientRegionEventImpl extends RegionEventImpl {
 
   /**
    * Returns The context originating this event
-   * 
+   *
    * @return The context originating this event
    */
   @Override

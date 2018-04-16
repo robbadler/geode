@@ -13,8 +13,6 @@
  */
 package org.apache.geode.internal.hll;
 
-import org.apache.geode.redis.internal.executor.hll.Varint;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
@@ -32,6 +30,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
+
+import org.apache.geode.redis.internal.executor.hll.Varint;
 
 
 /**
@@ -1253,7 +1253,6 @@ public class HyperLogLogPlus implements ICardinality, Serializable {
    *
    * @param k encoded data
    * @param p 'normal' precision
-   * @return index
    */
   private int getIndex(int k, int p) {
     k = getSparseIndex(k);
@@ -1266,7 +1265,6 @@ public class HyperLogLogPlus implements ICardinality, Serializable {
    * Has two procedures based on current mode. 'Normal' mode works similar to HLL but has some new
    * bias corrections. 'Sparse' mode is linear counting.
    *
-   * @return cardinality
    */
   @Override
   public long cardinality() {
@@ -1445,7 +1443,6 @@ public class HyperLogLogPlus implements ICardinality, Serializable {
    * However, in this case, both lists will need their own delta decoding and neither will have to
    * worry about consuming duplicates.
    *
-   * @param other
    * @return the new sparse set
    */
   private int[] mergeEstimators(HyperLogLogPlus other) {
@@ -1649,7 +1646,6 @@ public class HyperLogLogPlus implements ICardinality, Serializable {
    *
    * @param estimators the estimators to merge with this one
    * @return a new estimator with their combined knowledge
-   * @throws CardinalityMergeException
    */
 
   @Override

@@ -19,19 +19,21 @@ import static org.apache.geode.cache.DataPolicy.PARTITION;
 import static org.apache.geode.cache.DataPolicy.REPLICATE;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.Region;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
-import org.apache.geode.test.dunit.rules.MemberVM;
-import org.apache.geode.test.junit.categories.DistributedTest;
+import java.io.File;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.rules.TemporaryFolder;
 
-import java.io.File;
+import org.apache.geode.cache.Cache;
+import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.cache.Region;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
+import org.apache.geode.test.dunit.rules.MemberVM;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 
 @Category(DistributedTest.class)
 public class ImportClusterConfigDistributedTest {
@@ -42,10 +44,13 @@ public class ImportClusterConfigDistributedTest {
   private MemberVM locator, server;
 
   @Rule
-  public LocatorServerStartupRule lsRule = new LocatorServerStartupRule();
+  public TemporaryFolder tempFolder = new TemporaryFolder();
 
   @Rule
-  public GfshShellConnectionRule gfsh = new GfshShellConnectionRule();
+  public ClusterStartupRule lsRule = new ClusterStartupRule();
+
+  @Rule
+  public GfshCommandRule gfsh = new GfshCommandRule();
 
   @Before
   public void exportClusterConfig() throws Exception {
@@ -54,22 +59,24 @@ public class ImportClusterConfigDistributedTest {
 
     gfsh.connectAndVerify(locator);
 
-    gfsh.executeAndVerifyCommand("create region --name=replicateRegion --type=REPLICATE");
-    gfsh.executeAndVerifyCommand("create region --name=partitionRegion --type=PARTITION");
+    gfsh.executeAndAssertThat("create region --name=replicateRegion --type=REPLICATE")
+        .statusIsSuccess();
+    gfsh.executeAndAssertThat("create region --name=partitionRegion --type=PARTITION")
+        .statusIsSuccess();
 
 
     server.invoke(ImportClusterConfigDistributedTest::validateServerIsUsingClusterConfig);
 
-    this.exportedClusterConfig =
-        new File(lsRule.getTempFolder().getRoot(), EXPORTED_CLUSTER_CONFIG_ZIP_NAME);
+    // do not create the file yet
+    this.exportedClusterConfig = new File(tempFolder.getRoot(), EXPORTED_CLUSTER_CONFIG_ZIP_NAME);
 
+    gfsh.executeAndAssertThat(
+        "export cluster-configuration --zip-file-name=" + exportedClusterConfig.getCanonicalPath())
+        .statusIsSuccess();
 
-    gfsh.executeAndVerifyCommand(
-        "export cluster-configuration --zip-file-name=" + exportedClusterConfig.getCanonicalPath());
-
-    lsRule.stopMember(0);
-
-    lsRule.stopMember(1);
+    gfsh.disconnect();
+    locator.stopVM(true);
+    server.stopVM(true);
 
     assertThat(this.exportedClusterConfig).exists();
     assertThat(this.exportedClusterConfig.length()).isGreaterThan(100);
@@ -99,8 +106,8 @@ public class ImportClusterConfigDistributedTest {
     locator = lsRule.startLocatorVM(0);
 
     gfsh.connectAndVerify(locator);
-    gfsh.executeAndVerifyCommand("import cluster-configuration --zip-file-name="
-        + this.exportedClusterConfig.getCanonicalPath());
+    gfsh.executeAndAssertThat("import cluster-configuration --zip-file-name="
+        + this.exportedClusterConfig.getCanonicalPath()).statusIsSuccess();
 
     server = lsRule.startServerVM(1, locator.getPort());
 

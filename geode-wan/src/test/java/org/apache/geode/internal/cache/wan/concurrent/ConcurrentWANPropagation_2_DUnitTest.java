@@ -14,16 +14,10 @@
  */
 package org.apache.geode.internal.cache.wan.concurrent;
 
-import org.junit.Ignore;
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-
+import org.junit.Ignore;
+import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.wan.GatewaySender.OrderPolicy;
@@ -31,13 +25,14 @@ import org.apache.geode.internal.cache.wan.WANTestBase;
 import org.apache.geode.test.dunit.AsyncInvocation;
 import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.Wait;
-import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
 /**
  * All the test cases are similar to SerialWANPropagationDUnitTest except that the we create
  * concurrent serial GatewaySender with concurrency of 4
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class ConcurrentWANPropagation_2_DUnitTest extends WANTestBase {
 
   public ConcurrentWANPropagation_2_DUnitTest() {

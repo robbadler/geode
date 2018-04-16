@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -15,7 +15,6 @@
 package org.apache.geode.cache.lucene.internal.distributed;
 
 import static org.junit.Assert.*;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.*;
 
 import java.util.Collection;
@@ -30,9 +29,10 @@ import org.mockito.Mockito;
 
 import org.apache.geode.cache.lucene.test.LuceneTestUtilities;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.test.junit.categories.LuceneTest;
 import org.apache.geode.test.junit.categories.UnitTest;
 
-@Category(UnitTest.class)
+@Category({UnitTest.class, LuceneTest.class})
 public class TopEntriesFunctionCollectorJUnitTest {
 
   private EntryScore<String> r1_1;
@@ -133,8 +133,8 @@ public class TopEntriesFunctionCollectorJUnitTest {
     Mockito.doReturn(mockCollector).when(mockManager)
         .reduce(Mockito.argThat(new ArgumentMatcher<Collection<TopEntriesCollector>>() {
           @Override
-          public boolean matches(Object argument) {
-            Collection<TopEntriesCollector> collectors = (Collection<TopEntriesCollector>) argument;
+          public boolean matches(Collection<TopEntriesCollector> argument) {
+            Collection<TopEntriesCollector> collectors = argument;
             return collectors.contains(result1) && collectors.contains(result2);
           }
         }));

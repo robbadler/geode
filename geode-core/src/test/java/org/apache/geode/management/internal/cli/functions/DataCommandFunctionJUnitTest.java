@@ -14,25 +14,28 @@
  */
 package org.apache.geode.management.internal.cli.functions;
 
-import org.apache.geode.cache.*;
-import org.apache.geode.management.internal.cli.domain.DataCommandResult;
-import org.apache.geode.test.junit.categories.IntegrationTest;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+
+import java.util.List;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.util.List;
-
-import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import org.apache.geode.cache.*;
+import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.management.internal.cli.domain.DataCommandResult;
+import org.apache.geode.test.junit.categories.GfshTest;
+import org.apache.geode.test.junit.categories.IntegrationTest;
 
 /**
  * TODO: Add additional tests for all methods in DataCommandFunction.
  *
  */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, GfshTest.class})
 public class DataCommandFunctionJUnitTest {
 
   private static Cache cache;
@@ -101,8 +104,9 @@ public class DataCommandFunctionJUnitTest {
   public void testLocateKeyIsObject() throws Exception {
     DataCommandFunction dataCmdFn = new DataCommandFunction();
 
-    DataCommandResult result = dataCmdFn.locateEntry("{'cheese': 'key_1'}",
-        StringCheese.class.getName(), String.class.getName(), PARTITIONED_REGION, false);
+    DataCommandResult result =
+        dataCmdFn.locateEntry("{'cheese': 'key_1'}", StringCheese.class.getName(),
+            String.class.getName(), PARTITIONED_REGION, false, (InternalCache) cache);
 
     assertNotNull(result);
     result.aggregate(null);
@@ -115,7 +119,7 @@ public class DataCommandFunctionJUnitTest {
     DataCommandFunction dataCmdFn = new DataCommandFunction();
 
     DataCommandResult result = dataCmdFn.locateEntry("key_2", String.class.getName(),
-        String.class.getName(), PARTITIONED_REGION, false);
+        String.class.getName(), PARTITIONED_REGION, false, (InternalCache) cache);
 
     assertNotNull(result);
     result.aggregate(null);

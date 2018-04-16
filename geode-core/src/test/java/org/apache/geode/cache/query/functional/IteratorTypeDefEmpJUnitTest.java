@@ -17,14 +17,10 @@
  *
  * Created on April 11, 2005, 11:56 AM
  */
-/*
- * 
- */
 package org.apache.geode.cache.query.functional;
 
 import static org.junit.Assert.fail;
 
-// import org.apache.geode.cache.query.internal.StructSet;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -36,13 +32,13 @@ import org.junit.experimental.categories.Category;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.query.CacheUtils;
 import org.apache.geode.cache.query.Query;
-import org.apache.geode.cache.query.Utils;
 import org.apache.geode.cache.query.data.Address;
 import org.apache.geode.cache.query.data.Employee;
 import org.apache.geode.cache.query.data.Manager;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class IteratorTypeDefEmpJUnitTest {
 
   @Before

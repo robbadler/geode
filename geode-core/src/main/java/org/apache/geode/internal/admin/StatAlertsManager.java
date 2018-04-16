@@ -30,7 +30,7 @@ import org.apache.geode.StatisticDescriptor;
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsType;
 import org.apache.geode.admin.jmx.internal.StatAlertsAggregator;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.SystemTimer;
 import org.apache.geode.internal.SystemTimer.SystemTimerTask;
@@ -45,14 +45,14 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
 /**
  * The alert manager maintains the list of alert definitions (added by client e.g GFMon 2.0).
- * 
+ *
  * It retrieved the value of statistic( defined in alert definition) and notify alert aggregator
  * sitting on admin VM
- * 
+ *
  * @see StatAlertDefinition
  * @see StatAlert
- * 
- * 
+ *
+ *
  * @since GemFire 5.7
  */
 public class StatAlertsManager {
@@ -60,7 +60,7 @@ public class StatAlertsManager {
 
   /**
    * Instance for current DM
-   * 
+   *
    * Guarded by StatAlertsManager.class
    */
   private static StatAlertsManager alertManager;
@@ -88,9 +88,9 @@ public class StatAlertsManager {
   /**
    * Provides life cycle support
    */
-  protected final DistributionManager dm;
+  protected final ClusterDistributionManager dm;
 
-  private StatAlertsManager(DistributionManager dm) {
+  private StatAlertsManager(ClusterDistributionManager dm) {
     this.dm = dm;
     logger.info(
         LocalizedMessage.create(LocalizedStrings.StatAlertsManager_STATALERTSMANAGER_CREATED));
@@ -99,7 +99,7 @@ public class StatAlertsManager {
   /**
    * @return singleton instance of StatAlertsManager
    */
-  public synchronized static StatAlertsManager getInstance(DistributionManager dm) {
+  public static synchronized StatAlertsManager getInstance(ClusterDistributionManager dm) {
     // As per current implementation set up request will be send only once ,
     // when member joined to Admin distributed system
     // we don't need to care about race condition
@@ -122,17 +122,17 @@ public class StatAlertsManager {
   /**
    * Nullifies the StatAlertsManager instance.
    */
-  private synchronized static void closeInstance() {
+  private static synchronized void closeInstance() {
     StatAlertsManager.alertManager = null;
   }
 
   /**
-   * 
+   *
    * Update the alert's definition map
-   * 
+   *
    * @param defns Alert definitions
    * @param actionCode Action to be performed like add , remove or update alert's definition
-   * 
+   *
    * @see UpdateAlertDefinitionMessage
    */
   public void updateAlertDefinition(StatAlertDefinition[] defns, int actionCode) {
@@ -188,7 +188,7 @@ public class StatAlertsManager {
   /**
    * Set refresh time interval also cancel the previous {@link TimerTask} and create new timer task
    * based on ner refresh time interval
-   * 
+   *
    * @param interval Refresh time interval
    */
   public synchronized void setRefreshTimeInterval(long interval) {
@@ -197,7 +197,7 @@ public class StatAlertsManager {
   }
 
   /**
-   * 
+   *
    * @return time interval alert generation
    */
   public synchronized long getRefreshTimeInterval() {
@@ -217,8 +217,7 @@ public class StatAlertsManager {
    * {@link TimerTask}
    *
    * TODO never called
-   * 
-   * @param refreshAtFixedRate
+   *
    */
   public synchronized void setRefreshAtFixedRate(boolean refreshAtFixedRate) {
     this.refreshAtFixedRate = refreshAtFixedRate;
@@ -228,7 +227,7 @@ public class StatAlertsManager {
   /**
    * Query all the statistic defined by alert definition and notify alerts aggregator if at least
    * one statistic value crosses the threshold defined in alert definition
-   * 
+   *
    */
   protected StatAlert[] getAlerts() {
     Set alerts = new HashSet();
@@ -258,7 +257,7 @@ public class StatAlertsManager {
    * Convert {@link StatAlertDefinition }(Created by client like GFMon2.0) with
    * {@link DummyStatisticInfoImpl} to StatAlertDefinition with {@link StatisticInfoImpl}
    */
-  private StatAlertDefinition[] createMemberStatAlertDefinition(DistributionManager dm,
+  private StatAlertDefinition[] createMemberStatAlertDefinition(ClusterDistributionManager dm,
       StatAlertDefinition[] defns) {
     dm.getCancelCriterion().checkCancelInProgress(null);
 
@@ -333,7 +332,7 @@ public class StatAlertsManager {
 
   /**
    * Timer task to send all the alerts raised to {@link StatAlertsAggregator}
-   * 
+   *
    */
   class EvaluateAlertDefnsTask extends SystemTimerTask {
     /**

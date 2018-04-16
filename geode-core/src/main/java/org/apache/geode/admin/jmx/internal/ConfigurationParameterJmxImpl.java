@@ -21,7 +21,6 @@ import org.apache.logging.log4j.Level;
 
 import org.apache.geode.SystemFailure;
 import org.apache.geode.admin.UnmodifiableConfigurationException;
-import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 
 /**
@@ -149,15 +148,9 @@ public class ConfigurationParameterJmxImpl
     Class inClass = (Class) in.readObject();
     boolean inUserModifiable = in.readBoolean();
 
-    Assert.assertTrue(inName != null);
-    Assert.assertTrue(inDescription != null);
-    Assert.assertTrue(inValue != null);
-    Assert.assertTrue(inClass != null);
-
     this.deserialized = true;
     this.name = inName;
     setInternalState(inDescription, inValue, inClass, inUserModifiable);
   }
 
 }
-

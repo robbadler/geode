@@ -28,7 +28,6 @@ import java.util.Collection;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runners.MethodSorters;
@@ -45,19 +44,16 @@ import org.apache.geode.cache.query.Query;
 import org.apache.geode.cache.query.QueryService;
 import org.apache.geode.cache.query.RegionNotFoundException;
 import org.apache.geode.cache.query.SelectResults;
-import org.apache.geode.cache.query.Utils;
 import org.apache.geode.cache.query.data.Portfolio;
 import org.apache.geode.cache.query.functional.StructSetOrResultsSet;
 import org.apache.geode.cache.query.internal.QueryObserverAdapter;
 import org.apache.geode.cache.query.internal.QueryObserverHolder;
 import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
-/**
- * 
- */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLIndexTest.class})
 public class IndexMaintainceJUnitTest {
 
   @Before
@@ -185,36 +181,12 @@ public class IndexMaintainceJUnitTest {
     CacheUtils.log(((CompactRangeIndex) index).dump());
     IndexStatistics stats = index.getStatistics();
     assertEquals(4, stats.getNumberOfValues());
-    // org.apache.geode.internal.util.
-    // DebuggerSupport.waitForJavaDebugger(region.getCache().getLogger());
     region.put("4", new Portfolio(4));
     CacheUtils.log(((CompactRangeIndex) index).dump());
     stats = index.getStatistics();
     assertEquals(5, stats.getNumberOfValues());
-    // Set results = new HashSet();
-    // index.query("active", OQLLexerTokenTypes.TOK_EQ, results, new ExecutionContext(null,
-    // CacheUtils.getCache()));
     SelectResults results = region.query("status = 'active'");
     assertEquals(3, results.size());
-  }
-
-  // !!!:ezoerner:20081030 disabled because modifying an object in place
-  // and then putting it back into the cache breaks a CompactRangeIndex.
-  // @todo file a ticket on this issue
-  @Ignore
-  @Test
-  public void test002UpdateEntry() throws Exception {
-    IndexStatistics stats = index.getStatistics();
-    CacheUtils.log(((CompactRangeIndex) index).dump());
-    Portfolio p = (Portfolio) region.get("4");
-    p.status = "inactive";
-    region.put("4", p);
-    assertEquals(5, stats.getNumberOfValues());
-    // Set results = new HashSet();
-    // index.query("active", OQLLexerTokenTypes.TOK_EQ, results,new ExecutionContext(null,
-    // CacheUtils.getCache()));
-    SelectResults results = region.query("status = 'active'");
-    assertEquals(2, results.size());
   }
 
   @Test
@@ -222,9 +194,6 @@ public class IndexMaintainceJUnitTest {
     IndexStatistics stats = index.getStatistics();
     region.invalidate("4");
     assertEquals(4, stats.getNumberOfValues());
-    // Set results = new HashSet();
-    // index.query("active", OQLLexerTokenTypes.TOK_EQ, results,new ExecutionContext(null,
-    // CacheUtils.getCache()));
     SelectResults results = region.query("status = 'active'");
     assertEquals(2, results.size());
   }
@@ -235,15 +204,12 @@ public class IndexMaintainceJUnitTest {
     region.put("4", new Portfolio(4));
     region.destroy("4");
     assertEquals(4, stats.getNumberOfValues());
-    // Set results = new HashSet();
-    // index.query("active", OQLLexerTokenTypes.TOK_EQ, results,new ExecutionContext(null,
-    // CacheUtils.getCache()));
     SelectResults results = region.query("status = 'active'");
     assertEquals(2, results.size());
   }
 
   // This test has a meaning only for Trunk code as it checks for Map implementation
-  // Asif : Tests for Region clear operations on Index in a Local VM
+  // Tests for Region clear operations on Index in a Local VM
   @Test
   public void test005IndexClearanceOnMapClear() {
     try {

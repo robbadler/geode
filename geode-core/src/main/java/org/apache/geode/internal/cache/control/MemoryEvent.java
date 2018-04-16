@@ -19,8 +19,6 @@ import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.internal.cache.control.InternalResourceManager.ResourceType;
 import org.apache.geode.internal.cache.control.MemoryThresholds.MemoryState;
 
-/**
- */
 public class MemoryEvent implements ResourceEvent {
   private final ResourceType type;
   private final MemoryState state;
@@ -82,4 +80,3 @@ public class MemoryEvent implements ResourceEvent {
         .append(",thresholds:" + this.thresholds + "]").toString();
   }
 }
-

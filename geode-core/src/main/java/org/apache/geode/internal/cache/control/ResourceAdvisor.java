@@ -27,15 +27,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.cache.control.ResourceManager;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionAdvisee;
 import org.apache.geode.distributed.internal.DistributionAdvisor;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.HighPriorityDistributionMessage;
-import org.apache.geode.distributed.internal.ReplyException;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.InternalDataSerializer;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.UpdateAttributesProcessor;
 import org.apache.geode.internal.cache.control.InternalResourceManager.ResourceType;
@@ -47,7 +45,7 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 /**
  * The advisor associated with a {@link ResourceManager}. Allows knowledge of remote
  * {@link ResourceManager} state and distribution of local {@link ResourceManager} state.
- * 
+ *
  * @since GemFire 6.0
  */
 public class ResourceAdvisor extends DistributionAdvisor {
@@ -71,7 +69,7 @@ public class ResourceAdvisor extends DistributionAdvisor {
 
     /**
      * Constructor used to send profiles to other members.
-     * 
+     *
      * @param recips Members to send the profile to.
      * @param profile Profile to send.
      */
@@ -83,11 +81,11 @@ public class ResourceAdvisor extends DistributionAdvisor {
     }
 
     @Override
-    protected void process(DistributionManager dm) {
+    protected void process(ClusterDistributionManager dm) {
       Throwable thr = null;
       ResourceManagerProfile p = null;
       try {
-        final InternalCache cache = GemFireCacheImpl.getInstance();
+        final InternalCache cache = dm.getCache();
         if (cache != null && !cache.isClosed()) {
           final ResourceAdvisor ra = cache.getInternalResourceManager().getResourceAdvisor();
           if (this.profiles != null) {
@@ -169,14 +167,14 @@ public class ResourceAdvisor extends DistributionAdvisor {
 
     /**
      * Send profiles to the provided members
-     * 
+     *
      * @param irm The resource manager which is requesting distribution
      * @param recips The recipients of the message
      * @param profile Profile to send in this message
      */
     public static void send(final InternalResourceManager irm,
         Set<InternalDistributedMember> recips, ResourceManagerProfile profile) {
-      final DM dm = irm.getResourceAdvisor().getDistributionManager();
+      final DistributionManager dm = irm.getResourceAdvisor().getDistributionManager();
       ResourceProfileMessage r = new ResourceProfileMessage(recips, profile);
       dm.putOutgoing(r);
     }
@@ -283,7 +281,7 @@ public class ResourceAdvisor extends DistributionAdvisor {
   /**
    * Profile which shares state with other ResourceManagers. The data available in this profile
    * should be enough to deliver a {@link MemoryEvent} for any of the CRITICAL {@link MemoryState}s
-   * 
+   *
    * @since GemFire 6.0
    */
   public static class ResourceManagerProfile extends Profile {
@@ -333,15 +331,16 @@ public class ResourceAdvisor extends DistributionAdvisor {
     /**
      * Used to process incoming Resource Manager profiles. A reply is expected to contain a profile
      * with state of the local Resource Manager.
-     * 
+     *
      * @since GemFire 6.0
      */
     @Override
-    public void processIncoming(DistributionManager dm, String adviseePath, boolean removeProfile,
-        boolean exchangeProfiles, final List<Profile> replyProfiles) {
-      final GemFireCacheImpl cache = GemFireCacheImpl.getInstance();
+    public void processIncoming(ClusterDistributionManager dm, String adviseePath,
+        boolean removeProfile, boolean exchangeProfiles, final List<Profile> replyProfiles) {
+      final InternalCache cache = dm.getCache();
       if (cache != null && !cache.isClosed()) {
-        handleDistributionAdvisee(cache, removeProfile, exchangeProfiles, replyProfiles);
+        handleDistributionAdvisee((DistributionAdvisee) cache, removeProfile, exchangeProfiles,
+            replyProfiles);
       }
     }
 
@@ -423,7 +422,7 @@ public class ResourceAdvisor extends DistributionAdvisor {
    * Get set of members whose {@linkplain ResourceManager#setCriticalHeapPercentage(float) critical
    * heap threshold} has been met or exceeded. The set does not include the local VM. The mutability
    * of this set only effects the elements in the set, not the state of the members.
-   * 
+   *
    * @return a mutable set of members in the critical state otherwise {@link Collections#EMPTY_SET}
    */
   public Set<InternalDistributedMember> adviseCritialMembers() {

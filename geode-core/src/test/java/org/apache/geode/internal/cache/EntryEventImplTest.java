@@ -14,6 +14,7 @@
  */
 package org.apache.geode.internal.cache;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
@@ -27,8 +28,10 @@ import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.Operation;
 import org.apache.geode.cache.SerializedCacheValue;
+import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.EntryEventImpl.NewValueImporter;
 import org.apache.geode.internal.cache.EntryEventImpl.OldValueImporter;
+import org.apache.geode.internal.cache.versions.VersionTag;
 import org.apache.geode.internal.offheap.StoredObject;
 import org.apache.geode.test.junit.categories.UnitTest;
 
@@ -103,7 +106,7 @@ public class EntryEventImplTest {
 
     e.exportNewValue(nvImporter);
 
-    verify(nvImporter).importNewObject(newValue, true);
+    verify(nvImporter).importNewBytes(newValueBytes, true);
   }
 
   @Test
@@ -380,6 +383,124 @@ public class EntryEventImplTest {
   }
 
   @Test
+  public void setOldValueUnforcedWithRemoveTokenChangesOldValueToNull() {
+    LocalRegion region = mock(LocalRegion.class);
+    EntryEventImpl e = createEntryEvent(region, null);
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue(Token.REMOVED_PHASE1, false);
+    assertEquals(null, e.basicGetOldValue());
+  }
+
+  @Test
+  public void setOldValueForcedWithRemoveTokenChangesOldValueToNull() {
+    LocalRegion region = mock(LocalRegion.class);
+    EntryEventImpl e = createEntryEvent(region, null);
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue(Token.REMOVED_PHASE1, true);
+    assertEquals(null, e.basicGetOldValue());
+  }
+
+  @Test
+  public void setOldValueUnforcedWithInvalidTokenNullsOldValue() {
+    LocalRegion region = mock(LocalRegion.class);
+    EntryEventImpl e = createEntryEvent(region, null);
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue(Token.INVALID, false);
+    assertEquals(null, e.basicGetOldValue());
+  }
+
+  @Test
+  public void setOldValueForcedWithInvalidTokenNullsOldValue() {
+    LocalRegion region = mock(LocalRegion.class);
+    EntryEventImpl e = createEntryEvent(region, null);
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue(Token.INVALID, true);
+    assertEquals(null, e.basicGetOldValue());
+  }
+
+  @Test
+  public void setOldValueUnforcedWithNullChangesOldValueToNull() {
+    LocalRegion region = mock(LocalRegion.class);
+    EntryEventImpl e = createEntryEvent(region, null);
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue(null, false);
+    assertEquals(null, e.basicGetOldValue());
+  }
+
+  @Test
+  public void setOldValueForcedWithNullChangesOldValueToNull() {
+    LocalRegion region = mock(LocalRegion.class);
+    EntryEventImpl e = createEntryEvent(region, null);
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue(null, true);
+    assertEquals(null, e.basicGetOldValue());
+  }
+
+  @Test
+  public void setOldValueForcedWithNotAvailableTokenSetsOldValue() {
+    LocalRegion region = mock(LocalRegion.class);
+    EntryEventImpl e = createEntryEvent(region, null);
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue(Token.NOT_AVAILABLE, true);
+    assertEquals(Token.NOT_AVAILABLE, e.basicGetOldValue());
+  }
+
+  @Test
+  public void setOldValueUnforcedWithNotAvailableTokenSetsOldValue() {
+    LocalRegion region = mock(LocalRegion.class);
+    EntryEventImpl e = createEntryEvent(region, null);
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue(Token.NOT_AVAILABLE, false);
+    assertEquals(Token.NOT_AVAILABLE, e.basicGetOldValue());
+  }
+
+  @Test
+  public void setOldUnforcedValueSetsOldValue() {
+    LocalRegion region = mock(LocalRegion.class);
+    EntryEventImpl e = createEntryEvent(region, null);
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue("oldValue", false);
+    assertEquals("oldValue", e.basicGetOldValue());
+  }
+
+  @Test
+  public void setOldValueForcedSetsOldValue() {
+    LocalRegion region = mock(LocalRegion.class);
+    EntryEventImpl e = createEntryEvent(region, null);
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue("oldValue", true);
+    assertEquals("oldValue", e.basicGetOldValue());
+  }
+
+  @Test
+  public void setOldValueUnforcedWithDisabledSetsNotAvailable() {
+    EntryEventImpl e = new EntryEventImplWithOldValuesDisabled();
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue("oldValue", false);
+    assertEquals(Token.NOT_AVAILABLE, e.basicGetOldValue());
+  }
+
+  @Test
+  public void setOldValueForcedWithDisabledSetsOldValue() {
+    EntryEventImpl e = new EntryEventImplWithOldValuesDisabled();
+    String UNINITIALIZED = "Uninitialized";
+    e.basicSetOldValue(UNINITIALIZED);
+    e.setOldValue("oldValue", true);
+    assertEquals("oldValue", e.basicGetOldValue());
+  }
+
+  @Test
   public void verifyExternalReadMethodsBlockedByRelease() throws InterruptedException {
     LocalRegion region = mock(LocalRegion.class);
     when(region.getOffHeap()).thenReturn(true);
@@ -536,6 +657,75 @@ public class EntryEventImplTest {
     if (!(e.getCachedDeserializedOld() instanceof IllegalStateException)) {
       fail("unexpected success of old getDeserializedValue. It returned "
           + e.getCachedDeserializedOld());
+    }
+  }
+
+  @Test
+  public void testGetEventTimeWithNullVersionTag() {
+    long timestamp = System.currentTimeMillis();
+    LocalRegion region = mock(LocalRegion.class);
+    when(region.cacheTimeMillis()).thenReturn(timestamp);
+    EntryEventImpl e = createEntryEvent(region, null);
+    assertThat(e.getEventTime(0l)).isEqualTo(timestamp);
+  }
+
+  @Test
+  public void testGetEventTimeWithVersionTagConcurrencyChecksEnabled() {
+    long timestamp = System.currentTimeMillis();
+    LocalRegion region = mock(LocalRegion.class);
+    when(region.getConcurrencyChecksEnabled()).thenReturn(true);
+    EntryEventImpl e = createEntryEvent(region, null);
+    VersionTag tag = VersionTag.create(mock(InternalDistributedMember.class));
+    tag.setVersionTimeStamp(timestamp);
+    e.setVersionTag(tag);
+    assertThat(e.getEventTime(0l)).isEqualTo(timestamp);
+  }
+
+  @Test
+  public void testGetEventTimeWithVersionTagConcurrencyChecksEnabledWithSuggestedTime() {
+    long timestamp = System.currentTimeMillis();
+    long timestampPlus1 = timestamp + 1000l;
+    long timestampPlus2 = timestamp + 2000l;
+    LocalRegion region = mock(LocalRegion.class);
+    when(region.getConcurrencyChecksEnabled()).thenReturn(true);
+    when(region.cacheTimeMillis()).thenReturn(timestamp);
+    EntryEventImpl e = createEntryEvent(region, null);
+    VersionTag tag = VersionTag.create(mock(InternalDistributedMember.class));
+    tag.setVersionTimeStamp(timestampPlus1);
+    e.setVersionTag(tag);
+    assertThat(e.getEventTime(timestampPlus2)).isEqualTo(timestampPlus2);
+    assertThat(tag.getVersionTimeStamp()).isEqualTo(timestampPlus2);
+  }
+
+  @Test
+  public void testGetEventTimeWithVersionTagConcurrencyChecksDisabledNoSuggestedTime() {
+    long timestamp = System.currentTimeMillis();
+    LocalRegion region = mock(LocalRegion.class);
+    when(region.getConcurrencyChecksEnabled()).thenReturn(false);
+    when(region.cacheTimeMillis()).thenReturn(timestamp);
+    EntryEventImpl e = createEntryEvent(region, null);
+    VersionTag tag = VersionTag.create(mock(InternalDistributedMember.class));
+    tag.setVersionTimeStamp(timestamp + 1000l);
+    e.setVersionTag(tag);
+    assertThat(e.getEventTime(0l)).isEqualTo(timestamp);
+  }
+
+  @Test
+  public void testGetEventTimeWithVersionTagConcurrencyChecksDisabledWithSuggestedTime() {
+    long timestamp = System.currentTimeMillis();
+    LocalRegion region = mock(LocalRegion.class);
+    when(region.getConcurrencyChecksEnabled()).thenReturn(false);
+    EntryEventImpl e = createEntryEvent(region, null);
+    VersionTag tag = VersionTag.create(mock(InternalDistributedMember.class));
+    tag.setVersionTimeStamp(timestamp + 1000l);
+    e.setVersionTag(tag);
+    assertThat(e.getEventTime(timestamp)).isEqualTo(timestamp);
+  }
+
+  private static class EntryEventImplWithOldValuesDisabled extends EntryEventImpl {
+    @Override
+    protected boolean areOldValuesEnabled() {
+      return false;
     }
   }
 

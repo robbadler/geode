@@ -77,7 +77,6 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.offheap.OffHeapHelper;
-import org.apache.geode.internal.security.IntegratedSecurityService;
 import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.internal.sequencelog.EntryLogger;
 import org.apache.geode.security.GemFireSecurityException;
@@ -115,8 +114,6 @@ public abstract class BaseCommand implements Command {
 
   private static final Semaphore INCOMING_MSG_LIMITER;
 
-  protected SecurityService securityService = IntegratedSecurityService.getSecurityService();
-
   static {
     Semaphore semaphore;
     if (MAX_INCOMING_DATA > 0) {
@@ -140,7 +137,8 @@ public abstract class BaseCommand implements Command {
   }
 
   @Override
-  public void execute(Message clientMessage, ServerConnection serverConnection) {
+  public void execute(Message clientMessage, ServerConnection serverConnection,
+      SecurityService securityService) {
     // Read the request and update the statistics
     long start = DistributionStats.getStatTime();
     if (EntryLogger.isEnabled() && serverConnection != null) {
@@ -156,13 +154,13 @@ public abstract class BaseCommand implements Command {
         TXStateProxy tx = null;
         try {
           tx = txMgr.masqueradeAs(clientMessage, member, false);
-          cmdExecute(clientMessage, serverConnection, start);
+          cmdExecute(clientMessage, serverConnection, securityService, start);
           tx.updateProxyServer(txMgr.getMemberId());
         } finally {
           txMgr.unmasquerade(tx);
         }
       } else {
-        cmdExecute(clientMessage, serverConnection, start);
+        cmdExecute(clientMessage, serverConnection, securityService, start);
       }
 
     } catch (TransactionException | CopyException | SerializationException | CacheWriterException
@@ -192,7 +190,7 @@ public abstract class BaseCommand implements Command {
   /**
    * checks to see if this thread needs to masquerade as a transactional thread. clients after
    * GFE_66 should be able to start a transaction.
-   * 
+   *
    * @return true if thread should masquerade as a transactional thread.
    */
   protected boolean shouldMasqueradeForTx(Message clientMessage,
@@ -214,9 +212,9 @@ public abstract class BaseCommand implements Command {
     LocalRegion r = clientEvent.getRegion();
     VersionTag tag;
     if (clientEvent.getVersionTag() != null && clientEvent.getVersionTag().isGatewayTag()) {
-      tag = r.findVersionTagForGatewayEvent(clientEvent.getEventId());
+      tag = r.findVersionTagForEvent(clientEvent.getEventId());
     } else {
-      tag = r.findVersionTagForClientEvent(clientEvent.getEventId());
+      tag = r.findVersionTagForEvent(clientEvent.getEventId());
     }
     if (tag == null) {
       if (r instanceof DistributedRegion || r instanceof PartitionedRegion) {
@@ -265,8 +263,9 @@ public abstract class BaseCommand implements Command {
     return tag;
   }
 
-  public abstract void cmdExecute(Message clientMessage, ServerConnection serverConnection,
-      long start) throws IOException, ClassNotFoundException, InterruptedException;
+  public abstract void cmdExecute(final Message clientMessage,
+      final ServerConnection serverConnection, final SecurityService securityService,
+      final long start) throws IOException, ClassNotFoundException, InterruptedException;
 
   protected void writeReply(Message origMsg, ServerConnection serverConnection) throws IOException {
     Message replyMsg = serverConnection.getReplyMessage();
@@ -849,7 +848,7 @@ public abstract class BaseCommand implements Command {
     Message requestMsg = null;
     try {
       requestMsg = servConn.getRequestMessage();
-      requestMsg.recv(servConn, MAX_INCOMING_DATA, INCOMING_DATA_LIMITER, INCOMING_MSG_LIMITER);
+      requestMsg.receive(servConn, MAX_INCOMING_DATA, INCOMING_DATA_LIMITER, INCOMING_MSG_LIMITER);
       return requestMsg;
     } catch (EOFException eof) {
       handleEOFException(null, servConn, eof);
@@ -1003,7 +1002,7 @@ public abstract class BaseCommand implements Command {
   /**
    * Determines whether keys for destroyed entries (tombstones) should be sent to clients in
    * register-interest results.
-   * 
+   *
    * @return true if tombstones should be sent to the client
    */
   private static boolean sendTombstonesInRIResults(ServerConnection servConn,
@@ -1264,7 +1263,7 @@ public abstract class BaseCommand implements Command {
           VersionStamp vs = ((NonTXEntry) entry).getRegionEntry().getVersionStamp();
           vt = vs == null ? null : vs.asVersionTag();
           key = entry.getKey();
-          value = ((NonTXEntry) entry).getRegionEntry()._getValueRetain(region, true);
+          value = ((NonTXEntry) entry).getRegionEntry().getValueRetain(region, true);
           try {
             updateValues(values, key, value, vt);
           } finally {

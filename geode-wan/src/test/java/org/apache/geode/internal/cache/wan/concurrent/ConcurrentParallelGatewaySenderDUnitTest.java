@@ -14,38 +14,31 @@
  */
 package org.apache.geode.internal.cache.wan.concurrent;
 
+import static org.junit.Assert.assertEquals;
+
+import java.net.SocketException;
+import java.util.concurrent.TimeUnit;
+
 import org.awaitility.Awaitility;
-import org.junit.experimental.categories.Category;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
-import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.FlakyTest;
 import org.apache.geode.cache.EntryExistsException;
 import org.apache.geode.cache.client.ServerOperationException;
 import org.apache.geode.cache.wan.GatewaySender.OrderPolicy;
-import org.apache.geode.cache.wan.GatewaySender;
-import org.apache.geode.internal.cache.wan.AbstractGatewaySender;
 import org.apache.geode.internal.cache.wan.BatchException70;
 import org.apache.geode.internal.cache.wan.WANTestBase;
-import org.apache.geode.internal.cache.wan.parallel.ConcurrentParallelGatewaySenderEventProcessor;
 import org.apache.geode.test.dunit.AsyncInvocation;
 import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.LogWriterUtils;
-import org.apache.geode.test.dunit.Wait;
-
-import java.net.SocketException;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
 /**
  * Test the functionality of ParallelGatewaySender with multiple dispatchers.
  *
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class ConcurrentParallelGatewaySenderDUnitTest extends WANTestBase {
 
   public ConcurrentParallelGatewaySenderDUnitTest() {
@@ -55,8 +48,7 @@ public class ConcurrentParallelGatewaySenderDUnitTest extends WANTestBase {
   /**
    * Normal happy scenario test case. checks that all the dispatchers have successfully dispatched
    * something individually.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testParallelPropagationConcurrentArtifacts() throws Exception {
@@ -100,46 +92,31 @@ public class ConcurrentParallelGatewaySenderDUnitTest extends WANTestBase {
     vm6.invoke(() -> WANTestBase.waitForSenderRunningState("ln"));
     vm7.invoke(() -> WANTestBase.waitForSenderRunningState("ln"));
 
-    try {
-      // set the test hook to find out dispatched events by each of the
-      // concurrent dispatcher
-      vm4.invoke(() -> ConcurrentParallelGatewaySenderDUnitTest.setTestHook("ln", Boolean.TRUE));
-      vm5.invoke(() -> ConcurrentParallelGatewaySenderDUnitTest.setTestHook("ln", Boolean.TRUE));
-      vm6.invoke(() -> ConcurrentParallelGatewaySenderDUnitTest.setTestHook("ln", Boolean.TRUE));
-      vm7.invoke(() -> ConcurrentParallelGatewaySenderDUnitTest.setTestHook("ln", Boolean.TRUE));
+    vm4.invoke(() -> WANTestBase.doPuts(getTestMethodName() + "_PR", 1000));
 
-      vm4.invoke(() -> WANTestBase.doPuts(getTestMethodName() + "_PR", 1000));
+    // verify all buckets drained on all sender nodes.
+    vm4.invoke(() -> WANTestBase.validateParallelSenderQueueAllBucketsDrained("ln"));
+    vm5.invoke(() -> WANTestBase.validateParallelSenderQueueAllBucketsDrained("ln"));
+    vm6.invoke(() -> WANTestBase.validateParallelSenderQueueAllBucketsDrained("ln"));
+    vm7.invoke(() -> WANTestBase.validateParallelSenderQueueAllBucketsDrained("ln"));
 
-      // verify all buckets drained on all sender nodes.
-      vm4.invoke(() -> WANTestBase.validateParallelSenderQueueAllBucketsDrained("ln"));
-      vm5.invoke(() -> WANTestBase.validateParallelSenderQueueAllBucketsDrained("ln"));
-      vm6.invoke(() -> WANTestBase.validateParallelSenderQueueAllBucketsDrained("ln"));
-      vm7.invoke(() -> WANTestBase.validateParallelSenderQueueAllBucketsDrained("ln"));
+    vm2.invoke(() -> WANTestBase.validateRegionSize(getTestMethodName() + "_PR", 1000));
 
-      vm2.invoke(() -> WANTestBase.validateRegionSize(getTestMethodName() + "_PR", 1000));
+    int dispatched1 = (Integer) vm4
+        .invoke(() -> WANTestBase.verifyAndGetEventsDispatchedByConcurrentDispatchers("ln"));
+    int dispatched2 = (Integer) vm5
+        .invoke(() -> WANTestBase.verifyAndGetEventsDispatchedByConcurrentDispatchers("ln"));
+    int dispatched3 = (Integer) vm6
+        .invoke(() -> WANTestBase.verifyAndGetEventsDispatchedByConcurrentDispatchers("ln"));
+    int dispatched4 = (Integer) vm7
+        .invoke(() -> WANTestBase.verifyAndGetEventsDispatchedByConcurrentDispatchers("ln"));
 
-      int dispatched1 = (Integer) vm4
-          .invoke(() -> WANTestBase.verifyAndGetEventsDispatchedByConcurrentDispatchers("ln"));
-      int dispatched2 = (Integer) vm5
-          .invoke(() -> WANTestBase.verifyAndGetEventsDispatchedByConcurrentDispatchers("ln"));
-      int dispatched3 = (Integer) vm6
-          .invoke(() -> WANTestBase.verifyAndGetEventsDispatchedByConcurrentDispatchers("ln"));
-      int dispatched4 = (Integer) vm7
-          .invoke(() -> WANTestBase.verifyAndGetEventsDispatchedByConcurrentDispatchers("ln"));
-
-      assertEquals(1000, dispatched1 + dispatched2 + dispatched3 + dispatched4);
-    } finally {
-      vm4.invoke(() -> ConcurrentParallelGatewaySenderDUnitTest.setTestHook("ln", Boolean.FALSE));
-      vm5.invoke(() -> ConcurrentParallelGatewaySenderDUnitTest.setTestHook("ln", Boolean.FALSE));
-      vm6.invoke(() -> ConcurrentParallelGatewaySenderDUnitTest.setTestHook("ln", Boolean.FALSE));
-      vm7.invoke(() -> ConcurrentParallelGatewaySenderDUnitTest.setTestHook("ln", Boolean.FALSE));
-    }
+    assertEquals(1000, dispatched1 + dispatched2 + dispatched3 + dispatched4);
   }
 
   /**
    * Normal happy scenario test case.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testParallelPropagation() throws Exception {
@@ -197,8 +174,7 @@ public class ConcurrentParallelGatewaySenderDUnitTest extends WANTestBase {
 
   /**
    * Normal happy scenario test case when bucket division tests boundary cases.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testParallelPropagationWithUnEqualBucketDivision() throws Exception {
@@ -255,8 +231,7 @@ public class ConcurrentParallelGatewaySenderDUnitTest extends WANTestBase {
 
   /**
    * Initially the GatewayReceiver is not up but later it comes up. We verify that
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testParallelPropagation_withoutRemoteSite() throws Exception {
@@ -379,8 +354,7 @@ public class ConcurrentParallelGatewaySenderDUnitTest extends WANTestBase {
    * Local and remote sites are up and running. Local site cache is closed and the site is built
    * again. Puts are done to local site. Expected: Remote site should receive all the events put
    * after the local site was built back.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testParallelPropagationWithLocalCacheClosedAndRebuilt() throws Exception {
@@ -486,8 +460,7 @@ public class ConcurrentParallelGatewaySenderDUnitTest extends WANTestBase {
 
   /**
    * Colocated regions using ConcurrentParallelGatewaySender. Normal scenario
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testParallelColocatedPropagation() throws Exception {
@@ -538,8 +511,7 @@ public class ConcurrentParallelGatewaySenderDUnitTest extends WANTestBase {
 
   /**
    * Colocated regions using ConcurrentParallelGatewaySender. Normal scenario
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testParallelColocatedPropagationOrderPolicyPartition() throws Exception {
@@ -635,13 +607,15 @@ public class ConcurrentParallelGatewaySenderDUnitTest extends WANTestBase {
 
     AsyncInvocation inv2 = vm4.invokeAsync(() -> WANTestBase.killSender());
 
+    int prevRegionSize = vm2.invoke(() -> WANTestBase.getRegionSize(getTestMethodName() + "_PR"));
+
     AsyncInvocation inv3 =
         vm6.invokeAsync(() -> WANTestBase.doPuts(getTestMethodName() + "_PR", 10000));
 
     vm2.invoke(() -> Awaitility.await().atMost(30000, TimeUnit.MILLISECONDS)
         .until(() -> assertEquals(
-            "Failure in waiting for additional 10 events to be received by the receiver ", true,
-            getRegionSize(getTestMethodName() + "_PR") > 5010)));
+            "Failure in waiting for additional 20 events to be received by the receiver ", true,
+            getRegionSize(getTestMethodName() + "_PR") > 20 + prevRegionSize)));
 
     AsyncInvocation inv4 = vm5.invokeAsync(() -> WANTestBase.killSender());
 
@@ -722,22 +696,4 @@ public class ConcurrentParallelGatewaySenderDUnitTest extends WANTestBase {
 
     vm2.invoke(() -> WANTestBase.validateRegionSize_PDX(getTestMethodName() + "_PR", 40));
   }
-
-  public static void setTestHook(String senderId, boolean hook) {
-    Set<GatewaySender> senders = cache.getGatewaySenders();
-    GatewaySender sender = null;
-    for (GatewaySender s : senders) {
-      if (s.getId().equals(senderId)) {
-        sender = s;
-        break;
-      }
-    }
-    ConcurrentParallelGatewaySenderEventProcessor cProc =
-        (ConcurrentParallelGatewaySenderEventProcessor) ((AbstractGatewaySender) sender)
-            .getEventProcessor();
-    if (cProc == null)
-      return;
-    cProc.TEST_HOOK = hook;
-  }
-
 }

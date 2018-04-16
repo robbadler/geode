@@ -14,30 +14,12 @@
  */
 package org.apache.geode.management.internal.cli.commands;
 
-import static org.apache.geode.distributed.ConfigurationProperties.CLUSTER_CONFIGURATION_DIR;
-import static org.apache.geode.distributed.ConfigurationProperties.ENABLE_CLUSTER_CONFIGURATION;
-import static org.apache.geode.distributed.ConfigurationProperties.GROUPS;
 import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
-import static org.apache.geode.distributed.ConfigurationProperties.NAME;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.DiskStoreFactory;
-import org.apache.geode.cache.Region;
-import org.apache.geode.cache.RegionShortcut;
-import org.apache.geode.distributed.ConfigurationProperties;
-import org.apache.geode.distributed.ServerLauncher;
-import org.apache.geode.internal.cache.DiskStoreAttributes;
-import org.apache.geode.internal.cache.DiskStoreFactoryImpl;
-import org.apache.geode.management.cli.CliMetaData;
-import org.apache.geode.management.internal.cli.i18n.CliStrings;
-import org.apache.geode.management.internal.cli.result.CommandResult;
-import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
-import org.apache.geode.test.dunit.AsyncInvocation;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
-import org.apache.geode.test.dunit.rules.MemberVM;
-import org.apache.geode.test.junit.categories.DistributedTest;
+import java.io.File;
+import java.util.concurrent.TimeUnit;
+
 import org.awaitility.Awaitility;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -45,17 +27,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-import org.springframework.shell.support.util.FileUtils;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.TimeUnit;
+import org.apache.geode.cache.RegionShortcut;
+import org.apache.geode.distributed.ServerLauncher;
+import org.apache.geode.management.internal.cli.i18n.CliStrings;
+import org.apache.geode.management.internal.cli.result.CommandResult;
+import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
+import org.apache.geode.test.dunit.AsyncInvocation;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
+import org.apache.geode.test.dunit.rules.MemberVM;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 
 @Category(DistributedTest.class)
 public class ShowMissingDiskStoresDUnitTest {
@@ -70,10 +52,10 @@ public class ShowMissingDiskStoresDUnitTest {
   public TestName testName = new TestName();
 
   @Rule
-  public LocatorServerStartupRule lsRule = new LocatorServerStartupRule();
+  public ClusterStartupRule lsRule = new ClusterStartupRule();
 
   @Rule
-  public GfshShellConnectionRule gfshConnector = new GfshShellConnectionRule();
+  public GfshCommandRule gfshConnector = new GfshCommandRule();
 
   @Before
   public void before() throws Exception {
@@ -96,7 +78,7 @@ public class ShowMissingDiskStoresDUnitTest {
     csb = new CommandStringBuilder(CliStrings.CREATE_DISK_STORE)
         .addOption(CliStrings.CREATE_DISK_STORE__NAME, "diskStore")
         .addOption(CliStrings.CREATE_DISK_STORE__DIRECTORY_AND_SIZE, "diskStoreDir");
-    gfshConnector.executeAndVerifyCommand(csb.getCommandString());
+    gfshConnector.executeAndAssertThat(csb.getCommandString()).statusIsSuccess();
 
     Awaitility.await().until(() -> {
       return new File(server1.getWorkingDir(), "diskStoreDir").exists()
@@ -108,15 +90,15 @@ public class ShowMissingDiskStoresDUnitTest {
         .addOption(CliStrings.CREATE_REGION__DISKSTORE, "diskStore")
         .addOption(CliStrings.CREATE_REGION__REGIONSHORTCUT,
             RegionShortcut.REPLICATE_PERSISTENT.toString());
-    gfshConnector.executeAndVerifyCommand(csb.getCommandString());
+    gfshConnector.executeAndAssertThat(csb.getCommandString()).statusIsSuccess();
 
     // Add data to the region
     putUsingGfsh(gfshConnector, testRegionName, 1, "A");
     putUsingGfsh(gfshConnector, testRegionName, 2, "B");
     putUsingGfsh(gfshConnector, testRegionName, 3, "C");
 
-    lsRule.stopMember(1);
-    lsRule.stopMember(2);
+    lsRule.stopVM(1);
+    lsRule.stopVM(2);
 
     AsyncInvocation restart1 = restartServerAsync(server1);
     checkAsyncResults(restart1, gfshConnector, 5);
@@ -144,7 +126,7 @@ public class ShowMissingDiskStoresDUnitTest {
     return restart;
   }
 
-  private void checkAsyncResults(AsyncInvocation ai, GfshShellConnectionRule gfsh, int secsToWait)
+  private void checkAsyncResults(AsyncInvocation ai, GfshCommandRule gfsh, int secsToWait)
       throws Exception {
     try {
       Awaitility.await().atLeast(secsToWait, TimeUnit.SECONDS).until(() -> ai.isDone());
@@ -160,11 +142,11 @@ public class ShowMissingDiskStoresDUnitTest {
     System.out.println(result);
   }
 
-  private void putUsingGfsh(GfshShellConnectionRule gfsh, String regionName, int key, String val)
+  private void putUsingGfsh(GfshCommandRule gfsh, String regionName, int key, String val)
       throws Exception {
     CommandStringBuilder csb = new CommandStringBuilder(CliStrings.PUT)
         .addOption(CliStrings.PUT__KEY, Integer.toString(key)).addOption(CliStrings.PUT__VALUE, val)
         .addOption(CliStrings.PUT__REGIONNAME, regionName);
-    gfsh.executeAndVerifyCommand(csb.getCommandString());
+    gfsh.executeAndAssertThat(csb.getCommandString()).statusIsSuccess();
   }
 }

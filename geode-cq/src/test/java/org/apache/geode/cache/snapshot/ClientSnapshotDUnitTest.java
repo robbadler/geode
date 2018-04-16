@@ -18,11 +18,11 @@ import static org.apache.geode.distributed.ConfigurationProperties.*;
 import static org.junit.Assert.*;
 
 import java.io.File;
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.examples.snapshot.MyObject;
 import com.examples.snapshot.MyPdxSerializer;
-import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -43,12 +43,14 @@ import org.apache.geode.cache.snapshot.SnapshotOptions.SnapshotFormat;
 import org.apache.geode.cache.util.CacheListenerAdapter;
 import org.apache.geode.cache.util.CacheWriterAdapter;
 import org.apache.geode.cache.util.CqListenerAdapter;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.LogWriterUtils;
 import org.apache.geode.test.dunit.NetworkUtils;
 import org.apache.geode.test.dunit.SerializableCallable;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
 @Category({DistributedTest.class, ClientSubscriptionTest.class})
@@ -71,7 +73,7 @@ public class ClientSnapshotDUnitTest extends JUnit4CacheTestCase {
     SerializableCallable export = new SerializableCallable() {
       @Override
       public Object call() throws Exception {
-        File f = new File(getDiskDirs()[0], "client-export.snapshot");
+        File f = new File(getDiskDirs()[0], "client-export.snapshot.gfd");
         Region<Integer, MyObject> r = getCache().getRegion("clienttest");
 
         r.getSnapshotService().save(f, SnapshotFormat.GEMFIRE);
@@ -94,6 +96,14 @@ public class ClientSnapshotDUnitTest extends JUnit4CacheTestCase {
     }
   }
 
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties result = super.getDistributedSystemProperties();
+    result.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "com.examples.snapshot.MyObject");
+    return result;
+  }
+
   @Test
   public void testImport() throws Exception {
     int count = 1000;
@@ -104,7 +114,7 @@ public class ClientSnapshotDUnitTest extends JUnit4CacheTestCase {
     SerializableCallable export = new SerializableCallable() {
       @Override
       public Object call() throws Exception {
-        File f = new File(getDiskDirs()[0], "client-import.snapshot");
+        File f = new File(getDiskDirs()[0], "client-import.snapshot.gfd");
         Region<Integer, MyObject> r = getCache().getRegion("clienttest");
 
         r.getSnapshotService().save(f, SnapshotFormat.GEMFIRE);
@@ -135,7 +145,7 @@ public class ClientSnapshotDUnitTest extends JUnit4CacheTestCase {
             r.getRegionService().getQueryService().newCq("SELECT * FROM /clienttest", af.create());
         cq.execute();
 
-        File f = new File(getDiskDirs()[0], "client-import.snapshot");
+        File f = new File(getDiskDirs()[0], "client-import.snapshot.gfd");
         r.getSnapshotService().load(f, SnapshotFormat.GEMFIRE);
 
         return cqtest.get();
@@ -174,7 +184,7 @@ public class ClientSnapshotDUnitTest extends JUnit4CacheTestCase {
       region.put(i, new MyObject(i, "clienttest " + i));
     }
 
-    File f = new File(getDiskDirs()[0], "client-callback.snapshot");
+    File f = new File(getDiskDirs()[0], "client-callback.snapshot.gfd");
     region.getSnapshotService().save(f, SnapshotFormat.GEMFIRE);
 
     for (int i = 0; i < count; i++) {
@@ -232,7 +242,7 @@ public class ClientSnapshotDUnitTest extends JUnit4CacheTestCase {
         r.put(1, new MyObject(1, "invalidate"));
         r.invalidate(1);
 
-        File f = new File(getDiskDirs()[0], "client-invalidate.snapshot");
+        File f = new File(getDiskDirs()[0], "client-invalidate.snapshot.gfd");
         r.getSnapshotService().save(f, SnapshotFormat.GEMFIRE);
         r.getSnapshotService().load(f, SnapshotFormat.GEMFIRE);
 
@@ -250,6 +260,7 @@ public class ClientSnapshotDUnitTest extends JUnit4CacheTestCase {
   @SuppressWarnings("serial")
   public void loadCache() throws Exception {
     CacheFactory cf = new CacheFactory().setPdxSerializer(new MyPdxSerializer());
+    cf.set(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER, "com.examples.snapshot.MyObject");
     Cache cache = getCache(cf);
 
     CacheServer server = cache.addCacheServer();
@@ -269,6 +280,8 @@ public class ClientSnapshotDUnitTest extends JUnit4CacheTestCase {
                 .setPdxSerializer(new MyPdxSerializer())
                 .addPoolServer(NetworkUtils.getServerHostName(host), port)
                 .setPoolSubscriptionEnabled(true).setPoolPRSingleHopEnabled(false);
+        cf.set(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+            "com.examples.snapshot.MyObject");
 
         ClientCache cache = getClientCache(cf);
         Region r = cache.createClientRegionFactory(ClientRegionShortcut.CACHING_PROXY_HEAP_LRU)
@@ -282,6 +295,8 @@ public class ClientSnapshotDUnitTest extends JUnit4CacheTestCase {
       @Override
       public Object call() throws Exception {
         CacheFactory cf = new CacheFactory().setPdxSerializer(new MyPdxSerializer());
+        cf.set(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+            "com.examples.snapshot.MyObject");
         Cache cache = getCache(cf);
 
         cache.<Integer, MyObject>createRegionFactory(RegionShortcut.REPLICATE).create("clienttest");

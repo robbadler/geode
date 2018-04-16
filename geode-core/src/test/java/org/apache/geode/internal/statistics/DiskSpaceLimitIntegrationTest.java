@@ -16,11 +16,27 @@ package org.apache.geode.internal.statistics;
 
 import static java.lang.String.valueOf;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static org.apache.commons.io.FileUtils.*;
+import static org.apache.commons.io.FileUtils.moveFileToDirectory;
+import static org.apache.commons.io.FileUtils.sizeOfDirectory;
 import static org.apache.commons.lang.StringUtils.leftPad;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeoutException;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestName;
 
 import org.apache.geode.StatisticDescriptor;
 import org.apache.geode.Statistics;
@@ -30,21 +46,10 @@ import org.apache.geode.internal.io.MainWithChildrenRollingFileHandler;
 import org.apache.geode.internal.io.RollingFileHandler;
 import org.apache.geode.internal.util.ArrayUtils;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.junit.rules.TemporaryFolder;
-import org.junit.rules.TestName;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeoutException;
-
+/**
+ * Flaky: GEODE-2790, GEODE-3205
+ */
 @Category(IntegrationTest.class)
 @SuppressWarnings("unused")
 public class DiskSpaceLimitIntegrationTest {
@@ -199,7 +204,7 @@ public class DiskSpaceLimitIntegrationTest {
     sampleUntilFileExists(archiveFile(newMainId, 1));
     assertThat(archiveFile(newMainId, 1)).exists();
 
-    validateNumberFiles(2);
+    validateNumberFilesIsAtLeast(2);
 
     for (int childId = 1; childId <= numberOfPreviousFiles; childId++) {
       assertThat(archiveFile(oldMainId, childId)).doesNotExist();
@@ -247,8 +252,7 @@ public class DiskSpaceLimitIntegrationTest {
     sampleUntilFileExists(archiveFile(newMainId, 1));
     assertThat(archiveFile(newMainId, 1)).exists();
 
-    // this might be a brittle assertion... ok to delete if following for-block-assertion passes
-    validateNumberFiles(2);
+    validateNumberFilesIsAtLeast(2);
 
     for (int childId = 1; childId <= numberOfPreviousFiles; childId++) {
       assertThat(archiveFile(oldMainId, childId)).doesNotExist();
@@ -261,6 +265,14 @@ public class DiskSpaceLimitIntegrationTest {
   private void validateNumberFiles(final int expected) {
     assertThat(numberOfFiles(this.dir)).as("Unexpected files: " + listFiles(this.dir))
         .isEqualTo(expected);
+  }
+
+  /**
+   * Validates number of files under this.dir while ignoring this.dirOfDeletedFiles.
+   */
+  private void validateNumberFilesIsAtLeast(final int expected) {
+    assertThat(numberOfFiles(this.dir)).as("Unexpected files: " + listFiles(this.dir))
+        .isGreaterThanOrEqualTo(expected);
   }
 
   private void sampleNumberOfTimes(final int value) throws InterruptedException {

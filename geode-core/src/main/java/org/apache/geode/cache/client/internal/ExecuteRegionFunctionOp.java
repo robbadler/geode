@@ -36,8 +36,8 @@ import org.apache.geode.internal.cache.execute.AbstractExecution;
 import org.apache.geode.internal.cache.execute.BucketMovedException;
 import org.apache.geode.internal.cache.execute.FunctionStats;
 import org.apache.geode.internal.cache.execute.InternalFunctionException;
-import org.apache.geode.internal.cache.execute.MemberMappedArgument;
 import org.apache.geode.internal.cache.execute.InternalFunctionInvocationTargetException;
+import org.apache.geode.internal.cache.execute.MemberMappedArgument;
 import org.apache.geode.internal.cache.execute.ServerRegionFunctionExecutor;
 import org.apache.geode.internal.cache.tier.MessageType;
 import org.apache.geode.internal.cache.tier.sockets.ChunkedMessage;
@@ -48,7 +48,7 @@ import org.apache.geode.internal.logging.LogService;
 /**
  * Does a Execution of function on server region.<br>
  * It alos gets result from the server
- * 
+ *
  * @since GemFire 5.8Beta
  */
 public class ExecuteRegionFunctionOp {
@@ -62,7 +62,7 @@ public class ExecuteRegionFunctionOp {
   /**
    * Does a execute Function on a server using connections from the given pool to communicate with
    * the server.
-   * 
+   *
    * @param pool the pool to use to communicate with the server.
    * @param region the name of the region to do the put on
    * @param function to be executed
@@ -399,9 +399,6 @@ public class ExecuteRegionFunctionOp {
       getMessage().addObjPart(memberMappedArg);
 
       this.executeOnBucketSet = serverRegionExecutor.getExecuteOnBucketSetFlag();
-      // byte flags = this.executeOnBucketSet ?
-      // (byte)(0x00 | ExecuteFunctionHelper.BUCKETS_AS_FILTER_MASK) : 0x00;
-      // flags = isReExecute == 1? (byte)(flags | ExecuteFunctionHelper.IS_REXECUTE_MASK) : flags;
       byte flags = ExecuteFunctionHelper.createFlags(executeOnBucketSet, isReExecute);
 
       getMessage().addBytesPart(new byte[] {flags});
@@ -461,9 +458,6 @@ public class ExecuteRegionFunctionOp {
       }
       getMessage().addObjPart(args);
       getMessage().addObjPart(memberMappedArg);
-      // byte flags = this.executeOnBucketSet ?
-      // (byte)(0x00 | Op.BUCKETS_AS_FILTER_MASK) : 0x00;
-      // flags = isReExecute == 1? (byte)(flags | Op.IS_REXECUTE_MASK) : flags;
       byte flags = ExecuteFunctionHelper.createFlags(executeOnBucketSet, isReExecute);
 
       getMessage().addBytesPart(new byte[] {flags});

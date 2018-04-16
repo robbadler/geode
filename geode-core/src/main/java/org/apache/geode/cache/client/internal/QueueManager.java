@@ -15,26 +15,26 @@
 package org.apache.geode.cache.client.internal;
 
 import java.util.List;
-
 import java.util.concurrent.ScheduledExecutorService;
+
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.logging.InternalLogWriter;
 
 /**
  * @since GemFire 5.7
- * 
+ *
  */
 public interface QueueManager {
 
-  public QueueConnections getAllConnectionsNoWait();
+  QueueConnections getAllConnectionsNoWait();
 
-  public QueueConnections getAllConnections();
+  QueueConnections getAllConnections();
 
   void start(ScheduledExecutorService background);
 
   void close(boolean keepAlive);
 
-  public static interface QueueConnections {
+  interface QueueConnections {
     Connection getPrimary();
 
     List/* <Connection> */ getBackups();
@@ -42,15 +42,15 @@ public interface QueueManager {
     QueueConnectionImpl getConnection(Endpoint endpoint);
   }
 
-  public QueueState getState();
+  QueueState getState();
 
-  public InternalPool getPool();
+  InternalPool getPool();
 
-  public InternalLogWriter getSecurityLogger();
+  InternalLogWriter getSecurityLogger();
 
-  public void readyForEvents(InternalDistributedSystem system);
+  void readyForEvents(InternalDistributedSystem system);
 
-  public void emergencyClose();
+  void emergencyClose();
 
-  public void checkEndpoint(ClientUpdater qc, Endpoint endpoint);
+  void checkEndpoint(ClientUpdater qc, Endpoint endpoint);
 }

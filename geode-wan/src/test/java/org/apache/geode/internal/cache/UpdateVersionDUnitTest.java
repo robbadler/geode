@@ -25,13 +25,14 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.concurrent.TimeUnit;
 
+import org.awaitility.Awaitility;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.DiskStore;
@@ -49,6 +50,7 @@ import org.apache.geode.cache.wan.GatewayReceiverFactory;
 import org.apache.geode.cache.wan.GatewaySender;
 import org.apache.geode.cache.wan.GatewaySenderFactory;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.distributed.internal.InternalLocator;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.cache.LocalRegion.NonTXEntry;
 import org.apache.geode.internal.cache.partitioned.PRLocallyDestroyedException;
@@ -60,18 +62,15 @@ import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.Invoke;
 import org.apache.geode.test.dunit.LogWriterUtils;
-import org.apache.geode.test.dunit.SerializableCallable;
-import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
-import org.apache.geode.test.dunit.Wait;
-import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.WanTest;
 
 /**
  * @since GemFire 7.0.1
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, WanTest.class})
 public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
 
   protected static final String regionName = "testRegion";
@@ -81,592 +80,309 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
   @Override
   public final void preTearDown() throws Exception {
     closeCache();
-    Invoke.invokeInEveryVM(new SerializableRunnable() {
-      public void run() {
-        closeCache();
-      }
-    });
+    Invoke.invokeInEveryVM(this::closeCache);
   }
 
   @Test
   public void testUpdateVersionAfterCreateWithSerialSender() {
     Host host = Host.getHost(0);
-    VM vm0 = host.getVM(0); // server1 site1
+    VM vm0 = host.getVM(0); // locator site1
     VM vm1 = host.getVM(1); // server2 site1
 
-    VM vm2 = host.getVM(2); // server1 site2
-    VM vm3 = host.getVM(3); // server2 site2
+    VM vm2 = host.getVM(2); // locator site2
+    VM vm3 = host.getVM(3); // server1 site2
+    VM vm4 = host.getVM(4); // server2 site2
 
     final String key = "key-1";
 
     // Site 1
-    Integer lnPort =
-        (Integer) vm0.invoke(() -> UpdateVersionDUnitTest.createFirstLocatorWithDSId(1));
+    Integer lnPort = (Integer) vm0.invoke(() -> this.createFirstLocatorWithDSId(1));
 
-    vm0.invoke(() -> UpdateVersionDUnitTest.createCache(lnPort));
-    vm0.invoke(() -> UpdateVersionDUnitTest.createSender("ln1", 2, false, 10, 1, false, false, null,
-        true));
+    vm1.invoke(() -> this.createCache(lnPort));
+    vm1.invoke(() -> this.createSender("ln1", 2, false, 10, 1, false, false, null, true));
 
-    vm0.invoke(() -> UpdateVersionDUnitTest.createPartitionedRegion(regionName, "ln1", 1, 1));
-    vm0.invoke(() -> UpdateVersionDUnitTest.startSender("ln1"));
-    vm0.invoke(() -> UpdateVersionDUnitTest.waitForSenderRunningState("ln1"));
+    vm1.invoke(() -> this.createPartitionedRegion(regionName, "ln1", 1, 1));
+    vm1.invoke(() -> this.startSender("ln1"));
+    vm1.invoke(() -> this.waitForSenderRunningState("ln1"));
 
     // Site 2
-    Integer nyPort =
-        (Integer) vm2.invoke(() -> UpdateVersionDUnitTest.createFirstRemoteLocator(2, lnPort));
-    Integer nyRecPort = (Integer) vm2.invoke(() -> UpdateVersionDUnitTest.createReceiver(nyPort));
+    Integer nyPort = (Integer) vm2.invoke(() -> this.createFirstRemoteLocator(2, lnPort));
+    Integer nyRecPort = (Integer) vm3.invoke(() -> this.createReceiver(nyPort));
 
-    vm2.invoke(() -> UpdateVersionDUnitTest.createPartitionedRegion(regionName, "", 1, 1));
-    vm3.invoke(() -> UpdateVersionDUnitTest.createCache(nyPort));
-    vm3.invoke(() -> UpdateVersionDUnitTest.createPartitionedRegion(regionName, "", 1, 1));
+    vm3.invoke(() -> this.createPartitionedRegion(regionName, "", 1, 1));
+    vm4.invoke(() -> this.createCache(nyPort));
+    vm4.invoke(() -> this.createPartitionedRegion(regionName, "", 1, 1));
 
-    final VersionTag tag = (VersionTag) vm0
-        .invoke(new SerializableCallable("Update a single entry and get its version") {
+    VersionTag localTag = vm1.invoke(() -> putEntryAndGetPartitionedRegionVersionTag(key));
+    VersionTag remoteTag = vm4.invoke(() -> getPartitionedRegionVersionTag(key, localTag));
 
-          @Override
-          public Object call() throws CacheException {
-            Cache cache = CacheFactory.getAnyInstance();
-            Region region = cache.getRegion(regionName);
-            assertTrue(region instanceof PartitionedRegion);
-
-            region.put(key, "value-1");
-            region.put(key, "value-2");
-            Entry entry = region.getEntry(key);
-            assertTrue(entry instanceof EntrySnapshot);
-            RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-
-            VersionStamp stamp = regionEntry.getVersionStamp();
-
-            // Create a duplicate entry version tag from stamp with newer
-            // time-stamp.
-            VersionSource memberId =
-                (VersionSource) cache.getDistributedSystem().getDistributedMember();
-            VersionTag tag = VersionTag.create(memberId);
-
-            int entryVersion = stamp.getEntryVersion() - 1;
-            int dsid = stamp.getDistributedSystemId();
-            long time = System.currentTimeMillis();
-
-            tag.setEntryVersion(entryVersion);
-            tag.setDistributedSystemId(dsid);
-            tag.setVersionTimeStamp(time);
-            tag.setIsRemoteForTesting();
-
-            EntryEventImpl event =
-                createNewEvent((PartitionedRegion) region, tag, entry.getKey(), "value-3");
-
-            ((LocalRegion) region).basicUpdate(event, false, true, 0L, false);
-
-            // Verify the new stamp
-            entry = region.getEntry(key);
-            assertTrue(entry instanceof EntrySnapshot);
-            regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-
-            stamp = regionEntry.getVersionStamp();
-            assertEquals(
-                "Time stamp did NOT get updated by UPDATE_VERSION operation on LocalRegion", time,
-                stamp.getVersionTimeStamp());
-            assertEquals(++entryVersion, stamp.getEntryVersion());
-            assertEquals(dsid, stamp.getDistributedSystemId());
-
-            return stamp.asVersionTag();
-          }
-        });
-
-    VersionTag remoteTag =
-        (VersionTag) vm3.invoke(new SerializableCallable("Get timestamp from remote site") {
-
-          @Override
-          public Object call() throws Exception {
-
-            Cache cache = CacheFactory.getAnyInstance();
-            final PartitionedRegion region = (PartitionedRegion) cache.getRegion(regionName);
-
-            // wait for entry to be received
-            WaitCriterion wc = new WaitCriterion() {
-              public boolean done() {
-                Entry<?, ?> entry = null;
-                try {
-                  entry = region.getDataStore().getEntryLocally(0, key, false, false);
-                } catch (EntryNotFoundException e) {
-                  // expected
-                } catch (ForceReattemptException e) {
-                  // expected
-                } catch (PRLocallyDestroyedException e) {
-                  throw new RuntimeException("unexpected exception", e);
-                }
-                if (entry != null) {
-                  LogWriterUtils.getLogWriter().info("found entry " + entry);
-                }
-                return (entry != null);
-              }
-
-              public String description() {
-                return "Expected " + key + " to be received on remote WAN site";
-              }
-            };
-            Wait.waitForCriterion(wc, 30000, 500, true);
-
-            wc = new WaitCriterion() {
-              public boolean done() {
-                Entry entry = region.getEntry(key);
-                assertTrue(entry instanceof EntrySnapshot);
-                RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-                return regionEntry.getVersionStamp().getVersionTimeStamp() == tag
-                    .getVersionTimeStamp();
-              }
-
-              public String description() {
-                return "waiting for timestamp to be updated";
-              }
-            };
-            Wait.waitForCriterion(wc, 30000, 500, true);
-
-            Entry entry = region.getEntry(key);
-            assertTrue("entry class is wrong: " + entry, entry instanceof EntrySnapshot);
-            RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-
-            VersionStamp stamp = regionEntry.getVersionStamp();
-
-            return stamp.asVersionTag();
-          }
-        });
-
-    assertEquals("Local and remote site have different timestamps", tag.getVersionTimeStamp(),
+    assertEquals("Local and remote site have different timestamps", localTag.getVersionTimeStamp(),
         remoteTag.getVersionTimeStamp());
   }
 
   @Test
   public void testUpdateVersionAfterCreateWithSerialSenderOnDR() {
     Host host = Host.getHost(0);
-    VM vm0 = host.getVM(0); // server1 site1
-    VM vm1 = host.getVM(1); // server2 site1
+    VM vm0 = host.getVM(0); // locator site1
+    VM vm1 = host.getVM(1); // server1 site1
 
-    VM vm2 = host.getVM(2); // server1 site2
-    VM vm3 = host.getVM(3); // server2 site2
+    VM vm2 = host.getVM(2); // locator site2
+    VM vm3 = host.getVM(3); // server1 site2
+    VM vm4 = host.getVM(4); // server2 site2
 
     final String key = "key-1";
 
     // Site 1
-    Integer lnPort =
-        (Integer) vm0.invoke(() -> UpdateVersionDUnitTest.createFirstLocatorWithDSId(1));
+    Integer lnPort = (Integer) vm0.invoke(() -> this.createFirstLocatorWithDSId(1));
 
-    vm0.invoke(() -> UpdateVersionDUnitTest.createCache(lnPort));
-    vm0.invoke(() -> UpdateVersionDUnitTest.createSender("ln1", 2, false, 10, 1, false, false, null,
-        true));
+    vm1.invoke(() -> this.createCache(lnPort));
+    vm1.invoke(() -> this.createSender("ln1", 2, false, 10, 1, false, false, null, true));
 
-    vm0.invoke(() -> UpdateVersionDUnitTest.createReplicatedRegion(regionName, "ln1"));
-    vm0.invoke(() -> UpdateVersionDUnitTest.startSender("ln1"));
-    vm0.invoke(() -> UpdateVersionDUnitTest.waitForSenderRunningState("ln1"));
+    vm1.invoke(() -> this.createReplicatedRegion(regionName, "ln1"));
+    vm1.invoke(() -> this.startSender("ln1"));
+    vm1.invoke(() -> this.waitForSenderRunningState("ln1"));
 
     // Site 2
-    Integer nyPort =
-        (Integer) vm2.invoke(() -> UpdateVersionDUnitTest.createFirstRemoteLocator(2, lnPort));
-    Integer nyRecPort = (Integer) vm2.invoke(() -> UpdateVersionDUnitTest.createReceiver(nyPort));
+    Integer nyPort = (Integer) vm2.invoke(() -> this.createFirstRemoteLocator(2, lnPort));
+    Integer nyRecPort = (Integer) vm3.invoke(() -> this.createReceiver(nyPort));
 
-    vm2.invoke(() -> UpdateVersionDUnitTest.createReplicatedRegion(regionName, ""));
-    vm3.invoke(() -> UpdateVersionDUnitTest.createCache(nyPort));
-    vm3.invoke(() -> UpdateVersionDUnitTest.createReplicatedRegion(regionName, ""));
+    vm3.invoke(() -> this.createReplicatedRegion(regionName, ""));
+    vm4.invoke(() -> this.createCache(nyPort));
+    vm4.invoke(() -> this.createReplicatedRegion(regionName, ""));
 
-    final VersionTag tag = (VersionTag) vm0
-        .invoke(new SerializableCallable("Update a single entry and get its version") {
+    VersionTag localTag = vm1.invoke(() -> putEntryAndGetReplicatedRegionVersionTag(key));
+    VersionTag remoteTag = vm4.invoke(() -> getReplicatedRegionVersionTag(key, localTag));
 
-          @Override
-          public Object call() throws CacheException {
-            Cache cache = CacheFactory.getAnyInstance();
-            Region region = cache.getRegion(regionName);
-            assertTrue(region instanceof DistributedRegion);
-
-            region.put(key, "value-1");
-            region.put(key, "value-2");
-            Entry entry = region.getEntry(key);
-            assertTrue(entry instanceof NonTXEntry);
-            RegionEntry regionEntry = ((NonTXEntry) entry).getRegionEntry();
-
-            VersionStamp stamp = regionEntry.getVersionStamp();
-
-            // Create a duplicate entry version tag from stamp with newer
-            // time-stamp.
-            VersionSource memberId =
-                (VersionSource) cache.getDistributedSystem().getDistributedMember();
-            VersionTag tag = VersionTag.create(memberId);
-
-            int entryVersion = stamp.getEntryVersion() - 1;
-            int dsid = stamp.getDistributedSystemId();
-            long time = System.currentTimeMillis();
-
-            tag.setEntryVersion(entryVersion);
-            tag.setDistributedSystemId(dsid);
-            tag.setVersionTimeStamp(time);
-            tag.setIsRemoteForTesting();
-
-            EntryEventImpl event =
-                createNewEvent((DistributedRegion) region, tag, entry.getKey(), "value-3");
-
-            ((LocalRegion) region).basicUpdate(event, false, true, 0L, false);
-
-            // Verify the new stamp
-            entry = region.getEntry(key);
-            assertTrue(entry instanceof NonTXEntry);
-            regionEntry = ((NonTXEntry) entry).getRegionEntry();
-
-            stamp = regionEntry.getVersionStamp();
-            assertEquals(
-                "Time stamp did NOT get updated by UPDATE_VERSION operation on LocalRegion", time,
-                stamp.getVersionTimeStamp());
-            assertEquals(entryVersion + 1, stamp.getEntryVersion());
-            assertEquals(dsid, stamp.getDistributedSystemId());
-
-            return stamp.asVersionTag();
-          }
-        });
-
-    VersionTag remoteTag =
-        (VersionTag) vm3.invoke(new SerializableCallable("Get timestamp from remote site") {
-
-          @Override
-          public Object call() throws Exception {
-
-            Cache cache = CacheFactory.getAnyInstance();
-            final Region region = cache.getRegion(regionName);
-
-            // wait for entry to be received
-            WaitCriterion wc = new WaitCriterion() {
-              public boolean done() {
-                return (region.getEntry(key) != null);
-              }
-
-              public String description() {
-                return "Expected key-1 to be received on remote WAN site";
-              }
-            };
-            Wait.waitForCriterion(wc, 30000, 500, true);
-
-            wc = new WaitCriterion() {
-              public boolean done() {
-                Entry entry = region.getEntry(key);
-                assertTrue(entry instanceof NonTXEntry);
-                RegionEntry regionEntry = ((NonTXEntry) entry).getRegionEntry();
-                return regionEntry.getVersionStamp().getVersionTimeStamp() == tag
-                    .getVersionTimeStamp();
-              }
-
-              public String description() {
-                return "waiting for timestamp to be updated";
-              }
-            };
-            Wait.waitForCriterion(wc, 30000, 500, true);
-
-            Entry entry = region.getEntry(key);
-            assertTrue(entry instanceof NonTXEntry);
-            RegionEntry regionEntry = ((NonTXEntry) entry).getRegionEntry();
-
-            VersionStamp stamp = regionEntry.getVersionStamp();
-
-            return stamp.asVersionTag();
-          }
-        });
-
-    assertEquals("Local and remote site have different timestamps", tag.getVersionTimeStamp(),
+    assertEquals("Local and remote site have different timestamps", localTag.getVersionTimeStamp(),
         remoteTag.getVersionTimeStamp());
   }
 
   @Test
   public void testUpdateVersionAfterCreateWithParallelSender() {
     Host host = Host.getHost(0);
-    VM vm0 = host.getVM(0); // server1 site1
-    VM vm1 = host.getVM(1); // server2 site1
+    VM vm0 = host.getVM(0); // locator site1
+    VM vm1 = host.getVM(1); // server1 site1
 
-    VM vm2 = host.getVM(2); // server1 site2
-    VM vm3 = host.getVM(3); // server2 site2
+    VM vm2 = host.getVM(2); // locator site2
+    VM vm3 = host.getVM(3); // server1 site2
+    VM vm4 = host.getVM(4); // server2 site2
 
     // Site 1
-    Integer lnPort =
-        (Integer) vm0.invoke(() -> UpdateVersionDUnitTest.createFirstLocatorWithDSId(1));
+    Integer lnPort = vm0.invoke(() -> this.createFirstLocatorWithDSId(1));
 
     final String key = "key-1";
 
-    vm0.invoke(() -> UpdateVersionDUnitTest.createCache(lnPort));
-    vm0.invoke(
-        () -> UpdateVersionDUnitTest.createSender("ln1", 2, true, 10, 1, false, false, null, true));
+    vm1.invoke(() -> this.createCache(lnPort));
+    vm1.invoke(() -> this.createSender("ln1", 2, true, 10, 1, false, false, null, true));
 
-    vm0.invoke(() -> UpdateVersionDUnitTest.createPartitionedRegion(regionName, "ln1", 1, 1));
-    vm0.invoke(() -> UpdateVersionDUnitTest.startSender("ln1"));
-    vm0.invoke(() -> UpdateVersionDUnitTest.waitForSenderRunningState("ln1"));
+    vm1.invoke(() -> this.createPartitionedRegion(regionName, "ln1", 1, 1));
+    vm1.invoke(() -> this.startSender("ln1"));
+    vm1.invoke(() -> this.waitForSenderRunningState("ln1"));
 
     // Site 2
-    Integer nyPort =
-        (Integer) vm2.invoke(() -> UpdateVersionDUnitTest.createFirstRemoteLocator(2, lnPort));
-    Integer nyRecPort = (Integer) vm2.invoke(() -> UpdateVersionDUnitTest.createReceiver(nyPort));
+    Integer nyPort = (Integer) vm2.invoke(() -> this.createFirstRemoteLocator(2, lnPort));
+    Integer nyRecPort = (Integer) vm3.invoke(() -> this.createReceiver(nyPort));
 
-    vm2.invoke(() -> UpdateVersionDUnitTest.createPartitionedRegion(regionName, "", 1, 1));
+    vm3.invoke(() -> this.createPartitionedRegion(regionName, "", 1, 1));
+    vm4.invoke(() -> this.createCache(nyPort));
+    vm4.invoke(() -> this.createPartitionedRegion(regionName, "", 1, 1));
 
-    vm3.invoke(() -> UpdateVersionDUnitTest.createCache(nyPort));
-    vm3.invoke(() -> UpdateVersionDUnitTest.createPartitionedRegion(regionName, "", 1, 1));
+    VersionTag localTag = vm1.invoke(() -> putEntryAndGetPartitionedRegionVersionTag(key));
+    VersionTag remoteTag = vm4.invoke(() -> getPartitionedRegionVersionTag(key, localTag));
 
-    final VersionTag tag =
-        (VersionTag) vm0.invoke(new SerializableCallable("Put a single entry and get its version") {
-
-          @Override
-          public Object call() throws CacheException {
-            Cache cache = CacheFactory.getAnyInstance();
-            Region region = cache.getRegion(regionName);
-            assertTrue(region instanceof PartitionedRegion);
-
-            region.put(key, "value-1");
-            region.put(key, "value-2");
-            Entry entry = region.getEntry(key);
-            assertTrue(entry instanceof EntrySnapshot);
-            RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-
-            VersionStamp stamp = regionEntry.getVersionStamp();
-
-            // Create a duplicate entry version tag from stamp with newer
-            // time-stamp.
-            VersionSource memberId =
-                (VersionSource) cache.getDistributedSystem().getDistributedMember();
-            VersionTag tag = VersionTag.create(memberId);
-
-            int entryVersion = stamp.getEntryVersion() - 1;
-            int dsid = stamp.getDistributedSystemId();
-            long time = System.currentTimeMillis();
-
-            tag.setEntryVersion(entryVersion);
-            tag.setDistributedSystemId(dsid);
-            tag.setVersionTimeStamp(time);
-            tag.setIsRemoteForTesting();
-
-            EntryEventImpl event =
-                createNewEvent((PartitionedRegion) region, tag, entry.getKey(), "value-3");
-
-            ((LocalRegion) region).basicUpdate(event, false, true, 0L, false);
-
-            // Verify the new stamp
-            entry = region.getEntry(key);
-            assertTrue(entry instanceof EntrySnapshot);
-            regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-
-            stamp = regionEntry.getVersionStamp();
-            assertEquals(
-                "Time stamp did NOT get updated by UPDATE_VERSION operation on LocalRegion", time,
-                stamp.getVersionTimeStamp());
-            assertEquals(++entryVersion, stamp.getEntryVersion());
-            assertEquals(dsid, stamp.getDistributedSystemId());
-
-            return stamp.asVersionTag();
-          }
-        });
-
-    VersionTag remoteTag =
-        (VersionTag) vm3.invoke(new SerializableCallable("Get timestamp from remote site") {
-
-          @Override
-          public Object call() throws Exception {
-
-            Cache cache = CacheFactory.getAnyInstance();
-            final PartitionedRegion region = (PartitionedRegion) cache.getRegion(regionName);
-
-            // wait for entry to be received
-            WaitCriterion wc = new WaitCriterion() {
-              public boolean done() {
-                Entry<?, ?> entry = null;
-                try {
-                  entry = region.getDataStore().getEntryLocally(0, key, false, false);
-                } catch (EntryNotFoundException e) {
-                  // expected
-                } catch (ForceReattemptException e) {
-                  // expected
-                } catch (PRLocallyDestroyedException e) {
-                  throw new RuntimeException("unexpected exception", e);
-                }
-                if (entry != null) {
-                  LogWriterUtils.getLogWriter().info("found entry " + entry);
-                }
-                return (entry != null);
-              }
-
-              public String description() {
-                return "Expected key-1 to be received on remote WAN site";
-              }
-            };
-            Wait.waitForCriterion(wc, 30000, 500, true);
-
-            wc = new WaitCriterion() {
-              public boolean done() {
-                Entry entry = region.getEntry(key);
-                assertTrue(entry instanceof EntrySnapshot);
-                RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-                return regionEntry.getVersionStamp().getVersionTimeStamp() == tag
-                    .getVersionTimeStamp();
-              }
-
-              public String description() {
-                return "waiting for timestamp to be updated";
-              }
-            };
-            Wait.waitForCriterion(wc, 30000, 500, true);
-
-            Entry entry = region.getEntry(key);
-            assertTrue(entry instanceof EntrySnapshot);
-            RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-
-            VersionStamp stamp = regionEntry.getVersionStamp();
-
-            return stamp.asVersionTag();
-          }
-        });
-
-    assertEquals("Local and remote site have different timestamps", tag.getVersionTimeStamp(),
+    assertEquals("Local and remote site have different timestamps", localTag.getVersionTimeStamp(),
         remoteTag.getVersionTimeStamp());
   }
 
   @Test
   public void testUpdateVersionAfterCreateWithConcurrentSerialSender() {
     Host host = Host.getHost(0);
-    VM vm0 = host.getVM(0); // server1 site1
-    VM vm1 = host.getVM(1); // server2 site1
+    VM vm0 = host.getVM(0); // locator site1
+    VM vm1 = host.getVM(1); // server1 site1
 
-    VM vm2 = host.getVM(2); // server1 site2
-    VM vm3 = host.getVM(3); // server2 site2
+    VM vm2 = host.getVM(2); // locator site2
+    VM vm3 = host.getVM(3); // server1 site2
+    VM vm4 = host.getVM(4); // server2 site2
 
     // Site 1
-    Integer lnPort =
-        (Integer) vm0.invoke(() -> UpdateVersionDUnitTest.createFirstLocatorWithDSId(1));
+    Integer lnPort = (Integer) vm0.invoke(() -> this.createFirstLocatorWithDSId(1));
 
     final String key = "key-1";
 
-    vm0.invoke(() -> UpdateVersionDUnitTest.createCache(lnPort));
-    vm0.invoke(() -> UpdateVersionDUnitTest.createConcurrentSender("ln1", 2, false, 10, 2, false,
-        false, null, true, 2));
+    vm1.invoke(() -> this.createCache(lnPort));
+    vm1.invoke(
+        () -> this.createConcurrentSender("ln1", 2, false, 10, 2, false, false, null, true, 2));
 
-    vm0.invoke(() -> UpdateVersionDUnitTest.createPartitionedRegion(regionName, "ln1", 1, 1));
-    vm0.invoke(() -> UpdateVersionDUnitTest.startSender("ln1"));
-    vm0.invoke(() -> UpdateVersionDUnitTest.waitForSenderRunningState("ln1"));
+    vm1.invoke(() -> this.createPartitionedRegion(regionName, "ln1", 1, 1));
+    vm1.invoke(() -> this.startSender("ln1"));
+    vm1.invoke(() -> this.waitForSenderRunningState("ln1"));
 
     // Site 2
-    Integer nyPort =
-        (Integer) vm2.invoke(() -> UpdateVersionDUnitTest.createFirstRemoteLocator(2, lnPort));
-    Integer nyRecPort = (Integer) vm2.invoke(() -> UpdateVersionDUnitTest.createReceiver(nyPort));
+    Integer nyPort = (Integer) vm2.invoke(() -> this.createFirstRemoteLocator(2, lnPort));
+    Integer nyRecPort = (Integer) vm3.invoke(() -> this.createReceiver(nyPort));
 
-    vm2.invoke(() -> UpdateVersionDUnitTest.createPartitionedRegion(regionName, "", 1, 1));
+    vm3.invoke(() -> this.createPartitionedRegion(regionName, "", 1, 1));
+    vm4.invoke(() -> this.createCache(nyPort));
+    vm4.invoke(() -> this.createPartitionedRegion(regionName, "", 1, 1));
 
-    vm3.invoke(() -> UpdateVersionDUnitTest.createCache(nyPort));
-    vm3.invoke(() -> UpdateVersionDUnitTest.createPartitionedRegion(regionName, "", 1, 1));
+    VersionTag localTag = vm1.invoke(() -> putEntryAndGetPartitionedRegionVersionTag(key));
+    VersionTag remoteTag = vm4.invoke(() -> getPartitionedRegionVersionTag(key, localTag));
 
-    final VersionTag tag =
-        (VersionTag) vm0.invoke(new SerializableCallable("Put a single entry and get its version") {
-
-          @Override
-          public Object call() throws CacheException {
-            Cache cache = CacheFactory.getAnyInstance();
-            Region region = cache.getRegion(regionName);
-            assertTrue(region instanceof PartitionedRegion);
-
-            region.put(key, "value-1");
-            region.put(key, "value-2");
-            Entry entry = region.getEntry(key);
-            assertTrue(entry instanceof EntrySnapshot);
-            RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-
-            VersionStamp stamp = regionEntry.getVersionStamp();
-
-            // Create a duplicate entry version tag from stamp with newer
-            // time-stamp.
-            VersionSource memberId =
-                (VersionSource) cache.getDistributedSystem().getDistributedMember();
-            VersionTag tag = VersionTag.create(memberId);
-
-            int entryVersion = stamp.getEntryVersion() - 1;
-            int dsid = stamp.getDistributedSystemId();
-            long time = System.currentTimeMillis();
-
-            tag.setEntryVersion(entryVersion);
-            tag.setDistributedSystemId(dsid);
-            tag.setVersionTimeStamp(time);
-            tag.setIsRemoteForTesting();
-
-            EntryEventImpl event =
-                createNewEvent((PartitionedRegion) region, tag, entry.getKey(), "value-3");
-
-            ((LocalRegion) region).basicUpdate(event, false, true, 0L, false);
-
-            // Verify the new stamp
-            entry = region.getEntry(key);
-            assertTrue(entry instanceof EntrySnapshot);
-            regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-
-            stamp = regionEntry.getVersionStamp();
-            assertEquals(
-                "Time stamp did NOT get updated by UPDATE_VERSION operation on LocalRegion", time,
-                stamp.getVersionTimeStamp());
-            assertEquals(++entryVersion, stamp.getEntryVersion());
-            assertEquals(dsid, stamp.getDistributedSystemId());
-
-            return stamp.asVersionTag();
-          }
-        });
-
-    VersionTag remoteTag =
-        (VersionTag) vm3.invoke(new SerializableCallable("Get timestamp from remote site") {
-
-          @Override
-          public Object call() throws Exception {
-
-            Cache cache = CacheFactory.getAnyInstance();
-            final PartitionedRegion region = (PartitionedRegion) cache.getRegion(regionName);
-
-            // wait for entry to be received
-            WaitCriterion wc = new WaitCriterion() {
-              public boolean done() {
-                Entry<?, ?> entry = null;
-                try {
-                  entry = region.getDataStore().getEntryLocally(0, key, false, false);
-                } catch (EntryNotFoundException e) {
-                  // expected
-                } catch (ForceReattemptException e) {
-                  // expected
-                } catch (PRLocallyDestroyedException e) {
-                  throw new RuntimeException("unexpected exception", e);
-                }
-                if (entry != null) {
-                  LogWriterUtils.getLogWriter().info("found entry " + entry);
-                }
-                return (entry != null);
-              }
-
-              public String description() {
-                return "Expected key-1 to be received on remote WAN site";
-              }
-            };
-            Wait.waitForCriterion(wc, 30000, 500, true);
-
-            wc = new WaitCriterion() {
-              public boolean done() {
-                Entry entry = region.getEntry(key);
-                assertTrue(entry instanceof EntrySnapshot);
-                RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-                return regionEntry.getVersionStamp().getVersionTimeStamp() == tag
-                    .getVersionTimeStamp();
-              }
-
-              public String description() {
-                return "waiting for timestamp to be updated";
-              }
-            };
-            Wait.waitForCriterion(wc, 30000, 500, true);
-
-            Entry entry = region.getEntry(key);
-            assertTrue(entry instanceof EntrySnapshot);
-            RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
-
-            VersionStamp stamp = regionEntry.getVersionStamp();
-
-            return stamp.asVersionTag();
-          }
-        });
-
-    assertEquals("Local and remote site have different timestamps", tag.getVersionTimeStamp(),
+    assertEquals("Local and remote site have different timestamps", localTag.getVersionTimeStamp(),
         remoteTag.getVersionTimeStamp());
+  }
+
+  private VersionTag putEntryAndGetReplicatedRegionVersionTag(String key) {
+    Region region = cache.getRegion(regionName);
+    assertTrue(region instanceof DistributedRegion);
+
+    region.put(key, "value-1");
+    region.put(key, "value-2");
+    Entry entry = region.getEntry(key);
+    assertTrue(entry instanceof NonTXEntry);
+    RegionEntry regionEntry = ((NonTXEntry) entry).getRegionEntry();
+
+    VersionStamp stamp = regionEntry.getVersionStamp();
+
+    // Create a duplicate entry version tag from stamp with newer
+    // time-stamp.
+    VersionSource memberId = (VersionSource) cache.getDistributedSystem().getDistributedMember();
+    VersionTag versionTag = VersionTag.create(memberId);
+
+    int entryVersion = stamp.getEntryVersion() - 1;
+    int dsid = stamp.getDistributedSystemId();
+
+    // Increment the time by 1 in case the time is the same as the previous event.
+    // The entry's version timestamp can be incremented by 1 in certain circumstances.
+    // See AbstractRegionEntry.generateVersionTag.
+    long time = System.currentTimeMillis() + 1;
+
+    versionTag.setEntryVersion(entryVersion);
+    versionTag.setDistributedSystemId(dsid);
+    versionTag.setVersionTimeStamp(time);
+    versionTag.setIsRemoteForTesting();
+
+    EntryEventImpl event =
+        createNewEvent((DistributedRegion) region, versionTag, entry.getKey(), "value-3");
+
+    ((LocalRegion) region).basicUpdate(event, false, true, 0L, false);
+
+    // Verify the new stamp
+    entry = region.getEntry(key);
+    assertTrue(entry instanceof NonTXEntry);
+    regionEntry = ((NonTXEntry) entry).getRegionEntry();
+
+    stamp = regionEntry.getVersionStamp();
+    assertEquals("Time stamp did NOT get updated by UPDATE_VERSION operation on LocalRegion", time,
+        stamp.getVersionTimeStamp());
+    assertEquals(entryVersion + 1, stamp.getEntryVersion());
+    assertEquals(dsid, stamp.getDistributedSystemId());
+
+    return stamp.asVersionTag();
+  }
+
+  private VersionTag putEntryAndGetPartitionedRegionVersionTag(String key) {
+    Region region = cache.getRegion(regionName);
+    assertTrue(region instanceof PartitionedRegion);
+
+    region.put(key, "value-1");
+    region.put(key, "value-2");
+    Entry entry = region.getEntry(key);
+    assertTrue(entry instanceof EntrySnapshot);
+    RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
+
+    VersionStamp stamp = regionEntry.getVersionStamp();
+
+    // Create a duplicate entry version tag from stamp with newer
+    // time-stamp.
+    VersionSource memberId = (VersionSource) cache.getDistributedSystem().getDistributedMember();
+    VersionTag versionTag = VersionTag.create(memberId);
+
+    int entryVersion = stamp.getEntryVersion() - 1;
+    int dsid = stamp.getDistributedSystemId();
+
+    // Increment the time by 1 in case the time is the same as the previous event.
+    // The entry's version timestamp can be incremented by 1 in certain circumstances.
+    // See AbstractRegionEntry.generateVersionTag.
+    long time = System.currentTimeMillis() + 1;
+
+    versionTag.setEntryVersion(entryVersion);
+    versionTag.setDistributedSystemId(dsid);
+    versionTag.setVersionTimeStamp(time);
+    versionTag.setIsRemoteForTesting();
+
+    EntryEventImpl event =
+        createNewEvent((PartitionedRegion) region, versionTag, entry.getKey(), "value-3");
+
+    ((LocalRegion) region).basicUpdate(event, false, true, 0L, false);
+
+    // Verify the new stamp
+    entry = region.getEntry(key);
+    assertTrue(entry instanceof EntrySnapshot);
+    regionEntry = ((EntrySnapshot) entry).getRegionEntry();
+
+    stamp = regionEntry.getVersionStamp();
+    assertEquals("Time stamp did NOT get updated by UPDATE_VERSION operation on LocalRegion", time,
+        stamp.getVersionTimeStamp());
+    assertEquals(++entryVersion, stamp.getEntryVersion());
+    assertEquals(dsid, stamp.getDistributedSystemId());
+
+    return stamp.asVersionTag();
+  }
+
+  private VersionTag getReplicatedRegionVersionTag(final String key, final VersionTag localTag) {
+    final Region region = cache.getRegion(regionName);
+
+    Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> region.getEntry(key) != null);
+
+    Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> {
+      Entry entry = region.getEntry(key);
+      assertTrue(entry instanceof NonTXEntry);
+      RegionEntry regionEntry = ((NonTXEntry) entry).getRegionEntry();
+      return regionEntry.getVersionStamp().getVersionTimeStamp() == localTag.getVersionTimeStamp();
+    });
+
+    Entry entry = region.getEntry(key);
+    assertTrue(entry instanceof NonTXEntry);
+    RegionEntry regionEntry = ((NonTXEntry) entry).getRegionEntry();
+
+    VersionStamp stamp = regionEntry.getVersionStamp();
+
+    return stamp.asVersionTag();
+  }
+
+  private VersionTag getPartitionedRegionVersionTag(final String key, final VersionTag localTag) {
+    final PartitionedRegion region = (PartitionedRegion) cache.getRegion(regionName);
+
+    Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> {
+      Entry<?, ?> entry = null;
+      try {
+        entry = region.getDataStore().getEntryLocally(0, key, false, false);
+      } catch (EntryNotFoundException | ForceReattemptException e) {
+        // expected
+      } catch (PRLocallyDestroyedException e) {
+        throw new RuntimeException("unexpected exception", e);
+      }
+      if (entry != null) {
+        LogWriterUtils.getLogWriter().info("found entry " + entry);
+      }
+      return (entry != null);
+    });
+
+    Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> {
+      Entry entry = region.getEntry(key);
+      assertTrue(entry instanceof EntrySnapshot);
+      RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
+      return regionEntry.getVersionStamp().getVersionTimeStamp() == localTag.getVersionTimeStamp();
+    });
+
+    Entry entry = region.getEntry(key);
+    assertTrue(entry instanceof EntrySnapshot);
+    RegionEntry regionEntry = ((EntrySnapshot) entry).getRegionEntry();
+
+    VersionStamp stamp = regionEntry.getVersionStamp();
+
+    return stamp.asVersionTag();
   }
 
   private VersionTagHolder createNewEvent(LocalRegion region, VersionTag tag, Object key,
@@ -690,7 +406,7 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
    * Helper Methods
    */
 
-  private static void createCache(Integer locPort) {
+  private void createCache(Integer locPort) {
     UpdateVersionDUnitTest test = new UpdateVersionDUnitTest();
     Properties props = test.getDistributedSystemProperties();
     props.setProperty(MCAST_PORT, "0");
@@ -709,7 +425,7 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
     expectedExceptions.add(ex);
   }
 
-  private static void closeCache() {
+  private void closeCache() {
     if (cache != null && !cache.isClosed()) {
       for (IgnoredException expectedException : expectedExceptions) {
         cache.getLogger().info(expectedException.getRemoveMessage());
@@ -721,9 +437,9 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
     cache = null;
   }
 
-  public static void createSender(String dsName, int remoteDsId, boolean isParallel,
-      Integer maxMemory, Integer batchSize, boolean isConflation, boolean isPersistent,
-      GatewayEventFilter filter, boolean isManualStart) {
+  public void createSender(String dsName, int remoteDsId, boolean isParallel, Integer maxMemory,
+      Integer batchSize, boolean isConflation, boolean isPersistent, GatewayEventFilter filter,
+      boolean isManualStart) {
     File persistentDirectory =
         new File(dsName + "_disk_" + System.currentTimeMillis() + "_" + VM.getCurrentVMNum());
     persistentDirectory.mkdir();
@@ -770,8 +486,8 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
     }
   }
 
-  public static void createPartitionedRegion(String regionName, String senderIds,
-      Integer redundantCopies, Integer totalNumBuckets) {
+  private void createPartitionedRegion(String regionName, String senderIds, Integer redundantCopies,
+      Integer totalNumBuckets) {
     AttributesFactory fact = new AttributesFactory();
     if (senderIds != null) {
       StringTokenizer tokenizer = new StringTokenizer(senderIds, ",");
@@ -789,7 +505,7 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
     assertNotNull(r);
   }
 
-  public static void createReplicatedRegion(String regionName, String senderIds) {
+  private void createReplicatedRegion(String regionName, String senderIds) {
     AttributesFactory fact = new AttributesFactory();
     if (senderIds != null) {
       StringTokenizer tokenizer = new StringTokenizer(senderIds, ",");
@@ -804,26 +520,13 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
     assertNotNull(r);
   }
 
-  public static void waitForSenderRunningState(String senderId) {
-    Set<GatewaySender> senders = cache.getGatewaySenders();
-    final GatewaySender sender = getGatewaySenderById(senders, senderId);
-
-    WaitCriterion wc = new WaitCriterion() {
-      public boolean done() {
-        if (sender != null && sender.isRunning()) {
-          return true;
-        }
-        return false;
-      }
-
-      public String description() {
-        return "Expected sender isRunning state to be true but is false";
-      }
-    };
-    Wait.waitForCriterion(wc, 300000, 500, true);
+  private void waitForSenderRunningState(String senderId) {
+    GatewaySender sender = cache.getGatewaySender(senderId);
+    Awaitility.await().atMost(30, TimeUnit.SECONDS)
+        .until(() -> sender != null && sender.isRunning());
   }
 
-  public static Integer createFirstRemoteLocator(int dsId, int remoteLocPort) {
+  private Integer createFirstRemoteLocator(int dsId, int remoteLocPort) {
     UpdateVersionDUnitTest test = new UpdateVersionDUnitTest();
     int port = AvailablePortHelper.getRandomAvailablePortForDUnitSite();
     Properties props = test.getDistributedSystemProperties();
@@ -835,11 +538,21 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
     props.setProperty(REMOTE_LOCATORS, "localhost[" + remoteLocPort + "]");
     props.setProperty(USE_CLUSTER_CONFIGURATION, "false");
     props.setProperty(ENABLE_CLUSTER_CONFIGURATION, "false");
-    test.getSystem(props);
+    startLocatorDistributedSystem(props);
     return port;
   }
 
-  public static void createConcurrentSender(String dsName, int remoteDsId, boolean isParallel,
+  private void startLocatorDistributedSystem(Properties props) {
+    // Start start the locator with a LOCATOR_DM_TYPE and not a NORMAL_DM_TYPE
+    System.setProperty(InternalLocator.FORCE_LOCATOR_DM_TYPE, "true");
+    try {
+      getSystem(props);
+    } finally {
+      System.clearProperty(InternalLocator.FORCE_LOCATOR_DM_TYPE);
+    }
+  }
+
+  private void createConcurrentSender(String dsName, int remoteDsId, boolean isParallel,
       Integer maxMemory, Integer batchSize, boolean isConflation, boolean isPersistent,
       GatewayEventFilter filter, boolean isManualStart, int concurrencyLevel) {
     File persistentDirectory =
@@ -890,7 +603,7 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
     }
   }
 
-  public static int createReceiver(int locPort) {
+  private int createReceiver(int locPort) {
     UpdateVersionDUnitTest test = new UpdateVersionDUnitTest();
     Properties props = test.getDistributedSystemProperties();
     props.setProperty(MCAST_PORT, "0");
@@ -912,16 +625,14 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
     return port;
   }
 
-  public static void startSender(String senderId) {
+  private void startSender(String senderId) {
     Set<GatewaySender> senders = cache.getGatewaySenders();
-    GatewaySender sender = null;
-    for (GatewaySender s : senders) {
-      if (s.getId().equals(senderId)) {
-        sender = s;
+    for (GatewaySender sender : senders) {
+      if (sender.getId().equals(senderId)) {
+        sender.start();
         break;
       }
     }
-    sender.start();
   }
 
   protected static class MyLocatorCallback extends LocatorDiscoveryCallbackAdapter {
@@ -971,17 +682,7 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
     }
   }
 
-  private static GatewaySender getGatewaySenderById(Set<GatewaySender> senders, String senderId) {
-    for (GatewaySender s : senders) {
-      if (s.getId().equals(senderId)) {
-        return s;
-      }
-    }
-    // if none of the senders matches with the supplied senderId, return null
-    return null;
-  }
-
-  public static Integer createFirstLocatorWithDSId(int dsId) {
+  private Integer createFirstLocatorWithDSId(int dsId) {
     UpdateVersionDUnitTest test = new UpdateVersionDUnitTest();
     int port = AvailablePortHelper.getRandomAvailablePortForDUnitSite();
     Properties props = test.getDistributedSystemProperties();
@@ -992,7 +693,7 @@ public class UpdateVersionDUnitTest extends JUnit4DistributedTestCase {
     props.setProperty(USE_CLUSTER_CONFIGURATION, "false");
     props.setProperty(START_LOCATOR,
         "localhost[" + port + "],server=true,peer=true,hostname-for-clients=localhost");
-    test.getSystem(props);
+    startLocatorDistributedSystem(props);
     return port;
   }
 }

@@ -14,7 +14,6 @@
  */
 package org.apache.geode.distributed.internal.membership.gms;
 
-import java.io.File;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
@@ -34,19 +33,20 @@ import org.apache.geode.internal.Version;
 import org.apache.geode.internal.admin.remote.RemoteTransportConfig;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.net.SocketCreator;
+import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.internal.tcp.ConnectionException;
 import org.apache.geode.security.GemFireSecurityException;
 
 /**
  * Create a new Member based on the given inputs.
- * 
+ *
  * @see org.apache.geode.distributed.internal.membership.NetMember
  */
 public class GMSMemberFactory implements MemberServices {
 
   /**
    * Return a new NetMember, possibly for a different host
-   * 
+   *
    * @param i the name of the host for the specified NetMember, the current host (hopefully) if
    *        there are any problems.
    * @param splitBrainEnabled whether the member has this feature enabled
@@ -55,6 +55,7 @@ public class GMSMemberFactory implements MemberServices {
    * @param attr the MemberAttributes
    * @return the new NetMember
    */
+  @Override
   public NetMember newNetMember(InetAddress i, int p, boolean splitBrainEnabled,
       boolean canBeCoordinator, MemberAttributes attr, short version) {
     GMSMember result =
@@ -65,11 +66,12 @@ public class GMSMemberFactory implements MemberServices {
   /**
    * Return a new NetMember representing current host. This assumes that the member does not have
    * network partition detection enabled and can be group coordinator
-   * 
+   *
    * @param i an InetAddress referring to the current host
    * @param p the membership port being used
    * @return the new NetMember
    */
+  @Override
   public NetMember newNetMember(InetAddress i, int p) {
     return new GMSMember(MemberAttributes.DEFAULT, i, p, false, true, Version.CURRENT_ORDINAL, 0,
         0);
@@ -78,11 +80,12 @@ public class GMSMemberFactory implements MemberServices {
   /**
    * Return a new NetMember representing current host. This is used for testing, so we ignore
    * host-name lookup localhost inetAddress
-   * 
+   *
    * @param s a String referring to a host - ignored
    * @param p the membership port being used
    * @return the new member
    */
+  @Override
   public NetMember newNetMember(String s, int p) {
     InetAddress inetAddr = null;
     try {
@@ -93,10 +96,11 @@ public class GMSMemberFactory implements MemberServices {
     return newNetMember(inetAddr, p);
   }
 
+  @Override
   public MembershipManager newMembershipManager(DistributedMembershipListener listener,
-      DistributionConfig config, RemoteTransportConfig transport, DMStats stats)
-      throws DistributionException {
-    Services services = new Services(listener, config, transport, stats);
+      DistributionConfig config, RemoteTransportConfig transport, DMStats stats,
+      SecurityService securityService) throws DistributionException {
+    Services services = new Services(listener, config, transport, stats, securityService);
     try {
       services.init();
       services.start();
@@ -114,11 +118,11 @@ public class GMSMemberFactory implements MemberServices {
   }
 
   @Override
-  public NetLocator newLocatorHandler(InetAddress bindAddress, File stateFile, String locatorString,
+  public NetLocator newLocatorHandler(InetAddress bindAddress, String locatorString,
       boolean usePreferredCoordinators, boolean networkPartitionDetectionEnabled,
       LocatorStats stats, String securityUDPDHAlgo) {
 
-    return new GMSLocator(bindAddress, stateFile, locatorString, usePreferredCoordinators,
+    return new GMSLocator(bindAddress, locatorString, usePreferredCoordinators,
         networkPartitionDetectionEnabled, stats, securityUDPDHAlgo);
   }
 

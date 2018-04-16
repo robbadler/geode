@@ -12,13 +12,8 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -28,10 +23,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.BlockingDeque;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,7 +36,6 @@ import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.TimeoutException;
-import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.execute.BucketMovedException;
 import org.apache.geode.internal.cache.persistence.query.mock.ByteComparator;
 import org.apache.geode.internal.cache.versions.RegionVersionVector;
@@ -58,9 +50,6 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.offheap.OffHeapRegionEntryHelper;
 import org.apache.geode.internal.offheap.annotations.Released;
 
-/**
- * 
- */
 public class BucketRegionQueue extends AbstractBucketRegionQueue {
 
   private static final Logger logger = LogService.getLogger();
@@ -203,9 +192,8 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
 
   @Override
   public void beforeAcquiringPrimaryState() {
-    int batchSize = this.getPartitionedRegion().getParallelGatewaySender().getBatchSize();
     Iterator<Object> itr = eventSeqNumDeque.iterator();
-    markEventsAsDuplicate(batchSize, itr);
+    markEventsAsDuplicate(itr);
   }
 
   @Override
@@ -338,13 +326,17 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
         Object key = object.getKeyToConflate();
         Map latestIndexesForRegion = (Map) this.indexes.get(rName);
         if (latestIndexesForRegion != null) {
-          // Remove the index.
-          Long index = (Long) latestIndexesForRegion.remove(key);
-          if (index != null) {
-            this.getPartitionedRegion().getParallelGatewaySender().getStatistics()
-                .decConflationIndexesMapSize();
-            if (logger.isDebugEnabled()) {
-              logger.debug("{}: Removed index {} for {}", this, index, object);
+          // Remove the index if appropriate. Verify the qKey is actually the one being referenced
+          // in the index. If it isn't, then another event has been received for the real key. In
+          // that case, don't remove the index since it has already been overwritten.
+          if (latestIndexesForRegion.get(key) == qkey) {
+            Long index = (Long) latestIndexesForRegion.remove(key);
+            if (index != null) {
+              this.getPartitionedRegion().getParallelGatewaySender().getStatistics()
+                  .decConflationIndexesMapSize();
+              if (logger.isDebugEnabled()) {
+                logger.debug("{}: Removed index {} for {}", this, index, object);
+              }
             }
           }
         }
@@ -353,7 +345,7 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
   }
 
   @Override
-  protected void basicDestroy(final EntryEventImpl event, final boolean cacheWrite,
+  public void basicDestroy(final EntryEventImpl event, final boolean cacheWrite,
       Object expectedOldValue)
       throws EntryNotFoundException, CacheWriterException, TimeoutException {
     if (getPartitionedRegion().isConflationEnabled()) {
@@ -502,9 +494,8 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
 
   /**
    * It removes the first key from the queue.
-   * 
+   *
    * @return Returns the key for which value was destroyed.
-   * @throws ForceReattemptException
    */
   public Object remove() throws ForceReattemptException {
     Object key = this.eventSeqNumDeque.removeFirst();
@@ -516,10 +507,8 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
 
   /**
    * It removes the first key from the queue.
-   * 
+   *
    * @return Returns the value.
-   * @throws InterruptedException
-   * @throws ForceReattemptException
    */
   public Object take() throws InterruptedException, ForceReattemptException {
     throw new UnsupportedOperationException();

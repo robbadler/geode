@@ -14,27 +14,24 @@
  */
 package org.apache.geode.cache.query.partitioned;
 
-import static org.junit.Assert.fail;
 
 import org.junit.Before;
-import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.LogWriter;
 import org.apache.geode.cache.Region;
-import org.apache.geode.cache.query.QueryInvalidException;
-import org.apache.geode.cache.query.data.PortfolioData;
 import org.apache.geode.internal.cache.PartitionedRegionTestHelper;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
 /**
  * Class verifies Region#query(Select Query) API for PartitionedRegion on a single VM.,As
  * region#query doesn't support Select Query for Local Querying it should throw
  * QueryInvalidException
- * 
- * 
+ *
+ *
  */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class PRInvalidQueryJUnitTest {
   String regionName = "Portfolios";
 
@@ -49,9 +46,7 @@ public class PRInvalidQueryJUnitTest {
 
   /**
    * Populates the region with the Objects stores in the data Object array.
-   * 
-   * @param region
-   * @param data
+   *
    */
   private void populateData(Region region, Object[] data) {
     logger.info("PRInvalidQueryJUnitTest#populateData: Populating Data to the region");

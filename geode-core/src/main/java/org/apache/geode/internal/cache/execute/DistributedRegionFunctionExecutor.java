@@ -34,15 +34,15 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 
 /**
  * Executes Function on Distributed Regions.
- * 
+ *
  * For DistributedRegions with DataPolicy.NORMAL, it throws UnsupportedOperationException. <br>
  * For DistributedRegions with DataPolicy.EMPTY, execute the function on any random member which has
  * DataPolicy.REPLICATE <br>
  * For DistributedRegions with DataPolicy.REPLICATE, execute the function locally.
- * 
- * 
+ *
+ *
  * @since GemFire 5.8 LA
- * 
+ *
  */
 public class DistributedRegionFunctionExecutor extends AbstractExecution {
 
@@ -169,112 +169,6 @@ public class DistributedRegionFunctionExecutor extends AbstractExecution {
     return executeFunction(functionObject);
   }
 
-  public ResultCollector execute(String functionName, boolean hasResult) throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_FUNCTION_NAMED_0_IS_NOT_REGISTERED
-              .toLocalizedString(functionObject));
-    }
-    if (region.getAttributes().getDataPolicy().isNormal()) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteRegionFunction_CAN_NOT_EXECUTE_ON_NORMAL_REGION
-              .toLocalizedString());
-    }
-    byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-        functionObject.hasResult(), functionObject.optimizeForWrite());
-
-    byte functionState = AbstractExecution.getFunctionState(hasResult, hasResult, false);
-    if (registeredFunctionState != functionState) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-              .toLocalizedString(functionName));
-    }
-
-    this.isFnSerializationReqd = false;
-    // If hasResult is true, isHA will also be true and hasResult is false then
-    // isHA will be false
-    // For other combination use next API
-    return executeFunction(functionObject);
-  }
-
-  public ResultCollector execute(String functionName, boolean hasResult, boolean isHA)
-      throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    if (isHA && !hasResult) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH.toLocalizedString());
-    }
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_FUNCTION_NAMED_0_IS_NOT_REGISTERED
-              .toLocalizedString(functionObject));
-    }
-    if (region.getAttributes().getDataPolicy().isNormal()) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteRegionFunction_CAN_NOT_EXECUTE_ON_NORMAL_REGION
-              .toLocalizedString());
-    }
-    byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-        functionObject.hasResult(), functionObject.optimizeForWrite());
-
-    byte functionState = AbstractExecution.getFunctionState(isHA, hasResult, false);
-    if (registeredFunctionState != functionState) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-              .toLocalizedString(functionName));
-    }
-
-    this.isFnSerializationReqd = false;
-    return executeFunction(functionObject);
-  }
-
-  public ResultCollector execute(String functionName, boolean hasResult, boolean isHA,
-      boolean isOptimizeForWrite) throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    if (isHA && !hasResult) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH.toLocalizedString());
-    }
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_FUNCTION_NAMED_0_IS_NOT_REGISTERED
-              .toLocalizedString(functionObject));
-    }
-    if (region.getAttributes().getDataPolicy().isNormal()) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteRegionFunction_CAN_NOT_EXECUTE_ON_NORMAL_REGION
-              .toLocalizedString());
-    }
-    byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-        functionObject.hasResult(), functionObject.optimizeForWrite());
-
-    byte functionState = AbstractExecution.getFunctionState(isHA, hasResult, isOptimizeForWrite);
-    if (registeredFunctionState != functionState) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-              .toLocalizedString(functionName));
-    }
-
-    this.isFnSerializationReqd = false;
-    return executeFunction(functionObject);
-  }
-
   @Override
   public ResultCollector execute(final Function function) {
     if (function == null) {
@@ -397,7 +291,7 @@ public class DistributedRegionFunctionExecutor extends AbstractExecution {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see
    * org.apache.geode.internal.cache.execute.AbstractExecution#validateExecution(org.apache.geode.
    * cache.execute.Function, java.util.Set)

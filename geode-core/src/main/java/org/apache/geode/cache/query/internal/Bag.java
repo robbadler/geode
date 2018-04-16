@@ -27,16 +27,12 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
-import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.query.CqResults;
 import org.apache.geode.cache.query.SelectResults;
-import org.apache.geode.cache.query.internal.ObjectIntHashMap.Entry;
 import org.apache.geode.cache.query.internal.types.CollectionTypeImpl;
 import org.apache.geode.cache.query.types.CollectionType;
 import org.apache.geode.cache.query.types.ObjectType;
 import org.apache.geode.cache.query.types.StructType;
-import org.apache.geode.internal.DataSerializableFixedID;
-import org.apache.geode.internal.Version;
 import org.apache.geode.internal.cache.CachePerfStats;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 
@@ -45,7 +41,7 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 /**
  * Implementation of SelectResults that allows duplicates . The keys store the elements of the
  * collection and the the values store the number of occurrences as an int.
- * 
+ *
  * @see ResultsBag
  * @see StructBag
  * @see SortedResultsBag
@@ -344,7 +340,7 @@ public abstract class Bag<E> extends AbstractCollection<E> implements CqResults<
   }
 
   /**
-   * 
+   *
    * @param out
    * @throws IOException
    */
@@ -353,7 +349,7 @@ public abstract class Bag<E> extends AbstractCollection<E> implements CqResults<
   }
 
   /**
-   * 
+   *
    * @param in
    * @throws IOException
    */
@@ -528,7 +524,7 @@ public abstract class Bag<E> extends AbstractCollection<E> implements CqResults<
    * package visibility so ResultsCollectionWrapper can reference it. This SetView is serialized as
    * a special case by a ResultsCollectionWrapper. Keith: Refactored to add consideration for LIMIT,
    * April 1, 2009
-   * 
+   *
    * @see ResultsCollectionWrapper#toData
    */
   class SetView extends AbstractSet {
@@ -667,7 +663,7 @@ public abstract class Bag<E> extends AbstractCollection<E> implements CqResults<
    *
    */
   protected class LimitBagIterator extends Bag.BagIterator {
-    final private int localLimit;
+    private final int localLimit;
 
     private int currPos = 0;
 

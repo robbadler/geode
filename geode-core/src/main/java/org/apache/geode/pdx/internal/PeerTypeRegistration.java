@@ -15,7 +15,6 @@
 package org.apache.geode.pdx.internal;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -30,7 +29,6 @@ import org.apache.geode.InternalGemFireException;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.CacheWriterException;
 import org.apache.geode.cache.DataPolicy;
-import org.apache.geode.cache.DiskStore;
 import org.apache.geode.cache.EntryEvent;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
@@ -50,7 +48,6 @@ import org.apache.geode.distributed.LockServiceDestroyedException;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.locks.DLockService;
 import org.apache.geode.internal.CopyOnWriteHashSet;
-import org.apache.geode.internal.cache.DiskStoreImpl;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.InternalRegionArguments;
@@ -102,8 +99,7 @@ public class PeerTypeRegistration implements TypeRegistration {
   private Map<EnumInfo, EnumId> enumToId =
       Collections.synchronizedMap(new HashMap<EnumInfo, EnumId>());
 
-  private final Map<String, Set<PdxType>> classToType =
-      new CopyOnWriteHashMap<String, Set<PdxType>>();
+  private final Map<String, CopyOnWriteHashSet<PdxType>> classToType = new CopyOnWriteHashMap<>();
 
   private volatile boolean typeRegistryInUse = false;
 
@@ -351,7 +347,7 @@ public class PeerTypeRegistration implements TypeRegistration {
 
   /**
    * Test hook that returns the most recently allocated type id
-   * 
+   *
    * @return the most recently allocated type id
    */
   public int getLastAllocatedTypeId() {
@@ -361,7 +357,7 @@ public class PeerTypeRegistration implements TypeRegistration {
 
   /**
    * Test hook that returns the most recently allocated enum id
-   * 
+   *
    * @return the most recently allocated enum id
    */
   public int getLastAllocatedEnumId() {
@@ -446,13 +442,27 @@ public class PeerTypeRegistration implements TypeRegistration {
   }
 
   public PdxType getType(int typeId) {
+    return getById(typeId);
+  }
+
+  private <T> T getById(Object typeId) {
     verifyConfiguration();
     TXStateProxy currentState = suspendTX();
     try {
-      return (PdxType) getIdToType().get(typeId);
+      T pdxType = (T) getIdToType().get(typeId);
+      if (pdxType == null) {
+        lock();
+        try {
+          pdxType = (T) getIdToType().get(typeId);
+        } finally {
+          unlock();
+        }
+      }
+      return pdxType;
     } finally {
       resumeTX(currentState);
     }
+
   }
 
   public void addRemoteType(int typeId, PdxType type) {
@@ -466,7 +476,7 @@ public class PeerTypeRegistration implements TypeRegistration {
         // the distributed lock.
         lock();
         try {
-          r.put(typeId, type);
+          r.putIfAbsent(typeId, type);
         } finally {
           unlock();
         }
@@ -480,7 +490,7 @@ public class PeerTypeRegistration implements TypeRegistration {
     if (!typeRegistryInUse || this.idToType == null) {
       return;
     }
-    checkAllowed(true, hasPersistentRegions());
+    checkAllowed(true, this.cache.hasPersistentRegion());
   }
 
   public void creatingPersistentRegion() {
@@ -514,8 +524,7 @@ public class PeerTypeRegistration implements TypeRegistration {
     if (typeRegistryInUse) {
       return;
     } else {
-      boolean hasPersistentRegions = hasPersistentRegions();
-      checkAllowed(hasGatewaySender(), hasPersistentRegions);
+      checkAllowed(hasGatewaySender(), this.cache.hasPersistentRegion());
 
       for (Pool pool : PoolManager.getAll().values()) {
         if (!((PoolImpl) pool).isUsedByGateway()) {
@@ -529,17 +538,8 @@ public class PeerTypeRegistration implements TypeRegistration {
     }
   }
 
-  public boolean hasPersistentRegions() {
-    Collection<DiskStore> diskStores = cache.listDiskStoresIncludingRegionOwned();
-    boolean hasPersistentRegions = false;
-    for (DiskStore store : diskStores) {
-      hasPersistentRegions |= ((DiskStoreImpl) store).hasPersistedData();
-    }
-    return hasPersistentRegions;
-  }
-
-  private void checkAllowed(boolean hasGatewaySender, boolean hasDiskStore) {
-    if (hasDiskStore && !cache.getPdxPersistent()) {
+  private void checkAllowed(boolean hasGatewaySender, boolean hasPersistentRegion) {
+    if (hasPersistentRegion && !cache.getPdxPersistent()) {
       throw new PdxInitializationException(
           "The PDX metadata must be persistent in a member that has persistent data. See CacheFactory.setPdxPersistent.");
     }
@@ -628,6 +628,7 @@ public class PeerTypeRegistration implements TypeRegistration {
   private TXStateProxy suspendTX() {
     InternalCache cache = (InternalCache) getIdToType().getRegionService();
     TXManagerImpl txManager = (TXManagerImpl) cache.getCacheTransactionManager();
+    // A new transaction will be started to register pdx.
     return txManager.internalSuspend();
   }
 
@@ -712,14 +713,8 @@ public class PeerTypeRegistration implements TypeRegistration {
   }
 
   public EnumInfo getEnumById(int id) {
-    verifyConfiguration();
     EnumId enumId = new EnumId(id);
-    TXStateProxy currentState = suspendTX();
-    try {
-      return (EnumInfo) getIdToType().get(enumId);
-    } finally {
-      resumeTX(currentState);
-    }
+    return getById(enumId);
   }
 
   @Override
@@ -754,9 +749,10 @@ public class PeerTypeRegistration implements TypeRegistration {
   private void updateClassToTypeMap(PdxType type) {
     if (type != null) {
       synchronized (this.classToType) {
-        if (type.getClassName().equals(JSONFormatter.JSON_CLASSNAME))
-          return;// no need to include here
-        Set<PdxType> pdxTypeSet = this.classToType.get(type.getClassName());
+        if (type.getClassName().equals(JSONFormatter.JSON_CLASSNAME)) {
+          return; // no need to include here
+        }
+        CopyOnWriteHashSet<PdxType> pdxTypeSet = this.classToType.get(type.getClassName());
         if (pdxTypeSet == null) {
           pdxTypeSet = new CopyOnWriteHashSet<PdxType>();
         }
@@ -768,21 +764,29 @@ public class PeerTypeRegistration implements TypeRegistration {
 
   @Override
   public PdxType getPdxTypeForField(String fieldName, String className) {
-    Set<PdxType> pdxTypes = classToType.get(className);
-    if (pdxTypes != null) {
-      for (PdxType pdxType : pdxTypes) {
-        if (pdxType.getPdxField(fieldName) != null) {
-          return pdxType;
-        }
+    Set<PdxType> pdxTypes = getPdxTypesForClassName(className);
+    for (PdxType pdxType : pdxTypes) {
+      if (pdxType.getPdxField(fieldName) != null) {
+        return pdxType;
       }
     }
     return null;
   }
 
+  @Override
+  public Set<PdxType> getPdxTypesForClassName(String className) {
+    CopyOnWriteHashSet<PdxType> pdxTypeSet = classToType.get(className);
+    if (pdxTypeSet == null) {
+      return Collections.emptySet();
+    } else {
+      return pdxTypeSet.getSnapshot();
+    }
+  }
+
   /**
    * For testing purpose
    */
-  public Map<String, Set<PdxType>> getClassToType() {
+  public Map<String, CopyOnWriteHashSet<PdxType>> getClassToType() {
     return classToType;
   }
 

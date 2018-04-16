@@ -33,10 +33,10 @@ import org.apache.geode.internal.offheap.annotations.Retained;
  * <p>
  * The internal implementation of the {@link TransactionEvent}interface used by the remote commit
  * code.
- * 
- * 
+ *
+ *
  * @since GemFire 4.0
- * 
+ *
  */
 public class TXRmtEvent implements TransactionEvent {
   private final TransactionId txId;
@@ -103,85 +103,7 @@ public class TXRmtEvent implements TransactionEvent {
     return true;
   }
 
-  public List getCreateEvents() {
-    if (this.events == null) {
-      return Collections.EMPTY_LIST;
-    } else {
-      ArrayList result = new ArrayList(this.events.size());
-      Iterator it = this.events.iterator();
-      while (it.hasNext()) {
-        CacheEvent ce = (CacheEvent) it.next();
-        if (ce.getOperation().isCreate() && isEventUserVisible(ce)) {
-          result.add(ce);
-        }
-      }
-      if (result.isEmpty()) {
-        return Collections.EMPTY_LIST;
-      } else {
-        return Collections.unmodifiableList(result);
-      }
-    }
-  }
 
-  public List getPutEvents() {
-    if (this.events == null) {
-      return Collections.EMPTY_LIST;
-    } else {
-      ArrayList result = new ArrayList(this.events.size());
-      Iterator it = this.events.iterator();
-      while (it.hasNext()) {
-        CacheEvent ce = (CacheEvent) it.next();
-        if (ce.getOperation().isUpdate() && isEventUserVisible(ce)) {
-          result.add(ce);
-        }
-      }
-      if (result.isEmpty()) {
-        return Collections.EMPTY_LIST;
-      } else {
-        return Collections.unmodifiableList(result);
-      }
-    }
-  }
-
-  public List getInvalidateEvents() {
-    if (this.events == null) {
-      return Collections.EMPTY_LIST;
-    } else {
-      ArrayList result = new ArrayList(this.events.size());
-      Iterator it = this.events.iterator();
-      while (it.hasNext()) {
-        CacheEvent ce = (CacheEvent) it.next();
-        if (ce.getOperation().isInvalidate() && isEventUserVisible(ce)) {
-          result.add(ce);
-        }
-      }
-      if (result.isEmpty()) {
-        return Collections.EMPTY_LIST;
-      } else {
-        return Collections.unmodifiableList(result);
-      }
-    }
-  }
-
-  public List getDestroyEvents() {
-    if (this.events == null) {
-      return Collections.EMPTY_LIST;
-    } else {
-      ArrayList result = new ArrayList(this.events.size());
-      Iterator it = this.events.iterator();
-      while (it.hasNext()) {
-        CacheEvent ce = (CacheEvent) it.next();
-        if (ce.getOperation().isDestroy() && isEventUserVisible(ce)) {
-          result.add(ce);
-        }
-      }
-      if (result.isEmpty()) {
-        return Collections.EMPTY_LIST;
-      } else {
-        return Collections.unmodifiableList(result);
-      }
-    }
-  }
 
   public boolean isEmpty() {
     return (events == null) || events.isEmpty();

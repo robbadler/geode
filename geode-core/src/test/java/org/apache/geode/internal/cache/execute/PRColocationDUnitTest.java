@@ -14,15 +14,10 @@
  */
 package org.apache.geode.internal.cache.execute;
 
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
-import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.FlakyTest;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -35,7 +30,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.DataSerializable;
 import org.apache.geode.DataSerializer;
@@ -55,7 +54,7 @@ import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.RegionFunctionContext;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.cache30.CacheSerializableRunnable;
-import org.apache.geode.cache30.CacheTestCase;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.ColocationHelper;
 import org.apache.geode.internal.cache.PartitionedRegion;
@@ -70,18 +69,20 @@ import org.apache.geode.internal.cache.execute.data.ShipmentId;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.test.dunit.Assert;
 import org.apache.geode.test.dunit.AsyncInvocation;
+import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.Invoke;
 import org.apache.geode.test.dunit.LogWriterUtils;
-import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.SerializableCallable;
 import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * This is the test for the custom and colocated partitioning of PartitionedRegion
- * 
+ *
  */
 @SuppressWarnings("synthetic-access")
 @Category(DistributedTest.class)
@@ -101,11 +102,11 @@ public class PRColocationDUnitTest extends JUnit4CacheTestCase {
 
   protected static int defaultStringSize = 0;
 
-  final static String CustomerPartitionedRegionName = "CustomerPartitionedRegion";
+  static final String CustomerPartitionedRegionName = "CustomerPartitionedRegion";
 
-  final static String OrderPartitionedRegionName = "OrderPartitionedRegion";
+  static final String OrderPartitionedRegionName = "OrderPartitionedRegion";
 
-  final static String ShipmentPartitionedRegionName = "ShipmentPartitionedRegion";
+  static final String ShipmentPartitionedRegionName = "ShipmentPartitionedRegion";
 
   String regionName = null;
 
@@ -1276,10 +1277,8 @@ public class PRColocationDUnitTest extends JUnit4CacheTestCase {
    * Member 1: PR2 colocatedWith PR1 <br>
    * Member 2: PR2 is not colocated <br>
    * Should throw IllegalStateException
-   * 
-   * @throws Throwable
+   *
    */
-  @Category(FlakyTest.class) // GEODE-1698
   @Test
   public void testColocationPartitionedRegionWithNullColocationSpecifiedOnOneNode()
       throws Throwable {
@@ -1426,8 +1425,7 @@ public class PRColocationDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Confirm that the redundancy must be the same for colocated partitioned regions
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testRedundancyRestriction() throws Exception {
@@ -1461,8 +1459,7 @@ public class PRColocationDUnitTest extends JUnit4CacheTestCase {
   /**
    * Tests to make sure that a VM will not make copies of any buckets for a region until all of the
    * colocated regions are created.
-   * 
-   * @throws Throwable
+   *
    */
   @Test
   public void testColocatedPRRedundancyRecovery() throws Throwable {
@@ -1610,6 +1607,17 @@ public class PRColocationDUnitTest extends JUnit4CacheTestCase {
     accessor.invoke(() -> PRColocationDUnitTest.putData_KeyBasedPartitionResolver());
 
     accessor.invoke(() -> PRColocationDUnitTest.executeFunction());
+  }
+
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties result = super.getDistributedSystemProperties();
+    result.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.internal.cache.execute.**" + ";org.apache.geode.test.dunit.**"
+            + ";org.apache.geode.test.junit.**"
+            + ";org.apache.geode.internal.cache.execute.data.CustId"
+            + ";org.apache.geode.internal.cache.execute.data.Customer");
+    return result;
   }
 
   @Test
@@ -1764,11 +1772,10 @@ public class PRColocationDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test for hang condition observed with the PRHARedundancyProvider.createMissingBuckets code.
-   * 
+   *
    * A parent region is populated with buckets. Then the child region is created simultaneously on
    * several nodes.
-   * 
-   * @throws Throwable
+   *
    */
   @Test
   public void testSimulaneousChildRegionCreation() throws Throwable {

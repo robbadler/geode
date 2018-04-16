@@ -15,6 +15,7 @@
 package org.apache.geode.management.internal.cli.remote;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.geode.management.internal.cli.CommandResponseWriter;
@@ -22,15 +23,14 @@ import org.apache.geode.management.internal.cli.GfshParser;
 import org.apache.geode.management.internal.cli.shell.Gfsh;
 
 /**
- * 
+ *
  * @since GemFire 7.0
  */
 public class CommandExecutionContext {
   // ThreadLocal variables that can be uses by commands
-  private static final ThreadLocal<Map<String, String>> ENV =
-      new ThreadLocal<Map<String, String>>();
-  private static final ThreadLocal<Boolean> FROM_SHELL = new ThreadLocal<Boolean>();
-  private static final ThreadLocal<byte[][]> SHELL_BYTES_DATA = new ThreadLocal<byte[][]>();
+  private static final ThreadLocal<Map<String, String>> ENV = new ThreadLocal<>();
+  private static final ThreadLocal<Boolean> FROM_SHELL = new ThreadLocal<>();
+  private static final ThreadLocal<List<String>> SHELL_FILEPATH = new ThreadLocal<>();
 
   private static final WrapperThreadLocal<CommandResponseWriter> WRITER_WRAPPER =
       new WrapperThreadLocal<CommandResponseWriter>() {
@@ -48,10 +48,6 @@ public class CommandExecutionContext {
     }
     return propertyValue != null ? propertyValue : defaultValue;
   }
-  // Enable when "use region" command is required. See #46110
-  // public static String getShellContextPath() {
-  // return getShellEnvProperty(CliConstants.ENV_APP_CONTEXT_PATH, null);
-  // }
 
   public static int getShellFetchSize() {
     int fetchSize = Gfsh.DEFAULT_APP_FETCH_SIZE;
@@ -75,26 +71,22 @@ public class CommandExecutionContext {
     }
   }
 
-  // TODO - Abhishek make this protected & move caller code of this method
-  // from MemberMBeanBridge to MemberCommandService
   public static void setShellEnv(Map<String, String> env) {
     ENV.set(env);
   }
 
-  public static byte[][] getBytesFromShell() {
-    return SHELL_BYTES_DATA.get();
+  public static List<String> getFilePathFromShell() {
+    return SHELL_FILEPATH.get();
   }
 
-  public static void setBytesFromShell(byte[][] data) {
-    SHELL_BYTES_DATA.set(data);
+  public static void setFilePathToShell(List<String> data) {
+    SHELL_FILEPATH.set(data);
   }
 
   public static boolean isShellRequest() {
     return FROM_SHELL.get() != null && FROM_SHELL.get();
   }
 
-  // TODO - Abhishek make this protected & move caller code of this method
-  // from MemberMBeanBridge to MemberCommandService
   public static void setShellRequest() {
     FROM_SHELL.set(true);
   }
@@ -119,7 +111,7 @@ public class CommandExecutionContext {
     ENV.set(null);
 
     FROM_SHELL.set(false);
-    SHELL_BYTES_DATA.set(null);
+    SHELL_FILEPATH.set(null);
     WRITER_WRAPPER.set(null);
   }
 }

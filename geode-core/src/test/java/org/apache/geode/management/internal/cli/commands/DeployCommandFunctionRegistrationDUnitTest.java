@@ -17,7 +17,6 @@ package org.apache.geode.management.internal.cli.commands;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
-import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -34,14 +33,15 @@ import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.test.compiler.JarBuilder;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
 import org.apache.geode.test.dunit.rules.MemberVM;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.GfshTest;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 import org.apache.geode.test.junit.rules.serializable.SerializableTemporaryFolder;
 
-@Category(DistributedTest.class)
-public class DeployCommandFunctionRegistrationDUnitTest implements Serializable {
+@Category({DistributedTest.class, GfshTest.class})
+public class DeployCommandFunctionRegistrationDUnitTest {
   private MemberVM locator;
   private MemberVM server;
 
@@ -49,10 +49,10 @@ public class DeployCommandFunctionRegistrationDUnitTest implements Serializable 
   public SerializableTemporaryFolder temporaryFolder = new SerializableTemporaryFolder();
 
   @Rule
-  public LocatorServerStartupRule lsRule = new LocatorServerStartupRule();
+  public ClusterStartupRule lsRule = new ClusterStartupRule();
 
   @Rule
-  public transient GfshShellConnectionRule gfshConnector = new GfshShellConnectionRule();
+  public transient GfshCommandRule gfshConnector = new GfshCommandRule();
 
   @Before
   public void setup() throws Exception {
@@ -71,12 +71,11 @@ public class DeployCommandFunctionRegistrationDUnitTest implements Serializable 
     File outputJar = new File(temporaryFolder.getRoot(), "output.jar");
     jarBuilder.buildJar(outputJar, source);
 
-    gfshConnector.executeAndVerifyCommand("deploy --jar=" + outputJar.getCanonicalPath());
+    gfshConnector.executeAndAssertThat("deploy --jar=" + outputJar.getCanonicalPath())
+        .statusIsSuccess();
     server.invoke(() -> assertThatCanLoad(
         "org.apache.geode.management.internal.deployment.ImplementsFunction"));
-    server.invoke(() -> assertThatFunctionHasVersion(
-        "org.apache.geode.management.internal.deployment.ImplementsFunction",
-        "ImplementsFunctionResult"));
+    server.invoke(() -> assertThatFunctionHasVersion("myTestFunction", "ImplementsFunctionResult"));
   }
 
   @Test
@@ -88,7 +87,8 @@ public class DeployCommandFunctionRegistrationDUnitTest implements Serializable 
     File outputJar = new File(temporaryFolder.getRoot(), "output.jar");
     jarBuilder.buildJar(outputJar, source);
 
-    gfshConnector.executeAndVerifyCommand("deploy --jar=" + outputJar.getCanonicalPath());
+    gfshConnector.executeAndAssertThat("deploy --jar=" + outputJar.getCanonicalPath())
+        .statusIsSuccess();
     server.invoke(() -> assertThatCanLoad(
         "org.apache.geode.management.internal.deployment.ExtendsFunctionAdapter"));
     server.invoke(() -> assertThatFunctionHasVersion(
@@ -104,7 +104,7 @@ public class DeployCommandFunctionRegistrationDUnitTest implements Serializable 
     return new File(resourceUri);
   }
 
-  private void assertThatFunctionHasVersion(String functionId, String version) {
+  private static void assertThatFunctionHasVersion(String functionId, String version) {
     GemFireCacheImpl gemFireCache = GemFireCacheImpl.getInstance();
     DistributedSystem distributedSystem = gemFireCache.getDistributedSystem();
     Execution execution = FunctionService.onMember(distributedSystem.getDistributedMember());
@@ -112,7 +112,7 @@ public class DeployCommandFunctionRegistrationDUnitTest implements Serializable 
     assertThat(result.get(0)).isEqualTo(version);
   }
 
-  private void assertThatCanLoad(String className) throws ClassNotFoundException {
+  private static void assertThatCanLoad(String className) throws ClassNotFoundException {
     assertThat(ClassPathLoader.getLatest().forName(className)).isNotNull();
   }
 }

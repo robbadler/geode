@@ -21,9 +21,6 @@
 package org.apache.geode.cache.query.data;
 
 import java.io.*;
-
-import org.apache.geode.*; // for DataSerializable
-
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -32,8 +29,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.geode.*;
 import org.apache.geode.internal.Assert;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.pdx.PdxReader;
 import org.apache.geode.pdx.PdxSerializable;
 import org.apache.geode.pdx.PdxWriter;
@@ -224,7 +221,7 @@ public class PortfolioPdx implements Serializable, PdxSerializable {
 
   /**
    * Getter for property type.S
-   * 
+   *
    * @return Value of property type.
    */
   public String getType() {
@@ -298,5 +295,3 @@ public class PortfolioPdx implements Serializable, PdxSerializable {
   }
 
 }
-
-

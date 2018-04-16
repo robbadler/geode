@@ -39,7 +39,7 @@ To receive entry events in the client from the server:
     Register interest in all keys, a key list, individual keys, or by comparing key strings to regular expressions. By default, no entries are registered to receive updates. Specify whether the server is to send values with entry update events. Interest registration is only available through the API.
 
     1.  Get an instance of the region where you want to register interest.
-    2.  Use the regions's `registerInterest`\* methods to specify the entries you want. Examples:
+    2.  Use the region's `registerInterest`\* methods to specify the entries you want. Examples:
 
         ``` pre
         // Register interest in a single key and download its entry 
@@ -55,11 +55,11 @@ To receive entry events in the client from the server:
         list.add("key-2"); 
         list.add("key-3"); 
         list.add("key-4");
-        region2.registerInterest(list, InterestResultPolicy.NONE, false); 
+        region2.registerInterestForKeys(list, InterestResultPolicy.NONE, false); 
                             
         // Register interest in all keys and download all available keys now
         Region region3 = . . . ;
-        region3.registerInterest("ALL_KEYS", InterestResultPolicy.KEYS); 
+        region3.registerInterestForAllKeys(InterestResultPolicy.KEYS); 
                             
         // Register Interest in all keys matching a regular expression 
         Region region1 = . . . ; 
@@ -72,10 +72,10 @@ To receive entry events in the client from the server:
     4.  To have events enqueued for your clients during client downtime, configure durable client/server messaging.
     5.  Write any continuous queries (CQs) that you want to run to receive continuously streaming updates to client queries. CQ events do not update the client cache. If you have dependencies between CQs and/or interest registrations, so that you want the two types of subscription events to arrive as closely together on the client, use a single server pool for everything. Using different pools can lead to time differences in the delivery of events because the pools might use different servers to process and deliver the event messages.
 
--   **[Configuring Highly Available Servers](../../developing/events/configuring_highly_available_servers.html)**
+-   **[Configuring Highly Available Servers](configuring_highly_available_servers.html)**
 
--   **[Implementing Durable Client/Server Messaging](../../developing/events/implementing_durable_client_server_messaging.html)**
+-   **[Implementing Durable Client/Server Messaging](implementing_durable_client_server_messaging.html)**
 
--   **[Tuning Client/Server Event Messaging](../../developing/events/tune_client_server_event_messaging.html)**
+-   **[Tuning Client/Server Event Messaging](tune_client_server_event_messaging.html)**
 
 

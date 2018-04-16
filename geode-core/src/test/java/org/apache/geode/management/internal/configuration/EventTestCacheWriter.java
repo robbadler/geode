@@ -16,13 +16,11 @@
 
 package org.apache.geode.management.internal.configuration;
 
-import org.apache.geode.cache.CacheWriter;
+import java.io.Serializable;
+
 import org.apache.geode.cache.CacheWriterException;
 import org.apache.geode.cache.EntryEvent;
-import org.apache.geode.cache.RegionEvent;
 import org.apache.geode.cache.util.CacheWriterAdapter;
-
-import java.io.Serializable;
 
 public class EventTestCacheWriter extends CacheWriterAdapter implements Serializable {
   public static boolean hasResult = false;

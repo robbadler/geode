@@ -22,7 +22,6 @@ import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.cache.lucene.internal.LuceneQueryImpl;
 import org.apache.geode.cache.persistence.PartitionOfflineException;
-import org.apache.geode.internal.cache.PrimaryBucketException;
 
 /**
  * <p>
@@ -56,7 +55,7 @@ public interface LuceneQuery<K, V> {
    *         Lucene query goes offline.
    * @throws CancelException if a cancel is in progress while the Lucene query was being executed.
    */
-  public Collection<K> findKeys() throws LuceneQueryException;
+  Collection<K> findKeys() throws LuceneQueryException;
 
   /**
    * Execute the query and return the region values that match this query, up to the limit specified
@@ -71,7 +70,7 @@ public interface LuceneQuery<K, V> {
    *         Lucene query goes offline.
    * @throws CancelException if a cancel is in progress while the Lucene query was being executed.
    */
-  public Collection<V> findValues() throws LuceneQueryException;
+  Collection<V> findValues() throws LuceneQueryException;
 
   /**
    * Execute the query and return a list of {@link LuceneResultStruct}s that match this query, up to
@@ -87,7 +86,7 @@ public interface LuceneQuery<K, V> {
    *         Lucene query goes offline.
    * @throws CancelException if a cancel is in progress while the Lucene query was being executed.
    */
-  public List<LuceneResultStruct<K, V>> findResults() throws LuceneQueryException;
+  List<LuceneResultStruct<K, V>> findResults() throws LuceneQueryException;
 
   /**
    * Execute the query and get a {@link PageableLuceneQueryResults}. The
@@ -103,7 +102,7 @@ public interface LuceneQuery<K, V> {
    *         Lucene query goes offline.
    * @throws CancelException if a cancel is in progress while the Lucene query was being executed.
    */
-  public PageableLuceneQueryResults<K, V> findPages() throws LuceneQueryException;
+  PageableLuceneQueryResults<K, V> findPages() throws LuceneQueryException;
 
   /**
    * Gets the page size setting of current query. This page size is set while creating
@@ -111,7 +110,7 @@ public interface LuceneQuery<K, V> {
    *
    * @return int value representing the page size of the current query
    */
-  public int getPageSize();
+  int getPageSize();
 
   /**
    * Get limit size setting of current query. This value is the maximum number of results that can
@@ -120,6 +119,6 @@ public interface LuceneQuery<K, V> {
    *
    * @return int value representing the limit of the current query
    */
-  public int getLimit();
+  int getLimit();
 
 }

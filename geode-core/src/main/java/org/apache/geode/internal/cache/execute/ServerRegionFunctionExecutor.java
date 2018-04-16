@@ -18,7 +18,6 @@ import java.util.Set;
 
 import org.apache.logging.log4j.Logger;
 
-import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.client.internal.ProxyCache;
 import org.apache.geode.cache.client.internal.ServerRegionProxy;
@@ -38,7 +37,7 @@ import org.apache.geode.internal.logging.LogService;
 
 /**
  * Executes Function with FunctionService#onRegion(Region region) in client server mode.
- * 
+ *
  * @see FunctionService#onRegion(Region) *
  * @since GemFire 5.8 LA
  */
@@ -148,7 +147,7 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
     try {
       if (proxyCache != null) {
         if (this.proxyCache.isClosed()) {
-          throw new CacheClosedException("Cache is closed for this user.");
+          throw proxyCache.getCacheClosedException("Cache is closed for this user.");
         }
         UserAttributes.userAttributes.set(this.proxyCache.getUserAttributes());
       }
@@ -175,7 +174,7 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
     try {
       if (proxyCache != null) {
         if (this.proxyCache.isClosed()) {
-          throw new CacheClosedException("Cache is closed for this user.");
+          throw proxyCache.getCacheClosedException("Cache is closed for this user.");
         }
         UserAttributes.userAttributes.set(this.proxyCache.getUserAttributes());
       }
@@ -371,91 +370,6 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
       boolean optimizeForWrite = ((functionAttributes[2] == 1) ? true : false);
       return executeFunction(functionName, hasResult, isHA, optimizeForWrite);
     } else {
-      return executeFunction(functionObject);
-    }
-  }
-
-  @Override
-  public ResultCollector execute(String functionName, boolean hasResult) throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    this.isFnSerializationReqd = false;
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      return executeFunction(functionName, hasResult, hasResult, false);
-    } else {
-      byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-          functionObject.hasResult(), functionObject.optimizeForWrite());
-
-      byte functionState = AbstractExecution.getFunctionState(hasResult, hasResult, false);
-      if (registeredFunctionState != functionState) {
-        throw new FunctionException(
-            LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-                .toLocalizedString(functionName));
-      }
-      return executeFunction(functionObject);
-    }
-  }
-
-  @Override
-  public ResultCollector execute(String functionName, boolean hasResult, boolean isHA)
-      throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    this.isFnSerializationReqd = false;
-    if (isHA && !hasResult) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH.toLocalizedString());
-    }
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      return executeFunction(functionName, hasResult, isHA, false);
-    } else {
-      byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-          functionObject.hasResult(), functionObject.optimizeForWrite());
-
-      byte functionState = AbstractExecution.getFunctionState(isHA, hasResult, false);
-      if (registeredFunctionState != functionState) {
-        throw new FunctionException(
-            LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-                .toLocalizedString(functionName));
-      }
-      return executeFunction(functionObject);
-    }
-  }
-
-  @Override
-  public ResultCollector execute(String functionName, boolean hasResult, boolean isHA,
-      boolean isOptimizeForWrite) throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    this.isFnSerializationReqd = false;
-    if (isHA && !hasResult) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH.toLocalizedString());
-    }
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      return executeFunction(functionName, hasResult, isHA, isOptimizeForWrite);
-    } else {
-      byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-          functionObject.hasResult(), functionObject.optimizeForWrite());
-
-      byte functionState = AbstractExecution.getFunctionState(isHA, hasResult, isOptimizeForWrite);
-      if (registeredFunctionState != functionState) {
-        throw new FunctionException(
-            LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-                .toLocalizedString(functionName));
-      }
       return executeFunction(functionObject);
     }
   }

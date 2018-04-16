@@ -53,7 +53,7 @@ import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.asyncqueue.internal.AsyncEventQueueImpl;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.AbstractBucketRegionQueue;
@@ -70,7 +70,6 @@ import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.InternalRegionArguments;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
-import org.apache.geode.internal.cache.PartitionedRegionDataStore;
 import org.apache.geode.internal.cache.PartitionedRegionHelper;
 import org.apache.geode.internal.cache.PrimaryBucketException;
 import org.apache.geode.internal.cache.RegionQueue;
@@ -87,6 +86,9 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.size.SingleObjectSizer;
 import org.apache.geode.internal.util.concurrent.StoppableCondition;
 import org.apache.geode.internal.util.concurrent.StoppableReentrantLock;
+import org.apache.geode.management.ManagementService;
+import org.apache.geode.management.internal.beans.AsyncEventQueueMBean;
+import org.apache.geode.management.internal.beans.GatewaySenderMBean;
 
 public class ParallelGatewaySenderQueue implements RegionQueue {
 
@@ -220,9 +222,9 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
     }
   }
 
-  final protected int index;
+  protected final int index;
 
-  final protected int nDispatcher;
+  protected final int nDispatcher;
 
   private MetaRegionFactory metaRegionFactory;
 
@@ -517,6 +519,9 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
           if (isAccessor)
             return; // return from here if accessor node
 
+          // Add the overflow statistics to the mbean
+          addOverflowStatisticsToMBean(cache, prQ);
+
           // Wait for buckets to be recovered.
           prQ.shadowPRWaitForBucketRecovery();
 
@@ -552,6 +557,34 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
       }
       afterRegionAdd(userPR);
       this.sender.getLifeCycleLock().writeLock().unlock();
+    }
+  }
+
+  private void addOverflowStatisticsToMBean(Cache cache, PartitionedRegion prQ) {
+    // Get the appropriate mbean and add the eviction and disk region stats to it
+    ManagementService service = ManagementService.getManagementService(cache);
+    if (this.sender.getId().contains(AsyncEventQueueImpl.ASYNC_EVENT_QUEUE_PREFIX)) {
+      AsyncEventQueueMBean bean = (AsyncEventQueueMBean) service.getLocalAsyncEventQueueMXBean(
+          AsyncEventQueueImpl.getAsyncEventQueueIdFromSenderId(this.sender.getId()));
+
+      if (bean != null) {
+        // Add the eviction stats
+        bean.getBridge().addOverflowStatistics(prQ.getEvictionStatistics());
+
+        // Add the disk region stats
+        bean.getBridge().addOverflowStatistics(prQ.getDiskRegionStats().getStats());
+      }
+    } else {
+      GatewaySenderMBean bean =
+          (GatewaySenderMBean) service.getLocalGatewaySenderMXBean(this.sender.getId());
+
+      if (bean != null) {
+        // Add the eviction stats
+        bean.getBridge().addOverflowStatistics(prQ.getEvictionStatistics());
+
+        // Add the disk region stats
+        bean.getBridge().addOverflowStatistics(prQ.getDiskRegionStats().getStats());
+      }
     }
   }
 
@@ -1100,6 +1133,21 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
     }
   }
 
+  public void sendQueueRemovalMesssageForDroppedEvent(PartitionedRegion prQ, int bucketId,
+      Object key) {
+    final HashMap<String, Map<Integer, List>> temp = new HashMap<String, Map<Integer, List>>();
+    Map bucketIdToDispatchedKeys = new ConcurrentHashMap();
+    temp.put(prQ.getFullPath(), bucketIdToDispatchedKeys);
+    addRemovedEventToMap(bucketIdToDispatchedKeys, bucketId, key);
+    Set<InternalDistributedMember> recipients =
+        removalThread.getAllRecipients(sender.getCache(), temp);
+    if (!recipients.isEmpty()) {
+      ParallelQueueRemovalMessage pqrm = new ParallelQueueRemovalMessage(temp);
+      pqrm.setRecipients(recipients);
+      sender.getCache().getInternalDistributedSystem().getDistributionManager().putOutgoing(pqrm);
+    }
+  }
+
   private void addRemovedEventToMap(Map bucketIdToDispatchedKeys, int bucketId, Object key) {
     List dispatchedKeys = (List) bucketIdToDispatchedKeys.get(bucketId);
     if (dispatchedKeys == null) {
@@ -1372,12 +1420,28 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
     return localSize(false);
   }
 
+  public String displayContent() {
+    int size = 0;
+    StringBuffer sb = new StringBuffer();
+    for (PartitionedRegion prQ : this.userRegionNameToshadowPRMap.values()) {
+      if (prQ != null && prQ.getDataStore() != null) {
+        Set<BucketRegion> allLocalBuckets = prQ.getDataStore().getAllLocalBucketRegions();
+        for (BucketRegion br : allLocalBuckets) {
+          if (br.size() > 0) {
+            sb.append("bucketId=" + br.getId() + ":" + br.keySet() + ";");
+          }
+        }
+      }
+    }
+    return sb.toString();
+  }
+
   public int localSize(boolean includeSecondary) {
     int size = 0;
     for (PartitionedRegion prQ : this.userRegionNameToshadowPRMap.values()) {
       if (prQ != null && prQ.getDataStore() != null) {
         if (includeSecondary) {
-          size += prQ.getDataStore().getSizeOfLocalBuckets(true);
+          size += prQ.getDataStore().getSizeOfLocalBuckets();
         } else {
           size += prQ.getDataStore().getSizeOfLocalPrimaryBuckets();
         }
@@ -1544,8 +1608,7 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
      * Constructor : Creates and initializes the thread
      */
     public BatchRemovalThread(InternalCache c, ParallelGatewaySenderQueue queue) {
-      super("BatchRemovalThread");
-      // TODO:REF: Name for this thread ?
+      super("BatchRemovalThread for GatewaySender_" + queue.sender.getId() + "_" + queue.index);
       this.setDaemon(true);
       this.cache = c;
       this.parallelQueue = queue;
@@ -1565,7 +1628,7 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
     public void run() {
       try {
         InternalDistributedSystem ids = cache.getInternalDistributedSystem();
-        DM dm = ids.getDistributionManager();
+        DistributionManager dm = ids.getDistributionManager();
         for (;;) {
           try { // be somewhat tolerant of failures
             if (checkCancelled()) {

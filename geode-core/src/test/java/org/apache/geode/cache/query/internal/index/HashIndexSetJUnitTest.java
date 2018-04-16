@@ -72,7 +72,7 @@ public class HashIndexSetJUnitTest {
   /**
    * we are "indexed" on indexKey. Equality of portfolios is based on ID indexKeys are based on 0 ->
    * numEntries IDs are startID -> startID + numEntries
-   * 
+   *
    * @param numToCreate how many portfolios to create
    * @param startID the ID value to start incrementing from
    */
@@ -493,7 +493,7 @@ public class HashIndexSetJUnitTest {
 
     @Override
     public Object answer(InvocationOnMock invocation) throws Throwable {
-      Object evalOn = invocation.getArgumentAt(0, Object.class);
+      Object evalOn = invocation.getArgument(0);
       if (evalOn instanceof Portfolio) {
         Portfolio p = (Portfolio) evalOn;
         return p.indexKey;

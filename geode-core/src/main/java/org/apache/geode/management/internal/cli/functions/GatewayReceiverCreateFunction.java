@@ -17,29 +17,26 @@ package org.apache.geode.management.internal.cli.functions;
 import java.util.HashMap;
 import java.util.Map;
 
+import joptsimple.internal.Strings;
 import org.apache.logging.log4j.Logger;
 
-import org.apache.geode.LogWriter;
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.execute.FunctionAdapter;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.ResultSender;
 import org.apache.geode.cache.wan.GatewayReceiver;
 import org.apache.geode.cache.wan.GatewayReceiverFactory;
 import org.apache.geode.cache.wan.GatewayTransportFilter;
 import org.apache.geode.internal.ClassPathLoader;
-import org.apache.geode.internal.InternalEntity;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 import org.apache.geode.internal.cache.xmlcache.CacheXml;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.management.internal.configuration.domain.XmlEntity;
 
 /**
  * The function to a create GatewayReceiver using given configuration parameters.
  */
-public class GatewayReceiverCreateFunction extends FunctionAdapter implements InternalEntity {
+public class GatewayReceiverCreateFunction implements InternalFunction {
 
   private static final Logger logger = LogService.getLogger();
 
@@ -53,9 +50,8 @@ public class GatewayReceiverCreateFunction extends FunctionAdapter implements In
   public void execute(FunctionContext context) {
     ResultSender<Object> resultSender = context.getResultSender();
 
-    Cache cache = CacheFactory.getAnyInstance();
-    String memberNameOrId =
-        CliUtil.getMemberNameOrId(cache.getDistributedSystem().getDistributedMember());
+    Cache cache = context.getCache();
+    String memberNameOrId = context.getMemberName();
 
     GatewayReceiverFunctionArgs gatewayReceiverCreateArgs =
         (GatewayReceiverFunctionArgs) context.getArguments();
@@ -80,41 +76,23 @@ public class GatewayReceiverCreateFunction extends FunctionAdapter implements In
           CliStrings.format(
               CliStrings.CREATE_GATEWAYRECEIVER__MSG__GATEWAYRECEIVER_CREATED_ON_0_ONPORT_1,
               new Object[] {memberNameOrId, createdGatewayReceiver.getPort()})));
-
-
     } catch (IllegalStateException e) {
-      resultSender.lastResult(handleException(memberNameOrId, e.getMessage(), e));
+      // no need to log the stack trace
+      resultSender.lastResult(new CliFunctionResult(memberNameOrId, e, e.getMessage()));
     } catch (Exception e) {
-      String exceptionMsg = e.getMessage();
-      if (exceptionMsg == null) {
-        exceptionMsg = CliUtil.stackTraceAsString(e);
-      }
-      resultSender.lastResult(handleException(memberNameOrId, exceptionMsg, e));
+      logger.error(e.getMessage(), e);
+      resultSender.lastResult(new CliFunctionResult(memberNameOrId, e, e.getMessage()));
     }
 
-  }
-
-  private CliFunctionResult handleException(final String memberNameOrId, final String exceptionMsg,
-      final Exception e) {
-    if (e != null && logger.isDebugEnabled()) {
-      logger.debug(e.getMessage(), e);
-    }
-    if (exceptionMsg != null) {
-      return new CliFunctionResult(memberNameOrId, false, exceptionMsg);
-    }
-
-    return new CliFunctionResult(memberNameOrId);
   }
 
   /**
    * GatewayReceiver creation happens here.
-   * 
-   * @param cache
-   * @param gatewayReceiverCreateArgs
-   * @return GatewayReceiver
+   *
    */
-  private static GatewayReceiver createGatewayReceiver(Cache cache,
-      GatewayReceiverFunctionArgs gatewayReceiverCreateArgs) {
+  GatewayReceiver createGatewayReceiver(Cache cache,
+      GatewayReceiverFunctionArgs gatewayReceiverCreateArgs)
+      throws IllegalAccessException, InstantiationException, ClassNotFoundException {
 
     GatewayReceiverFactory gatewayReceiverFactory = cache.createGatewayReceiverFactory();
 
@@ -151,53 +129,26 @@ public class GatewayReceiverCreateFunction extends FunctionAdapter implements In
     String[] gatewayTransportFilters = gatewayReceiverCreateArgs.getGatewayTransportFilters();
     if (gatewayTransportFilters != null) {
       for (String gatewayTransportFilter : gatewayTransportFilters) {
-        Class gatewayTransportFilterKlass = forName(gatewayTransportFilter,
-            CliStrings.CREATE_GATEWAYRECEIVER__GATEWAYTRANSPORTFILTER);
         gatewayReceiverFactory.addGatewayTransportFilter(
-            (GatewayTransportFilter) newInstance(gatewayTransportFilterKlass,
-                CliStrings.CREATE_GATEWAYRECEIVER__GATEWAYTRANSPORTFILTER));
+            (GatewayTransportFilter) newInstance(gatewayTransportFilter));
       }
+    }
+
+    String hostnameForSenders = gatewayReceiverCreateArgs.getHostnameForSenders();
+    if (hostnameForSenders != null) {
+      gatewayReceiverFactory.setHostnameForSenders(hostnameForSenders);
     }
     return gatewayReceiverFactory.create();
   }
 
-  @SuppressWarnings("unchecked")
-  private static Class forName(String classToLoadName, String neededFor) {
-    Class loadedClass = null;
-    try {
-      // Set Constraints
-      ClassPathLoader classPathLoader = ClassPathLoader.getLatest();
-      if (classToLoadName != null && !classToLoadName.isEmpty()) {
-        loadedClass = classPathLoader.forName(classToLoadName);
-      }
-    } catch (ClassNotFoundException e) {
-      throw new RuntimeException(
-          CliStrings.format(CliStrings.CREATE_REGION__MSG__COULDNOT_FIND_CLASS_0_SPECIFIED_FOR_1,
-              new Object[] {classToLoadName, neededFor}),
-          e);
-    } catch (ClassCastException e) {
-      throw new RuntimeException(CliStrings.format(
-          CliStrings.CREATE_REGION__MSG__CLASS_SPECIFIED_FOR_0_SPECIFIED_FOR_1_IS_NOT_OF_EXPECTED_TYPE,
-          new Object[] {classToLoadName, neededFor}), e);
+
+  private Object newInstance(String className)
+      throws ClassNotFoundException, IllegalAccessException, InstantiationException {
+    if (Strings.isNullOrEmpty(className)) {
+      return null;
     }
 
-    return loadedClass;
-  }
-
-  private static Object newInstance(Class klass, String neededFor) {
-    Object instance = null;
-    try {
-      instance = klass.newInstance();
-    } catch (InstantiationException e) {
-      throw new RuntimeException(CliStrings.format(
-          CliStrings.CREATE_GATEWAYSENDER__MSG__COULDNOT_INSTANTIATE_CLASS_0_SPECIFIED_FOR_1,
-          new Object[] {klass, neededFor}), e);
-    } catch (IllegalAccessException e) {
-      throw new RuntimeException(CliStrings.format(
-          CliStrings.CREATE_GATEWAYSENDER__MSG__COULDNOT_ACCESS_CLASS_0_SPECIFIED_FOR_1,
-          new Object[] {klass, neededFor}), e);
-    }
-    return instance;
+    return ClassPathLoader.getLatest().forName(className).newInstance();
   }
 
   @Override

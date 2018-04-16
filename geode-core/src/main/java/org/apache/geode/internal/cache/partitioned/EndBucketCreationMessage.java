@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Collection;
 
 import org.apache.geode.DataSerializer;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.ReplyProcessor21;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
@@ -32,7 +32,7 @@ import org.apache.geode.internal.cache.PartitionedRegion;
  * This message is sent to a member to make it attempt to become primary. This message is sent at
  * the end of PRHARedundancyProvider .createBucketAtomically, because the buckets created during
  * that time do not volunteer for primary until receiving this message.
- * 
+ *
  */
 public class EndBucketCreationMessage extends PartitionMessage {
 
@@ -53,9 +53,8 @@ public class EndBucketCreationMessage extends PartitionMessage {
 
   /**
    * Sends a message to make the recipient primary for the bucket.
-   * 
-   * @param acceptedMembers
-   * 
+   *
+   *
    * @param newPrimary the member to to become primary
    * @param pr the PartitionedRegion of the bucket
    * @param bid the bucket to become primary for
@@ -68,6 +67,7 @@ public class EndBucketCreationMessage extends PartitionMessage {
     ReplyProcessor21 response = new ReplyProcessor21(pr.getSystem(), acceptedMembers);
     EndBucketCreationMessage msg =
         new EndBucketCreationMessage(acceptedMembers, pr.getPRId(), response, bid, newPrimary);
+    msg.setTransactionDistributed(pr.getCache().getTxManager().isDistributed());
 
     pr.getDistributionManager().putOutgoing(msg);
   }
@@ -80,7 +80,7 @@ public class EndBucketCreationMessage extends PartitionMessage {
   public int getProcessorType() {
     // use the waiting pool because operateOnPartitionedRegion will
     // try to get a dlock
-    return DistributionManager.WAITING_POOL_EXECUTOR;
+    return ClusterDistributionManager.WAITING_POOL_EXECUTOR;
   }
 
   @Override
@@ -90,8 +90,13 @@ public class EndBucketCreationMessage extends PartitionMessage {
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion region,
-      long startTime) throws ForceReattemptException {
+  public boolean canParticipateInTransaction() {
+    return false;
+  }
+
+  @Override
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm,
+      PartitionedRegion region, long startTime) throws ForceReattemptException {
 
     // this is executing in the WAITING_POOL_EXECUTOR
 

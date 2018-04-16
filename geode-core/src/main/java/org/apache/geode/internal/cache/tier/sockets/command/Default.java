@@ -12,23 +12,21 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
+
+import java.io.IOException;
 
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.MessageType;
 import org.apache.geode.internal.cache.tier.sockets.*;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
-
-import java.io.IOException;
+import org.apache.geode.internal.security.SecurityService;
 
 
 public class Default extends BaseCommand {
 
-  private final static Default singleton = new Default();
+  private static final Default singleton = new Default();
 
   public static Command getCommand() {
     return singleton;
@@ -37,8 +35,8 @@ public class Default extends BaseCommand {
   private Default() {}
 
   @Override
-  public void cmdExecute(Message clientMessage, ServerConnection serverConnection, long start)
-      throws IOException {
+  public void cmdExecute(final Message clientMessage, final ServerConnection serverConnection,
+      final SecurityService securityService, long start) throws IOException {
     // requiresResponse = true; NOT NEEDED... ALWAYS SEND ERROR RESPONSE
 
     logger.fatal(

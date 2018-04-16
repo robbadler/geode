@@ -14,15 +14,12 @@
  */
 package org.apache.geode.modules.session.catalina.internal;
 
-import org.apache.geode.DataSerializable;
-import org.apache.geode.DataSerializer;
-import org.apache.geode.Instantiator;
-import org.apache.geode.modules.session.catalina.DeltaSession;
-import org.apache.geode.modules.session.catalina.DeltaSessionInterface;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+
+import org.apache.geode.DataSerializer;
+import org.apache.geode.modules.session.catalina.DeltaSessionInterface;
 
 
 @SuppressWarnings("serial")
@@ -52,17 +49,8 @@ public class DeltaSessionDestroyAttributeEvent implements DeltaSessionAttributeE
     DataSerializer.writeString(this.attributeName, out);
   }
 
-  public static void registerInstantiator(int id) {
-    Instantiator.register(new Instantiator(DeltaSessionDestroyAttributeEvent.class, id) {
-      public DataSerializable newInstance() {
-        return new DeltaSessionDestroyAttributeEvent();
-      }
-    });
-  }
-
   public String toString() {
     return new StringBuilder().append("DeltaSessionDestroyAttributeEvent[").append("attributeName=")
         .append(this.attributeName).append("]").toString();
   }
 }
-

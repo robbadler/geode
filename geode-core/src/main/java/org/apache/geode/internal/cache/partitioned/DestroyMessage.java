@@ -28,7 +28,7 @@ import org.apache.geode.cache.EntryExistsException;
 import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.Operation;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DirectReplyProcessor;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -61,14 +61,14 @@ import org.apache.geode.internal.offheap.annotations.Retained;
 
 /**
  * A class that specifies a destroy operation.
- * 
+ *
  * Note: The reason for different classes for Destroy and Invalidate is to prevent sending an extra
  * bit for every DestroyMessage to differentiate an invalidate versus a destroy. The assumption is
  * that these operations are used frequently, if they are not then it makes sense to fold the
  * destroy and the invalidate into the same message and use an extra bit to differentiate
- * 
+ *
  * @since GemFire 5.0
- * 
+ *
  */
 public class DestroyMessage extends PartitionMessageWithDirectReply {
 
@@ -163,7 +163,7 @@ public class DestroyMessage extends PartitionMessageWithDirectReply {
   /**
    * send a notification-only message to a set of listeners. The processor id is passed with the
    * message for reply message processing. This method does not wait on the processor.
-   * 
+   *
    * @param cacheOpReceivers receivers of associated bucket CacheOperationMessage
    * @param adjunctRecipients receivers that must get the event
    * @param filterRoutingInfo client routing information
@@ -177,6 +177,7 @@ public class DestroyMessage extends PartitionMessageWithDirectReply {
       DirectReplyProcessor processor) {
     DestroyMessage msg =
         new DestroyMessage(Collections.EMPTY_SET, true, r.getPRId(), processor, event, null);
+    msg.setTransactionDistributed(r.getCache().getTxManager().isDistributed());
     msg.versionTag = event.getVersionTag();
     return msg.relayToListeners(cacheOpReceivers, adjunctRecipients, filterRoutingInfo, event, r,
         processor);
@@ -186,7 +187,7 @@ public class DestroyMessage extends PartitionMessageWithDirectReply {
   /**
    * Sends a DestroyMessage {@link org.apache.geode.cache.Region#destroy(Object)}message to the
    * recipient
-   * 
+   *
    * @param recipient the recipient of the message
    * @param r the PartitionedRegion for which the destroy was performed
    * @param event the event causing this message
@@ -226,7 +227,7 @@ public class DestroyMessage extends PartitionMessageWithDirectReply {
    * indefinitely for the acknowledgement
    */
   @Override
-  protected boolean operateOnPartitionedRegion(DistributionManager dm, PartitionedRegion r,
+  protected boolean operateOnPartitionedRegion(ClusterDistributionManager dm, PartitionedRegion r,
       long startTime) throws EntryExistsException, DataLocationException {
     InternalDistributedMember eventSender = originalSender;
     if (eventSender == null) {
@@ -263,26 +264,17 @@ public class DestroyMessage extends PartitionMessageWithDirectReply {
         try {
           Integer bucket = Integer
               .valueOf(PartitionedRegionHelper.getHashKey(r, null, this.key, null, this.cbArg));
-          // try {
-          // // the event must show its true origin for cachewriter invocation
-          // event.setOriginRemote(true);
-          // event.setPartitionMessage(this);
-          // r.doCacheWriteBeforeDestroy(event);
-          // }
-          // finally {
-          // event.setOriginRemote(false);
-          // }
           event.setCausedByMessage(this);
           r.getDataView().destroyOnRemote(event, true/* cacheWrite */, this.expectedOldValue);
-          if (logger.isTraceEnabled(LogMarker.DM)) {
-            logger.trace(LogMarker.DM, "{} updated bucket: {} with key: {}", getClass().getName(),
-                bucket, this.key);
+          if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+            logger.trace(LogMarker.DM_VERBOSE, "{} updated bucket: {} with key: {}",
+                getClass().getName(), bucket, this.key);
           }
         } catch (CacheWriterException cwe) {
           sendReply(getSender(), this.processorId, dm, new ReplyException(cwe), r, startTime);
           return false;
         } catch (EntryNotFoundException eee) {
-          logger.trace(LogMarker.DM, "{}: operateOnRegion caught EntryNotFoundException",
+          logger.trace(LogMarker.DM_VERBOSE, "{}: operateOnRegion caught EntryNotFoundException",
               getClass().getName());
           ReplyMessage.send(getSender(), getProcessorId(), new ReplyException(eee),
               getReplySender(dm), r.isInternalRegion());
@@ -316,8 +308,8 @@ public class DestroyMessage extends PartitionMessageWithDirectReply {
   }
 
   @Override
-  protected void sendReply(InternalDistributedMember member, int procId, DM dm, ReplyException ex,
-      PartitionedRegion pr, long startTime) {
+  protected void sendReply(InternalDistributedMember member, int procId, DistributionManager dm,
+      ReplyException ex, PartitionedRegion pr, long startTime) {
     if (pr != null && startTime > 0) {
       pr.getPrStats().endPartitionMessagesProcessing(startTime);
     }
@@ -417,9 +409,8 @@ public class DestroyMessage extends PartitionMessageWithDirectReply {
 
   /**
    * Assists the toString method in reporting the contents of this message
-   * 
+   *
    * @see PartitionMessage#toString()
-   * @param buff
    */
   @Override
   protected void appendFields(StringBuilder buff) {
@@ -466,7 +457,7 @@ public class DestroyMessage extends PartitionMessageWithDirectReply {
   }
 
   @Override
-  protected boolean mayAddToMultipleSerialGateways(DistributionManager dm) {
+  protected boolean mayAddToMultipleSerialGateways(ClusterDistributionManager dm) {
     return _mayAddToMultipleSerialGateways(dm);
   }
 
@@ -496,18 +487,18 @@ public class DestroyMessage extends PartitionMessageWithDirectReply {
     }
 
     @Override
-    public void process(final DM dm, final ReplyProcessor21 rp) {
+    public void process(final DistributionManager dm, final ReplyProcessor21 rp) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "DestroyReplyMessage process invoking reply processor with processorId: {}",
             this.processorId);
       }
       // dm.getLogger().warning("RemotePutResponse processor is " +
       // ReplyProcessor21.getProcessor(this.processorId));
       if (rp == null) {
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.trace(LogMarker.DM, "DestroyReplyMessage processor not found");
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace(LogMarker.DM_VERBOSE, "DestroyReplyMessage processor not found");
         }
         return;
       }
@@ -523,8 +514,8 @@ public class DestroyMessage extends PartitionMessageWithDirectReply {
       }
       rp.process(this);
 
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.debug("{} processed {} ", rp, this);
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE, "{} processed {} ", rp, this);
       }
       dm.getStats().incReplyMessageTime(NanoTimer.getTime() - startTime);
     }
@@ -569,7 +560,7 @@ public class DestroyMessage extends PartitionMessageWithDirectReply {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.geode.distributed.internal.ReplyMessage#getInlineProcess()
      */
     @Override

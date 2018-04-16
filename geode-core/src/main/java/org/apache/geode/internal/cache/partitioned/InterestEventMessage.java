@@ -25,7 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.InterestRegistrationEvent;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionStats;
 import org.apache.geode.distributed.internal.HighPriorityDistributionMessage;
@@ -64,14 +64,15 @@ public class InterestEventMessage extends PartitionMessage {
 
   @Override
   public int getProcessorType() {
-    return DistributionManager.STANDARD_EXECUTOR;
+    return ClusterDistributionManager.STANDARD_EXECUTOR;
   }
 
   @Override
-  protected boolean operateOnPartitionedRegion(final DistributionManager dm, PartitionedRegion r,
-      long startTime) throws ForceReattemptException {
-    if (logger.isTraceEnabled(LogMarker.DM)) {
-      logger.debug("InterestEventMessage operateOnPartitionedRegion: {}", r.getFullPath());
+  protected boolean operateOnPartitionedRegion(final ClusterDistributionManager dm,
+      PartitionedRegion r, long startTime) throws ForceReattemptException {
+    if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+      logger.trace(LogMarker.DM_VERBOSE, "InterestEventMessage operateOnPartitionedRegion: {}",
+          r.getFullPath());
     }
 
     PartitionedRegionDataStore ds = r.getDataStore();
@@ -127,6 +128,7 @@ public class InterestEventMessage extends PartitionMessage {
     InterestEventResponse response = new InterestEventResponse(region.getSystem(), recipients);
     InterestEventMessage m = new InterestEventMessage(recipients, region.getPRId(),
         response.getProcessorId(), event, response);
+    m.setTransactionDistributed(region.getCache().getTxManager().isDistributed());
 
     Set failures = region.getDistributionManager().putOutgoing(m);
     if (failures != null && failures.size() > 0) {
@@ -154,8 +156,8 @@ public class InterestEventMessage extends PartitionMessage {
     }
 
     /** Send an ack */
-    public static void send(InternalDistributedMember recipient, int processorId, DM dm)
-        throws ForceReattemptException {
+    public static void send(InternalDistributedMember recipient, int processorId,
+        DistributionManager dm) throws ForceReattemptException {
       InterestEventReplyMessage m = new InterestEventReplyMessage(processorId);
       m.setRecipient(recipient);
       dm.putOutgoing(m);
@@ -167,10 +169,10 @@ public class InterestEventMessage extends PartitionMessage {
      * @param dm the distribution manager that is processing the message.
      */
     @Override
-    protected void process(final DistributionManager dm) {
+    protected void process(final ClusterDistributionManager dm) {
       final long startTime = getTimestamp();
-      if (logger.isTraceEnabled(LogMarker.DM)) {
-        logger.trace(LogMarker.DM,
+      if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+        logger.trace(LogMarker.DM_VERBOSE,
             "InterestEventReplyMessage process invoking reply processor with processorId: {}",
             this.processorId);
       }
@@ -179,15 +181,15 @@ public class InterestEventMessage extends PartitionMessage {
         ReplyProcessor21 processor = ReplyProcessor21.getProcessor(this.processorId);
 
         if (processor == null) {
-          if (logger.isTraceEnabled(LogMarker.DM)) {
-            logger.trace(LogMarker.DM, "InterestEventReplyMessage processor not found");
+          if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+            logger.trace(LogMarker.DM_VERBOSE, "InterestEventReplyMessage processor not found");
           }
           return;
         }
         processor.process(this);
 
-        if (logger.isTraceEnabled(LogMarker.DM)) {
-          logger.debug("{} processed {}", processor, this);
+        if (logger.isTraceEnabled(LogMarker.DM_VERBOSE)) {
+          logger.trace("{} processed {}", processor, this);
         }
       } finally {
         dm.getStats().incReplyMessageTime(DistributionStats.getStatTime() - startTime);

@@ -35,7 +35,7 @@ import javax.xml.XMLConstants;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
-import org.apache.geode.cache.util.GatewayConflictResolver;
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.Logger;
 import org.xml.sax.Attributes;
 import org.xml.sax.ContentHandler;
@@ -92,6 +92,7 @@ import org.apache.geode.cache.query.internal.index.IndexCreationData;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.cache.server.ClientSubscriptionConfig;
 import org.apache.geode.cache.server.ServerLoadProbe;
+import org.apache.geode.cache.util.GatewayConflictResolver;
 import org.apache.geode.cache.util.ObjectSizer;
 import org.apache.geode.cache.wan.GatewayEventFilter;
 import org.apache.geode.cache.wan.GatewayEventSubstitutionFilter;
@@ -111,8 +112,6 @@ import org.apache.geode.internal.cache.FixedPartitionAttributesImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.PartitionAttributesImpl;
 import org.apache.geode.internal.cache.PartitionedRegionHelper;
-import org.apache.geode.internal.cache.lru.LRUCapacityController;
-import org.apache.geode.internal.cache.lru.MemLRUCapacityController;
 import org.apache.geode.internal.datasource.ConfigProperty;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.jndi.JNDIInvoker;
@@ -160,14 +159,14 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
 
   /**
    * Delegate {@link XmlParser}s mapped by namespace URI.
-   * 
+   *
    * @since GemFire 8.1
    */
   private HashMap<String, XmlParser> delegates = new HashMap<>();
 
   /**
    * Document {@link Locator} used for {@link SAXParseException}.
-   * 
+   *
    * @since GemFire 8.2
    */
   protected Locator documentLocator;
@@ -196,7 +195,7 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
      *
      * In order to block the parser from closing the stream, we wrap the InputStream in a filter,
      * i.e., UnclosableInputStream, whose close() function does nothing.
-     * 
+     *
      */
     class UnclosableInputStream extends BufferedInputStream {
       public UnclosableInputStream(InputStream stream) {
@@ -400,6 +399,14 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
     stack.push(name);
     stack.push(f);
     String v;
+    v = atts.getValue(SUBSCRIPTION_TIMEOUT_MULTIPLIER);
+    if (v != null) {
+      f.setSubscriptionTimeoutMultiplier(parseInt(v));
+    }
+    v = atts.getValue(SOCKET_CONNECT_TIMEOUT);
+    if (v != null) {
+      f.setSocketConnectTimeout(parseInt(v));
+    }
     v = atts.getValue(FREE_CONNECTION_TIMEOUT);
     if (v != null) {
       f.setFreeConnectionTimeout(parseInt(v));
@@ -1291,7 +1298,7 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
 
   /**
    * finish parsing a "group" element which is just a string
-   * 
+   *
    * @since GemFire 5.7
    */
   private void endGroup() {
@@ -1760,8 +1767,10 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
         } else if (type.equals(RANGE_INDEX_TYPE)) {
           icd.setIndexData(IndexType.FUNCTIONAL, fromClause, expression, importStr);
         } else {
-          logger.trace(LogMarker.CACHE_XML_PARSER,
-              LocalizedMessage.create(LocalizedStrings.CacheXmlParser_UNKNOWN_INDEX_TYPE, type));
+          if (logger.isTraceEnabled(LogMarker.CACHE_XML_PARSER_VERBOSE)) {
+            logger.trace(LogMarker.CACHE_XML_PARSER_VERBOSE,
+                LocalizedMessage.create(LocalizedStrings.CacheXmlParser_UNKNOWN_INDEX_TYPE, type));
+          }
           icd.setIndexData(IndexType.FUNCTIONAL, fromClause, expression, importStr);
         }
       }
@@ -1772,7 +1781,7 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
   /**
    * When index element is ending we need to verify all attributes because of new index tag
    * definition since 6.6.1 and support previous definition also.
-   * 
+   *
    * if <code>functional</code> element was not there then we need to validate expression and
    * fromClause as not null.
    */
@@ -1914,6 +1923,16 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
    *         declarable
    */
   private Declarable createDeclarable() {
+    return createDeclarable(cache, stack);
+  }
+
+  /**
+   * Creates and initializes an instance of {@link Declarable} from the contents of the stack.
+   *
+   * @throws CacheXmlException Something goes wrong while instantiating or initializing the
+   *         declarable
+   */
+  public static Declarable createDeclarable(CacheCreation cache, Stack<Object> stack) {
     Properties props = new Properties();
     Object top = stack.pop();
     while (top instanceof Parameter) {
@@ -1921,19 +1940,27 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
       props.put(param.getName(), param.getValue());
       top = stack.pop();
     }
-    logger.trace(LogMarker.CACHE_XML_PARSER, LocalizedMessage
-        .create(LocalizedStrings.CacheXmlParser_XML_PARSER_CREATEDECLARABLE_PROPERTIES__0, props));
+    if (logger.isTraceEnabled(LogMarker.CACHE_XML_PARSER_VERBOSE)) {
+      logger.trace(LogMarker.CACHE_XML_PARSER_VERBOSE, LocalizedMessage.create(
+          LocalizedStrings.CacheXmlParser_XML_PARSER_CREATEDECLARABLE_PROPERTIES__0, props));
+    }
     Assert.assertTrue(top instanceof String);
     String className = (String) top;
-    logger.trace(LogMarker.CACHE_XML_PARSER, LocalizedMessage.create(
-        LocalizedStrings.CacheXmlParser_XML_PARSER_CREATEDECLARABLE_CLASS_NAME_0, className));
+    if (logger.isTraceEnabled(LogMarker.CACHE_XML_PARSER_VERBOSE)) {
+      logger.trace(LogMarker.CACHE_XML_PARSER_VERBOSE, LocalizedMessage.create(
+          LocalizedStrings.CacheXmlParser_XML_PARSER_CREATEDECLARABLE_CLASS_NAME_0, className));
+    }
+    Class c;
+    try {
+      c = InternalDataSerializer.getCachedClass(className);
+    } catch (Exception ex) {
+      throw new CacheXmlException("Could not find the class: " + className, ex);
+    }
     Object o;
     try {
-      Class c = InternalDataSerializer.getCachedClass(className);
       o = c.newInstance();
     } catch (Exception ex) {
-      throw new CacheXmlException(
-          LocalizedStrings.CacheXmlParser_WHILE_INSTANTIATING_A_0.toLocalizedString(className), ex);
+      throw new CacheXmlException("Could not create an instance of " + className, ex);
     }
     if (!(o instanceof Declarable)) {
       throw new CacheXmlException(
@@ -1941,9 +1968,8 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
               .toLocalizedString(className));
     }
     Declarable d = (Declarable) o;
-    d.init(props);
-
-    this.cache.addDeclarableProperties(d, props);
+    // init call done later in GemFireCacheImpl.addDeclarableProperties
+    cache.addDeclarableProperties(d, props);
 
     return d;
   }
@@ -2085,15 +2111,11 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
    * Create an <code>lru-entry-count</code> eviction controller, assigning it to the enclosed
    * <code>region-attributes</code>. Allow any combination of attributes to be provided. Use the
    * default values for any attribute that is not provided.
-   * 
-   * @param atts
-   */
-  /**
-   * @param atts
+   *
    */
   private void startLRUEntryCount(Attributes atts) {
     final String maximum = atts.getValue(MAXIMUM);
-    int max = LRUCapacityController.DEFAULT_MAXIMUM_ENTRIES;
+    int max = EvictionAttributes.DEFAULT_ENTRIES_MAXIMUM;
     if (maximum != null) {
       max = parseInt(maximum);
     }
@@ -2110,8 +2132,7 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
    * Start the configuration of a <code>lru-memory-size</code> eviction controller. Allow for any of
    * the attributes to be missing. Store the attributes on the stack anticipating the declaration of
    * an {@link ObjectSizer}.
-   * 
-   * @param atts
+   *
    */
   private void startLRUMemorySize(Attributes atts) {
     String lruAction = atts.getValue(ACTION);
@@ -2120,7 +2141,7 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
       action = EvictionAction.parseAction(lruAction);
     }
     String maximum = atts.getValue(MAXIMUM);
-    int max = MemLRUCapacityController.DEFAULT_MAXIMUM_MEGABYTES;
+    int max = EvictionAttributes.DEFAULT_MEMORY_MAXIMUM;
     if (maximum != null) {
       max = parseInt(maximum);
     }
@@ -2155,8 +2176,7 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
   /**
    * Create an <code>lru-heap-percentage</code> eviction controller, assigning it to the enclosed
    * <code>region-attributes</code>
-   * 
-   * @param atts
+   *
    */
   private void startLRUHeapPercentage(Attributes atts) {
     final String lruAction = atts.getValue(ACTION);
@@ -2402,12 +2422,12 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
               .toLocalizedString());
     }
     FunctionServiceCreation fsc = (FunctionServiceCreation) top;
-    fsc.create();
+    this.cache.setFunctionServiceCreation(fsc);
   }
 
   /**
    * Start the Resource Manager element configuration
-   * 
+   *
    * @param atts XML attributes for the resource-manager
    */
   private void startResourceManager(final Attributes atts) {
@@ -2592,6 +2612,17 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
 
   public void startElement(String namespaceURI, String localName, String qName, Attributes atts)
       throws SAXException {
+    // This while loop pops all StringBuffers at the top of the stack
+    // that contain only whitespace; see GEODE-3306
+    while (!stack.empty()) {
+      Object o = stack.peek();
+      if (o instanceof StringBuffer && StringUtils.isBlank(((StringBuffer) o).toString())) {
+        stack.pop();
+      } else {
+        break;
+      }
+    }
+
     if (qName.equals(CACHE)) {
       startCache(atts);
     } else if (qName.equals(CLIENT_CACHE)) {
@@ -2751,7 +2782,7 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
 
   /**
    * Get delegate {@link XmlParser} for the given <code>namespaceUri</code>
-   * 
+   *
    * @param namespaceUri to find {@link XmlParser} for.
    * @return {@link XmlParser} if found, otherwise null.
    * @since GemFire 8.1
@@ -2764,11 +2795,11 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
         final ServiceLoader<XmlParser> serviceLoader =
             ServiceLoader.load(XmlParser.class, ClassPathLoader.getLatestAsClassLoader());
         for (final XmlParser xmlParser : serviceLoader) {
-          if (xmlParser.getNamspaceUri().equals(namespaceUri)) {
+          if (xmlParser.getNamespaceUri().equals(namespaceUri)) {
             delegate = xmlParser;
             delegate.setStack(stack);
             delegate.setDocumentLocator(documentLocator);
-            delegates.put(xmlParser.getNamspaceUri(), xmlParser);
+            delegates.put(xmlParser.getNamespaceUri(), xmlParser);
             break;
           }
         }
@@ -2804,7 +2835,7 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
    * <p>
    * <code>capacity</code> and <code>overflow-directory</code>, then pass these values to Bridge
    * Server
-   * 
+   *
    * @since GemFire 5.7
    */
   private void startClientHaQueue(Attributes atts) {
@@ -2831,8 +2862,7 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
 
   /**
    * Add a marker string to look for when in endPartitionProperties
-   * 
-   * @param atts
+   *
    * @param localOrGlobal either the string LOCAL_PROPERTIES or GLOBAL_PROPERTIES
    */
   private void startPartitionProperties(Attributes atts, String localOrGlobal) {
@@ -2868,6 +2898,17 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
   }
 
   public void endElement(String namespaceURI, String localName, String qName) throws SAXException {
+    // This while loop pops all StringBuffers at the top of the stack
+    // that contain only whitespace; see GEODE-3306
+    while (!stack.empty()) {
+      Object o = stack.peek();
+      if (o instanceof StringBuffer && StringUtils.isBlank(((StringBuffer) o).toString())) {
+        stack.pop();
+      } else {
+        break;
+      }
+    }
+
     try {
       // logger.debug("endElement namespaceURI=" + namespaceURI
       // + "; localName = " + localName + "; qName = " + qName);
@@ -3157,9 +3198,6 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
     return (GatewaySenderFactory) a;
   }
 
-  /**
-   * 
-   */
   private void endPdxSerializer() {
     Declarable d = createDeclarable();
     if (!(d instanceof PdxSerializer)) {
@@ -3204,7 +3242,7 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
 
   /**
    * Do nothing
-   * 
+   *
    * @since GemFire 5.7
    */
   private void endClientHaQueue() {}
@@ -3212,7 +3250,7 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
   /**
    * Process either the <code>local-properties</code> or <code>global-properties</code> for a
    * {@link org.apache.geode.internal.cache.PartitionedRegion}
-   * 
+   *
    * @param globalOrLocal either the string {@link CacheXml#LOCAL_PROPERTIES} or
    *        {@link CacheXml#GLOBAL_PROPERTIES}
    */
@@ -3256,16 +3294,20 @@ public class CacheXmlParser extends CacheXml implements ContentHandler {
       if (o instanceof StringBuffer) {
         chars = (StringBuffer) o;
         chars.append(ch, start, length);
-        logger.trace(LogMarker.CACHE_XML_PARSER,
-            LocalizedMessage.create(
-                LocalizedStrings.CacheXmlParser_XML_PARSER_CHARACTERS_APPENDED_CHARACTER_DATA_0,
-                chars));
+        if (logger.isTraceEnabled(LogMarker.CACHE_XML_PARSER_VERBOSE)) {
+          logger.trace(LogMarker.CACHE_XML_PARSER_VERBOSE,
+              LocalizedMessage.create(
+                  LocalizedStrings.CacheXmlParser_XML_PARSER_CHARACTERS_APPENDED_CHARACTER_DATA_0,
+                  chars));
+        }
       } else {
         chars = new StringBuffer(length);
         chars.append(ch, start, length);
         stack.push(chars);
-        logger.trace(LogMarker.CACHE_XML_PARSER, LocalizedMessage.create(
-            LocalizedStrings.CacheXmlParser_XML_PARSER_CHARACTERS_NEW_CHARACTER_DATA_0, chars));
+        if (logger.isTraceEnabled(LogMarker.CACHE_XML_PARSER_VERBOSE)) {
+          logger.trace(LogMarker.CACHE_XML_PARSER_VERBOSE, LocalizedMessage.create(
+              LocalizedStrings.CacheXmlParser_XML_PARSER_CHARACTERS_NEW_CHARACTER_DATA_0, chars));
+        }
       }
     }
   }

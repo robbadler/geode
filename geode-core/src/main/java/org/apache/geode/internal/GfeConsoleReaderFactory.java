@@ -17,16 +17,16 @@ package org.apache.geode.internal;
 
 import java.io.Console;
 
-import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.internal.cli.LogWrapper;
+import org.apache.geode.management.internal.cli.shell.Gfsh;
 import org.apache.geode.management.internal.cli.util.GfshConsoleReader;
 
 /**
  * Factory for Console Reader Utility.
- * 
+ *
  * Default uses <code>java.io.Console</code> returned by <code>System.console()</code>
- * 
- * 
+ *
+ *
  * @since GemFire 7.0.1
  */
 public class GfeConsoleReaderFactory {
@@ -37,15 +37,15 @@ public class GfeConsoleReaderFactory {
   }
 
   public static GfeConsoleReader createConsoleReader() {
-    GfeConsoleReader consoleReader = null;
+    GfeConsoleReader consoleReader;
 
-    if (CliUtil.isGfshVM()) {
-      LogWrapper.getInstance().info("GfeConsoleReaderFactory.createConsoleReader(): isGfshVM");
+    if (Gfsh.getCurrentInstance() != null) {
+      LogWrapper logWrapper = Gfsh.getCurrentInstance().getGfshFileLogger();
+      logWrapper.info("GfeConsoleReaderFactory.createConsoleReader(): isGfshVM");
       consoleReader = new GfshConsoleReader();
-      LogWrapper.getInstance().info("GfeConsoleReaderFactory.createConsoleReader(): consoleReader: "
+      logWrapper.info("GfeConsoleReaderFactory.createConsoleReader(): consoleReader: "
           + consoleReader + "=" + consoleReader.isSupported());
-    }
-    if (consoleReader == null) {
+    } else {
       consoleReader = new GfeConsoleReader();
     }
     return consoleReader;

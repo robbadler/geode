@@ -14,7 +14,8 @@
  */
 package org.apache.geode.cache.client;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
 
 import java.util.Properties;
 
@@ -27,6 +28,7 @@ import org.apache.geode.cache.TimeoutException;
 import org.apache.geode.cache.client.internal.InternalClientCache;
 import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.distributed.DistributedSystem;
+import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.GemFireVersion;
 import org.apache.geode.internal.cache.CacheConfig;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
@@ -63,31 +65,31 @@ import org.apache.geode.security.AuthenticationRequiredException;
  * The following examples illustrate bootstrapping the client cache using region shortcuts:
  * <p>
  * Example 1: Connect to a CacheServer on the default host and port and access a region "customers"
- * 
+ *
  * <PRE>
  * ClientCache c = new ClientCacheFactory().create();
  * Region r = c.createClientRegionFactory(PROXY).create("customers");
  * // The PROXY shortcut tells GemFire to route all requests to the servers
  * // . i.e. there is no local caching
  * </PRE>
- * 
+ *
  * Example 2: Connect using the GemFire locator and create a local LRU cache
- * 
+ *
  * <PRE>
  * ClientCache c = new ClientCacheFactory().addPoolLocator(host, port).create();
  * Region r = c.createClientRegionFactory(CACHING_PROXY_HEAP_LRU).create("customers");
  * // The local LRU "customers" data region will automatically start evicting, by default, at 80%
  * // heap utilization threshold
  * </PRE>
- * 
+ *
  * Example 3: Access the query service
- * 
+ *
  * <PRE>
  * QueryService qs = new ClientCacheFactory().create().getQueryService();
  * </PRE>
- * 
+ *
  * Example 4: Construct the client cache region declaratively in cache.xml
- * 
+ *
  * <PRE>
  * &lt;!DOCTYPE client-cache PUBLIC
  * "-//GemStone Systems, Inc.//GemFire Declarative Caching 6.5//EN"
@@ -101,9 +103,9 @@ import org.apache.geode.security.AuthenticationRequiredException;
  * a region-attributes sub element here -->
  * &lt;/client-cache>
  * </PRE>
- * 
+ *
  * Now, create the cache telling it to read your cache.xml file:
- * 
+ *
  * <PRE>
  * ClientCache c = new ClientCacheFactory().set("cache-xml-file", "myCache.xml").create();
  * Region r = c.getRegion("myRegion");
@@ -117,7 +119,7 @@ import org.apache.geode.security.AuthenticationRequiredException;
  * Example 5: Define custom region attributes for persistence in XML and create region using API.
  * Define new region attributes with ID "MYAPP_CACHING_PROXY_MEM_LRU" that overrides the
  * "CACHING_PROXY" shortcut
- * 
+ *
  * <PRE>
  * &lt;!DOCTYPE client-cache PUBLIC
  * "-//GemStone Systems, Inc.//GemFire Declarative Caching 8.0//EN"
@@ -130,9 +132,9 @@ import org.apache.geode.security.AuthenticationRequiredException;
  * &lt;/region-attributes>
  * &lt;/client-cache>
  * </PRE>
- * 
+ *
  * Now, create the data region in the client cache using this new attributes ID.
- * 
+ *
  * <PRE>
  * ClientCache c = new ClientCacheFactory().set("cache-xml-file", "myCache.xml")
  *     .addPoolLocator(host, port).create();
@@ -237,7 +239,8 @@ public class ClientCacheFactory {
       }
       this.dsProps.setProperty(MCAST_PORT, "0");
       this.dsProps.setProperty(LOCATORS, "");
-      DistributedSystem system = DistributedSystem.connect(this.dsProps);
+      InternalDistributedSystem system =
+          (InternalDistributedSystem) DistributedSystem.connect(this.dsProps);
 
       if (instance != null && !instance.isClosed()) {
         // this is ok; just make sure it is a client cache
@@ -247,12 +250,7 @@ public class ClientCacheFactory {
         }
 
         // check if pool is compatible
-        Pool pool = instance.determineDefaultPool(this.pf);
-        if (pool == null) {
-          if (instance.getDefaultPool() != null) {
-            throw new IllegalStateException("Existing cache's default pool was not compatible");
-          }
-        }
+        instance.validatePoolFactory(this.pf);
 
         // Check if cache configuration matches.
         cacheConfig.validateCacheConfig(instance);
@@ -269,6 +267,21 @@ public class ClientCacheFactory {
       this.pf = PoolManager.createFactory();
     }
     return this.pf;
+  }
+
+  /**
+   * Sets the socket connect timeout for this pool. The number of milli seconds specified as socket
+   * timeout when the client connects to the servers/locators. A timeout of zero is interpreted as
+   * an infinite timeout. The connection will then block until established or an error occurs.
+   *
+   * @param socketConnectTimeout timeout in milliseconds when the client connects to the servers
+   * @return a reference to <code>this</code>
+   * @throws IllegalArgumentException if <code>socketConnectTimeout</code> is less than or equal to
+   *         <code>-1</code>.
+   */
+  public ClientCacheFactory setPoolSocketConnectTimeout(int socketConnectTimeout) {
+    getPoolFactory().setSocketConnectTimeout(socketConnectTimeout);
+    return this;
   }
 
   /**
@@ -635,7 +648,7 @@ public class ClientCacheFactory {
    * Note that a PdxInstance is only returned if a serialized PDX is found in the cache. If the
    * cache contains a deserialized PDX, then a domain class instance is returned instead of a
    * PdxInstance.
-   * 
+   *
    * @param pdxReadSerialized true to prefer PdxInstance
    * @return this ClientCacheFactory
    * @since GemFire 6.6

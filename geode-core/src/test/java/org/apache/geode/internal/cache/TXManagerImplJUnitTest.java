@@ -14,23 +14,28 @@
  */
 package org.apache.geode.internal.cache;
 
-import org.apache.geode.cache.*;
-import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.test.junit.categories.IntegrationTest;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
-import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
-import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
-import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
-import static org.junit.Assert.*;
+import org.apache.geode.cache.*;
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.test.junit.categories.IntegrationTest;
 
 /**
  * junit test for suspend and resume methods
@@ -64,8 +69,7 @@ public class TXManagerImplJUnitTest {
 
   /**
    * two threads suspend and resume a single transaction, while making changes.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testSuspendResume() throws Exception {
@@ -248,8 +252,7 @@ public class TXManagerImplJUnitTest {
 
   /**
    * test that timeout of Long.MAX_VALUE does not return immediately
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testWaitForever() throws Exception {
@@ -330,5 +333,58 @@ public class TXManagerImplJUnitTest {
 
   protected void callIsDistributed(TXManagerImpl txMgr) {
     assertFalse(txMgr.isDistributed());
+  }
+
+  @Test
+  public void testTryResumeRemoveItselfFromWaitingQueue() throws Exception {
+    int time = 30;
+    long timeout = TimeUnit.SECONDS.toNanos(time);
+    TXManagerImpl txMgr = (TXManagerImpl) cache.getCacheTransactionManager();
+    TXManagerImpl spyMgr = spy(txMgr);
+    doAnswer(new Answer<Void>() {
+      @Override
+      public Void answer(InvocationOnMock invocation) throws Throwable {
+        Thread.sleep(10);
+        return null;
+      }
+    }).when(spyMgr).parkToRetryResume(timeout);
+    spyMgr.begin();
+    region.put("key", "value");
+    final TransactionId txId = spyMgr.suspend();
+    spyMgr.resume(txId);
+    final CountDownLatch latch1 = new CountDownLatch(2);
+    final CountDownLatch latch2 = new CountDownLatch(2);
+    Thread t1 = new Thread(new Runnable() {
+      public void run() {
+        latch1.countDown();
+        assertTrue(spyMgr.tryResume(txId, time, TimeUnit.SECONDS));
+        region.put("key1", "value1");
+        assertEquals(txId, spyMgr.suspend());
+        latch2.countDown();
+      }
+    });
+    Thread t2 = new Thread(new Runnable() {
+      public void run() {
+        latch1.countDown();
+        assertTrue(spyMgr.tryResume(txId, time, TimeUnit.SECONDS));
+        region.put("key2", "value1");
+        assertEquals(txId, spyMgr.suspend());
+        latch2.countDown();
+      }
+    });
+    t1.start();
+    t2.start();
+    Thread.sleep(300);
+    if (!latch1.await(30, TimeUnit.SECONDS)) {
+      fail("junit test failed");
+    }
+    spyMgr.suspend();
+    if (!latch2.await(30, TimeUnit.SECONDS)) {
+      fail("junit test failed");
+    }
+    spyMgr.tryResume(txId, time, TimeUnit.SECONDS);
+    assertEquals(3, region.size());
+    assertEquals(0, spyMgr.getWaitQueue(txId).size());
+    spyMgr.commit();
   }
 }

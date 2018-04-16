@@ -16,12 +16,9 @@
 
 package org.apache.geode.internal.admin.remote;
 
-import org.apache.geode.distributed.internal.*;
-// import org.apache.geode.*;
-// import org.apache.geode.internal.*;
-// import org.apache.geode.internal.admin.*;
 import java.io.*;
-// import java.util.*;
+
+import org.apache.geode.distributed.internal.*;
 
 /**
  * A message that is sent to a particular console distribution manager when changes have been
@@ -53,8 +50,7 @@ public class StatListenerMessage extends PooledDistributionMessage implements Ad
   /**
    * Notes that the value of a given statistics has changed
    *
-   * @param listenerId
-   * 
+   *
    */
   public void addChange(int listenerId, double value) {
     listenerIds[changeCount] = listenerId;
@@ -63,7 +59,7 @@ public class StatListenerMessage extends PooledDistributionMessage implements Ad
   }
 
   @Override
-  public void process(DistributionManager dm) {
+  public void process(ClusterDistributionManager dm) {
     RemoteGfManagerAgent agent = dm.getAgent();
     if (agent != null) {
       RemoteGemFireVM mgr = agent.getMemberById(this.getSender());

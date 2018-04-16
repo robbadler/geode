@@ -17,17 +17,14 @@ package org.apache.geode.internal.admin.remote;
 
 import java.io.DataInput;
 import java.io.DataOutput;
-// import java.util.*;
 import java.io.IOException;
 
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.ExpirationAction;
-// import org.apache.geode.internal.*;
-// import org.apache.geode.internal.admin.*;
 import org.apache.geode.cache.Region;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
@@ -51,7 +48,7 @@ public class DestroyEntryMessage extends RegionAdminMessage {
   }
 
   @Override
-  public void process(DistributionManager dm) {
+  public void process(ClusterDistributionManager dm) {
     Region r = getRegion(dm.getSystem());
     if (r != null) {
       try {

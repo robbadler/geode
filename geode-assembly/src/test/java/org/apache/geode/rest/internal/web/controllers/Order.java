@@ -14,7 +14,6 @@
  */
 package org.apache.geode.rest.internal.web.controllers;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -26,7 +25,7 @@ import org.apache.geode.pdx.PdxWriter;
 /**
  * The Order class is an abstraction modeling a order.
  * <p/>
- * 
+ *
  * @since GemFire 8.0
  */
 

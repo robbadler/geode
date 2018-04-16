@@ -14,7 +14,7 @@
  */
 /*
  * Created on Feb 15, 2006
- * 
+ *
  * TODO To change the template for this generated file go to Window - Preferences - Java - Code
  * Style - Code Templates
  */
@@ -36,7 +36,7 @@ import org.apache.geode.test.junit.categories.IntegrationTest;
 
 /**
  * Testing methods for SimpleDiskRegion.java api's
- * 
+ *
  * @since GemFire 5.1
  */
 @Category(IntegrationTest.class)
@@ -214,7 +214,7 @@ public class SimpleDiskRegionJUnitTest extends DiskRegionTestingBase {
   // newOplog = dr.getChild();
   // assertIndexDetailsEquals(null, region.get(new Integer(1)));
   // try {
-  // dr.addToOplogSet(id, new File(oplog.getOplogFile()
+  // dr.addToOplogSet(id, new File(oplog.getOplogFileForTest()
   // .getPath()), dr.getNextDir());
   // }
   // catch (Exception e) {
@@ -245,7 +245,7 @@ public class SimpleDiskRegionJUnitTest extends DiskRegionTestingBase {
     StatisticsFactory factory = region.getCache().getDistributedSystem();
     Oplog newOplog =
         new Oplog(id, dr.getOplogSet(), new DirectoryHolder(factory, dirs[0], 1000000, 0));
-    dr.getDiskStore().persistentOplogs.setChild(newOplog);
+    dr.getDiskStore().getPersistentOplogs().setChild(newOplog);
     assertEquals(newOplog, dr.testHook_getChild());
     dr.setChild(oplog);
     assertEquals(oplog, dr.testHook_getChild());

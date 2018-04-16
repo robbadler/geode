@@ -14,9 +14,8 @@
  */
 package org.apache.geode.management.internal.beans;
 
-import static org.apache.geode.internal.lang.SystemUtils.*;
+import static org.apache.geode.internal.lang.SystemUtils.getLineSeparator;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
@@ -44,17 +43,15 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsType;
-import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.DiskStore;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.execute.FunctionService;
-import org.apache.geode.cache.persistence.PersistentID;
 import org.apache.geode.cache.wan.GatewayReceiver;
 import org.apache.geode.cache.wan.GatewaySender;
 import org.apache.geode.distributed.Locator;
 import org.apache.geode.distributed.LocatorLauncher;
 import org.apache.geode.distributed.ServerLauncher;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionStats;
@@ -71,13 +68,12 @@ import org.apache.geode.internal.cache.DiskRegion;
 import org.apache.geode.internal.cache.DiskStoreImpl;
 import org.apache.geode.internal.cache.DiskStoreStats;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.InternalRegion;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.PartitionedRegionStats;
 import org.apache.geode.internal.cache.control.ResourceManagerStats;
 import org.apache.geode.internal.cache.execute.FunctionServiceStats;
-import org.apache.geode.internal.cache.lru.LRUStatistics;
-import org.apache.geode.internal.cache.persistence.BackupManager;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
@@ -99,14 +95,9 @@ import org.apache.geode.internal.statistics.platform.SolarisSystemStats;
 import org.apache.geode.internal.statistics.platform.WindowsSystemStats;
 import org.apache.geode.internal.stats50.VMStats50;
 import org.apache.geode.internal.tcp.ConnectionTable;
-import org.apache.geode.management.DependenciesNotFoundException;
-import org.apache.geode.management.DiskBackupResult;
 import org.apache.geode.management.GemFireProperties;
 import org.apache.geode.management.JVMMetrics;
-import org.apache.geode.management.ManagementException;
 import org.apache.geode.management.OSMetrics;
-import org.apache.geode.management.cli.CommandService;
-import org.apache.geode.management.cli.CommandServiceException;
 import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.internal.ManagementConstants;
 import org.apache.geode.management.internal.ManagementStrings;
@@ -122,11 +113,8 @@ import org.apache.geode.management.internal.beans.stats.StatsLatency;
 import org.apache.geode.management.internal.beans.stats.StatsRate;
 import org.apache.geode.management.internal.beans.stats.VMStatsMonitor;
 import org.apache.geode.management.internal.cli.CommandResponseBuilder;
-import org.apache.geode.management.internal.cli.remote.CommandExecutionContext;
-import org.apache.geode.management.internal.cli.remote.MemberCommandService;
+import org.apache.geode.management.internal.cli.remote.OnlineCommandProcessor;
 import org.apache.geode.management.internal.cli.result.CommandResult;
-import org.apache.geode.management.internal.cli.result.ResultBuilder;
-import org.apache.geode.management.internal.cli.shell.Gfsh;
 
 /**
  * This class acts as an Bridge between MemberMBean and GemFire Cache and Distributed System
@@ -164,12 +152,12 @@ public class MemberMBeanBridge {
   /**
    * Distribution manager
    */
-  private DM dm;
+  private DistributionManager dm;
 
   /**
    * Command Service
    */
-  private CommandService commandService;
+  private OnlineCommandProcessor commandProcessor;
 
   private String commandServiceInitError;
 
@@ -335,8 +323,9 @@ public class MemberMBeanBridge {
 
     this.dm = system.getDistributionManager();
 
-    if (dm instanceof DistributionManager) {
-      DistributionManager distManager = (DistributionManager) system.getDistributionManager();
+    if (dm instanceof ClusterDistributionManager) {
+      ClusterDistributionManager distManager =
+          (ClusterDistributionManager) system.getDistributionManager();
       this.redundancyZone = distManager
           .getRedundancyZone(cache.getInternalDistributedSystem().getDistributedMember());
     }
@@ -345,20 +334,12 @@ public class MemberMBeanBridge {
 
     this.config = system.getConfig();
     try {
-      this.commandService = CommandService.createLocalCommandService(cache);
-    } catch (CacheClosedException e) {
+      this.commandProcessor =
+          new OnlineCommandProcessor(system.getProperties(), cache.getSecurityService(), cache);
+    } catch (Exception e) {
       commandServiceInitError = e.getMessage();
-      // LOG:CONFIG:
-      logger.info(LogMarker.CONFIG, "Command Service could not be initialized. {}", e.getMessage());
-    } catch (CommandServiceException e) {
-      commandServiceInitError = e.getMessage();
-      // LOG:CONFIG:
-      logger.info(LogMarker.CONFIG, "Command Service could not be initialized. {}", e.getMessage());
-    } catch (DependenciesNotFoundException e) {
-      commandServiceInitError = e.getMessage();
-      // log as error for dedicated cache server - launched through script
-      // LOG:CONFIG:
-      logger.info(LogMarker.CONFIG, "Command Service could not be initialized. {}", e.getMessage());
+      logger.info(LogMarker.CONFIG_MARKER, "Command processor could not be initialized. {}",
+          e.getMessage());
     }
 
     intitGemfireProperties();
@@ -526,15 +507,9 @@ public class MemberMBeanBridge {
       addPartionRegionStats(((PartitionedRegion) region).getPrStats());
     }
 
-    LocalRegion l = (LocalRegion) region;
-    if (l.getEvictionController() != null) {
-      LRUStatistics stats = l.getEvictionController().getLRUHelper().getStats();
-      if (stats != null) {
-        addLRUStats(stats);
-      }
-    }
-
-    DiskRegion dr = l.getDiskRegion();
+    InternalRegion internalRegion = (InternalRegion) region;
+    addLRUStats(internalRegion.getEvictionStatistics());
+    DiskRegion dr = internalRegion.getDiskRegion();
     if (dr != null) {
       for (DirectoryHolder dh : dr.getDirectories()) {
         addDirectoryStats(dh.getDiskDirectoryStats());
@@ -546,8 +521,10 @@ public class MemberMBeanBridge {
     regionMonitor.addStatisticsToMonitor(parStats.getStats());
   }
 
-  public void addLRUStats(LRUStatistics lruStats) {
-    regionMonitor.addStatisticsToMonitor(lruStats.getStats());
+  public void addLRUStats(Statistics lruStats) {
+    if (lruStats != null) {
+      regionMonitor.addStatisticsToMonitor(lruStats);
+    }
   }
 
   public void addDirectoryStats(DiskDirectoryStats diskDirStats) {
@@ -560,12 +537,7 @@ public class MemberMBeanBridge {
     }
 
     LocalRegion l = (LocalRegion) region;
-    if (l.getEvictionController() != null) {
-      LRUStatistics stats = l.getEvictionController().getLRUHelper().getStats();
-      if (stats != null) {
-        removeLRUStats(stats);
-      }
-    }
+    removeLRUStats(l.getEvictionStatistics());
 
     DiskRegion dr = l.getDiskRegion();
     if (dr != null) {
@@ -579,8 +551,10 @@ public class MemberMBeanBridge {
     regionMonitor.removePartitionStatistics(parStats.getStats());
   }
 
-  public void removeLRUStats(LRUStatistics lruStats) {
-    regionMonitor.removeLRUStatistics(lruStats.getStats());
+  public void removeLRUStats(Statistics statistics) {
+    if (statistics != null) {
+      regionMonitor.removeLRUStatistics(statistics);
+    }
   }
 
   public void removeDirectoryStats(DiskDirectoryStats diskDirStats) {
@@ -774,7 +748,7 @@ public class MemberMBeanBridge {
    * All OS metrics are not present in java.lang.management.OperatingSystemMXBean It has to be cast
    * to com.sun.management.OperatingSystemMXBean. To avoid the cast using dynamic call so that Java
    * platform will take care of the details in a native manner;
-   * 
+   *
    * @return Some basic OS metrics at the particular instance
    */
   public OSMetrics fetchOSMetrics() {
@@ -866,7 +840,7 @@ public class MemberMBeanBridge {
 
   /**
    * Creates a Manager
-   * 
+   *
    * @return successful or not
    */
   public boolean createManager() {
@@ -878,7 +852,7 @@ public class MemberMBeanBridge {
 
   /**
    * An instruction to members with cache that they should compact their disk stores.
-   * 
+   *
    * @return a list of compacted Disk stores
    */
   public String[] compactAllDiskStores() {
@@ -897,7 +871,7 @@ public class MemberMBeanBridge {
 
   /**
    * List all the disk Stores at member level
-   * 
+   *
    * @param includeRegionOwned indicates whether to show the disk belonging to any particular region
    * @return list all the disk Stores name at cache level
    */
@@ -1005,60 +979,6 @@ public class MemberMBeanBridge {
       t.setDaemon(false);
       t.start();
     }
-  }
-
-  /**
-   * backs up all the disk to the targeted directory
-   * 
-   * @param targetDirPath path of the directory where back up is to be taken
-   * @return array of DiskBackup results which might get aggregated at Managing node Check the
-   *         validity of this mbean call. When does it make sense to backup a single member of a
-   *         gemfire system in isolation of the other members?
-   */
-  public DiskBackupResult[] backupMember(String targetDirPath) {
-    if (cache != null) {
-      Collection<DiskStore> diskStores = cache.listDiskStoresIncludingRegionOwned();
-      for (DiskStore store : diskStores) {
-        store.flush();
-      }
-    }
-
-    DiskBackupResult[] diskBackUpResult = null;
-    File targetDir = new File(targetDirPath);
-
-    if (cache == null) {
-      return null;
-
-    } else {
-      try {
-        BackupManager manager =
-            cache.startBackup(cache.getInternalDistributedSystem().getDistributedMember());
-        boolean abort = true;
-        Set<PersistentID> existingDataStores;
-        Set<PersistentID> successfulDataStores;
-        try {
-          existingDataStores = manager.prepareBackup();
-          abort = false;
-        } finally {
-          successfulDataStores = manager.finishBackup(targetDir, null/* TODO rishi */, abort);
-        }
-        diskBackUpResult = new DiskBackupResult[existingDataStores.size()];
-        int j = 0;
-
-        for (PersistentID id : existingDataStores) {
-          if (successfulDataStores.contains(id)) {
-            diskBackUpResult[j] = new DiskBackupResult(id.getDirectory(), false);
-          } else {
-            diskBackUpResult[j] = new DiskBackupResult(id.getDirectory(), true);
-          }
-          j++;
-        }
-
-      } catch (IOException e) {
-        throw new ManagementException(e);
-      }
-    }
-    return diskBackUpResult;
   }
 
   /**
@@ -1216,11 +1136,11 @@ public class MemberMBeanBridge {
    * @return list of regions
    */
   public String[] getListOfRegions() {
-    Set<LocalRegion> listOfAppRegions = cache.getApplicationRegions();
+    Set<InternalRegion> listOfAppRegions = cache.getApplicationRegions();
     if (listOfAppRegions != null && listOfAppRegions.size() > 0) {
       String[] regionStr = new String[listOfAppRegions.size()];
       int j = 0;
-      for (LocalRegion rg : listOfAppRegions) {
+      for (InternalRegion rg : listOfAppRegions) {
         regionStr[j] = rg.getFullPath();
         j++;
       }
@@ -1312,7 +1232,7 @@ public class MemberMBeanBridge {
   /**
    * Returns true if the manager has been created. Note it does not need to be running so this
    * method can return true when isManager returns false.
-   * 
+   *
    * @return true if the manager has been created.
    */
   public boolean isManagerCreated() {
@@ -1341,7 +1261,7 @@ public class MemberMBeanBridge {
     return getMemberLevelStatistic(StatsKey.GET_INITIAL_IMAGE_TIME).longValue();
   }
 
-  public int getInitialImagesInProgres() {
+  public int getInitialImagesInProgress() {
     return getMemberLevelStatistic(StatsKey.GET_INITIAL_IMAGES_INPROGRESS).intValue();
   }
 
@@ -1577,44 +1497,22 @@ public class MemberMBeanBridge {
   /**
    * Processes the given command string using the given environment information if it's non-empty.
    * Result returned is in a JSON format.
-   * 
+   *
    * @param commandString command string to be processed
    * @param env environment information to be used for processing the command
+   * @param stagedFilePaths list of local files to be deployed
    * @return result of the processing the given command string.
    */
-  public String processCommand(String commandString, Map<String, String> env) {
-    if (commandService == null) {
+  public String processCommand(String commandString, Map<String, String> env,
+      List<String> stagedFilePaths) {
+    if (commandProcessor == null) {
       throw new JMRuntimeException(
           "Command can not be processed as Command Service did not get initialized. Reason: "
               + commandServiceInitError);
     }
 
-    boolean isGfshRequest = isGfshRequest(env);
-    if (isGfshRequest) {
-      CommandExecutionContext.setShellRequest();
-    }
-
-    Result result = ((MemberCommandService) commandService).processCommand(commandString, env);
-    if (!(result instanceof CommandResult)) {// TODO - Abhishek - Shouldn't be needed
-      while (result.hasNextLine()) {
-        result = ResultBuilder.createInfoResult(result.nextLine());
-      }
-    }
-
-    if (isGfshRequest) {
-      return CommandResponseBuilder.createCommandResponseJson(getMember(), (CommandResult) result);
-    } else {
-      return ResultBuilder.resultAsString(result);
-    }
-  }
-
-  private boolean isGfshRequest(Map<String, String> env) {
-    String appName = null;
-    if (env != null) {
-      appName = env.get(Gfsh.ENV_APP_NAME);
-    }
-
-    return Gfsh.GFSH_APP_NAME.equals(appName);
+    Result result = commandProcessor.executeCommand(commandString, env, stagedFilePaths);
+    return CommandResponseBuilder.createCommandResponseJson(getMember(), (CommandResult) result);
   }
 
   public long getTotalDiskUsage() {
@@ -1821,5 +1719,9 @@ public class MemberMBeanBridge {
 
   public long getUsedMemory() {
     return getVMStatistic(StatsKey.VM_USED_MEMORY).longValue() / MBFactor;
+  }
+
+  public String getReleaseVersion() {
+    return GemFireVersion.getGemFireVersion();
   }
 }

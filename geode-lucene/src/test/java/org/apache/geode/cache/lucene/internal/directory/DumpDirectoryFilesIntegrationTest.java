@@ -14,19 +14,12 @@
  */
 package org.apache.geode.cache.lucene.internal.directory;
 
-import static org.apache.geode.cache.lucene.test.LuceneTestUtilities.*;
-import static org.junit.Assert.*;
+import static org.apache.geode.cache.lucene.test.LuceneTestUtilities.INDEX_NAME;
+import static org.apache.geode.cache.lucene.test.LuceneTestUtilities.REGION_NAME;
+import static org.junit.Assert.assertEquals;
 
 import java.io.File;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.geode.cache.Region;
-import org.apache.geode.cache.RegionShortcut;
-import org.apache.geode.cache.lucene.LuceneIntegrationTest;
-import org.apache.geode.cache.lucene.internal.InternalLuceneIndex;
-import org.apache.geode.cache.lucene.test.TestObject;
-import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.apache.geode.test.junit.rules.DiskDirRule;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -37,11 +30,20 @@ import org.apache.lucene.store.FSDirectory;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.rules.TemporaryFolder;
 
-@Category(IntegrationTest.class)
+import org.apache.geode.cache.Region;
+import org.apache.geode.cache.RegionShortcut;
+import org.apache.geode.cache.lucene.LuceneIntegrationTest;
+import org.apache.geode.cache.lucene.internal.InternalLuceneIndex;
+import org.apache.geode.cache.lucene.test.TestObject;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.LuceneTest;
+
+@Category({IntegrationTest.class, LuceneTest.class})
 public class DumpDirectoryFilesIntegrationTest extends LuceneIntegrationTest {
   @Rule
-  public DiskDirRule diskDirRule = new DiskDirRule();
+  public TemporaryFolder tempFolderRule = new TemporaryFolder();
 
   @Test
   public void shouldDumpReadableLuceneIndexFile() throws Exception {
@@ -59,10 +61,10 @@ public class DumpDirectoryFilesIntegrationTest extends LuceneIntegrationTest {
 
     luceneService.waitUntilFlushed(INDEX_NAME, REGION_NAME, 60000, TimeUnit.MILLISECONDS);
 
-    index.dumpFiles(diskDirRule.get().getAbsolutePath());
+    index.dumpFiles(tempFolderRule.getRoot().getAbsolutePath());
 
     // Find the directory for the first bucket
-    File bucket0 = diskDirRule.get().listFiles(file -> file.getName().endsWith("_0"))[0];
+    File bucket0 = tempFolderRule.getRoot().listFiles(file -> file.getName().endsWith("_0"))[0];
 
     // Test that we can read the lucene index from the dump
     final FSDirectory directory = FSDirectory.open(bucket0.toPath());

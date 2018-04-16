@@ -16,22 +16,21 @@ package org.apache.geode.management.internal.configuration.functions;
 
 import static java.util.stream.Collectors.toSet;
 
-import org.apache.geode.cache.execute.Function;
-import org.apache.geode.cache.execute.FunctionContext;
-import org.apache.geode.internal.InternalEntity;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
-import org.apache.geode.internal.cache.InternalCache;
-import org.apache.geode.internal.cache.LocalRegion;
-
 import java.util.Set;
 
-public class GetRegionNamesFunction implements Function, InternalEntity {
+import org.apache.geode.cache.execute.FunctionContext;
+import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.cache.InternalRegion;
+import org.apache.geode.internal.cache.execute.InternalFunction;
+
+public class GetRegionNamesFunction implements InternalFunction {
   @Override
   public void execute(FunctionContext context) {
     InternalCache cache = GemFireCacheImpl.getInstance();
 
     Set<String> regions =
-        cache.getApplicationRegions().stream().map(LocalRegion::getName).collect(toSet());
+        cache.getApplicationRegions().stream().map(InternalRegion::getName).collect(toSet());
 
     context.getResultSender().lastResult(regions);
   }

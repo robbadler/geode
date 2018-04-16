@@ -15,52 +15,26 @@
 package org.apache.geode.management.internal.cli.converters;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
 import org.apache.geode.management.cli.ConverterHint;
 import org.apache.geode.management.internal.cli.shell.Gfsh;
 
-import org.springframework.shell.core.Completion;
-import org.springframework.shell.core.Converter;
-import org.springframework.shell.core.MethodTarget;
-
 /**
- * 
+ *
  * @since GemFire 7.0
  */
-public class MemberGroupConverter implements Converter<String> {
+public class MemberGroupConverter extends BaseStringConverter {
 
   @Override
-  public boolean supports(Class<?> type, String optionContext) {
-    // System.out.println("MemberGroupConverter.supports("+type+","+optionContext+")");
-    return String.class.equals(type) && ConverterHint.MEMBERGROUP.equals(optionContext);
+  public String getConverterHint() {
+    return ConverterHint.MEMBERGROUP;
   }
 
-  @Override
-  public String convertFromText(String value, Class<?> targetType, String optionContext) {
-    // System.out.println("MemberGroupConverter.convertFromText("+value+","+targetType+","+optionContext+")");
-    return value;
-  }
-
-  @Override
-  public boolean getAllPossibleValues(List<Completion> completions, Class<?> targetType,
-      String existingData, String optionContext, MethodTarget target) {
-    // System.out.println("MemberGroupConverter.getAllPossibleValues("+existingData+","+targetType+","+optionContext+")");
-    if (String.class.equals(targetType) && ConverterHint.MEMBERGROUP.equals(optionContext)) {
-      String[] memberGroupNames = getMemberGroupNames();
-
-      for (String memberGroupName : memberGroupNames) {
-        completions.add(new Completion(memberGroupName));
-      }
-    }
-    return !completions.isEmpty();
-  }
-
-  public Set<String> getMemberGroups() {
+  public Set<String> getCompletionValues() {
     final Gfsh gfsh = Gfsh.getCurrentInstance();
-    final Set<String> memberGroups = new TreeSet<String>();
+    final Set<String> memberGroups = new TreeSet<>();
 
     if (gfsh != null && gfsh.isConnectedAndReady()) {
       final String[] memberGroupsArray =
@@ -69,11 +43,6 @@ public class MemberGroupConverter implements Converter<String> {
     }
 
     return memberGroups;
-  }
-
-  private String[] getMemberGroupNames() {
-    final Set<String> memberGroups = getMemberGroups();
-    return memberGroups.toArray(new String[memberGroups.size()]);
   }
 
 }

@@ -28,36 +28,35 @@ public interface OldClientSupportService extends CacheService {
 
   /**
    * translates the given throwable into one that can be sent to an old GemFire client
-   * 
+   *
    * @param theThrowable the throwable to convert
    * @param clientVersion the version of the client
    * @return the exception to give the client
    */
-  public Throwable getThrowable(Throwable theThrowable, Version clientVersion);
+  Throwable getThrowable(Throwable theThrowable, Version clientVersion);
 
   /**
    * Process a class name read from a serialized object of unknown origin
-   * 
-   * @param name
+   *
    * @return the class name to use
    */
-  public String processIncomingClassName(String name);
+  String processIncomingClassName(String name);
 
   /**
    * Process a class name read from a serialized object
-   * 
+   *
    * @param name the fully qualified class name
    * @param in the source of the class name
    * @return the adjusted class name
    */
-  public String processIncomingClassName(String name, DataInput in);
+  String processIncomingClassName(String name, DataInput in);
 
   /**
    * Process a class name being written to a serialized form
-   * 
+   *
    * @param name the fully qualified class name
    * @param out the consumer of the class name
    * @return the adjusted class name
    */
-  public String processOutgoingClassName(String name, DataOutput out);
+  String processOutgoingClassName(String name, DataOutput out);
 }

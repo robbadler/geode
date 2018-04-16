@@ -23,6 +23,21 @@ import static org.apache.geode.distributed.ConfigurationProperties.SSL_PROTOCOLS
 import static org.apache.geode.distributed.ConfigurationProperties.SSL_TRUSTSTORE;
 import static org.apache.geode.distributed.ConfigurationProperties.SSL_TRUSTSTORE_PASSWORD;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.contrib.java.lang.system.RestoreSystemProperties;
+import org.junit.experimental.categories.Category;
+import org.mockito.Mockito;
+
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.DistributionConfigImpl;
 import org.apache.geode.distributed.internal.PoolStatHelper;
@@ -36,20 +51,6 @@ import org.apache.geode.internal.security.SecurableCommunicationChannel;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 import org.apache.geode.test.junit.categories.MembershipTest;
 import org.apache.geode.util.test.TestUtil;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.contrib.java.lang.system.RestoreSystemProperties;
-import org.junit.experimental.categories.Category;
-import org.mockito.Mockito;
-
-import java.io.IOException;
-import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
 
 @Category({IntegrationTest.class, MembershipTest.class})
 public class TCPServerSSLJUnitTest {
@@ -138,7 +139,8 @@ public class TCPServerSSLJUnitTest {
     public DummyTcpServer(int port, InetAddress bind_address, Properties sslConfig,
         DistributionConfigImpl cfg, TcpHandler handler, PoolStatHelper poolHelper,
         ThreadGroup threadGroup, String threadName) {
-      super(port, bind_address, sslConfig, cfg, handler, poolHelper, threadGroup, threadName);
+      super(port, bind_address, sslConfig, cfg, handler, poolHelper, threadGroup, threadName, null,
+          null);
       if (cfg == null) {
         cfg = new DistributionConfigImpl(sslConfig);
       }

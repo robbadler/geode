@@ -19,7 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-Geode provides many types of events and event handlers to help you manage your different data and application needs.
+<%=vars.product_name%> provides many types of events and event handlers to help you manage your different data and application needs.
 
 ## <a id="event_handlers_and_events__section_E7B7502F673B43E794884D0F6BF537CF" class="no-quick-link"></a>Event Handlers
 
@@ -42,7 +42,7 @@ Use either cache handlers or membership handlers in any single application. Do n
 <tr>
 <td><code class="ph codeph">AsyncEventListener</code></td>
 <td><code class="ph codeph">AsyncEvent</code></td>
-<td><p>Tracks changes in a region for write-behind processing. Extends th <code class="ph codeph">CacheCallback</code> interface. You install a write-back cache listener to an <code class="ph codeph">AsyncEventQueue</code> instance. You can then add the <code class="ph codeph">AsyncEventQueue</code> instance to one or more regions for write-behind processing. See [Implementing an AsyncEventListener for Write-Behind Cache Event Handling](implementing_write_behind_event_handler.html#implementing_write_behind_cache_event_handling).</p></td>
+<td><p>Tracks changes in a region for write-behind processing. Extends the <code class="ph codeph">CacheCallback</code> interface. You install a write-back cache listener to an <code class="ph codeph">AsyncEventQueue</code> instance. You can then add the <code class="ph codeph">AsyncEventQueue</code> instance to one or more regions for write-behind processing. See <a href="implementing_write_behind_event_handler.html#implementing_write_behind_cache_event_handling">Implementing an AsyncEventListener for Write-Behind Cache Event Handling</a>.</p></td>
 </tr>
 <tr>
 <td><code class="ph codeph">CacheCallback</code></td>
@@ -60,8 +60,7 @@ Use either cache handlers or membership handlers in any single application. Do n
 <td>Receives events for <em>pending</em> changes to the region and its data entries in this member or one of its peers. Has the ability to abort the operations in question. Extends <code class="ph codeph">CacheCallback</code> interface. Installed in region. Receives events from anywhere in the distributed region, so you can install one in one member for the entire distributed region. Receives events only in primary data store in partitioned regions, so install one in every data store.</td>
 </tr>
 <tr>
-<td><code class="ph codeph">ClientMembershipListener</code>
-<p>(org.apache.geode.management .membership.ClientMembershipListener)</p></td>
+<td><code class="ph codeph">ClientMembershipListener</code></td>
 <td><code class="ph codeph">ClientMembershipEvent</code></td>
 <td>One of the interfaces that replaces the deprecated Admin APIs. You can use the ClientMembershipListener to receive membership events only about clients. This listener's callback methods are invoked when this process detects connection changes to clients. Callback methods include <code class="ph codeph">memberCrashed</code>, <code class="ph codeph">memberJoined</code>, <code class="ph codeph">memberLeft</code> (graceful exit).</td>
 </tr>
@@ -77,9 +76,8 @@ Use either cache handlers or membership handlers in any single application. Do n
 </tr>
 <tr>
 <td><code class="ph codeph">MembershipListener</code>
-<p>(org.apache.geode.management .membership.MembershipListener)</p></td>
 <td><code class="ph codeph">MembershipEvent</code></td>
-<td>Use this interface to receive membership events only about peers. This listener's callback methods are invoked when peer members join or leave the Geode distributed system. Callback methods include <code class="ph codeph">memberCrashed</code>, <code class="ph codeph">memberJoined</code>, and <code class="ph codeph">memberLeft</code> (graceful exit).</td>
+<td>Use this interface to receive membership events only about peers. This listener's callback methods are invoked when peer members join or leave the <%=vars.product_name%> distributed system. Callback methods include <code class="ph codeph">memberCrashed</code>, <code class="ph codeph">memberJoined</code>, and <code class="ph codeph">memberLeft</code> (graceful exit).</td>
 </tr>
 <tr>
 <td><code class="ph codeph">RegionMembershipListener</code></td>
@@ -103,7 +101,6 @@ Extends <code class="ph codeph">CacheCallback</code> interface. Installed in cac
 </tr>
 <tr>
 <td><code class="ph codeph">UniversalMembershipListenerAdapter</code>
-<p>(org.apache.geode .management.membership .UniversalMembershipListenerAdapter)</p></td>
 <td><code class="ph codeph">MembershipEvent</code> and <code class="ph codeph">ClientMembershipEvent</code></td>
 <td>One of the interfaces that replaces the deprecated Admin APIs. Provides a wrapper for MembershipListener and ClientMembershipListener callbacks for both clients and peers.</td>
 </tr>
@@ -151,7 +148,7 @@ The events in this table are cache events unless otherwise noted.
 <tr>
 <td><code class="ph codeph">EntryEvent</code></td>
 <td><code class="ph codeph">CacheListener</code>, <code class="ph codeph">CacheWriter</code>, <code class="ph codeph">TransactionListener</code> (inside the <code class="ph codeph">TransactionEvent</code>)</td>
-<td>Extends <code class="ph codeph">CacheEvent</code> for entry events. Contains information about an event affecting a data entry in the cache. The information includes the key, the value before this event, and the value after this event. <code class="ph codeph">EntryEvent.getNewValue</code> returns the current value of the data entry. <code class="ph codeph">EntryEvent.getOldValue</code> returns the value before this event if it is available. For a partitioned region, returns the old value if the local cache holds the primary copy of the entry. <code class="ph codeph">EntryEvent</code> provides the Geode transaction ID if available.
+<td>Extends <code class="ph codeph">CacheEvent</code> for entry events. Contains information about an event affecting a data entry in the cache. The information includes the key, the value before this event, and the value after this event. <code class="ph codeph">EntryEvent.getNewValue</code> returns the current value of the data entry. <code class="ph codeph">EntryEvent.getOldValue</code> returns the value before this event if it is available. For a partitioned region, returns the old value if the local cache holds the primary copy of the entry. <code class="ph codeph">EntryEvent</code> provides the <%=vars.product_name%> transaction ID if available.
 <p>You can retrieve serialized values from <code class="ph codeph">EntryEvent</code> using the <code class="ph codeph">getSerialized</code>* methods. This is useful if you get values from one region’s events just to put them into a separate cache region. There is no counterpart <code class="ph codeph">put</code> function as the put recognizes that the value is serialized and bypasses the serialization step.</p></td>
 </tr>
 <tr>

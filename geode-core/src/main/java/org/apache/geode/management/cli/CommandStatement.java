@@ -19,34 +19,36 @@ import java.util.Map;
 /**
  * Represents GemFire Command Line Interface (CLI) command strings. A <code>CommandStatement</code>
  * instance can be used multiple times to process the same command string repeatedly.
- * 
- * 
+ *
+ *
  * @since GemFire 7.0
+ *
+ * @deprecated since Geode 1.3. simply use commandProcessor to process the command
  */
 public interface CommandStatement {
 
   /**
    * Returns the user specified command string.
    */
-  public String getCommandString();
+  String getCommandString();
 
   /**
    * Returns the CLI environment variables.
    */
-  public Map<String, String> getEnv();
+  Map<String, String> getEnv();
 
   /**
    * Processes this command statement with the user specified command string and environment
-   * 
+   *
    * @return The {@link Result} of the execution of this command statement.
    */
-  public Result process();
+  Result process();
 
 
   /**
    * Returns whether the command statement is well formed.
-   * 
+   *
    * @return True if the command statement is well formed, false otherwise.
    */
-  public boolean validate();
+  boolean validate();
 }

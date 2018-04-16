@@ -14,14 +14,6 @@
  */
 package org.apache.geode.distributed.internal.membership;
 
-import org.apache.geode.DataSerializer;
-import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.internal.DistributionManager;
-import org.apache.geode.internal.DataSerializableFixedID;
-import org.apache.geode.internal.InternalDataSerializer;
-import org.apache.geode.internal.Version;
-import org.apache.logging.log4j.Logger;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -38,10 +30,19 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.Logger;
+
+import org.apache.geode.DataSerializer;
+import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
+import org.apache.geode.internal.DataSerializableFixedID;
+import org.apache.geode.internal.InternalDataSerializer;
+import org.apache.geode.internal.Version;
+
 /**
  * The NetView class represents a membership view. Note that this class is not synchronized, so take
  * that under advisement if you decide to modify a view with add() or remove().
- * 
+ *
  * @since GemFire 5.5
  */
 public class NetView implements DataSerializableFixedID {
@@ -56,7 +57,7 @@ public class NetView implements DataSerializableFixedID {
   private InternalDistributedMember creator;
   private Set<InternalDistributedMember> hashedMembers;
   private final Object membersLock = new Object();
-  static public final Random RANDOM = new Random();
+  public static final Random RANDOM = new Random();
 
 
   public NetView() {
@@ -94,7 +95,7 @@ public class NetView implements DataSerializableFixedID {
 
   /**
    * Test method
-   * 
+   *
    * @param size size of the view, used for presizing collections
    * @param viewId the ID of the view
    */
@@ -163,6 +164,10 @@ public class NetView implements DataSerializableFixedID {
     if (otherView.publicKeys != null) {
       this.publicKeys.putAll(otherView.publicKeys);
     }
+  }
+
+  public void setViewId(int viewId) {
+    this.viewId = viewId;
   }
 
 
@@ -292,7 +297,7 @@ public class NetView implements DataSerializableFixedID {
 
   public InternalDistributedMember getLeadMember() {
     for (InternalDistributedMember mbr : this.members) {
-      if (mbr.getVmKind() == DistributionManager.NORMAL_DM_TYPE) {
+      if (mbr.getVmKind() == ClusterDistributionManager.NORMAL_DM_TYPE) {
         return mbr;
       }
     }
@@ -340,7 +345,7 @@ public class NetView implements DataSerializableFixedID {
    * This functions returns the list of preferred coordinators. One random member from list of
    * non-preferred member list. It make sure that random member is not in suspected Set. And local
    * member.
-   * 
+   *
    * @param filter Suspect member set.
    * @param localAddress the address of this member
    * @param maxNumberDesired number of preferred coordinators to return
@@ -412,16 +417,16 @@ public class NetView implements DataSerializableFixedID {
     for (InternalDistributedMember mbr : this.members) {
       result += mbr.getNetMember().getMemberWeight();
       switch (mbr.getVmKind()) {
-        case DistributionManager.NORMAL_DM_TYPE:
+        case ClusterDistributionManager.NORMAL_DM_TYPE:
           result += 10;
           if (lead != null && mbr.equals(lead)) {
             result += 5;
           }
           break;
-        case DistributionManager.LOCATOR_DM_TYPE:
+        case ClusterDistributionManager.LOCATOR_DM_TYPE:
           result += 3;
           break;
-        case DistributionManager.ADMIN_ONLY_DM_TYPE:
+        case ClusterDistributionManager.ADMIN_ONLY_DM_TYPE:
           break;
         default:
           throw new IllegalStateException("Unknown member type: " + mbr.getVmKind());
@@ -443,16 +448,16 @@ public class NetView implements DataSerializableFixedID {
       }
       result += mbr.getNetMember().getMemberWeight();
       switch (mbr.getVmKind()) {
-        case DistributionManager.NORMAL_DM_TYPE:
+        case ClusterDistributionManager.NORMAL_DM_TYPE:
           result += 10;
           if (lead != null && mbr.equals(lead)) {
             result += 5;
           }
           break;
-        case DistributionManager.LOCATOR_DM_TYPE:
+        case ClusterDistributionManager.LOCATOR_DM_TYPE:
           result += 3;
           break;
-        case DistributionManager.ADMIN_ONLY_DM_TYPE:
+        case ClusterDistributionManager.ADMIN_ONLY_DM_TYPE:
           break;
         default:
           throw new IllegalStateException("Unknown member type: " + mbr.getVmKind());
@@ -468,7 +473,7 @@ public class NetView implements DataSerializableFixedID {
   public Set<InternalDistributedMember> getActualCrashedMembers(NetView oldView) {
     Set<InternalDistributedMember> result = new HashSet<>(this.crashedMembers.size());
     result.addAll(this.crashedMembers.stream()
-        .filter(mbr -> (mbr.getVmKind() != DistributionManager.ADMIN_ONLY_DM_TYPE))
+        .filter(mbr -> (mbr.getVmKind() != ClusterDistributionManager.ADMIN_ONLY_DM_TYPE))
         .filter(mbr -> oldView == null || oldView.contains(mbr)).collect(Collectors.toList()));
     return result;
   }
@@ -484,17 +489,17 @@ public class NetView implements DataSerializableFixedID {
       }
       int mbrWeight = mbr.getNetMember().getMemberWeight();
       switch (mbr.getVmKind()) {
-        case DistributionManager.NORMAL_DM_TYPE:
+        case ClusterDistributionManager.NORMAL_DM_TYPE:
           if (lead != null && mbr.equals(lead)) {
             mbrWeight += 15;
           } else {
             mbrWeight += 10;
           }
           break;
-        case DistributionManager.LOCATOR_DM_TYPE:
+        case ClusterDistributionManager.LOCATOR_DM_TYPE:
           mbrWeight += 3;
           break;
-        case DistributionManager.ADMIN_ONLY_DM_TYPE:
+        case ClusterDistributionManager.ADMIN_ONLY_DM_TYPE:
           break;
         default:
           throw new IllegalStateException("Unknown member type: " + mbr.getVmKind());

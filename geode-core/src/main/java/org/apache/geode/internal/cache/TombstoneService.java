@@ -65,7 +65,7 @@ public class TombstoneService {
    * This is the period over which the destroy operation may conflict with another operation. After
    * this timeout elapses the tombstone is put into a GC set for removal. Removal is typically
    * triggered by the size of the GC set, but could be influenced by resource managers.
-   * 
+   *
    * The default is 600,000 milliseconds (10 minutes).
    */
   public static long REPLICATE_TOMBSTONE_TIMEOUT =
@@ -144,7 +144,7 @@ public class TombstoneService {
   /**
    * Tombstones are markers placed in destroyed entries in order to keep the entry around for a
    * while so that it's available for concurrent modification detection.
-   * 
+   *
    * @param r the region holding the entry
    * @param entry the region entry that holds the tombstone
    * @param destroyedVersion the version that was destroyed
@@ -164,7 +164,7 @@ public class TombstoneService {
 
   private TombstoneSweeper getSweeper(LocalRegion r) {
     if (r.getScope().isDistributed() && r.getServerProxy() == null
-        && r.dataPolicy.withReplication()) {
+        && r.getDataPolicy().withReplication()) {
       return this.replicatedTombstoneSweeper;
     } else {
       return this.nonReplicatedTombstoneSweeper;
@@ -200,7 +200,7 @@ public class TombstoneService {
   /**
    * remove tombstones from the given region that have region-versions <= those in the given removal
    * map
-   * 
+   *
    * @return a collection of keys removed (only if the region is a bucket - empty otherwise)
    */
   @SuppressWarnings("rawtypes")
@@ -270,7 +270,7 @@ public class TombstoneService {
    * separate version vectors for each bucket. In the client this causes the version vector to make
    * no sense, so we have to send it a collection of the keys removed on the server and then we
    * brute-force remove any of them that are tombstones on the client
-   * 
+   *
    * @param r the region affected
    * @param tombstoneKeys the keys removed on the server
    */
@@ -305,7 +305,7 @@ public class TombstoneService {
 
   /**
    * For test purposes only, force the expiration of a number of tombstones for replicated regions.
-   * 
+   *
    * @return true if the expiration occurred
    */
   public boolean forceBatchExpirationForTests(int count) throws InterruptedException {
@@ -380,8 +380,8 @@ public class TombstoneService {
 
     @Override
     protected void expireTombstone(Tombstone tombstone) {
-      if (logger.isTraceEnabled(LogMarker.TOMBSTONE)) {
-        logger.trace(LogMarker.TOMBSTONE, "removing expired tombstone {}", tombstone);
+      if (logger.isTraceEnabled(LogMarker.TOMBSTONE_VERBOSE)) {
+        logger.trace(LogMarker.TOMBSTONE_VERBOSE, "removing expired tombstone {}", tombstone);
       }
       updateMemoryEstimate(-tombstone.getSize());
       tombstone.region.getRegionMap().removeTombstone(tombstone.entry, tombstone, false, true);
@@ -679,8 +679,9 @@ public class TombstoneService {
 
     @Override
     protected void expireTombstone(Tombstone tombstone) {
-      if (logger.isTraceEnabled(LogMarker.TOMBSTONE)) {
-        logger.trace(LogMarker.TOMBSTONE, "adding expired tombstone {} to batch", tombstone);
+      if (logger.isTraceEnabled(LogMarker.TOMBSTONE_VERBOSE)) {
+        logger.trace(LogMarker.TOMBSTONE_VERBOSE, "adding expired tombstone {} to batch",
+            tombstone);
       }
       synchronized (expiredTombstonesLock) {
         expiredTombstones.add(tombstone);
@@ -728,7 +729,7 @@ public class TombstoneService {
     }
   }
 
-  private static abstract class TombstoneSweeper implements Runnable {
+  private abstract static class TombstoneSweeper implements Runnable {
     /**
      * the expiration time for tombstones in this sweeper
      */
@@ -805,7 +806,7 @@ public class TombstoneService {
     /**
      * For each unexpired tombstone this sweeper knows about call the predicate. If the predicate
      * returns true then remove the tombstone from any storage and update the memory estimate.
-     * 
+     *
      * @return true if predicate ever returned true
      */
     private boolean removeUnexpiredIf(Predicate<Tombstone> predicate) {
@@ -831,7 +832,7 @@ public class TombstoneService {
     /**
      * For all tombstone this sweeper knows about call the predicate. If the predicate returns true
      * then remove the tombstone from any storage and update the memory estimate.
-     * 
+     *
      * @return true if predicate ever returned true
      */
     private boolean removeIf(Predicate<Tombstone> predicate) {
@@ -880,8 +881,8 @@ public class TombstoneService {
     }
 
     public void run() {
-      if (logger.isTraceEnabled(LogMarker.TOMBSTONE)) {
-        logger.trace(LogMarker.TOMBSTONE,
+      if (logger.isTraceEnabled(LogMarker.TOMBSTONE_VERBOSE)) {
+        logger.trace(LogMarker.TOMBSTONE_VERBOSE,
             "Destroyed entries sweeper starting with sleep interval of {} milliseconds",
             EXPIRY_TIME);
       }
@@ -919,8 +920,8 @@ public class TombstoneService {
       }
       beforeSleepChecks();
       sleepTime = Math.min(sleepTime, MAX_SLEEP_TIME);
-      if (logger.isTraceEnabled(LogMarker.TOMBSTONE)) {
-        logger.trace(LogMarker.TOMBSTONE, "sleeping for {}", sleepTime);
+      if (logger.isTraceEnabled(LogMarker.TOMBSTONE_VERBOSE)) {
+        logger.trace(LogMarker.TOMBSTONE_VERBOSE, "sleeping for {}", sleepTime);
       }
       synchronized (this) {
         if (isStopped) {
@@ -951,8 +952,8 @@ public class TombstoneService {
       boolean removedObsoleteTombstone = removeIf(tombstone -> {
         if (tombstone.region.getRegionMap().isTombstoneNotNeeded(tombstone.entry,
             tombstone.getEntryVersion())) {
-          if (logger.isTraceEnabled(LogMarker.TOMBSTONE)) {
-            logger.trace(LogMarker.TOMBSTONE, "removing obsolete tombstone: {}", tombstone);
+          if (logger.isTraceEnabled(LogMarker.TOMBSTONE_VERBOSE)) {
+            logger.trace(LogMarker.TOMBSTONE_VERBOSE, "removing obsolete tombstone: {}", tombstone);
           }
           return true;
         }
@@ -978,14 +979,14 @@ public class TombstoneService {
       Tombstone oldest = tombstones.peek();
       try {
         if (oldest == null) {
-          if (logger.isTraceEnabled(LogMarker.TOMBSTONE)) {
-            logger.trace(LogMarker.TOMBSTONE, "queue is empty - will sleep");
+          if (logger.isTraceEnabled(LogMarker.TOMBSTONE_VERBOSE)) {
+            logger.trace(LogMarker.TOMBSTONE_VERBOSE, "queue is empty - will sleep");
           }
           handleNoUnexpiredTombstones();
           sleepTime = EXPIRY_TIME;
         } else {
-          if (logger.isTraceEnabled(LogMarker.TOMBSTONE)) {
-            logger.trace(LogMarker.TOMBSTONE, "oldest unexpired tombstone is {}", oldest);
+          if (logger.isTraceEnabled(LogMarker.TOMBSTONE_VERBOSE)) {
+            logger.trace(LogMarker.TOMBSTONE_VERBOSE, "oldest unexpired tombstone is {}", oldest);
           }
           long msTillHeadTombstoneExpires = oldest.getVersionTimeStamp() + EXPIRY_TIME - now;
           if (hasExpired(msTillHeadTombstoneExpires)) {
@@ -1021,7 +1022,7 @@ public class TombstoneService {
      * returns true then remove the tombstone from any storage and update the memory estimate.
      * <p>
      * Some sweepers batch up the expired tombstones to gc them later.
-     * 
+     *
      * @return true if predicate ever returned true
      */
     protected abstract boolean removeExpiredIf(Predicate<Tombstone> predicate);

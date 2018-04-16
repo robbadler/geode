@@ -14,7 +14,8 @@
  */
 package org.apache.geode.internal;
 
-import java.io.*;
+import java.io.DataOutput;
+import java.io.IOException;
 
 
 /**
@@ -22,13 +23,13 @@ import java.io.*;
  * sees a byte array arrive.
  *
  * @since GemFire 5.0.2
- * 
+ *
  */
 public interface ObjToByteArraySerializer extends DataOutput {
   /**
    * Serialize the given object v as a byte array
-   * 
+   *
    * @throws IOException if something goes wrong during serialization
    */
-  public void writeAsSerializedByteArray(Object v) throws IOException;
+  void writeAsSerializedByteArray(Object v) throws IOException;
 }

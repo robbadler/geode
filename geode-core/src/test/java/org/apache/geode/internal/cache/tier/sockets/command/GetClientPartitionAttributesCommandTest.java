@@ -14,12 +14,9 @@
  */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.*;
-
-import java.util.Properties;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -76,7 +73,8 @@ public class GetClientPartitionAttributesCommandTest {
   public void noSecurityShouldSucceed() throws Exception {
     when(this.securityService.isClientSecurityRequired()).thenReturn(false);
 
-    this.getClientPartitionAttributesCommand.cmdExecute(this.message, this.serverConnection, 0);
+    this.getClientPartitionAttributesCommand.cmdExecute(this.message, this.serverConnection,
+        this.securityService, 0);
 
     verify(this.responseMessage).send();
   }

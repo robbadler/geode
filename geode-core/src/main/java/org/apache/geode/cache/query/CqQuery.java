@@ -28,47 +28,47 @@ public interface CqQuery {
 
   /**
    * Get the original query string that was specified with CQ.
-   * 
+   *
    * @return String the query string associated with CQ.
    */
-  public String getQueryString();
+  String getQueryString();
 
   /**
    * Get the query object generated for this CQs query.
-   * 
+   *
    * @return Query query object for the query string.
    */
-  public Query getQuery();
+  Query getQuery();
 
   /**
    * Get the name of the CQ.
-   * 
+   *
    * @return the name of the CQ.
    */
-  public String getName();
+  String getName();
 
   /**
    * Get statistics information for this CQ.
-   * 
+   *
    * @return CqStatistics CQ statistics object.
    */
-  public CqStatistics getStatistics();
+  CqStatistics getStatistics();
 
   /**
    * Get CqAttributes for this CQ.
-   * 
+   *
    * @see CqAttributes
    * @return CqAttributes cqAttribute set with this CqQuery.
    */
-  public CqAttributes getCqAttributes();
+  CqAttributes getCqAttributes();
 
   /**
    * Get CqAttributesMutator for this CQ.
-   * 
+   *
    * @see CqAttributesMutator
    * @return CqAttributesMutator.
    */
-  public CqAttributesMutator getCqAttributesMutator();
+  CqAttributesMutator getCqAttributesMutator();
 
   /**
    * Starts executing the CQ or, if the CQ is in a stopped state, resumes execution. Gets the
@@ -77,82 +77,82 @@ public interface CqQuery {
    * query is complex and the data set is large, this execution may take a long time, which may
    * cause a socket read timeout in the client. To allow adequate time, you may need to set a longer
    * pool read-timeout in the client.
-   * 
+   *
    * @throws CqClosedException if this CqQuery is closed.
    * @throws RegionNotFoundException if the specified region in the query string is not found.
    * @throws IllegalStateException if the CqQuery is in the RUNNING state already.
    * @throws CqException if failed to execute and get initial results.
    * @return SelectResults resultset obtained by executing the query.
    */
-  public <E> CqResults<E> executeWithInitialResults()
+  <E> CqResults<E> executeWithInitialResults()
       throws CqClosedException, RegionNotFoundException, CqException;
 
   /**
    * Start executing the CQ or if this CQ is stopped earlier, resumes execution of the CQ. The CQ is
    * executed on primary and redundant servers, if CQ execution fails on all the server then a
    * CqException is thrown.
-   * 
+   *
    * @throws CqClosedException if this CqQuery is closed.
    * @throws RegionNotFoundException if the specified region in the query string is not found.
    * @throws IllegalStateException if the CqQuery is in the RUNNING state already.
    * @throws CqException if failed to execute.
    */
-  public void execute() throws CqClosedException, RegionNotFoundException, CqException;
+  void execute() throws CqClosedException, RegionNotFoundException, CqException;
 
   /**
    * Stops this CqQuery without releasing resources. Puts the CqQuery into the STOPPED state. Can be
    * resumed by calling execute or executeWithInitialResults.
-   * 
+   *
    * @throws IllegalStateException if the CqQuery is in the STOPPED state already.
    * @throws CqClosedException if the CQ is CLOSED.
    */
-  public void stop() throws CqClosedException, CqException;
+  void stop() throws CqClosedException, CqException;
 
   /**
    * Get the state of the CQ in CqState object form. CqState supports methods like isClosed(),
    * isRunning(), isStopped().
-   * 
+   *
    * @see CqState
    * @return CqState state object of the CQ.
    */
-  public CqState getState();
+  CqState getState();
 
   /**
    * Close the CQ and stop execution. Releases the resources associated with this CqQuery.
-   * 
+   *
    * @throws CqClosedException Further calls on this CqQuery instance except for getState() or
    *         getName().
    * @throws CqException - if failure during cleanup of CQ resources.
    */
-  public void close() throws CqClosedException, CqException;
+  void close() throws CqClosedException, CqException;
 
   /**
    * This allows to check if the CQ is in running or active.
-   * 
+   *
    * @return boolean true if running, false otherwise
    */
-  public boolean isRunning();
+  boolean isRunning();
 
   /**
    * This allows to check if the CQ is in stopped.
-   * 
+   *
    * @return boolean true if stopped, false otherwise
    */
-  public boolean isStopped();
+  boolean isStopped();
 
   /**
    * This allows to check if the CQ is closed.
-   * 
+   *
    * @return boolean true if closed, false otherwise
    */
-  public boolean isClosed();
+  boolean isClosed();
 
   /**
    * This allows to check if the CQ is durable.
-   * 
+   *
    * @return boolean true if durable, false otherwise
    * @since GemFire 5.5
    */
-  public boolean isDurable();
+  boolean isDurable();
 
 }

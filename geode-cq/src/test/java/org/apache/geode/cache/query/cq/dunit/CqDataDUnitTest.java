@@ -14,17 +14,13 @@
  */
 package org.apache.geode.cache.query.cq.dunit;
 
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
 
 import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.CacheException;
@@ -40,10 +36,9 @@ import org.apache.geode.cache.query.SelectResults;
 import org.apache.geode.cache.query.Struct;
 import org.apache.geode.cache.query.data.Portfolio;
 import org.apache.geode.cache.query.internal.cq.CqQueryImpl;
-import org.apache.geode.cache30.ClientServerTestCase;
 import org.apache.geode.cache30.CacheSerializableRunnable;
-import org.apache.geode.cache30.CacheTestCase;
 import org.apache.geode.cache30.CertifiableTestCacheListener;
+import org.apache.geode.cache30.ClientServerTestCase;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.test.dunit.Assert;
 import org.apache.geode.test.dunit.AsyncInvocation;
@@ -56,13 +51,16 @@ import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
+import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * This class tests the ContiunousQuery mechanism in GemFire. This includes the test with different
  * data activities.
  *
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, ClientSubscriptionTest.class})
 public class CqDataDUnitTest extends JUnit4CacheTestCase {
 
   protected CqQueryDUnitTest cqDUnitTest = new CqQueryDUnitTest();
@@ -90,8 +88,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
    * Tests with client acting as feeder/publisher and registering cq. Added wrt bug 37161. In case
    * of InterestList the events are not sent back to the client if its the originator, this is not
    * true for cq.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testClientWithFeederAndCQ() throws Exception {
@@ -128,8 +125,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test for CQ Fail over/HA with redundancy level set.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testCQHAWithState() throws Exception {
@@ -253,8 +249,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Tests propogation of invalidates and destorys to the clients. Bug 37242.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testCQWithDestroysAndInvalidates() throws Exception {
@@ -322,7 +317,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
   /**
    * Tests make sure that the second client doesnt get more events then there should be. This will
    * test the fix for bug 37295.
-   * 
+   *
    */
   @Test
   public void testCQWithMultipleClients() throws Exception {
@@ -382,8 +377,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test for CQ when region is populated with net load.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testCQWithLoad() throws Exception {
@@ -435,8 +429,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test for CQ when entries are evicted from region.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testCQWithEviction() throws Exception {
@@ -461,7 +454,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
           Region region = createRegion(cqDUnitTest.regions[i], factory.createRegionAttributes());
           // Set CacheListener.
           region.getAttributesMutator()
-              .setCacheListener(new CertifiableTestCacheListener(LogWriterUtils.getLogWriter()));
+              .addCacheListener(new CertifiableTestCacheListener(LogWriterUtils.getLogWriter()));
         }
         Wait.pause(2000);
 
@@ -508,8 +501,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test for CQ with ConnectionPool.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testCQWithConnectionPool() throws Exception {
@@ -570,8 +562,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test for CQ with BridgeClient.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testCQWithBridgeClient() throws Exception {
@@ -629,8 +620,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test for CQ with ConnectionPool.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testCQWithPool() throws Exception {
@@ -687,8 +677,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
 
   /**
    * Test for CQ with establishCallBackConnection.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testCQWithEstablishCallBackConnection() throws Exception {
@@ -755,8 +744,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
   /**
    * Test for: Region destroy, calls close on the server. Region clear triggers cqEvent with query
    * op region clear. Region invalidate triggers cqEvent with query op region invalidate.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testRegionEvents() throws Exception {
@@ -837,8 +825,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
    * executeWithInitialResults there may be possibility that the region changes during that time may
    * not be reflected in the query result set thus making the query data and region data
    * inconsistent.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testEventsDuringQueryExecution() throws Exception {
@@ -973,8 +960,7 @@ public class CqDataDUnitTest extends JUnit4CacheTestCase {
    * The second execution will block until TC1 is completed (based on how executeWithInitialResults
    * is implemented) A third thread will be awaken and release the latch in the testhook for TC1 to
    * complete.
-   * 
-   * @throws Exception
+   *
    */
   @Test
   public void testMultipleExecuteWithInitialResults() throws Exception {

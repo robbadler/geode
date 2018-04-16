@@ -20,7 +20,6 @@ import static org.junit.Assert.*;
 import java.util.Iterator;
 import java.util.Properties;
 
-import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -52,6 +51,7 @@ import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
@@ -171,8 +171,7 @@ public class ClientConflationDUnitTest extends JUnit4DistributedTestCase {
 
   /**
    * create client 2 with 2 regions each with a unique writer and unique listeners
-   * 
-   * @throws Exception
+   *
    */
   public static void createClientCache(String host, Integer port, String conflation)
       throws Exception {
@@ -233,12 +232,12 @@ public class ClientConflationDUnitTest extends JUnit4DistributedTestCase {
    */
 
   // For first region with server conflation setting on
-  volatile static int counterCreate1 = 0;
-  volatile static int counterUpdate1 = 0;
+  static volatile int counterCreate1 = 0;
+  static volatile int counterUpdate1 = 0;
 
   // For first region with server conflation setting off
-  volatile static int counterCreate2 = 0;
-  volatile static int counterUpdate2 = 0;
+  static volatile int counterCreate2 = 0;
+  static volatile int counterUpdate2 = 0;
 
   /**
    * assert all the counters are zero
@@ -383,7 +382,6 @@ public class ClientConflationDUnitTest extends JUnit4DistributedTestCase {
   /**
    * create a server cache and start the server
    *
-   * @throws Exception
    */
   public static Integer createServerCache() throws Exception {
     Properties props = new Properties();
@@ -511,4 +509,3 @@ public class ClientConflationDUnitTest extends JUnit4DistributedTestCase {
     vm0.invoke(() -> ClientConflationDUnitTest.closeCacheServer());
   }
 }
-

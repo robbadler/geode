@@ -18,6 +18,23 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+import org.awaitility.Awaitility;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
+import org.apache.geode.DataSerializable;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.FunctionService;
@@ -26,6 +43,7 @@ import org.apache.geode.distributed.DistributedLockService;
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
 import org.apache.geode.distributed.LockServiceDestroyedException;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
+import org.apache.geode.pdx.internal.TypeRegistry;
 import org.apache.geode.test.dunit.Assert;
 import org.apache.geode.test.dunit.AsyncInvocation;
 import org.apache.geode.test.dunit.Host;
@@ -36,18 +54,6 @@ import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.awaitility.Awaitility;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 @Category(DistributedTest.class)
 public class GemFireDeadlockDetectorDUnitTest extends JUnit4CacheTestCase {
@@ -87,6 +93,7 @@ public class GemFireDeadlockDetectorDUnitTest extends JUnit4CacheTestCase {
     Host host = Host.getHost(0);
     VM vm0 = host.getVM(0);
     VM vm1 = host.getVM(1);
+    TypeRegistry.init();
 
     // Make sure a deadlock from a previous test is cleared.
     disconnectAllFromDS();
@@ -108,6 +115,7 @@ public class GemFireDeadlockDetectorDUnitTest extends JUnit4CacheTestCase {
     Host host = Host.getHost(0);
     VM vm0 = host.getVM(0);
     VM vm1 = host.getVM(1);
+    TypeRegistry.init();
     getSystem();
     InternalDistributedMember member1 = createCache(vm0);
     final InternalDistributedMember member2 = createCache(vm1);
@@ -177,6 +185,7 @@ public class GemFireDeadlockDetectorDUnitTest extends JUnit4CacheTestCase {
     VM vm0 = host.getVM(0);
     VM vm1 = host.getVM(1);
     getBlackboard().initBlackboard();
+    TypeRegistry.init();
 
     getSystem();
     AsyncInvocation async1 = lockTheDLocks(vm0, "one", "two");
@@ -249,7 +258,9 @@ public class GemFireDeadlockDetectorDUnitTest extends JUnit4CacheTestCase {
     });
   }
 
-  private static class TestFunction implements Function {
+  private static class TestFunction implements Function, DataSerializable {
+
+    public TestFunction() {}
 
     private static final int LOCK_WAIT_TIME = 1000;
 
@@ -287,6 +298,15 @@ public class GemFireDeadlockDetectorDUnitTest extends JUnit4CacheTestCase {
     }
 
 
+    @Override
+    public void toData(DataOutput out) throws IOException {
+
+    }
+
+    @Override
+    public void fromData(DataInput in) throws IOException, ClassNotFoundException {
+
+    }
   }
 
 }

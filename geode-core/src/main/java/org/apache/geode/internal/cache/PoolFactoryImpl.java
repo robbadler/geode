@@ -22,21 +22,23 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Properties;
+import java.util.Objects;
 
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializable;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.CacheException;
-import org.apache.geode.cache.RegionService;
 import org.apache.geode.cache.client.Pool;
 import org.apache.geode.cache.client.PoolFactory;
 import org.apache.geode.cache.client.internal.LocatorDiscoveryCallback;
 import org.apache.geode.cache.client.internal.PoolImpl;
 import org.apache.geode.cache.query.QueryService;
 import org.apache.geode.cache.wan.GatewaySender;
+import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.distributed.internal.membership.gms.membership.HostAddress;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
@@ -44,7 +46,7 @@ import org.apache.geode.pdx.internal.TypeRegistry;
 
 /**
  * Implementation of PoolFactory.
- * 
+ *
  * @since GemFire 5.7
  */
 public class PoolFactoryImpl implements PoolFactory {
@@ -55,6 +57,8 @@ public class PoolFactoryImpl implements PoolFactory {
    */
   private PoolAttributes attributes = new PoolAttributes();
 
+  private List<HostAddress> locatorAddresses = new ArrayList<>();
+
   /**
    * The cache that created this factory
    */
@@ -62,6 +66,14 @@ public class PoolFactoryImpl implements PoolFactory {
 
   public PoolFactoryImpl(PoolManagerImpl pm) {
     this.pm = pm;
+  }
+
+  public PoolFactory setSocketConnectTimeout(int socketConnectTimeout) {
+    if (socketConnectTimeout <= -1) {
+      throw new IllegalArgumentException("socketConnectTimeout must be greater than -1");
+    }
+    this.attributes.socketConnectTimeout = socketConnectTimeout;
+    return this;
   }
 
   public PoolFactory setFreeConnectionTimeout(int connectionTimeout) {
@@ -209,25 +221,30 @@ public class PoolFactoryImpl implements PoolFactory {
     return this;
   }
 
-  private PoolFactory add(String host, int port, List l) {
+  @Override
+  public PoolFactory setSubscriptionTimeoutMultiplier(int multiplier) {
+    this.attributes.subscriptionTimeoutMultipler = multiplier;
+    return this;
+  }
+
+  private InetSocketAddress getInetSocketAddress(String host, int port) {
     if (port == 0) {
       throw new IllegalArgumentException("port must be greater than 0 but was " + port);
       // the rest of the port validation is done by InetSocketAddress
     }
+    InetSocketAddress sockAddr = null;
     try {
       InetAddress hostAddr = InetAddress.getByName(host);
-      InetSocketAddress sockAddr = new InetSocketAddress(hostAddr, port);
-      l.add(sockAddr);
+      sockAddr = new InetSocketAddress(hostAddr, port);
     } catch (UnknownHostException ignore) {
       // IllegalArgumentException ex = new IllegalArgumentException("Unknown host " + host);
       // ex.initCause(cause);
       // throw ex;
       // Fix for #45348
       logger.warn(LocalizedMessage.create(LocalizedStrings.PoolFactoryImpl_HOSTNAME_UNKNOWN, host));
-      InetSocketAddress sockAddr = new InetSocketAddress(host, port);
-      l.add(sockAddr);
+      sockAddr = new InetSocketAddress(host, port);
     }
-    return this;
+    return sockAddr;
   }
 
   public PoolFactory setSubscriptionAckInterval(int ackInterval) {
@@ -244,7 +261,10 @@ public class PoolFactoryImpl implements PoolFactory {
       throw new IllegalStateException(
           "A server has already been added. You can only add locators or servers; not both.");
     }
-    return add(host, port, this.attributes.locators);
+    InetSocketAddress isa = getInetSocketAddress(host, port);
+    this.attributes.locators.add(isa);
+    locatorAddresses.add(new HostAddress(isa, host));
+    return this;
   }
 
   public PoolFactory addServer(String host, int port) {
@@ -252,7 +272,8 @@ public class PoolFactoryImpl implements PoolFactory {
       throw new IllegalStateException(
           "A locator has already been added. You can only add locators or servers; not both.");
     }
-    return add(host, port, this.attributes.servers);
+    this.attributes.servers.add(getInetSocketAddress(host, port));
+    return this;
   }
 
   public PoolFactory reset() {
@@ -268,6 +289,7 @@ public class PoolFactoryImpl implements PoolFactory {
    * Initializes the state of this factory for the given pool's state.
    */
   public void init(Pool cp) {
+    setSocketConnectTimeout(cp.getSocketConnectTimeout());
     setFreeConnectionTimeout(cp.getFreeConnectionTimeout());
     setLoadConditioningInterval(cp.getLoadConditioningInterval());
     setSocketBufferSize(cp.getSocketBufferSize());
@@ -286,7 +308,9 @@ public class PoolFactoryImpl implements PoolFactory {
     setSubscriptionAckInterval(cp.getSubscriptionAckInterval());
     setServerGroup(cp.getServerGroup());
     setMultiuserAuthentication(cp.getMultiuserAuthentication());
-    this.attributes.locators.addAll(cp.getLocators());
+    for (InetSocketAddress inetSocketAddress : cp.getLocators()) {
+      addLocator(inetSocketAddress.getHostName(), inetSocketAddress.getPort());
+    }
     this.attributes.servers.addAll(cp.getServers());
   }
 
@@ -303,7 +327,7 @@ public class PoolFactoryImpl implements PoolFactory {
   /**
    * Create a new Pool for connecting a client to a set of GemFire Cache Servers. using this
    * factory's settings for attributes.
-   * 
+   *
    * @param name the name of the connection pool, used when connecting regions to it
    * @throws IllegalStateException if the connection pool name already exists
    * @throws IllegalStateException if this factory does not have any locators or servers
@@ -311,6 +335,7 @@ public class PoolFactoryImpl implements PoolFactory {
    * @since GemFire 5.7
    */
   public Pool create(String name) throws CacheException {
+    InternalDistributedSystem distributedSystem = InternalDistributedSystem.getAnyInstance();
     InternalCache cache = GemFireCacheImpl.getInstance();
     if (cache != null) {
       TypeRegistry registry = cache.getPdxRegistry();
@@ -318,7 +343,8 @@ public class PoolFactoryImpl implements PoolFactory {
         registry.creatingPool();
       }
     }
-    return PoolImpl.create(this.pm, name, this.attributes);
+    return PoolImpl.create(this.pm, name, this.attributes, this.locatorAddresses, distributedSystem,
+        cache);
   }
 
   /**
@@ -328,6 +354,19 @@ public class PoolFactoryImpl implements PoolFactory {
     return this.attributes;
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (!(o instanceof PoolFactoryImpl)) {
+      return false;
+    }
+    PoolFactoryImpl that = (PoolFactoryImpl) o;
+    return Objects.equals(attributes, that.attributes)
+        && Objects.equals(new HashSet(locatorAddresses), new HashSet(that.locatorAddresses));
+  }
+
   /**
    * Not a true pool just the attributes. Serialization is used by unit tests
    */
@@ -335,6 +374,7 @@ public class PoolFactoryImpl implements PoolFactory {
 
     private static final long serialVersionUID = 1L; // for findbugs
 
+    public int socketConnectTimeout = DEFAULT_SOCKET_CONNECT_TIMEOUT;
     public int connectionTimeout = DEFAULT_FREE_CONNECTION_TIMEOUT;
     public int connectionLifetime = DEFAULT_LOAD_CONDITIONING_INTERVAL;
     public int socketBufferSize = DEFAULT_SOCKET_BUFFER_SIZE;
@@ -351,6 +391,7 @@ public class PoolFactoryImpl implements PoolFactory {
     public int queueRedundancyLevel = DEFAULT_SUBSCRIPTION_REDUNDANCY;
     public int queueMessageTrackingTimeout = DEFAULT_SUBSCRIPTION_MESSAGE_TRACKING_TIMEOUT;
     public int queueAckInterval = DEFAULT_SUBSCRIPTION_ACK_INTERVAL;
+    public int subscriptionTimeoutMultipler = DEFAULT_SUBSCRIPTION_TIMEOUT_MULTIPLIER;
     public String serverGroup = DEFAULT_SERVER_GROUP;
     public boolean multiuserSecureModeEnabled = DEFAULT_MULTIUSER_AUTHENTICATION;
     public ArrayList/* <InetSocketAddress> */ locators = new ArrayList();
@@ -363,70 +404,92 @@ public class PoolFactoryImpl implements PoolFactory {
      */
     public boolean gateway = false;
 
+    @Override
+    public int getSocketConnectTimeout() {
+      return this.socketConnectTimeout;
+    }
+
+    @Override
     public int getFreeConnectionTimeout() {
       return this.connectionTimeout;
     }
 
+    @Override
     public int getLoadConditioningInterval() {
       return this.connectionLifetime;
     }
 
+    @Override
     public int getSocketBufferSize() {
       return this.socketBufferSize;
     }
 
+    @Override
     public int getMinConnections() {
       return minConnections;
     }
 
+    @Override
     public int getMaxConnections() {
       return maxConnections;
     }
 
+    @Override
     public long getIdleTimeout() {
       return idleTimeout;
     }
 
+    @Override
     public int getRetryAttempts() {
       return retryAttempts;
     }
 
+    @Override
     public long getPingInterval() {
       return pingInterval;
     }
 
+    @Override
     public int getStatisticInterval() {
       return statisticInterval;
     }
 
+    @Override
     public boolean getThreadLocalConnections() {
       return this.threadLocalConnections;
     }
 
+    @Override
     public int getReadTimeout() {
       return this.readTimeout;
     }
 
+    @Override
     public boolean getSubscriptionEnabled() {
       return this.queueEnabled;
     }
 
+    @Override
     public boolean getPRSingleHopEnabled() {
       return this.prSingleHopEnabled;
     }
 
+    @Override
     public int getSubscriptionRedundancy() {
       return this.queueRedundancyLevel;
     }
 
+    @Override
     public int getSubscriptionMessageTrackingTimeout() {
       return this.queueMessageTrackingTimeout;
     }
 
+    @Override
     public int getSubscriptionAckInterval() {
       return queueAckInterval;
     }
 
+    @Override
     public String getServerGroup() {
       return this.serverGroup;
     }
@@ -447,12 +510,18 @@ public class PoolFactoryImpl implements PoolFactory {
       return this.gatewaySender;
     }
 
+    @Override
     public boolean getMultiuserAuthentication() {
       return this.multiuserSecureModeEnabled;
     }
 
     public void setMultiuserSecureModeEnabled(boolean v) {
       this.multiuserSecureModeEnabled = v;
+    }
+
+    @Override
+    public int getSubscriptionTimeoutMultiplier() {
+      return this.subscriptionTimeoutMultipler;
     }
 
     public List/* <InetSocketAddress> */ getLocators() {
@@ -506,10 +575,8 @@ public class PoolFactoryImpl implements PoolFactory {
       throw new UnsupportedOperationException();
     }
 
-    public RegionService createAuthenticatedCacheView(Properties properties) {
-      throw new UnsupportedOperationException();
-    }
 
+    @Override
     public void toData(DataOutput out) throws IOException {
       DataSerializer.writePrimitiveInt(this.connectionTimeout, out);
       DataSerializer.writePrimitiveInt(this.connectionLifetime, out);
@@ -529,8 +596,10 @@ public class PoolFactoryImpl implements PoolFactory {
       DataSerializer.writeArrayList(this.servers, out);
       DataSerializer.writePrimitiveInt(this.statisticInterval, out);
       DataSerializer.writePrimitiveBoolean(this.multiuserSecureModeEnabled, out);
+      DataSerializer.writePrimitiveInt(this.socketConnectTimeout, out);
     }
 
+    @Override
     public void fromData(DataInput in) throws IOException, ClassNotFoundException {
       this.connectionTimeout = DataSerializer.readPrimitiveInt(in);
       this.connectionLifetime = DataSerializer.readPrimitiveInt(in);
@@ -550,6 +619,38 @@ public class PoolFactoryImpl implements PoolFactory {
       this.servers = DataSerializer.readArrayList(in);
       this.statisticInterval = DataSerializer.readPrimitiveInt(in);
       this.multiuserSecureModeEnabled = DataSerializer.readPrimitiveBoolean(in);
+      this.socketConnectTimeout = DataSerializer.readPrimitiveInt(in);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (!(o instanceof PoolAttributes)) {
+        return false;
+      }
+      PoolAttributes that = (PoolAttributes) o;
+      return socketConnectTimeout == that.socketConnectTimeout
+          && connectionTimeout == that.connectionTimeout
+          && connectionLifetime == that.connectionLifetime
+          && socketBufferSize == that.socketBufferSize
+          && threadLocalConnections == that.threadLocalConnections
+          && readTimeout == that.readTimeout && minConnections == that.minConnections
+          && maxConnections == that.maxConnections && idleTimeout == that.idleTimeout
+          && retryAttempts == that.retryAttempts && pingInterval == that.pingInterval
+          && statisticInterval == that.statisticInterval && queueEnabled == that.queueEnabled
+          && prSingleHopEnabled == that.prSingleHopEnabled
+          && queueRedundancyLevel == that.queueRedundancyLevel
+          && queueMessageTrackingTimeout == that.queueMessageTrackingTimeout
+          && queueAckInterval == that.queueAckInterval
+          && multiuserSecureModeEnabled == that.multiuserSecureModeEnabled
+          && startDisabled == that.startDisabled && gateway == that.gateway
+          && Objects.equals(serverGroup, that.serverGroup)
+          && Objects.equals(new HashSet(locators), new HashSet(that.locators))
+          && Objects.equals(new HashSet(servers), new HashSet(that.servers))
+          && Objects.equals(locatorCallback, that.locatorCallback)
+          && Objects.equals(gatewaySender, that.gatewaySender);
     }
   }
 }

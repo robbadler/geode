@@ -23,15 +23,14 @@ import org.apache.geode.internal.cache.partitioned.Bucket;
 
 /**
  * This class encapsulates the Bucket Related heuristics/algos for a PR.
- * 
- * 
+ *
+ *
  */
 public class PartitionedRegionBucketMgmtHelper {
 
   /**
-   * 
+   *
    * @param b Bucket to evaluate
-   * @param moveSource
    * @return true if it is allowed to be recovered
    * @since GemFire 5.9
    */

@@ -14,30 +14,27 @@
  */
 package org.apache.geode.cache.lucene.internal.results;
 
-import static org.junit.Assert.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.apache.geode.cache.Region;
-import org.apache.geode.cache.Region.Entry;
-import org.apache.geode.cache.execute.FunctionContext;
-import org.apache.geode.cache.execute.RegionFunctionContext;
+import java.util.Collections;
+import java.util.Set;
+
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.cache.execute.ResultSender;
 import org.apache.geode.internal.cache.EntrySnapshot;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.RegionEntry;
 import org.apache.geode.internal.cache.execute.InternalRegionFunctionContext;
+import org.apache.geode.test.junit.categories.LuceneTest;
 import org.apache.geode.test.junit.categories.UnitTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
-import java.util.Collections;
-import java.util.Set;
-
-@Category(UnitTest.class)
+@Category({UnitTest.class, LuceneTest.class})
 public class LuceneGetPageFunctionJUnitTest {
 
   @Test

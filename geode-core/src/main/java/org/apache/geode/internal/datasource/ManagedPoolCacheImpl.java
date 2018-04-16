@@ -14,8 +14,6 @@
  */
 package org.apache.geode.internal.datasource;
 
-/**
- */
 import javax.resource.ResourceException;
 import javax.resource.spi.ConnectionEventListener;
 import javax.resource.spi.ConnectionRequestInfo;
@@ -30,8 +28,8 @@ import org.apache.geode.internal.logging.LogService;
 
 /**
  * This class implements a connection pool for Managed connection. Extends the AbstractPoolCache to
- * inherit the pool bahavior.
- * 
+ * inherit the pool behavior.
+ *
  */
 public class ManagedPoolCacheImpl extends AbstractPoolCache {
 
@@ -57,9 +55,8 @@ public class ManagedPoolCacheImpl extends AbstractPoolCache {
 
   /**
    * Creates a new connection for the managed connection pool.
-   * 
+   *
    * @return the managed connection from the EIS as ManagedConnection object.
-   * @throws PoolException
    */
   @Override
   public Object getNewPoolConnection() throws PoolException {
@@ -80,7 +77,7 @@ public class ManagedPoolCacheImpl extends AbstractPoolCache {
 
   /**
    * Destroys the underline physical connection to EIS.
-   * 
+   *
    * @param connectionObject connection Object.
    */
   @Override

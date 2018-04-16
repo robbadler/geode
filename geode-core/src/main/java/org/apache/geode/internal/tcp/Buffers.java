@@ -23,9 +23,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.apache.geode.distributed.internal.DMStats;
 import org.apache.geode.internal.Assert;
 
-/**
- *
- */
 public class Buffers {
   /**
    * A list of soft references to byte buffers.
@@ -34,7 +31,7 @@ public class Buffers {
 
   /**
    * Should only be called by threads that have currently acquired send permission.
-   * 
+   *
    * @return a byte buffer to be used for sending on this connection.
    */
   static ByteBuffer acquireSenderBuffer(int size, DMStats stats) {

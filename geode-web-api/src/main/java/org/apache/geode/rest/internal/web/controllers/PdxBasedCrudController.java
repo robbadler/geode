@@ -51,7 +51,7 @@ import org.apache.geode.rest.internal.web.util.ArrayUtils;
  * @since GemFire 8.0
  */
 @Controller("pdxCrudController")
-@Api(value = "region", description = "region CRUD operations")
+@Api(value = "region", description = "region CRUD operations", tags = "region")
 @RequestMapping(PdxBasedCrudController.REST_API_VERSION)
 @SuppressWarnings("unused")
 public class PdxBasedCrudController extends CommonCrudController {
@@ -69,7 +69,7 @@ public class PdxBasedCrudController extends CommonCrudController {
 
   /**
    * Creating entry into the region
-   * 
+   *
    * @param region region name where data will be created
    * @param key gemfire region key
    * @param json JSON document that is stored against the key
@@ -77,8 +77,7 @@ public class PdxBasedCrudController extends CommonCrudController {
    */
   @RequestMapping(method = RequestMethod.POST, value = "/{region}",
       consumes = MediaType.APPLICATION_JSON_VALUE, produces = {MediaType.APPLICATION_JSON_VALUE})
-  @ApiOperation(value = "create entry", notes = "Create (put-if-absent) data in region",
-      response = void.class)
+  @ApiOperation(value = "create entry", notes = "Create (put-if-absent) data in region")
   @ApiResponses({@ApiResponse(code = 201, message = "Created."),
       @ApiResponse(code = 400,
           message = "Data specified (JSON doc) in the request body is invalid."),
@@ -122,7 +121,7 @@ public class PdxBasedCrudController extends CommonCrudController {
 
   /**
    * Read all or fixed number of data in a given Region
-   * 
+   *
    * @param region gemfire region name
    * @param limit total number of entries requested
    * @return JSON document
@@ -130,8 +129,7 @@ public class PdxBasedCrudController extends CommonCrudController {
   @RequestMapping(method = RequestMethod.GET, value = "/{region}",
       produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
   @ApiOperation(value = "read all data for region",
-      notes = "Read all data for region. Use limit param to get fixed or limited number of entries.",
-      response = void.class)
+      notes = "Read all data for region. Use limit param to get fixed or limited number of entries.")
   @ApiResponses({@ApiResponse(code = 200, message = "OK."),
       @ApiResponse(code = 400, message = "Bad request."),
       @ApiResponse(code = 401, message = "Invalid Username or Password."),
@@ -197,7 +195,7 @@ public class PdxBasedCrudController extends CommonCrudController {
 
   /**
    * Reading data for set of keys
-   * 
+   *
    * @param region gemfire region name
    * @param keys string containing comma seperated keys
    * @return JSON document
@@ -205,7 +203,7 @@ public class PdxBasedCrudController extends CommonCrudController {
   @RequestMapping(method = RequestMethod.GET, value = "/{region}/{keys}",
       produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
   @ApiOperation(value = "read data for specific keys",
-      notes = "Read data for specific set of keys in region.", response = void.class)
+      notes = "Read data for specific set of keys in region.")
   @ApiResponses({@ApiResponse(code = 200, message = "OK."),
       @ApiResponse(code = 400, message = "Bad Request."),
       @ApiResponse(code = 401, message = "Invalid Username or Password."),
@@ -273,7 +271,7 @@ public class PdxBasedCrudController extends CommonCrudController {
 
   /**
    * Update data for a key or set of keys
-   * 
+   *
    * @param region gemfire data region
    * @param keys keys for which update operation is requested
    * @param opValue type of update (put, replace, cas etc)
@@ -285,8 +283,7 @@ public class PdxBasedCrudController extends CommonCrudController {
   @ApiOperation(value = "update data for key",
       notes = "Update or insert (put) data for key in region."
           + "op=REPLACE, update (replace) data with key if and only if the key exists in region"
-          + "op=CAS update (compare-and-set) value having key with a new value if and only if the \"@old\" value sent matches the current value for the key in region",
-      response = void.class)
+          + "op=CAS update (compare-and-set) value having key with a new value if and only if the \"@old\" value sent matches the current value for the key in region")
   @ApiResponses({@ApiResponse(code = 200, message = "OK."),
       @ApiResponse(code = 400, message = "Bad Request."),
       @ApiResponse(code = 401, message = "Invalid Username or Password."),
@@ -317,7 +314,7 @@ public class PdxBasedCrudController extends CommonCrudController {
   @RequestMapping(method = RequestMethod.HEAD, value = "/{region}",
       produces = MediaType.APPLICATION_JSON_VALUE)
   @ApiOperation(value = "Get total number of entries",
-      notes = "Get total number of entries into the specified region", response = void.class)
+      notes = "Get total number of entries into the specified region")
   @ApiResponses({@ApiResponse(code = 200, message = "OK."),
       @ApiResponse(code = 400, message = "Bad request."),
       @ApiResponse(code = 401, message = "Invalid Username or Password."),

@@ -12,25 +12,20 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
-import org.apache.geode.i18n.LogWriterI18n;
-import org.apache.geode.internal.Version;
+import java.io.IOException;
+
+import org.apache.geode.distributed.internal.DistributionStats;
 import org.apache.geode.internal.cache.tier.CachedRegionHelper;
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.MessageType;
 import org.apache.geode.internal.cache.tier.sockets.*;
-import org.apache.geode.distributed.internal.DistributionStats;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
-
-import java.io.IOException;
+import org.apache.geode.internal.security.SecurityService;
 
 public class Ping extends BaseCommand {
 
-  private final static Ping singleton = new Ping();
+  private static final Ping singleton = new Ping();
 
   public static Command getCommand() {
     return singleton;
@@ -39,8 +34,8 @@ public class Ping extends BaseCommand {
   private Ping() {}
 
   @Override
-  public void cmdExecute(Message clientMessage, ServerConnection serverConnection, long start)
-      throws IOException {
+  public void cmdExecute(final Message clientMessage, final ServerConnection serverConnection,
+      final SecurityService securityService, long start) throws IOException {
     final boolean isDebugEnabled = logger.isDebugEnabled();
     if (isDebugEnabled) {
       logger.debug("{}: rcv tx: {} from {} rcvTime: {}", serverConnection.getName(),

@@ -21,6 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.mockito.ArgumentCaptor;
+
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.ResultSender;
@@ -36,13 +40,10 @@ import org.apache.geode.cache.lucene.internal.cli.LuceneQueryInfo;
 import org.apache.geode.cache.lucene.internal.cli.LuceneSearchResults;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.test.fake.Fakes;
+import org.apache.geode.test.junit.categories.LuceneTest;
 import org.apache.geode.test.junit.categories.UnitTest;
 
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.mockito.ArgumentCaptor;
-
-@Category(UnitTest.class)
+@Category({UnitTest.class, LuceneTest.class})
 
 public class LuceneSearchIndexFunctionJUnitTest {
 
@@ -58,11 +59,11 @@ public class LuceneSearchIndexFunctionJUnitTest {
     InternalLuceneService service = getMockLuceneService("A", "Value", "1.2");
     Region mockRegion = mock(Region.class);
 
-    LuceneSearchIndexFunction function = spy(LuceneSearchIndexFunction.class);
+    LuceneSearchIndexFunction function = new LuceneSearchIndexFunction();
 
     doReturn(queryInfo).when(context).getArguments();
     doReturn(resultSender).when(context).getResultSender();
-    doReturn(cache).when(function).getCache();
+    doReturn(cache).when(context).getCache();
 
     when(cache.getService(eq(InternalLuceneService.class))).thenReturn(service);
     when(cache.getRegion(queryInfo.getRegionPath())).thenReturn(mockRegion);

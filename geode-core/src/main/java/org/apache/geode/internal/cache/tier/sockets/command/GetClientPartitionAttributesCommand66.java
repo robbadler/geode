@@ -31,15 +31,16 @@ import org.apache.geode.internal.cache.tier.sockets.Message;
 import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
+import org.apache.geode.internal.security.SecurityService;
 
 /**
  * {@link Command} for {@link GetClientPartitionAttributesOp} operation for 6.6 clients
- * 
+ *
  * @since GemFire 6.6
  */
 public class GetClientPartitionAttributesCommand66 extends BaseCommand {
 
-  private final static GetClientPartitionAttributesCommand66 singleton =
+  private static final GetClientPartitionAttributesCommand66 singleton =
       new GetClientPartitionAttributesCommand66();
 
   public static Command getCommand() {
@@ -50,7 +51,8 @@ public class GetClientPartitionAttributesCommand66 extends BaseCommand {
 
   @SuppressWarnings("unchecked")
   @Override
-  public void cmdExecute(Message clientMessage, ServerConnection serverConnection, long start)
+  public void cmdExecute(final Message clientMessage, final ServerConnection serverConnection,
+      final SecurityService securityService, long start)
       throws IOException, ClassNotFoundException, InterruptedException {
     String regionFullPath = null;
     regionFullPath = clientMessage.getPart(0).getString();
@@ -147,5 +149,3 @@ public class GetClientPartitionAttributesCommand66 extends BaseCommand {
 
   }
 }
-
-

@@ -20,6 +20,17 @@ import static org.apache.geode.distributed.ConfigurationProperties.SECURITY_MANA
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.io.Serializable;
+import java.util.Properties;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.junit.runner.RunWith;
+
 import org.apache.geode.cache.RegionShortcut;
 import org.apache.geode.cache.lucene.internal.cli.LuceneCliStrings;
 import org.apache.geode.management.cli.Result;
@@ -29,67 +40,66 @@ import org.apache.geode.management.internal.cli.result.ErrorResultData;
 import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
 import org.apache.geode.security.SimpleTestSecurityManager;
-import org.apache.geode.test.dunit.rules.GfshShellConnectionRule;
-import org.apache.geode.test.dunit.rules.LocatorServerStartupRule;
+import org.apache.geode.test.dunit.rules.ClusterStartupRule;
 import org.apache.geode.test.dunit.rules.MemberVM;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.LuceneTest;
 import org.apache.geode.test.junit.categories.SecurityTest;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.junit.runner.RunWith;
+import org.apache.geode.test.junit.rules.GfshCommandRule;
 
-import java.io.Serializable;
-import java.util.Properties;
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-
-@Category({DistributedTest.class, SecurityTest.class})
+@Category({DistributedTest.class, SecurityTest.class, LuceneTest.class})
 @RunWith(JUnitParamsRunner.class)
 public class LuceneCommandsSecurityDUnitTest {
 
   @Rule
-  public LocatorServerStartupRule locatorServer = new LocatorServerStartupRule();
+  public ClusterStartupRule locatorServer = new ClusterStartupRule();
 
   @Rule
-  public GfshShellConnectionRule gfshShell = new GfshShellConnectionRule();
+  public GfshCommandRule gfshShell = new GfshCommandRule();
 
-  private MemberVM locator;
-
-  private MemberVM server;
+  protected MemberVM locator;
 
   @Before
   public void before() throws Exception {
-    startLocator();
-    startServer();
-  }
-
-  private void startLocator() throws Exception {
+    // start the locator
     Properties props = new Properties();
     props.setProperty(SECURITY_MANAGER, SimpleTestSecurityManager.class.getName());
     this.locator = this.locatorServer.startLocatorVM(0, props);
+
+    // start the server
+    props = new Properties();
+    props.setProperty("security-username", "clusterManage");
+    props.setProperty("security-password", "clusterManage");
+    this.locatorServer.startServerVM(1, props, this.locator.getPort());
   }
 
-  private void startServer() throws Exception {
-    Properties props = new Properties();
-    props.setProperty("security-username", "clustermanage");
-    props.setProperty("security-password", "clustermanage");
-    this.server = this.locatorServer.startServerVM(1, props, this.locator.getPort());
+  protected UserNameAndExpectedResponse[] getCreateIndexUserNameAndExpectedResponses() {
+    return new UserNameAndExpectedResponse[] {
+        new UserNameAndExpectedResponse("noPermissions", true,
+            "Unauthorized. Reason : noPermissions not authorized for CLUSTER:MANAGE:LUCENE"),
+        new UserNameAndExpectedResponse("clusterManageLucene", false,
+            "Successfully created lucene index")};
   }
 
   @Test
   @Parameters(method = "getCreateIndexUserNameAndExpectedResponses")
   public void verifyCreateIndexPermissions(UserNameAndExpectedResponse user) throws Exception {
     // Connect gfsh
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, user.getUserName(), user.getUserName());
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        user.getUserName(), user.getUserName());
 
     // Attempt to create lucene index
     CommandResult result = this.gfshShell.executeCommand(getCreateIndexCommand());
 
     // Verify result
     verifyResult(user, result);
+  }
+
+  protected UserNameAndExpectedResponse[] getSearchIndexUserNameAndExpectedResponses() {
+    return new UserNameAndExpectedResponse[] {
+        new UserNameAndExpectedResponse("noPermissions", true,
+            "Unauthorized. Reason : noPermissions not authorized for DATA:READ:region"),
+        new UserNameAndExpectedResponse("dataRead", false, "No results")};
   }
 
   @Test
@@ -99,14 +109,21 @@ public class LuceneCommandsSecurityDUnitTest {
     createIndexAndRegion();
 
     // Connect gfsh
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, user.getUserName(), user.getUserName());
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        user.getUserName(), user.getUserName());
 
     // Attempt to search lucene index
     CommandResult result = this.gfshShell.executeCommand(getSearchIndexCommand());
 
     // Verify result
     verifyResult(user, result);
+  }
+
+  protected UserNameAndExpectedResponse[] getListIndexesUserNameAndExpectedResponses() {
+    return new UserNameAndExpectedResponse[] {
+        new UserNameAndExpectedResponse("noPermissions", true,
+            "Unauthorized. Reason : noPermissions not authorized for CLUSTER:READ:LUCENE"),
+        new UserNameAndExpectedResponse("clusterReadLucene", false, "Index Name")};
   }
 
   @Test
@@ -116,14 +133,21 @@ public class LuceneCommandsSecurityDUnitTest {
     createIndexAndRegion();
 
     // Connect gfsh
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, user.getUserName(), user.getUserName());
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        user.getUserName(), user.getUserName());
 
     // Attempt to search lucene index
     CommandResult result = this.gfshShell.executeCommand(getListIndexesCommand());
 
     // Verify result
     verifyResult(user, result);
+  }
+
+  protected UserNameAndExpectedResponse[] getDescribeIndexUserNameAndExpectedResponses() {
+    return new UserNameAndExpectedResponse[] {
+        new UserNameAndExpectedResponse("noPermissions", true,
+            "Unauthorized. Reason : noPermissions not authorized for CLUSTER:READ:LUCENE"),
+        new UserNameAndExpectedResponse("clusterReadLucene", false, "Index Name")};
   }
 
   @Test
@@ -133,14 +157,22 @@ public class LuceneCommandsSecurityDUnitTest {
     createIndexAndRegion();
 
     // Connect gfsh
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, user.getUserName(), user.getUserName());
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        user.getUserName(), user.getUserName());
 
     // Attempt to search lucene index
     CommandResult result = this.gfshShell.executeCommand(getDescribeIndexCommand());
 
     // Verify result
     verifyResult(user, result);
+  }
+
+  protected UserNameAndExpectedResponse[] getDestroyIndexUserNameAndExpectedResponses() {
+    return new UserNameAndExpectedResponse[] {
+        new UserNameAndExpectedResponse("noPermissions", true,
+            "Unauthorized. Reason : noPermissions not authorized for CLUSTER:MANAGE:LUCENE"),
+        new UserNameAndExpectedResponse("clusterManageLucene", false,
+            "Successfully destroyed lucene index")};
   }
 
   @Test
@@ -150,8 +182,8 @@ public class LuceneCommandsSecurityDUnitTest {
     createIndexAndRegion();
 
     // Connect gfsh
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, user.getUserName(), user.getUserName());
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        user.getUserName(), user.getUserName());
 
     // Attempt to search lucene index
     CommandResult result = this.gfshShell.executeCommand(getDestroyIndexCommand());
@@ -160,16 +192,16 @@ public class LuceneCommandsSecurityDUnitTest {
     verifyResult(user, result);
   }
 
-  private void createIndexAndRegion() throws Exception {
+  protected void createIndexAndRegion() throws Exception {
     // Connect gfsh to locator with permissions necessary to create an index and region
-    this.gfshShell.secureConnectAndVerify(this.locator.getPort(),
-        GfshShellConnectionRule.PortType.locator, "datamanage", "datamanage");
+    this.gfshShell.secureConnectAndVerify(this.locator.getPort(), GfshCommandRule.PortType.locator,
+        "cluster,data", "cluster,data");
 
     // Create lucene index
-    this.gfshShell.executeAndVerifyCommand(getCreateIndexCommand());
+    this.gfshShell.executeAndAssertThat(getCreateIndexCommand()).statusIsSuccess();
 
     // Create region
-    this.gfshShell.executeAndVerifyCommand(getCreateRegionCommand());
+    this.gfshShell.executeAndAssertThat(getCreateRegionCommand()).statusIsSuccess();
 
     // Disconnect gfsh
     this.gfshShell.disconnect();
@@ -186,7 +218,7 @@ public class LuceneCommandsSecurityDUnitTest {
     assertTrue(this.gfshShell.getGfshOutput().contains(user.getExpectedResponse()));
   }
 
-  private String getCreateIndexCommand() throws Exception {
+  protected String getCreateIndexCommand() {
     CommandStringBuilder csb = new CommandStringBuilder(LuceneCliStrings.LUCENE_CREATE_INDEX);
     csb.addOption(LuceneCliStrings.LUCENE__INDEX_NAME, INDEX_NAME);
     csb.addOption(LuceneCliStrings.LUCENE__REGION_PATH, REGION_NAME);
@@ -194,7 +226,7 @@ public class LuceneCommandsSecurityDUnitTest {
     return csb.toString();
   }
 
-  private String getCreateRegionCommand() throws Exception {
+  protected String getCreateRegionCommand() {
     CommandStringBuilder csb = new CommandStringBuilder(CliStrings.CREATE_REGION);
     csb.addOption(CliStrings.CREATE_REGION__REGION, REGION_NAME);
     csb.addOption(CliStrings.CREATE_REGION__REGIONSHORTCUT,
@@ -202,7 +234,7 @@ public class LuceneCommandsSecurityDUnitTest {
     return csb.toString();
   }
 
-  private String getSearchIndexCommand() throws Exception {
+  private String getSearchIndexCommand() {
     CommandStringBuilder csb = new CommandStringBuilder(LuceneCliStrings.LUCENE_SEARCH_INDEX);
     csb.addOption(LuceneCliStrings.LUCENE__INDEX_NAME, INDEX_NAME);
     csb.addOption(LuceneCliStrings.LUCENE__REGION_PATH, REGION_NAME);
@@ -211,60 +243,23 @@ public class LuceneCommandsSecurityDUnitTest {
     return csb.toString();
   }
 
-  private String getListIndexesCommand() throws Exception {
+  private String getListIndexesCommand() {
     CommandStringBuilder csb = new CommandStringBuilder(LuceneCliStrings.LUCENE_LIST_INDEX);
     return csb.toString();
   }
 
-  private String getDescribeIndexCommand() throws Exception {
+  private String getDescribeIndexCommand() {
     CommandStringBuilder csb = new CommandStringBuilder(LuceneCliStrings.LUCENE_DESCRIBE_INDEX);
     csb.addOption(LuceneCliStrings.LUCENE__INDEX_NAME, INDEX_NAME);
     csb.addOption(LuceneCliStrings.LUCENE__REGION_PATH, REGION_NAME);
     return csb.toString();
   }
 
-  private String getDestroyIndexCommand() throws Exception {
+  private String getDestroyIndexCommand() {
     CommandStringBuilder csb = new CommandStringBuilder(LuceneCliStrings.LUCENE_DESTROY_INDEX);
     csb.addOption(LuceneCliStrings.LUCENE__INDEX_NAME, INDEX_NAME);
     csb.addOption(LuceneCliStrings.LUCENE__REGION_PATH, REGION_NAME);
     return csb.toString();
-  }
-
-  protected UserNameAndExpectedResponse[] getCreateIndexUserNameAndExpectedResponses() {
-    return new UserNameAndExpectedResponse[] {
-        new UserNameAndExpectedResponse("nopermissions", true,
-            "Unauthorized. Reason : nopermissions not authorized for DATA:MANAGE:region"),
-        new UserNameAndExpectedResponse("datamanageregion", false,
-            "Successfully created lucene index")};
-  }
-
-  protected UserNameAndExpectedResponse[] getSearchIndexUserNameAndExpectedResponses() {
-    return new UserNameAndExpectedResponse[] {
-        new UserNameAndExpectedResponse("nopermissions", true,
-            "Unauthorized. Reason : nopermissions not authorized for DATA:WRITE"),
-        new UserNameAndExpectedResponse("datawrite", false, "No results")};
-  }
-
-  protected UserNameAndExpectedResponse[] getListIndexesUserNameAndExpectedResponses() {
-    return new UserNameAndExpectedResponse[] {
-        new UserNameAndExpectedResponse("nopermissions", true,
-            "Unauthorized. Reason : nopermissions not authorized for CLUSTER:READ"),
-        new UserNameAndExpectedResponse("clusterread", false, "Index Name")};
-  }
-
-  protected UserNameAndExpectedResponse[] getDescribeIndexUserNameAndExpectedResponses() {
-    return new UserNameAndExpectedResponse[] {
-        new UserNameAndExpectedResponse("nopermissions", true,
-            "Unauthorized. Reason : nopermissions not authorized for CLUSTER:READ"),
-        new UserNameAndExpectedResponse("clusterread", false, "Index Name")};
-  }
-
-  protected UserNameAndExpectedResponse[] getDestroyIndexUserNameAndExpectedResponses() {
-    return new UserNameAndExpectedResponse[] {
-        new UserNameAndExpectedResponse("nopermissions", true,
-            "Unauthorized. Reason : nopermissions not authorized for DATA:MANAGE:region"),
-        new UserNameAndExpectedResponse("datamanageregion", false,
-            "Successfully destroyed lucene index")};
   }
 
   public static class UserNameAndExpectedResponse implements Serializable {

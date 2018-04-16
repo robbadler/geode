@@ -21,51 +21,51 @@ import org.apache.geode.management.internal.FederationComponent;
 /**
  * Internal aggregate handlers could(they can be independent of this interface also as long as they
  * adhere to ProxyAggregator contract) implement this interface.
- * 
- * 
+ *
+ *
  */
 
 public interface AggregateHandler {
 
   /**
-   * 
+   *
    * @param objectName name of the proxy object
    * @param interfaceClass interface class of the proxy object.
    * @param proxyObject actual reference of the proxy.
    * @param newVal new value of the Proxy
    */
-  public void handleProxyAddition(ObjectName objectName, Class interfaceClass, Object proxyObject,
+  void handleProxyAddition(ObjectName objectName, Class interfaceClass, Object proxyObject,
       FederationComponent newVal);
 
   /**
-   * 
+   *
    * @param objectName name of the proxy object
    * @param interfaceClass interface class of the proxy object.
    * @param proxyObject actual reference of the proxy.
    * @param oldVal old value of the Proxy
    */
-  public void handleProxyRemoval(ObjectName objectName, Class interfaceClass, Object proxyObject,
+  void handleProxyRemoval(ObjectName objectName, Class interfaceClass, Object proxyObject,
       FederationComponent oldVal);
 
   /**
-   * 
+   *
    * @param objectName name of the proxy object
    * @param interfaceClass interface class of the proxy object.
    * @param proxyObject actual reference of the proxy.
    * @param newVal new value of the Proxy
    * @param oldVal old value of the proxy
    */
-  public void handleProxyUpdate(ObjectName objectName, Class interfaceClass, Object proxyObject,
+  void handleProxyUpdate(ObjectName objectName, Class interfaceClass, Object proxyObject,
       FederationComponent newVal, FederationComponent oldVal);
 
   /**
-   * 
+   *
    * @param objectName name of the proxy object
    * @param interfaceClass interface class of the proxy object.
    * @param proxyObject actual reference of the proxy.
    * @param newVal new value of the Proxy
    */
-  public void handlePseudoCreateProxy(ObjectName objectName, Class interfaceClass,
-      Object proxyObject, FederationComponent newVal);
+  void handlePseudoCreateProxy(ObjectName objectName, Class interfaceClass, Object proxyObject,
+      FederationComponent newVal);
 
 }

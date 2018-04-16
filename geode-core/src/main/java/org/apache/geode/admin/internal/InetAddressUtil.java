@@ -23,9 +23,9 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.GemFireIOException;
 import org.apache.geode.internal.Assert;
-import org.apache.geode.internal.net.SocketCreator;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.internal.net.SocketCreator;
 
 
 /**
@@ -141,7 +141,6 @@ public class InetAddressUtil {
       if (LOCALHOST.equals(host)) {
         return true;
       } else {
-        // InetAddress hostAddr = (InetAddress)host;
         try {
           Enumeration en = NetworkInterface.getNetworkInterfaces();
           while (en.hasMoreElements()) {
@@ -188,7 +187,7 @@ public class InetAddressUtil {
   /**
    * Logs the stack trace for the given Throwable if logger is initialized else prints the stack
    * trace using System.out. If logged the logs are logged at WARNING level.
-   * 
+   *
    * @param throwable Throwable to log stack trace for
    */
   private static void logStackTrace(Throwable throwable) {
@@ -198,4 +197,3 @@ public class InetAddressUtil {
   }
 
 }
-

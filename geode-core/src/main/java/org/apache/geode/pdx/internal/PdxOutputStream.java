@@ -12,9 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.pdx.internal;
 
 import java.io.DataOutput;
@@ -23,12 +20,12 @@ import java.nio.ByteBuffer;
 import java.util.Date;
 
 import org.apache.geode.DataSerializer;
-import org.apache.geode.pdx.PdxSerializationException;
 import org.apache.geode.internal.ByteBufferWriter;
 import org.apache.geode.internal.HeapDataOutputStream;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.tcp.ByteBufferInputStream.ByteSource;
+import org.apache.geode.pdx.PdxSerializationException;
 
 /**
  * Used by PdxWriterImpl to manage the raw data of a PDX.
@@ -38,24 +35,17 @@ public class PdxOutputStream implements ByteBufferWriter {
 
   private final HeapDataOutputStream hdos;
 
-  /**
-   * 
-   */
   public PdxOutputStream() {
     this.hdos = new HeapDataOutputStream(Version.CURRENT);
   }
 
-  /**
-   * @param allocSize
-   */
   public PdxOutputStream(int allocSize) {
     this.hdos = new HeapDataOutputStream(allocSize, Version.CURRENT);
   }
 
   /**
    * Wrapper constructor
-   * 
-   * @param hdos
+   *
    */
   public PdxOutputStream(HeapDataOutputStream hdos) {
     this.hdos = hdos;

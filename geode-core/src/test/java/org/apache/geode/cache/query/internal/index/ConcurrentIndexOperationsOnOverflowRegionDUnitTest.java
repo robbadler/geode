@@ -12,23 +12,14 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- *
- */
 package org.apache.geode.cache.query.internal.index;
-
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
-import org.apache.geode.test.junit.categories.FlakyTest;
+import java.util.Properties;
 
-import java.util.Collection;
-import java.util.Set;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
@@ -45,7 +36,7 @@ import org.apache.geode.cache.query.Query;
 import org.apache.geode.cache.query.SelectResults;
 import org.apache.geode.cache.query.data.PortfolioData;
 import org.apache.geode.cache30.CacheSerializableRunnable;
-import org.apache.geode.cache30.CacheTestCase;
+import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.internal.cache.EvictionAttributesImpl;
 import org.apache.geode.test.dunit.AsyncInvocation;
 import org.apache.geode.test.dunit.Host;
@@ -53,6 +44,10 @@ import org.apache.geode.test.dunit.LogWriterUtils;
 import org.apache.geode.test.dunit.ThreadUtils;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
+import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.FlakyTest;
+import org.apache.geode.test.junit.categories.OQLIndexTest;
 
 /**
  * Test creates a persistent-overflow region and performs updates in region which has compact
@@ -64,12 +59,21 @@ import org.apache.geode.test.dunit.Wait;
  *
  *
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, OQLIndexTest.class})
 public class ConcurrentIndexOperationsOnOverflowRegionDUnitTest extends JUnit4CacheTestCase {
 
   String name;
 
   public static volatile boolean hooked = false;
+
+
+  @Override
+  public Properties getDistributedSystemProperties() {
+    Properties properties = super.getDistributedSystemProperties();
+    properties.put(ConfigurationProperties.SERIALIZABLE_OBJECT_FILTER,
+        "org.apache.geode.cache.query.data.**");
+    return properties;
+  }
 
   @Category(FlakyTest.class) // GEODE-1828
   @Test
@@ -176,9 +180,6 @@ public class ConcurrentIndexOperationsOnOverflowRegionDUnitTest extends JUnit4Ca
     ThreadUtils.join(asyncInv1, 30 * 1000);
   }
 
-  /**
-   *
-   */
   @Test
   public void testAsyncIndexInitDuringEntryDestroyAndQueryOnPR() {
     Host host = Host.getHost(0);
@@ -283,9 +284,6 @@ public class ConcurrentIndexOperationsOnOverflowRegionDUnitTest extends JUnit4Ca
     ThreadUtils.join(asyncInv1, 30 * 1000);
   }
 
-  /**
-  *
-  */
   @Test
   public void testAsyncIndexInitDuringEntryDestroyAndQueryOnPersistentRR() {
     Host host = Host.getHost(0);
@@ -387,9 +385,6 @@ public class ConcurrentIndexOperationsOnOverflowRegionDUnitTest extends JUnit4Ca
     ThreadUtils.join(asyncInv1, 30 * 1000);
   }
 
-  /**
-  *
-  */
   @Test
   public void testAsyncIndexInitDuringEntryDestroyAndQueryOnPersistentPR() {
     Host host = Host.getHost(0);
@@ -491,9 +486,6 @@ public class ConcurrentIndexOperationsOnOverflowRegionDUnitTest extends JUnit4Ca
     ThreadUtils.join(asyncInv1, 30 * 1000);
   }
 
-  /**
-  *
-  */
   @Test
   public void testAsyncIndexInitDuringEntryDestroyAndQueryOnNonOverflowRR() {
     Host host = Host.getHost(0);
@@ -589,9 +581,6 @@ public class ConcurrentIndexOperationsOnOverflowRegionDUnitTest extends JUnit4Ca
     ThreadUtils.join(asyncInv1, 30 * 1000);
   }
 
-  /**
-  *
-  */
   @Test
   public void testAsyncIndexInitDuringEntryDestroyAndQueryOnOnNonOverflowPR() {
     Host host = Host.getHost(0);
@@ -714,4 +703,3 @@ public class ConcurrentIndexOperationsOnOverflowRegionDUnitTest extends JUnit4Ca
     }
   }
 }
-

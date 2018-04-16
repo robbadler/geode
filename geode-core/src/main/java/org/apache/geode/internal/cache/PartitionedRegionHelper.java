@@ -47,10 +47,8 @@ import org.apache.geode.cache.partition.PartitionNotAvailableException;
 import org.apache.geode.cache.util.CacheListenerAdapter;
 import org.apache.geode.cache.util.CacheWriterAdapter;
 import org.apache.geode.distributed.DistributedMember;
-import org.apache.geode.distributed.DistributedSystem;
-import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.MembershipListener;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
@@ -113,7 +111,7 @@ public class PartitionedRegionHelper {
   /**
    * This function is used for cleaning the config meta data for the failed or closed
    * PartitionedRegion node.
-   * 
+   *
    * @param failedNode The failed PartitionedRegion Node
    * @param regionIdentifier The PartitionedRegion for which the cleanup is required
    * @param cache GemFire cache.
@@ -126,7 +124,7 @@ public class PartitionedRegionHelper {
   /**
    * This function is used for cleaning the config meta data for the failed or closed
    * PartitionedRegion node.
-   * 
+   *
    * @param failedNode The failed PartitionedRegion Node
    * @param regionIdentifier The PartitionedRegion for which the cleanup is required
    * @param cache GemFire cache.
@@ -194,7 +192,7 @@ public class PartitionedRegionHelper {
    * Return a region that is the root for all PartitionedRegion meta data on this Node. The main
    * administrative Regions contained within are <code>allPartitionedRegion</code> (Scope
    * DISTRIBUTED_ACK) and <code>bucket2Node</code> (Scope DISTRIBUTED_ACK) and dataStore regions.
-   * 
+   *
    * @return a GLOBLAL scoped root region used for PartitionedRegion administration
    */
   public static LocalRegion getPRRoot(final InternalCache cache, boolean createIfAbsent) {
@@ -271,7 +269,7 @@ public class PartitionedRegionHelper {
         root = (DistributedRegion) cache.createVMRegion(PR_ROOT_REGION_NAME, ra,
             new InternalRegionArguments().setIsUsedForPartitionedRegionAdmin(true)
                 .setInternalRegion(true).setCachePerfStatsHolder(prMetaStatsHolder));
-        root.getDistributionAdvisor().addMembershipListener(new MemberFailureListener());
+        root.getDistributionAdvisor().addMembershipListener(new MemberFailureListener(cache));
       } catch (RegionExistsException ignore) {
         // we avoid this before hand, but yet we have to catch it
         root = (DistributedRegion) cache.getRegion(PR_ROOT_REGION_NAME, true);
@@ -305,14 +303,12 @@ public class PartitionedRegionHelper {
    * Clean the config meta data for a DistributedMember which has left the DistributedSystem, one
    * PartitionedRegion at a time.
    */
-  public static void cleanUpMetaDataOnNodeFailure(DistributedMember failedMemId) {
+  public static void cleanUpMetaDataOnNodeFailure(InternalCache cache,
+      DistributedMember failedMemId) {
     try {
-      final InternalCache cache = GemFireCacheImpl.getInstance();
       if (cache == null || cache.getCancelCriterion().isCancelInProgress()) {
         return;
       }
-
-      DM dm = cache.getInternalDistributedSystem().getDistributionManager();
 
       if (logger.isDebugEnabled()) {
         logger.debug("Cleaning PartitionedRegion meta data for memberId={}", failedMemId);
@@ -419,7 +415,7 @@ public class PartitionedRegionHelper {
    * Runs hashCode() on given key producing a long value and then finds absolute value of the
    * modulus with bucketSize. For better key distribution, possibly use MD5 or SHA or any unique ID
    * generator for the hash function.
-   * 
+   *
    * @param pr the partitioned region on which to operate
    * @param key the key on which to determine the hash key
    * @return the bucket id the key hashes to
@@ -429,10 +425,10 @@ public class PartitionedRegionHelper {
    * public static int getHashKey(PartitionedObject key) { PartitionedRegion pRegion =
    * (PartitionedRegion)entryOp.getRegion(); RoutingResolver resolver =
    * pRegion.getRoutingResolver();
-   * 
+   *
    * int totalNumberOfBuckets = pRegion.getTotalNumberOfBuckets(); Object resolveKey = null; if
    * (resolver == null) { resolveKey = key; } else {
-   * 
+   *
    * //resolveKey = resolver.getPartitionKey(key); resolveKey =
    * resolver.getRoutingObject((EntryOperation)key); } int hc = resolveKey.hashCode(); int bucketId
    * = hc % totalNumberOfBuckets; // Force positive bucket ids only return Math.abs(bucketId); // We
@@ -441,7 +437,7 @@ public class PartitionedRegionHelper {
    * totalNumberOfBuckets; }
    **/
 
-  static private PartitionResolver getResolver(PartitionedRegion pr, Object key,
+  private static PartitionResolver getResolver(PartitionedRegion pr, Object key,
       Object callbackArgument) {
     // First choice is one associated with the region
     PartitionResolver result = pr.getPartitionResolver();
@@ -467,7 +463,7 @@ public class PartitionedRegionHelper {
    * Runs hashCode() on given key/routing object producing a long value and then finds absolute
    * value of the modulus with bucketSize. For better key distribution, possibly use MD5 or SHA or
    * any unique ID generator for the hash function.
-   * 
+   *
    * @param pr the partitioned region on which to operate
    * @param operation operation
    * @param key the key on which to determine the hash key
@@ -491,7 +487,7 @@ public class PartitionedRegionHelper {
    * Runs hashCode() on given key/routing object producing a long value and then finds absolute
    * value of the modulus with bucketSize. For better key distribution, possibly use MD5 or SHA or
    * any unique ID generator for the hash function.
-   * 
+   *
    * @param event entry event created for this entry operation
    * @return the bucket id the key/routing object hashes to
    */
@@ -503,7 +499,7 @@ public class PartitionedRegionHelper {
    * Runs hashCode() on given key/routing object producing a long value and then finds absolute
    * value of the modulus with bucketSize. For better key distribution, possibly use MD5 or SHA or
    * any unique ID generator for the hash function.
-   * 
+   *
    * @param event entry event created for this entry operation; can be null
    * @param pr the partitioned region on which to operate
    * @param operation operation
@@ -672,7 +668,7 @@ public class PartitionedRegionHelper {
 
   /**
    * Find a ProxyBucketRegion by parsing the region fullPath
-   * 
+   *
    * @param fullPath full region path to parse
    * @param postInit true if caller should wait for bucket initialization to complete
    * @return ProxyBucketRegion as Bucket or null if not found
@@ -721,12 +717,12 @@ public class PartitionedRegionHelper {
 
   }
 
-  private final static String BUCKET_FULL_PATH_PREFIX =
+  private static final String BUCKET_FULL_PATH_PREFIX =
       PR_ROOT_REGION_NAME + Region.SEPARATOR + BUCKET_REGION_PREFIX;
 
   /**
    * Get the bucket string by parsing the region fullPath
-   * 
+   *
    * @param bucketFullPath full region path to parse
    * @return the bucket string or null if no bucket string is present
    */
@@ -741,11 +737,8 @@ public class PartitionedRegionHelper {
       return bucketFullPath.substring(idxEndRoot);
     }
 
-    DistributedSystem ids = InternalDistributedSystem.getAnyInstance();
-    if (ids != null) {
-      if (logger.isDebugEnabled()) {
-        logger.debug("getBucketString no match fullPath={}", bucketFullPath);
-      }
+    if (logger.isDebugEnabled()) {
+      logger.debug("getBucketString no match fullPath={}", bucketFullPath);
     }
     return null;
   }
@@ -806,7 +799,7 @@ public class PartitionedRegionHelper {
    * This method returns true if the last region in provided fullPath is a sub-region else it
    * returns false. If fullPath is "/REGION1" it would return false and if it is "/REGION1/REGION2",
    * it would return true, which means that Region2 is a sub-region.
-   * 
+   *
    * @param fullPath full path of the region
    * @return true if given full path has sub-regions else return false
    */
@@ -824,7 +817,7 @@ public class PartitionedRegionHelper {
   /**
    * Utility method to print warning when nodeList in b2n region is found empty. This will signify
    * potential data loss scenario.
-   * 
+   *
    * @param bucketId Id of Bucket whose nodeList in b2n is empty.
    * @param callingMethod methodName of the calling method.
    */
@@ -855,8 +848,7 @@ public class PartitionedRegionHelper {
 
   /**
    * Utility method to print a collection.
-   * 
-   * @return String
+   *
    */
   public static String printCollection(Collection c) {
     if (c != null) {
@@ -932,19 +924,27 @@ public class PartitionedRegionHelper {
 
   private static class MemberFailureListener implements MembershipListener {
 
-    public void memberJoined(InternalDistributedMember id) {
+    InternalCache cache = null;
+
+    MemberFailureListener(InternalCache cache) {
+      this.cache = cache;
+    }
+
+    public void memberJoined(DistributionManager distributionManager,
+        InternalDistributedMember id) {
 
     }
 
-    public void memberDeparted(final InternalDistributedMember id, boolean crashed) {
-      PartitionedRegionHelper.cleanUpMetaDataOnNodeFailure(id);
+    public void memberDeparted(DistributionManager distributionManager,
+        final InternalDistributedMember id, boolean crashed) {
+      PartitionedRegionHelper.cleanUpMetaDataOnNodeFailure(cache, id);
     }
 
-    public void memberSuspect(InternalDistributedMember id, InternalDistributedMember whoSuspected,
-        String reason) {}
+    public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
+        InternalDistributedMember whoSuspected, String reason) {}
 
-    public void quorumLost(Set<InternalDistributedMember> failures,
-        List<InternalDistributedMember> remaining) {}
+    public void quorumLost(DistributionManager distributionManager,
+        Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
   }
 

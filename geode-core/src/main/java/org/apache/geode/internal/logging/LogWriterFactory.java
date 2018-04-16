@@ -14,7 +14,7 @@
  */
 package org.apache.geode.internal.logging;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_LEVEL;
 
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -28,7 +28,7 @@ import org.apache.geode.internal.logging.log4j.LogWriterLogger;
 
 /**
  * Creates LogWriterLogger instances.
- * 
+ *
  */
 public class LogWriterFactory {
 
@@ -40,7 +40,7 @@ public class LogWriterFactory {
   /**
    * Creates the log writer for a distributed system based on the system's parsed configuration. The
    * initial banner and messages are also entered into the log by this method.
-   * 
+   *
    * @param isLoner Whether the distributed system is a loner or not
    * @param isSecure Whether a logger for security related messages has to be created
    * @param config The DistributionConfig for the target distributed system
@@ -79,29 +79,23 @@ public class LogWriterFactory {
     }
 
     // log the banner
-    if (!Boolean.getBoolean(InternalLocator.INHIBIT_DM_BANNER)) {
-      if (InternalDistributedSystem.getReconnectAttemptCounter() == 0 // avoid filling up logs
-                                                                      // during auto-reconnect
-          && !isSecure // && !isLoner /* do this on a loner to fix bug 35602 */
-      ) {
-        // LOG:CONFIG:
-        logger.info(LogMarker.CONFIG, Banner.getString(null));
-      }
+    if (!Boolean.getBoolean(InternalLocator.INHIBIT_DM_BANNER)
+        && InternalDistributedSystem.getReconnectAttemptCounter() == 0 // avoid filling up logs
+                                                                       // during auto-reconnect
+        && !isSecure // && !isLoner /* do this on a loner to fix bug 35602 */
+        && logConfig) {
+      logger.info(LogMarker.CONFIG_MARKER, Banner.getString(null));
     } else {
       logger.debug("skipping banner - " + InternalLocator.INHIBIT_DM_BANNER + " is set to true");
     }
 
     // log the config
-    if (logConfig) {
-      if (!isLoner) {
-        // LOG:CONFIG: changed from config to info
-        logger.info(LogMarker.CONFIG,
-            LocalizedMessage.create(
-                LocalizedStrings.InternalDistributedSystem_STARTUP_CONFIGURATIONN_0,
-                config.toLoggerString()));
-      }
+    if (logConfig && !isLoner) {
+      logger.info(LogMarker.CONFIG_MARKER,
+          LocalizedMessage.create(
+              LocalizedStrings.InternalDistributedSystem_STARTUP_CONFIGURATION_0,
+              config.toLoggerString()));
     }
-
     return logger;
   }
 }

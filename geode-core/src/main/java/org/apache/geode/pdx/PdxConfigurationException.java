@@ -12,16 +12,13 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.pdx;
 
 import org.apache.geode.GemFireException;
 
 /**
  * Thrown when a configuration that is now allowed by PDX is detected.
- * 
+ *
  * @since GemFire 6.6
  *
  */
@@ -31,7 +28,7 @@ public class PdxConfigurationException extends GemFireException {
 
   /**
    * Constructs a new exception with the given message
-   * 
+   *
    * @param message the message of the new exception
    */
   public PdxConfigurationException(String message) {

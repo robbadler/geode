@@ -23,14 +23,11 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.ExpirationAction;
-// import org.apache.geode.internal.*;
-// import org.apache.geode.internal.admin.*;
 import org.apache.geode.cache.Region;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
-// import java.util.*;
 
 /**
  * A message that is sent to a particular distribution manager to let it know that the sender is an
@@ -49,7 +46,7 @@ public class DestroyRegionMessage extends RegionAdminMessage {
   }
 
   @Override
-  public void process(DistributionManager dm) {
+  public void process(ClusterDistributionManager dm) {
     Region r = getRegion(dm.getSystem());
     if (r != null) {
       try {

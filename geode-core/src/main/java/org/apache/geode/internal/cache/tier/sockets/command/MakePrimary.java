@@ -12,20 +12,19 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache.tier.sockets.command;
 
 
+import java.io.IOException;
+
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.sockets.*;
-import java.io.IOException;
+import org.apache.geode.internal.security.SecurityService;
 
 
 public class MakePrimary extends BaseCommand {
 
-  private final static MakePrimary singleton = new MakePrimary();
+  private static final MakePrimary singleton = new MakePrimary();
 
   public static Command getCommand() {
     return singleton;
@@ -34,7 +33,8 @@ public class MakePrimary extends BaseCommand {
   private MakePrimary() {}
 
   @Override
-  public void cmdExecute(Message clientMessage, ServerConnection serverConnection, long start)
+  public void cmdExecute(final Message clientMessage, final ServerConnection serverConnection,
+      final SecurityService securityService, long start)
       throws IOException, ClassNotFoundException {
     serverConnection.setAsTrue(REQUIRES_RESPONSE);
     Part isClientReadyPart = clientMessage.getPart(0);

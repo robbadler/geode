@@ -14,12 +14,6 @@
  */
 package org.apache.geode.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.commons.io.IOUtils;
-import org.apache.geode.management.internal.security.ResourceConstants;
-import org.apache.shiro.authz.Permission;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
@@ -33,6 +27,15 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.io.IOUtils;
+import org.apache.shiro.authz.Permission;
+
+import org.apache.geode.management.internal.security.ResourceConstants;
+import org.apache.geode.security.ResourcePermission.Operation;
+import org.apache.geode.security.ResourcePermission.Resource;
 
 /**
  * This class provides a sample implementation of {@link SecurityManager} for authentication and
@@ -51,7 +54,7 @@ import java.util.stream.StreamSupport;
  *
  * <p>
  * The format of the JSON for configuration is as follows:
- * 
+ *
  * <pre>
  * <code>
  * {
@@ -156,23 +159,24 @@ public class TestSecurityManager implements SecurityManager {
       readUsers(this.userNameToUser, jsonNode, roleMap);
       return true;
     } catch (IOException ex) {
+      ex.printStackTrace();
       return false;
     }
   }
 
-  boolean initializeFromJsonResource(final String jsonResource) {
+  public boolean initializeFromJsonResource(final String jsonResource) {
     try {
       InputStream input = ClassLoader.getSystemResourceAsStream(jsonResource);
       if (input != null) {
-        initializeFromJson(readJsonFromInputStream(input));
-        return true;
+        return initializeFromJson(readJsonFromInputStream(input));
       }
     } catch (IOException ex) {
+      ex.printStackTrace();
     }
     return false;
   }
 
-  User getUser(final String user) {
+  public User getUser(final String user) {
     return this.userNameToUser.get(user);
   }
 
@@ -238,8 +242,8 @@ public class TestSecurityManager implements SecurityManager {
         String regionPart = (regionNames != null) ? regionNames : "*";
         String keyPart = (keys != null) ? keys : "*";
 
-        role.permissions
-            .add(new ResourcePermission(resourcePart, operationPart, regionPart, keyPart));
+        role.permissions.add(new ResourcePermission(Resource.valueOf(resourcePart),
+            Operation.valueOf(operationPart), regionPart, keyPart));
       }
 
       roleMap.put(role.name, role);
@@ -256,12 +260,28 @@ public class TestSecurityManager implements SecurityManager {
     List<ResourcePermission> permissions = new ArrayList<>();
     String name;
     String serverGroup;
+
+    public String getName() {
+      return name;
+    }
+
+    public List<ResourcePermission> getPermissions() {
+      return permissions;
+    }
   }
 
   public static class User {
     String name;
     Set<Role> roles = new HashSet<>();
     String password;
+
+    public Set<Role> getRoles() {
+      return roles;
+    }
+
+    public String getPassword() {
+      return password;
+    }
   }
 
 }

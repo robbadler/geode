@@ -47,9 +47,9 @@ import org.apache.geode.cache.query.internal.cq.CqService;
 import org.apache.geode.cache.query.internal.cq.CqServiceProvider;
 import org.apache.geode.cache.query.internal.cq.ServerCQ;
 import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionAdvisee;
 import org.apache.geode.distributed.internal.DistributionAdvisor.Profile;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.HighPriorityDistributionMessage;
 import org.apache.geode.distributed.internal.MessageWithReply;
 import org.apache.geode.distributed.internal.ReplyMessage;
@@ -72,17 +72,16 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.logging.log4j.LogMarker;
-import org.apache.geode.internal.offheap.annotations.Released;
 import org.apache.geode.internal.offheap.annotations.Unretained;
 import org.apache.geode.internal.util.concurrent.CopyOnWriteHashMap;
 
 /**
  * FilterProfile represents a distributed system member and is used for two purposes: processing
  * client-bound events, and providing information for profile exchanges.
- * 
+ *
  * FilterProfiles represent client IDs, including durable Queue IDs, with long integers. This
  * reduces the size of routing information when sent over the network.
- * 
+ *
  * @since GemFire 6.5
  */
 public class FilterProfile implements DataSerializableFixedID {
@@ -126,36 +125,37 @@ public class FilterProfile implements DataSerializableFixedID {
    * The keys in which clients are interested. This is a map keyed on client id, with a HashSet of
    * the interested keys as the values.
    */
-  private final Map<Object, Set> keysOfInterest = new CopyOnWriteHashMap<>();
+  private final CopyOnWriteHashMap<Object, Set> keysOfInterest = new CopyOnWriteHashMap<>();
 
-  private final Map<Object, Set> keysOfInterestInv = new CopyOnWriteHashMap<>();
+  private final CopyOnWriteHashMap<Object, Set> keysOfInterestInv = new CopyOnWriteHashMap<>();
 
   /**
    * The patterns in which clients are interested. This is a map keyed on client id, with a HashMap
    * (key name to compiled pattern) as the values.
    */
-  private final Map<Object, Map<Object, Pattern>> patternsOfInterest = new CopyOnWriteHashMap<>();
+  private final CopyOnWriteHashMap<Object, Map<Object, Pattern>> patternsOfInterest =
+      new CopyOnWriteHashMap<>();
 
-  private final Map<Object, Map<Object, Pattern>> patternsOfInterestInv =
+  private final CopyOnWriteHashMap<Object, Map<Object, Pattern>> patternsOfInterestInv =
       new CopyOnWriteHashMap<>();
 
   /**
    * The filtering classes in which clients are interested. This is a map keyed on client id, with a
    * HashMap (key name to {@link InterestFilter}) as the values.
    */
-  private final Map<Object, Map> filtersOfInterest = new CopyOnWriteHashMap<>();
+  private final CopyOnWriteHashMap<Object, Map> filtersOfInterest = new CopyOnWriteHashMap<>();
 
-  private final Map<Object, Map> filtersOfInterestInv = new CopyOnWriteHashMap<>();
+  private final CopyOnWriteHashMap<Object, Map> filtersOfInterestInv = new CopyOnWriteHashMap<>();
 
   /**
    * Set of clients that we have ALL_KEYS interest for and who want updates
    */
-  private final Set<Long> allKeyClients = new CopyOnWriteHashSet<>();
+  private final CopyOnWriteHashSet<Long> allKeyClients = new CopyOnWriteHashSet<>();
 
   /**
    * Set of clients that we have ALL_KEYS interest for and who want invalidations
    */
-  private final Set<Long> allKeyClientsInv = new CopyOnWriteHashSet<>();
+  private final CopyOnWriteHashSet<Long> allKeyClientsInv = new CopyOnWriteHashSet<>();
 
   /**
    * The region associated with this profile
@@ -171,7 +171,7 @@ public class FilterProfile implements DataSerializableFixedID {
   AtomicInteger cqCount;
 
   /** CQs that are registered on the remote node **/
-  private final Map cqs = new CopyOnWriteHashMap();
+  private final CopyOnWriteHashMap<String, ServerCQ> cqs = new CopyOnWriteHashMap<>();
 
   /* the ID of the member that this profile describes */
   private DistributedMember memberID;
@@ -204,13 +204,22 @@ public class FilterProfile implements DataSerializableFixedID {
    * distribution advisor profiles.
    */
   public FilterProfile(LocalRegion r) {
+    this(r, r.getMyId(), r.getGemFireCache().getCacheServers().size() > 0);
+  }
+
+  /**
+   * used for instantiation of a profile associated with a region and not describing region filters
+   * in a different process. Do not use this method when instantiating profiles to store in
+   * distribution advisor profiles.
+   */
+  public FilterProfile(LocalRegion r, DistributedMember member, boolean hasCacheServer) {
     this.region = r;
     this.isLocalProfile = true;
-    this.memberID = region.getMyId();
+    this.memberID = member;
     this.cqCount = new AtomicInteger();
     this.clientMap = new IDMap();
     this.cqMap = new IDMap();
-    this.localProfile.hasCacheServer = (r.getGemFireCache().getCacheServers().size() > 0);
+    this.localProfile.hasCacheServer = hasCacheServer;
   }
 
   public static boolean isCqOp(operationType opType) {
@@ -808,39 +817,49 @@ public class FilterProfile implements DataSerializableFixedID {
     return (serverCqName + this.hashCode());
   }
 
+  void processRegisterCq(String serverCqName, ServerCQ ServerCQ, boolean addToCqMap) {
+    processRegisterCq(serverCqName, ServerCQ, addToCqMap, GemFireCacheImpl.getInstance());
+  }
+
+
   /**
    * adds a new CQ to this profile during a delta operation or deserialization
-   * 
+   *
    * @param serverCqName the query objects' name
    * @param ServerCQ the new query object
    * @param addToCqMap whether to add the query to this.cqs
    */
-  void processRegisterCq(String serverCqName, ServerCQ ServerCQ, boolean addToCqMap) {
+  void processRegisterCq(String serverCqName, ServerCQ ServerCQ, boolean addToCqMap,
+      GemFireCacheImpl cache) {
+    if (cache == null) {
+      logger.info("Error while initializing the CQs with FilterProfile for CQ " + serverCqName
+          + ", Error : Cache has been closed.");
+      return;
+    }
     ServerCQ cq = (ServerCQ) ServerCQ;
     try {
-      CqService cqService = GemFireCacheImpl.getInstance().getCqService();
+      CqService cqService = cache.getCqService();
       cqService.start();
       cq.setCqService(cqService);
       CqStateImpl cqState = (CqStateImpl) cq.getState();
       cq.setName(generateCqName(serverCqName));
       cq.registerCq(null, null, cqState.getState());
     } catch (Exception ex) {
-      // Change it to Info level.
-      if (logger.isDebugEnabled()) {
-        logger.debug("Error while initializing the CQs with FilterProfile for CQ {}, Error : {}",
-            serverCqName, ex.getMessage(), ex);
-      }
+      logger.info("Error while initializing the CQs with FilterProfile for CQ {}, Error : {}",
+          serverCqName, ex.getMessage(), ex);
+
     }
     if (logger.isDebugEnabled()) {
       logger.debug("Adding CQ to remote members FilterProfile using name: {}", serverCqName);
-    }
-    if (addToCqMap) {
-      this.cqs.put(serverCqName, cq);
     }
 
     // The region's FilterProfile is accessed through CQ reference as the
     // region is not set on the FilterProfile created for the peer nodes.
     if (cq.getCqBaseRegion() != null) {
+      if (addToCqMap) {
+        this.cqs.put(serverCqName, cq);
+      }
+
       FilterProfile pf = cq.getCqBaseRegion().getFilterProfile();
       if (pf != null) {
         pf.incCqCount();
@@ -1078,7 +1097,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /**
    * get local routing information
-   * 
+   *
    * @param part1Info routing information for peers, if any
    * @param event the event to process
    * @return routing information for clients connected to this server
@@ -1112,7 +1131,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /**
    * get continuous query routing information
-   * 
+   *
    * @param event the event to process
    * @param peerProfiles the profiles getting this event
    * @param frInfo the routing table to update
@@ -1264,7 +1283,7 @@ public class FilterProfile implements DataSerializableFixedID {
    * Fills in the routing information for clients that have registered interest in the given event.
    * The routing information is stored in the given FilterRoutingInfo object for use in message
    * delivery.
-   * 
+   *
    * @param event the event being applied to the cache
    * @param profiles the profiles of members having the affected region
    * @param filterRoutingInfo the routing object that is modified by this method (may be null)
@@ -1277,8 +1296,8 @@ public class FilterProfile implements DataSerializableFixedID {
     Set clientsInv = Collections.emptySet();
     Set clients = Collections.emptySet();
 
-    if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER)) {
-      logger.trace(LogMarker.BRIDGE_SERVER, "finding interested clients for {}", event);
+    if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER_VERBOSE)) {
+      logger.trace(LogMarker.BRIDGE_SERVER_VERBOSE, "finding interested clients for {}", event);
     }
 
     FilterRoutingInfo frInfo = filterRoutingInfo;
@@ -1296,8 +1315,8 @@ public class FilterProfile implements DataSerializableFixedID {
         continue;
       }
 
-      if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER)) {
-        logger.trace(LogMarker.BRIDGE_SERVER, "Processing {}", pf);
+      if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER_VERBOSE)) {
+        logger.trace(LogMarker.BRIDGE_SERVER_VERBOSE, "Processing {}", pf);
       }
 
       if (!pf.hasInterest()) {
@@ -1365,7 +1384,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /**
    * get the clients interested in the given event that are attached to this server.
-   * 
+   *
    * @param event the entry event being applied to the cache
    * @param akc allKeyClients collection
    * @param koi keysOfInterest collection
@@ -1493,31 +1512,32 @@ public class FilterProfile implements DataSerializableFixedID {
 
   }
 
-
   public int getDSFID() {
     return FILTER_PROFILE;
   }
 
   public void toData(DataOutput out) throws IOException {
-    InternalDataSerializer.invokeToData(((InternalDistributedMember) memberID), out);
-    InternalDataSerializer.writeSetOfLongs(this.allKeyClients, this.clientMap.hasLongID, out);
-    DataSerializer.writeHashMap(this.keysOfInterest, out);
-    DataSerializer.writeHashMap(this.patternsOfInterest, out);
-    DataSerializer.writeHashMap(this.filtersOfInterest, out);
+    InternalDataSerializer.invokeToData(memberID, out);
+    InternalDataSerializer.writeSetOfLongs(this.allKeyClients.getSnapshot(),
+        this.clientMap.hasLongID, out);
+    DataSerializer.writeHashMap(this.keysOfInterest.getSnapshot(), out);
+    DataSerializer.writeHashMap(this.patternsOfInterest.getSnapshot(), out);
+    DataSerializer.writeHashMap(this.filtersOfInterest.getSnapshot(), out);
 
-    InternalDataSerializer.writeSetOfLongs(this.allKeyClientsInv, this.clientMap.hasLongID, out);
-    DataSerializer.writeHashMap(this.keysOfInterestInv, out);
-    DataSerializer.writeHashMap(this.patternsOfInterestInv, out);
-    DataSerializer.writeHashMap(this.filtersOfInterestInv, out);
+    InternalDataSerializer.writeSetOfLongs(this.allKeyClientsInv.getSnapshot(),
+        this.clientMap.hasLongID, out);
+    DataSerializer.writeHashMap(this.keysOfInterestInv.getSnapshot(), out);
+    DataSerializer.writeHashMap(this.patternsOfInterestInv.getSnapshot(), out);
+    DataSerializer.writeHashMap(this.filtersOfInterestInv.getSnapshot(), out);
 
     // Write CQ info.
-    Map theCQs = this.cqs;
+    Map<String, ServerCQ> theCQs = this.cqs.getSnapshot();
     int size = theCQs.size();
     InternalDataSerializer.writeArrayLength(size, out);
-    for (Iterator it = theCQs.entrySet().iterator(); it.hasNext();) {
-      Map.Entry entry = (Map.Entry) it.next();
-      String name = (String) entry.getKey();
-      ServerCQ cq = (ServerCQ) entry.getValue();
+    for (Iterator<Map.Entry<String, ServerCQ>> it = theCQs.entrySet().iterator(); it.hasNext();) {
+      Map.Entry<String, ServerCQ> entry = it.next();
+      String name = entry.getKey();
+      ServerCQ cq = entry.getValue();
       DataSerializer.writeString(name, out);
       InternalDataSerializer.invokeToData(cq, out);
     }
@@ -1600,17 +1620,9 @@ public class FilterProfile implements DataSerializableFixedID {
 
   @Override
   public String toString() {
-    final boolean isDebugEnabled = logger.isTraceEnabled(LogMarker.BRIDGE_SERVER);
-    return "FilterProfile(id=" + (this.isLocalProfile ? "local" : this.memberID)
-    // + "; allKeys: " + this.allKeyClients
-    // + "; keys: " + this.keysOfInterest
-    // + "; patterns: " + this.patternsOfInterest
-    // + "; filters: " + this.filtersOfInterest
-    // + "; allKeysInv: " + this.allKeyClientsInv
-    // + "; keysInv: " + this.keysOfInterestInv
-    // + "; patternsInv: " + this.patternsOfInterestInv
-    // + "; filtersInv: " + this.filtersOfInterestInv
-        + ";  numCQs: " + ((this.cqCount == null) ? 0 : this.cqCount.get())
+    final boolean isDebugEnabled = logger.isTraceEnabled(LogMarker.BRIDGE_SERVER_VERBOSE);
+    return "FilterProfile(id=" + (this.isLocalProfile ? "local" : this.memberID) + ";  numCQs: "
+        + ((this.cqCount == null) ? 0 : this.cqCount.get())
         + (isDebugEnabled ? (";  " + getClientMappingString()) : "")
         + (isDebugEnabled ? (";  " + getCqMappingString()) : "") + ")";
   }
@@ -1667,7 +1679,7 @@ public class FilterProfile implements DataSerializableFixedID {
   /**
    * given a collection of on-wire identifiers, this returns a set of the client/server identifiers
    * for each client or durable queue
-   * 
+   *
    * @param integerIDs the integer ids of the clients/queues
    * @return the translated identifiers
    */
@@ -1678,7 +1690,7 @@ public class FilterProfile implements DataSerializableFixedID {
   /**
    * given a collection of on-wire identifiers, this returns a set of the CQ identifiers they
    * correspond to
-   * 
+   *
    * @param integerIDs the integer ids of the clients/queues
    * @return the translated identifiers
    */
@@ -1688,7 +1700,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /**
    * given an on-wire filter ID, find and return the corresponding cq name
-   * 
+   *
    * @param integerID the on-wire ID
    * @return the translated id
    */
@@ -1717,7 +1729,7 @@ public class FilterProfile implements DataSerializableFixedID {
   /**
    * Returns the filter profile messages received while members cache profile exchange was in
    * progress.
-   * 
+   *
    * @param member whose messages are returned.
    * @return filter profile messages that are queued for the member.
    */
@@ -1733,7 +1745,7 @@ public class FilterProfile implements DataSerializableFixedID {
   /**
    * Removes the filter profile messages from the queue that are received while the members cache
    * profile exchange was in progress.
-   * 
+   *
    * @param member whose messages are returned.
    * @return filter profile messages that are queued for the member.
    */
@@ -1804,14 +1816,14 @@ public class FilterProfile implements DataSerializableFixedID {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.geode.distributed.internal.DistributionMessage#process(org.apache.geode.
      * distributed.internal.DistributionManager)
      */
     @Override
-    protected void process(DistributionManager dm) {
+    protected void process(ClusterDistributionManager dm) {
       try {
-        CacheDistributionAdvisee r = findRegion();
+        CacheDistributionAdvisee r = findRegion(dm);
         if (r == null) {
           if (logger.isDebugEnabled()) {
             logger.debug("Region not found, so ignoring filter profile update: {}", this);
@@ -1917,13 +1929,12 @@ public class FilterProfile implements DataSerializableFixedID {
       }
     }
 
-    private CacheDistributionAdvisee findRegion() {
+    private CacheDistributionAdvisee findRegion(ClusterDistributionManager dm) {
       CacheDistributionAdvisee result = null;
-      InternalCache cache;
       try {
-        cache = GemFireCacheImpl.getInstance();
+        InternalCache cache = dm.getCache();
         if (cache != null) {
-          LocalRegion lr = cache.getRegionByPathForProcessing(regionName);
+          LocalRegion lr = (LocalRegion) cache.getRegionByPathForProcessing(regionName);
           if (lr instanceof CacheDistributionAdvisee) {
             result = (CacheDistributionAdvisee) lr;
           }
@@ -1936,7 +1947,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.geode.internal.DataSerializableFixedID#getDSFID()
      */
     public int getDSFID() {
@@ -2020,8 +2031,8 @@ public class FilterProfile implements DataSerializableFixedID {
             this.wireIDs.put(result, realId);
           }
         }
-        if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER)) {
-          logger.trace(LogMarker.BRIDGE_SERVER, "Profile for {} mapped {} to {}",
+        if (logger.isTraceEnabled(LogMarker.BRIDGE_SERVER_VERBOSE)) {
+          logger.trace(LogMarker.BRIDGE_SERVER_VERBOSE, "Profile for {} mapped {} to {}",
               region.getFullPath(), realId, result);
         }
       }
@@ -2037,7 +2048,7 @@ public class FilterProfile implements DataSerializableFixedID {
     /**
      * given a collection of on-wire identifiers, this returns a set of the real identifiers (e.g.,
      * client IDs or durable queue IDs)
-     * 
+     *
      * @param integerIDs the integer ids
      * @return the translated identifiers
      */
@@ -2070,7 +2081,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /**
    * Returns true if the client is interested in all keys.
-   * 
+   *
    * @param id client identifier.
    * @return true if client is interested in all keys.
    */
@@ -2084,7 +2095,7 @@ public class FilterProfile implements DataSerializableFixedID {
   /**
    * Returns true if the client is interested in all keys, for which updates are sent as
    * invalidates.
-   * 
+   *
    * @param id client identifier
    * @return true if client is interested in all keys.
    */
@@ -2097,7 +2108,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /**
    * Returns the set of client interested keys.
-   * 
+   *
    * @param id client identifier
    * @return client interested keys.
    */
@@ -2114,7 +2125,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /**
    * Returns the set of client interested keys for which updates are sent as invalidates.
-   * 
+   *
    * @param id client identifier
    * @return client interested keys.
    */
@@ -2131,7 +2142,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /**
    * Returns the set of client interested patterns.
-   * 
+   *
    * @param id client identifier
    * @return client interested patterns.
    */
@@ -2152,7 +2163,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /**
    * Returns the set of client interested patterns for which updates are sent as invalidates.
-   * 
+   *
    * @param id client identifier
    * @return client interested patterns.
    */
@@ -2173,7 +2184,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /**
    * Returns the set of client interested filters.
-   * 
+   *
    * @param id client identifier
    * @return client interested filters.
    */
@@ -2190,7 +2201,7 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /**
    * Returns the set of client interested filters for which updates are sent as invalidates.
-   * 
+   *
    * @param id client identifier
    * @return client interested filters.
    */
@@ -2209,9 +2220,9 @@ public class FilterProfile implements DataSerializableFixedID {
 
   /** Test Hook */
   public interface TestHook {
-    public void await();
+    void await();
 
-    public void release();
+    void release();
   }
 
   @Override

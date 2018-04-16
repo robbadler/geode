@@ -19,11 +19,10 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 
-import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.logging.log4j.Logger;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
@@ -50,6 +49,7 @@ import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.cache30.CacheSerializableRunnable;
 import org.apache.geode.cache30.ClientServerTestCase;
 import org.apache.geode.internal.AvailablePortHelper;
+import org.apache.geode.internal.CopyOnWriteHashSet;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.pdx.FieldType;
@@ -70,9 +70,10 @@ import org.apache.geode.test.dunit.NetworkUtils;
 import org.apache.geode.test.dunit.SerializableCallable;
 import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
-import org.junit.experimental.categories.Category;
+import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, OQLQueryTest.class})
 public class PdxQueryDUnitTest extends PDXQueryTestBase {
   public static final Logger logger = LogService.getLogger();
 
@@ -346,7 +347,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
         try {
           for (int i = 0; i < numberOfEntries; i++) {
             PdxInstanceFactory pdxFactory =
-                PdxInstanceFactoryImpl.newCreator("PdxTestObject", false);
+                PdxInstanceFactoryImpl.newCreator("PdxTestObject", false, getCache());
             pdxFactory.writeInt("id", i);
             pdxFactory.writeString("ticker", "vmware");
             pdxFactory.writeString("idTickers", i + "vmware");
@@ -678,7 +679,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
       public void run2() throws CacheException {
         // Execute query locally.
         GemFireCacheImpl cache = (GemFireCacheImpl) getCache();
-        cache.setReadSerialized(true);
+        cache.setReadSerializedForTest(true);
         try {
           QueryService queryService = getCache().getQueryService();
           for (int i = 0; i < qs.length; i++) {
@@ -707,7 +708,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
             }
           }
         } finally {
-          cache.setReadSerialized(false);
+          cache.setReadSerializedForTest(false);
         }
       }
     });
@@ -933,7 +934,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
             PortfolioPdxVersion portfolioPdxVersion =
                 new PortfolioPdxVersion(new Integer(i), new Integer(i));
             PdxInstanceFactory pdxFactory =
-                PdxInstanceFactoryImpl.newCreator("PortfolioPdxVersion", false);
+                PdxInstanceFactoryImpl.newCreator("PortfolioPdxVersion", false, getCache());
             PdxInstance pdxInstance = portfolioPdxVersion.createPdxInstance(pdxFactory);
             region.put("key-" + i, pdxInstance);
           }
@@ -1317,7 +1318,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
           // Load TestObject
           for (int i = 0; i < numberOfEntries; i++) {
             PdxInstanceFactory pdxInstanceFactory =
-                PdxInstanceFactoryImpl.newCreator("PortfolioPdxVersion", false);
+                PdxInstanceFactoryImpl.newCreator("PortfolioPdxVersion", false, getCache());
             PortfolioPdxVersion portfolioPdxVersion =
                 new PortfolioPdxVersion(new Integer(i), new Integer(i));
             PdxInstance pdxInstance = portfolioPdxVersion.createPdxInstance(pdxInstanceFactory);
@@ -1402,7 +1403,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
             PortfolioPdxVersion portfolioPdxVersion =
                 new PortfolioPdxVersion(new Integer(i), new Integer(i));
             PdxInstanceFactory pdxInstanceFactory =
-                PdxInstanceFactoryImpl.newCreator("PortfolioPdxVersion", false);
+                PdxInstanceFactoryImpl.newCreator("PortfolioPdxVersion", false, getCache());
             PdxInstance pdxInstance = portfolioPdxVersion.createPdxInstance(pdxInstanceFactory);
             region.put("key-" + i, pdxInstance);
           }
@@ -1442,7 +1443,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
         GemFireCacheImpl c = (GemFireCacheImpl) region.getCache();
         try {
           // Set read serialized.
-          c.setReadSerialized(true);
+          c.setReadSerializedForTest(true);
 
           QueryService localQueryService = null;
 
@@ -1469,7 +1470,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
             }
           }
         } finally {
-          c.setReadSerialized(false);
+          c.setReadSerializedForTest(false);
         }
       }
     });
@@ -2552,7 +2553,6 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
    * populated. This map is used to search a field for a class in different versions (PdxTypes) This
    * test verifies that the map is being updated by the cacheListener
    *
-   * @throws CacheException
    */
   @Test
   public void testLocalMapInPeerTypePdxRegistry() throws CacheException {
@@ -2608,7 +2608,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
         // Load version 1 objects
         for (int i = 0; i < numberOfEntries; i++) {
           PdxInstanceFactory pdxInstanceFactory =
-              PdxInstanceFactoryImpl.newCreator("PdxVersionedNewPortfolio", false);
+              PdxInstanceFactoryImpl.newCreator("PdxVersionedNewPortfolio", false, getCache());
           pdxInstanceFactory.writeInt("id", i);
           pdxInstanceFactory.writeString("pdxStatus", (i % 2 == 0 ? "active" : "inactive"));
           PdxInstance pdxInstance = pdxInstanceFactory.create();
@@ -2631,7 +2631,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
         // Load version 2 objects
         for (int i = numberOfEntries; i < numberOfEntries * 2; i++) {
           PdxInstanceFactory pdxInstanceFactory =
-              PdxInstanceFactoryImpl.newCreator("PdxVersionedNewPortfolio", false);
+              PdxInstanceFactoryImpl.newCreator("PdxVersionedNewPortfolio", false, getCache());
           pdxInstanceFactory.writeInt("id", i);
           pdxInstanceFactory.writeString("status", (i % 2 == 0 ? "active" : "inactive"));
           PdxInstance pdxInstance = pdxInstanceFactory.create();
@@ -2645,11 +2645,10 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
     vm0.invoke(new SerializableCallable("Create client") {
       @Override
       public Object call() throws Exception {
-        TypeRegistration registration = GemFireCacheImpl
-            .getForPdx("PDX registry is unavailable because the Cache has been closed.")
-            .getPdxRegistry().getTypeRegistration();
+        TypeRegistration registration = getCache().getPdxRegistry().getTypeRegistration();
         Assert.assertTrue(registration instanceof PeerTypeRegistration);
-        Map<String, Set<PdxType>> m = ((PeerTypeRegistration) registration).getClassToType();
+        Map<String, CopyOnWriteHashSet<PdxType>> m =
+            ((PeerTypeRegistration) registration).getClassToType();
         assertEquals(1, m.size());
         assertEquals("PdxVersionedNewPortfolio", m.keySet().iterator().next());
         assertEquals(2, m.values().iterator().next().size());
@@ -2664,11 +2663,10 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
     vm1.invoke(new SerializableCallable("Create client") {
       @Override
       public Object call() throws Exception {
-        TypeRegistration registration = GemFireCacheImpl
-            .getForPdx("PDX registry is unavailable because the Cache has been closed.")
-            .getPdxRegistry().getTypeRegistration();
+        TypeRegistration registration = getCache().getPdxRegistry().getTypeRegistration();
         Assert.assertTrue(registration instanceof PeerTypeRegistration);
-        Map<String, Set<PdxType>> m = ((PeerTypeRegistration) registration).getClassToType();
+        Map<String, CopyOnWriteHashSet<PdxType>> m =
+            ((PeerTypeRegistration) registration).getClassToType();
         assertEquals(1, m.size());
         assertEquals("PdxVersionedNewPortfolio", m.keySet().iterator().next());
         assertEquals(2, m.values().iterator().next().size());
@@ -2684,8 +2682,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
 
   /**
    * Test to query a field that is not present in the Pdx object but has a get method
-   * 
-   * @throws CacheException
+   *
    */
   @Test
   public void testPdxInstanceWithMethodButNoField() throws CacheException {
@@ -2831,8 +2828,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
   /**
    * Test to query a field that is not present in the Pdx object but is present in some other
    * version of the pdx instance
-   * 
-   * @throws CacheException
+   *
    */
   @Test
   public void testPdxInstanceFieldInOtherVersion() throws CacheException {
@@ -2888,7 +2884,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
         // Load version 1 objects
         for (int i = 0; i < numberOfEntries; i++) {
           PdxInstanceFactory pdxInstanceFactory =
-              PdxInstanceFactoryImpl.newCreator("PdxVersionedNewPortfolio", false);
+              PdxInstanceFactoryImpl.newCreator("PdxVersionedNewPortfolio", false, getCache());
           pdxInstanceFactory.writeInt("id", i);
           pdxInstanceFactory.writeString("pdxStatus", (i % 2 == 0 ? "active" : "inactive"));
           PdxInstance pdxInstance = pdxInstanceFactory.create();
@@ -2911,7 +2907,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
         // Load version 2 objects
         for (int i = numberOfEntries; i < numberOfEntries * 2; i++) {
           PdxInstanceFactory pdxInstanceFactory =
-              PdxInstanceFactoryImpl.newCreator("PdxVersionedNewPortfolio", false);
+              PdxInstanceFactoryImpl.newCreator("PdxVersionedNewPortfolio", false, getCache());
           pdxInstanceFactory.writeInt("id", i);
           pdxInstanceFactory.writeString("status", (i % 2 == 0 ? "active" : "inactive"));
           PdxInstance pdxInstance = pdxInstanceFactory.create();
@@ -2992,7 +2988,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
       @Override
       public Object call() throws Exception {
         GemFireCacheImpl cache = (GemFireCacheImpl) getCache();
-        cache.setReadSerialized(true);
+        cache.setReadSerializedForTest(true);
         QueryService queryService = null;
         try {
           queryService = getCache().getQueryService();
@@ -3069,8 +3065,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
    * 2 servers(replicated) and 2 clients. client2 puts version1 and version2 objects on server1
    * client1 had registered interest to server2, hence gets the pdx objects for both versions Test
    * local query on client1 Test if client1 fetched pdxtypes from server
-   * 
-   * @throws CacheException
+   *
    */
   @Test
   public void testClientForFieldInOtherVersion() throws CacheException {
@@ -3165,7 +3160,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
       @Override
       public Object call() throws Exception {
         GemFireCacheImpl cache = (GemFireCacheImpl) getCache();
-        cache.setReadSerialized(true);
+        cache.setReadSerializedForTest(true);
         QueryService localQueryService = null;
         // Execute query remotely
         try {
@@ -3192,9 +3187,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
           }
         }
         // check if the types registered on server are fetched by the client
-        TypeRegistration registration = GemFireCacheImpl
-            .getForPdx("PDX registry is unavailable because the Cache has been closed.")
-            .getPdxRegistry().getTypeRegistration();
+        TypeRegistration registration = getCache().getPdxRegistry().getTypeRegistration();
         Assert.assertTrue(registration instanceof ClientTypeRegistration);
         Map<Integer, PdxType> m = ((ClientTypeRegistration) registration).types();
         assertEquals(2, m.size());
@@ -3210,8 +3203,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
   /**
    * Test to query a field that is not present in the Pdx object Also the implicit method is absent
    * in the class
-   * 
-   * @throws CacheException
+   *
    */
   @Test
   public void testPdxInstanceNoFieldNoMethod() throws CacheException {
@@ -3251,7 +3243,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
         // Load version 1 objects
         for (int i = 0; i < numberOfEntries; i++) {
           PdxInstanceFactory pdxInstanceFactory =
-              PdxInstanceFactoryImpl.newCreator("PdxVersionedNewPortfolio", false);
+              PdxInstanceFactoryImpl.newCreator("PdxVersionedNewPortfolio", false, getCache());
           pdxInstanceFactory.writeInt("id", i);
           pdxInstanceFactory.writeString("status", (i % 2 == 0 ? "active" : "inactive"));
           PdxInstance pdxInstance = pdxInstanceFactory.create();
@@ -3302,7 +3294,6 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
    * Test query execution when default values of {@link FieldType} are used. This happens when one
    * version of Pdx object does not have a field but other version has.
    *
-   * @throws Exception
    */
   @Test
   public void testDefaultValuesInPdxFieldTypes() throws Exception {
@@ -3341,7 +3332,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
         // Load version 1 objects
         for (int i = 0; i < numberOfEntries; i++) {
           PdxInstanceFactory pdxInstanceFactory =
-              PdxInstanceFactoryImpl.newCreator("PdxVersionedFieldType", false);
+              PdxInstanceFactoryImpl.newCreator("PdxVersionedFieldType", false, getCache());
           pdxInstanceFactory.writeString("stringField", "" + i);
           pdxInstanceFactory.writeBoolean("booleanField", (i % 2 == 0 ? true : false));
           pdxInstanceFactory.writeChar("charField", ((char) i));
@@ -3354,7 +3345,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
         // Load version 2 objects
         for (int i = numberOfEntries; i < numberOfEntries * 2; i++) {
           PdxInstanceFactory pdxInstanceFactory =
-              PdxInstanceFactoryImpl.newCreator("PdxVersionedFieldType", false);
+              PdxInstanceFactoryImpl.newCreator("PdxVersionedFieldType", false, getCache());
           pdxInstanceFactory.writeInt("intField", i);
           pdxInstanceFactory.writeLong("longField", new Integer(i + 1).longValue());
           pdxInstanceFactory.writeFloat("floatField", new Integer(i + 2).floatValue());
@@ -3373,7 +3364,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
       @Override
       public Object call() throws Exception {
         GemFireCacheImpl cache = (GemFireCacheImpl) getCache();
-        cache.setReadSerialized(true);
+        cache.setReadSerializedForTest(true);
 
         QueryService qs = null;
         SelectResults[][] sr = new SelectResults[1][2];
@@ -3429,7 +3420,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
         // Load version 1 objects
         for (int i = numberOfEntries; i < numberOfEntries * 2; i++) {
           PdxInstanceFactory pdxInstanceFactory =
-              PdxInstanceFactoryImpl.newCreator("PdxVersionedFieldType", false);
+              PdxInstanceFactoryImpl.newCreator("PdxVersionedFieldType", false, getCache());
           pdxInstanceFactory.writeString("stringField", "" + i);
           pdxInstanceFactory.writeBoolean("booleanField", (i % 2 == 0 ? true : false));
           pdxInstanceFactory.writeChar("charField", ((char) i));
@@ -3442,7 +3433,7 @@ public class PdxQueryDUnitTest extends PDXQueryTestBase {
         // Load version 2 objects
         for (int i = 0; i < numberOfEntries; i++) {
           PdxInstanceFactory pdxInstanceFactory =
-              PdxInstanceFactoryImpl.newCreator("PdxVersionedFieldType", false);
+              PdxInstanceFactoryImpl.newCreator("PdxVersionedFieldType", false, getCache());
           pdxInstanceFactory.writeInt("intField", i);
           pdxInstanceFactory.writeLong("longField", new Integer(i + 1).longValue());
           pdxInstanceFactory.writeFloat("floatField", new Integer(i + 2).floatValue());

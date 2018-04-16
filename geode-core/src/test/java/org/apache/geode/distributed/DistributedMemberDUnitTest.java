@@ -14,42 +14,40 @@
  */
 package org.apache.geode.distributed;
 
+import static org.apache.geode.distributed.ConfigurationProperties.*;
+import static org.apache.geode.test.dunit.Assert.*;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+
+import org.awaitility.Awaitility;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import org.apache.geode.IncompatibleSystemException;
-import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.HighPriorityAckedMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
+import org.apache.geode.distributed.internal.membership.gms.GMSMember;
+import org.apache.geode.distributed.internal.membership.gms.MembershipManagerHelper;
+import org.apache.geode.distributed.internal.membership.gms.mgr.GMSMembershipManager;
 import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.SerializableCallable;
 import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.*;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.apache.geode.test.dunit.Assert.*;
 
 /**
  * Tests the functionality of the {@link DistributedMember} class.
  *
- * @since GemFire 5.0
  */
 @Category(DistributedTest.class)
 public class DistributedMemberDUnitTest extends JUnit4DistributedTestCase {
-
-  protected void sleep(long millis) { // TODO: replace with Awaitility
-    try {
-      Thread.sleep(millis);
-    } catch (InterruptedException e) {
-      fail("interrupted");
-    }
-  }
 
   /**
    * Tests default settings.
@@ -69,7 +67,7 @@ public class DistributedMemberDUnitTest extends JUnit4DistributedTestCase {
       assertTrue(system.getConfig().getGroups().equals(DistributionConfig.DEFAULT_ROLES));
       assertTrue(system.getConfig().getName().equals(DistributionConfig.DEFAULT_NAME));
 
-      DM dm = system.getDistributionManager();
+      DistributionManager dm = system.getDistributionManager();
       InternalDistributedMember member = dm.getDistributionManagerId();
 
       Set roles = member.getRoles();
@@ -92,7 +90,7 @@ public class DistributedMemberDUnitTest extends JUnit4DistributedTestCase {
     try {
       assertEquals("nondefault", system.getConfig().getName());
 
-      DM dm = system.getDistributionManager();
+      DistributionManager dm = system.getDistributionManager();
       InternalDistributedMember member = dm.getDistributionManagerId();
 
       assertEquals("nondefault", member.getName());
@@ -122,7 +120,7 @@ public class DistributedMemberDUnitTest extends JUnit4DistributedTestCase {
       assertEquals(rolesProp, system.getConfig().getRoles());
       assertEquals(groupsProp, system.getConfig().getGroups());
 
-      DM dm = system.getDistributionManager();
+      DistributionManager dm = system.getDistributionManager();
       InternalDistributedMember member = dm.getDistributionManagerId();
 
       Set roles = member.getRoles();
@@ -200,7 +198,7 @@ public class DistributedMemberDUnitTest extends JUnit4DistributedTestCase {
           assertNotNull(sys.getConfig().getRoles());
           assertTrue(sys.getConfig().getRoles().equals(vmRoles[vm]));
 
-          DM dm = sys.getDistributionManager();
+          DistributionManager dm = sys.getDistributionManager();
           InternalDistributedMember self = dm.getDistributionManagerId();
 
           Set myRoles = self.getRoles();
@@ -209,20 +207,9 @@ public class DistributedMemberDUnitTest extends JUnit4DistributedTestCase {
           Role myRole = (Role) myRoles.iterator().next();
           assertTrue(vmRoles[vm].equals(myRole.getName()));
 
-          Set members = null;
-          for (int i = 1; i <= 3; i++) {
-            try {
-              members = dm.getOtherNormalDistributionManagerIds();
-              assertEquals(3, members.size());
-              break;
-            } catch (AssertionError e) { // TODO: delete this
-              if (i < 3) {
-                sleep(200);
-              } else {
-                throw e;
-              }
-            }
-          }
+          Awaitility.await().atMost(10, TimeUnit.SECONDS)
+              .until(() -> dm.getOtherNormalDistributionManagerIds().size() == 3);
+          Set<DistributedMember> members = dm.getOtherNormalDistributionManagerIds();
 
           for (Iterator iterMembers = members.iterator(); iterMembers.hasNext();) {
             InternalDistributedMember member = (InternalDistributedMember) iterMembers.next();
@@ -244,6 +231,60 @@ public class DistributedMemberDUnitTest extends JUnit4DistributedTestCase {
         }
       });
     }
+  }
+
+
+  private InternalDistributedMember connectAndSetUpPartialID() throws Exception {
+    Properties properties = new Properties();
+    properties.put("name", "myName");
+    InternalDistributedSystem system = getSystem(properties);
+    assertTrue(system == basicGetSystem()); // senders will use basicGetSystem()
+    InternalDistributedMember internalDistributedMember = system.getDistributedMember();
+
+    GMSMember gmsMember = new GMSMember((GMSMember) internalDistributedMember.getNetMember());
+    assertTrue(gmsMember.equals(internalDistributedMember.getNetMember()));
+    gmsMember.setName(null);
+    InternalDistributedMember partialID = new InternalDistributedMember(gmsMember);
+    return partialID;
+  }
+
+  /**
+   * GEODE-3043 surprise member added when member is already in the cluster
+   *
+   * This test ensures that a partial ID (with no "name") is equal to its equivalent non-partial ID.
+   *
+   */
+  @Test
+  public void testMemberNameIgnoredInPartialID() throws Exception {
+    InternalDistributedMember partialID = connectAndSetUpPartialID();
+
+    InternalDistributedMember internalDistributedMember = basicGetSystem().getDistributedMember();
+    assertTrue(partialID.isPartial());
+    assertFalse(internalDistributedMember.isPartial());
+
+    assertEquals(internalDistributedMember, partialID);
+    assertEquals(partialID, internalDistributedMember);
+  }
+
+  /**
+   * GEODE-3043 surprise member added when member is already in the cluster
+   *
+   * This test ensures that the membership manager can detect and replace a partial ID with one that
+   * is not partial
+   *
+   */
+  @Test
+  public void testPartialIDInMessageReplacedWithFullID() throws Exception {
+    InternalDistributedMember partialID = connectAndSetUpPartialID();
+
+    HighPriorityAckedMessage message = new HighPriorityAckedMessage();
+    message.setSender(partialID);
+
+    GMSMembershipManager manager =
+        (GMSMembershipManager) MembershipManagerHelper.getMembershipManager(basicGetSystem());
+    manager.replacePartialIdentifierInMessage(message);
+
+    assertFalse(message.getSender().isPartial());
   }
 
   private static String makeOddEvenString(int vm) {
@@ -284,27 +325,17 @@ public class DistributedMemberDUnitTest extends JUnit4DistributedTestCase {
           final String expectedMyGroup = makeGroupsString(vm);
           assertEquals(expectedMyGroup, sys.getConfig().getGroups());
 
-          DM dm = sys.getDistributionManager();
+          DistributionManager dm = sys.getDistributionManager();
           DistributedMember self = sys.getDistributedMember();
 
           List<String> myGroups = self.getGroups();
 
           assertEquals(Arrays.asList("" + vm, makeOddEvenString(vm)), myGroups);
 
-          Set<DistributedMember> members = null;
-          for (int i = 1; i <= 3; i++) {
-            try {
-              members = dm.getOtherNormalDistributionManagerIds();
-              assertEquals(3, members.size());
-              break;
-            } catch (AssertionError e) { // TODO: delete this
-              if (i < 3) {
-                sleep(200);
-              } else {
-                throw e;
-              }
-            }
-          }
+          Awaitility.await().atMost(10, TimeUnit.SECONDS)
+              .until(() -> dm.getOtherNormalDistributionManagerIds().size() == 3);
+          Set<DistributedMember> members = dm.getOtherNormalDistributionManagerIds();
+
           // Make sure getAllOtherMembers returns a set
           // containing our three peers plus an admin member.
           Set<DistributedMember> others = sys.getAllOtherMembers();
@@ -357,7 +388,7 @@ public class DistributedMemberDUnitTest extends JUnit4DistributedTestCase {
     InternalDistributedSystem system = getSystem(config);
     try {
 
-      DM dm = system.getDistributionManager();
+      DistributionManager dm = system.getDistributionManager();
       DistributedMember member = dm.getDistributionManagerId();
 
       assertEquals(member.getId(), system.getMemberId());
@@ -417,5 +448,3 @@ public class DistributedMemberDUnitTest extends JUnit4DistributedTestCase {
   }
 
 }
-
-

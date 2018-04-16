@@ -14,6 +14,11 @@
  */
 package org.apache.geode.internal.logging.log4j;
 
+import java.io.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.apache.geode.GemFireIOException;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.internal.OSProcess;
@@ -22,32 +27,27 @@ import org.apache.geode.internal.logging.*;
 import org.apache.geode.internal.process.ProcessLauncherContext;
 import org.apache.geode.internal.util.LogFileUtils;
 
-import java.io.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-
 /**
  * Holds on to one or many instances of LogWriterAppender and provides convenience methods for
  * controlling their lifecycles.
- * 
+ *
  */
 public class LogWriterAppenders {
-  public final static String APPEND_TO_LOG_FILE = DistributionConfig.GEMFIRE_PREFIX + "append-log";
+  public static final String APPEND_TO_LOG_FILE = DistributionConfig.GEMFIRE_PREFIX + "append-log";
   private static final boolean ALLOW_REDIRECT = true;
 
   public enum Identifier {
     MAIN(false), SECURITY(true);
     private final boolean isSecure;
 
-    private Identifier(final boolean isSecure) {
+    Identifier(final boolean isSecure) {
       this.isSecure = isSecure;
     }
 
     public boolean isSecure() {
       return this.isSecure;
     }
-  };
+  }
 
   private static Map<Identifier, LogWriterAppender> appenders =
       new HashMap<Identifier, LogWriterAppender>();
@@ -57,14 +57,14 @@ public class LogWriterAppenders {
   /**
    * Returns the named LogWriterAppender or null if it does not exist.
    */
-  public synchronized static LogWriterAppender getAppender(final Identifier id) {
+  public static synchronized LogWriterAppender getAppender(final Identifier id) {
     return appenders.get(id);
   }
 
   /**
    * Returns the named LogWriterAppender or creates it if necessary.
    */
-  public synchronized static LogWriterAppender getOrCreateAppender(final Identifier id,
+  public static synchronized LogWriterAppender getOrCreateAppender(final Identifier id,
       final boolean appendToFile, final boolean isLoner, final LogConfig config,
       final boolean logConfig) {
     LogWriterAppender appender = appenders.get(id);
@@ -91,7 +91,7 @@ public class LogWriterAppenders {
   /**
    * Creates the log writer appender for a distributed system based on the system's parsed
    * configuration. The initial banner and messages are also entered into the log by this method.
-   * 
+   *
    * @param isLoner Whether the distributed system is a loner or not
    * @param isSecurity Whether a log for security related messages has to be created
    * @param config The DistributionConfig for the target distributed system
@@ -151,7 +151,7 @@ public class LogWriterAppenders {
         } else {
           firstMsgWarning = true;
           firstMsg = LocalizedStrings.InternalDistributedSystem_COULD_NOT_RENAME_0_TO_1
-              .toLocalizedString(new Object[] {logFile, oldMain});
+              .toLocalizedString(logFile, oldMain);
         }
       }
     }
@@ -220,7 +220,7 @@ public class LogWriterAppenders {
     if (logConfig) {
       if (!isLoner) {
         // LOG:CONFIG: changed from config to info
-        logWriter.info(LocalizedStrings.InternalDistributedSystem_STARTUP_CONFIGURATIONN_0,
+        logWriter.info(LocalizedStrings.InternalDistributedSystem_STARTUP_CONFIGURATION_0,
             config.toLoggerString());
       }
     }
@@ -241,14 +241,14 @@ public class LogWriterAppenders {
     return appender;
   }
 
-  public synchronized static void startupComplete(final Identifier id) {
+  public static synchronized void startupComplete(final Identifier id) {
     LogWriterAppender appender = appenders.get(id);
     if (appender != null) {
       appender.startupComplete();
     }
   }
 
-  public synchronized static void destroy(final Identifier id) {
+  public static synchronized void destroy(final Identifier id) {
     // TODO:LOG:KIRK: new Exception("KIRK destroy called for " + id).printStackTrace();
     LogWriterAppender appender = appenders.get(id);
     if (appender == null) {
@@ -271,14 +271,14 @@ public class LogWriterAppenders {
     }
   }
 
-  public synchronized static void stop(final Identifier id) {
+  public static synchronized void stop(final Identifier id) {
     LogWriterAppender appender = appenders.get(id);
     if (appender != null) {
       appender.stop();
     }
   }
 
-  public synchronized static void configChanged(final Identifier id) {
+  public static synchronized void configChanged(final Identifier id) {
     LogWriterAppender appender = appenders.get(id);
     if (appender != null) {
       appender.configChanged();

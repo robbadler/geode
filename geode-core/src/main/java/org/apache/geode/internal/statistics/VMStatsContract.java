@@ -19,17 +19,17 @@ package org.apache.geode.internal.statistics;
  * <p>
  * I named this VMStatsContract because an implementation named VMStats already exists and I didn't
  * want to rename it because of the svn merge issues.
- * 
+ *
  * @see VMStatsContractFactory
  */
 public interface VMStatsContract {
   /**
    * Called by sampler when it wants the VMStats statistics values to be refetched from the system.
    */
-  public void refresh();
+  void refresh();
 
   /**
    * Called by sampler when it wants the VMStats to go away.
    */
-  public void close();
+  void close();
 }

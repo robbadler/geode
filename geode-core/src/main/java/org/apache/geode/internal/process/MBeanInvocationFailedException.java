@@ -16,30 +16,30 @@ package org.apache.geode.internal.process;
 
 /**
  * A MBeanInvocationFailedException is thrown if invocation of the mbean failed.
- * 
+ *
  * @since GemFire 7.0
  */
 public class MBeanInvocationFailedException extends Exception {
   private static final long serialVersionUID = 7991096466859690801L;
 
   /**
-   * Creates a new <code>MBeanInvocationFailedException</code>.
+   * Creates a new {@code MBeanInvocationFailedException}.
    */
   public MBeanInvocationFailedException(final String message) {
     super(message);
   }
 
   /**
-   * Creates a new <code>MBeanInvocationFailedException</code> that was caused by a given exception
+   * Creates a new {@code MBeanInvocationFailedException} that was caused by a given exception
    */
-  public MBeanInvocationFailedException(final String message, final Throwable thr) {
-    super(message, thr);
+  public MBeanInvocationFailedException(final String message, final Throwable cause) {
+    super(message, cause);
   }
 
   /**
-   * Creates a new <code>MBeanInvocationFailedException</code> that was caused by a given exception
+   * Creates a new {@code MBeanInvocationFailedException} that was caused by a given exception
    */
-  public MBeanInvocationFailedException(final Throwable thr) {
-    super(thr.getMessage(), thr);
+  public MBeanInvocationFailedException(final Throwable cause) {
+    super(cause.getMessage(), cause);
   }
 }

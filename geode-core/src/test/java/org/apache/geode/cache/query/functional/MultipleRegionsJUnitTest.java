@@ -12,12 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/*
- * MultipleRegionsJUnitTest.java
- *
- * Created on May 18, 2005, 5:02 PM
- */
-
 package org.apache.geode.cache.query.functional;
 
 import static org.junit.Assert.fail;
@@ -36,13 +30,10 @@ import org.apache.geode.cache.query.QueryService;
 import org.apache.geode.cache.query.data.Data;
 import org.apache.geode.cache.query.data.Portfolio;
 import org.apache.geode.test.junit.categories.IntegrationTest;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-/**
- *
- */
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class MultipleRegionsJUnitTest {
-
 
   @Before
   public void setUp() throws java.lang.Exception {
@@ -85,20 +76,12 @@ public class MultipleRegionsJUnitTest {
         "Select distinct * from /Portfolios, /Portfolios2",
         "Select distinct * from /Portfolios3, /Data", "Select distinct * from /Portfolios, /Data",
         "Select distinct * from /Portfolios pf, /Portfolios2, /Portfolios3, /Data where pf.status='active'"};
-    try {
-      for (int i = 0; i < queries.length; i++) {
-        Query query = qs.newQuery(queries[i]);
-        Object result = query.execute();
-        // CacheUtils.log(Utils.printResult(result));
-        if (((Collection) result).size() != SizeArray[i])
-          fail("Size of Result is not as Expected");
-      }
-    } catch (Exception e) {
-      e.printStackTrace();
-      fail();
+
+    for (int i = 0; i < queries.length; i++) {
+      Query query = qs.newQuery(queries[i]);
+      Object result = query.execute();
+      if (((Collection) result).size() != SizeArray[i])
+        fail("Size of Result is not as Expected");
     }
   }
-
-
 }
-

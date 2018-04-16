@@ -31,14 +31,12 @@ import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.LocalRegion.NonTXEntry;
 import org.apache.geode.internal.cache.Token;
 import org.apache.geode.internal.offheap.OffHeapHelper;
-import org.apache.geode.internal.offheap.StoredObject;
 import org.apache.geode.internal.offheap.annotations.Released;
-import org.apache.geode.internal.offheap.annotations.Retained;
 import org.apache.geode.internal.util.BlobHelper;
 
 /**
  * Provides an envelope for transmitting a collection of <code>SnapshotRecord</code>s during export.
- * 
+ *
  */
 public class SnapshotPacket implements DataSerializableFixedID {
   /**
@@ -82,7 +80,7 @@ public class SnapshotPacket implements DataSerializableFixedID {
 
     /**
      * Returns the serialized key.
-     * 
+     *
      * @return the key
      */
     public byte[] getKey() {
@@ -91,7 +89,7 @@ public class SnapshotPacket implements DataSerializableFixedID {
 
     /**
      * Returns the serialized value.
-     * 
+     *
      * @return the value
      */
     public byte[] getValue() {
@@ -100,9 +98,9 @@ public class SnapshotPacket implements DataSerializableFixedID {
 
     /**
      * Returns the deserialized key object.
-     * 
+     *
      * @return the key
-     * 
+     *
      * @throws IOException error deserializing key
      * @throws ClassNotFoundException unable to deserialize key
      */
@@ -112,9 +110,9 @@ public class SnapshotPacket implements DataSerializableFixedID {
 
     /**
      * Returns the deserialized value object.
-     * 
+     *
      * @return the value
-     * 
+     *
      * @throws IOException error deserializing value
      * @throws ClassNotFoundException unable to deserialize value
      */
@@ -124,7 +122,7 @@ public class SnapshotPacket implements DataSerializableFixedID {
 
     /**
      * Returns true if the record has a value.
-     * 
+     *
      * @return the value, or null
      */
     public boolean hasValue() {
@@ -133,7 +131,7 @@ public class SnapshotPacket implements DataSerializableFixedID {
 
     /**
      * Returns the size in bytes of the serialized key and value.
-     * 
+     *
      * @return the record size
      */
     public int getSize() {
@@ -202,7 +200,7 @@ public class SnapshotPacket implements DataSerializableFixedID {
 
   /**
    * Returns the window id for sending responses.
-   * 
+   *
    * @return the window id
    */
   public int getWindowId() {
@@ -211,7 +209,7 @@ public class SnapshotPacket implements DataSerializableFixedID {
 
   /**
    * Returns the packet id.
-   * 
+   *
    * @return the packet id
    */
   public String getPacketId() {
@@ -220,7 +218,7 @@ public class SnapshotPacket implements DataSerializableFixedID {
 
   /**
    * Returns the member that sent the packet.
-   * 
+   *
    * @return the sender
    */
   public DistributedMember getSender() {
@@ -229,7 +227,7 @@ public class SnapshotPacket implements DataSerializableFixedID {
 
   /**
    * Returns the snapshot data
-   * 
+   *
    * @return the records
    */
   public SnapshotRecord[] getRecords() {

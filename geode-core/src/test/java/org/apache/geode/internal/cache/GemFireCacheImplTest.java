@@ -15,29 +15,59 @@
 package org.apache.geode.internal.cache;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.io.NotSerializableException;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.geode.internal.cache.control.InternalResourceManager;
 import org.awaitility.Awaitility;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import org.apache.geode.SerializationException;
+import org.apache.geode.cache.CacheClosedException;
+import org.apache.geode.cache.server.CacheServer;
+import org.apache.geode.cache.wan.GatewayReceiver;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.SystemTimer;
-import org.apache.geode.internal.cache.lru.HeapEvictor;
-import org.apache.geode.internal.cache.lru.OffHeapEvictor;
+import org.apache.geode.internal.cache.control.InternalResourceManager;
+import org.apache.geode.internal.cache.eviction.HeapEvictor;
+import org.apache.geode.internal.cache.eviction.OffHeapEvictor;
 import org.apache.geode.pdx.internal.TypeRegistry;
 import org.apache.geode.test.fake.Fakes;
 import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
 public class GemFireCacheImplTest {
+
+  private InternalDistributedSystem distributedSystem;
+  private GemFireCacheImpl cache;
+  private CacheConfig cacheConfig;
+
+  @Before
+  public void setup() {
+    distributedSystem = Fakes.distributedSystem();
+    cacheConfig = new CacheConfig();
+  }
+
+  @After
+  public void tearDown() {
+    if (cache != null) {
+      cache.close();
+    }
+  }
 
   @Test
   public void shouldBeMockable() throws Exception {
@@ -96,6 +126,36 @@ public class GemFireCacheImplTest {
   }
 
   @Test
+  public void registerPdxMetaDataThrowsIfInstanceNotSerializable() {
+    InternalDistributedSystem ds = Fakes.distributedSystem();
+    CacheConfig cc = new CacheConfig();
+    TypeRegistry typeRegistry = mock(TypeRegistry.class);
+    GemFireCacheImpl gfc = GemFireCacheImpl.createWithAsyncEventListeners(ds, cc, typeRegistry);
+    try {
+      assertThatThrownBy(() -> gfc.registerPdxMetaData(new Object()))
+          .isInstanceOf(SerializationException.class).hasMessage("Serialization failed")
+          .hasCauseInstanceOf(NotSerializableException.class);
+    } finally {
+      gfc.close();
+    }
+  }
+
+  @Test
+  public void registerPdxMetaDataThrowsIfInstanceIsNotPDX() {
+    InternalDistributedSystem ds = Fakes.distributedSystem();
+    CacheConfig cc = new CacheConfig();
+    TypeRegistry typeRegistry = mock(TypeRegistry.class);
+    GemFireCacheImpl gfc = GemFireCacheImpl.createWithAsyncEventListeners(ds, cc, typeRegistry);
+    try {
+      assertThatThrownBy(() -> gfc.registerPdxMetaData("string"))
+          .isInstanceOf(SerializationException.class)
+          .hasMessage("The instance is not PDX serializable");
+    } finally {
+      gfc.close();
+    }
+  }
+
+  @Test
   public void checkThatAsyncEventListenersUseAllThreadsInPool() {
     InternalDistributedSystem ds = Fakes.distributedSystem();
     CacheConfig cc = new CacheConfig();
@@ -123,6 +183,98 @@ public class GemFireCacheImplTest {
       gfc.close();
     }
   }
+
+  @Test
+  public void getCacheClosedExceptionWithNoReasonOrCauseGivesExceptionWithoutEither() {
+    cache = GemFireCacheImpl.create(distributedSystem, cacheConfig);
+    CacheClosedException e = cache.getCacheClosedException(null, null);
+    assertThat(e.getCause()).isNull();
+    assertThat(e.getMessage()).isNull();
+  }
+
+  @Test
+  public void getCacheClosedExceptionWithNoCauseGivesExceptionWithReason() {
+    cache = GemFireCacheImpl.create(distributedSystem, cacheConfig);
+    CacheClosedException e = cache.getCacheClosedException("message", null);
+    assertThat(e.getCause()).isNull();
+    assertThat(e.getMessage()).isEqualTo("message");
+  }
+
+  @Test
+  public void getCacheClosedExceptionReturnsExceptionWithProvidedCauseAndReason() {
+    cache = GemFireCacheImpl.create(distributedSystem, cacheConfig);
+    Throwable cause = new Throwable();
+    CacheClosedException e = cache.getCacheClosedException("message", cause);
+    assertThat(e.getCause()).isEqualTo(cause);
+    assertThat(e.getMessage()).isEqualTo("message");
+  }
+
+  @Test
+  public void getCacheClosedExceptionWhenCauseGivenButDisconnectExceptionExistsPrefersCause() {
+    cache = GemFireCacheImpl.create(distributedSystem, cacheConfig);
+    cache.disconnectCause = new Throwable("disconnectCause");
+    Throwable cause = new Throwable();
+    CacheClosedException e = cache.getCacheClosedException("message", cause);
+    assertThat(e.getCause()).isEqualTo(cause);
+    assertThat(e.getMessage()).isEqualTo("message");
+  }
+
+  @Test
+  public void getCacheClosedExceptionWhenNoCauseGivenProvidesDisconnectExceptionIfExists() {
+    cache = GemFireCacheImpl.create(distributedSystem, cacheConfig);
+    Throwable disconnectCause = new Throwable("disconnectCause");
+    cache.disconnectCause = disconnectCause;
+    CacheClosedException e = cache.getCacheClosedException("message", null);
+    assertThat(e.getCause()).isEqualTo(disconnectCause);
+    assertThat(e.getMessage()).isEqualTo("message");
+  }
+
+  @Test
+  public void getCacheClosedExceptionReturnsExceptionWithProvidedReason() {
+    cache = GemFireCacheImpl.create(distributedSystem, cacheConfig);
+    CacheClosedException e = cache.getCacheClosedException("message");
+    assertThat(e.getMessage()).isEqualTo("message");
+    assertThat(e.getCause()).isNull();
+  }
+
+  @Test
+  public void getCacheClosedExceptionReturnsExceptionWithNoMessageWhenReasonNotGiven() {
+    cache = GemFireCacheImpl.create(distributedSystem, cacheConfig);
+    CacheClosedException e = cache.getCacheClosedException(null);
+    assertThat(e.getMessage()).isEqualTo(null);
+    assertThat(e.getCause()).isNull();
+  }
+
+  @Test
+  public void getCacheClosedExceptionReturnsExceptionWithDisconnectCause() {
+    cache = GemFireCacheImpl.create(distributedSystem, cacheConfig);
+    Throwable disconnectCause = new Throwable("disconnectCause");
+    cache.disconnectCause = disconnectCause;
+    CacheClosedException e = cache.getCacheClosedException("message");
+    assertThat(e.getMessage()).isEqualTo("message");
+    assertThat(e.getCause()).isEqualTo(disconnectCause);
+  }
+
+  @Test
+  public void removeGatewayReceiverShouldRemoveFromReceiversList() {
+    GatewayReceiver receiver = mock(GatewayReceiver.class);
+    cache = GemFireCacheImpl.create(distributedSystem, cacheConfig);
+    cache.addGatewayReceiver(receiver);
+    assertEquals(1, cache.getGatewayReceivers().size());
+    cache.removeGatewayReceiver(receiver);
+    assertEquals(0, cache.getGatewayReceivers().size());
+  }
+
+
+  @Test
+  public void removeFromCacheServerShouldRemoveFromCacheServersList() {
+    cache = GemFireCacheImpl.create(distributedSystem, cacheConfig);
+    CacheServer cacheServer = cache.addCacheServer(false);
+    assertEquals(1, cache.getCacheServers().size());
+    cache.removeCacheServer(cacheServer);
+    assertEquals(0, cache.getCacheServers().size());
+  }
+
 
   @Test
   public void testIsMisConfigured() {
@@ -174,5 +326,22 @@ public class GemFireCacheImplTest {
     clusterProps.setProperty("key", "value1");
     serverProps.setProperty("key", "");
     assertFalse(GemFireCacheImpl.isMisConfigured(clusterProps, serverProps, "key"));
+  }
+
+  @Test
+  public void clientCacheWouldNotRequestClusterConfig() {
+    // we will need to set the value to true so that we can use a mock cache
+    boolean oldValue = InternalDistributedSystem.ALLOW_MULTIPLE_SYSTEMS;
+    InternalDistributedSystem.ALLOW_MULTIPLE_SYSTEMS = true;
+
+    cache = mock(GemFireCacheImpl.class);
+    when(distributedSystem.getCache()).thenReturn(cache);
+    GemFireCacheImpl.createClient(distributedSystem, null, cacheConfig);
+
+    verify(cache, times(0)).requestSharedConfiguration();
+    verify(cache, times(0)).applyJarAndXmlFromClusterConfig();
+
+    // reset it back to the old value
+    InternalDistributedSystem.ALLOW_MULTIPLE_SYSTEMS = oldValue;
   }
 }

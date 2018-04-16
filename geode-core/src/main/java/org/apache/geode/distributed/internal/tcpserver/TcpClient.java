@@ -24,9 +24,9 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 
 import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLHandshakeException;
 
 import org.apache.logging.log4j.Logger;
 
@@ -36,7 +36,9 @@ import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.VersionedDataInputStream;
 import org.apache.geode.internal.VersionedDataOutputStream;
+import org.apache.geode.internal.admin.SSLConfig;
 import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.internal.net.SSLConfigurationFactory;
 import org.apache.geode.internal.net.SocketCreator;
 import org.apache.geode.internal.net.SocketCreatorFactory;
 import org.apache.geode.internal.security.SecurableCommunicationChannel;
@@ -45,7 +47,7 @@ import org.apache.geode.internal.security.SecurableCommunicationChannel;
  * <p>
  * Client for the TcpServer component of the Locator.
  * </p>
- * 
+ *
  * @since GemFire 5.7
  */
 public class TcpClient {
@@ -72,9 +74,15 @@ public class TcpClient {
     this(SocketCreatorFactory.getSocketCreatorForComponent(SecurableCommunicationChannel.LOCATOR));
   }
 
+  public TcpClient(Properties properties) {
+    SSLConfig sslConfig = SSLConfigurationFactory.getSSLConfigForComponent(properties,
+        SecurableCommunicationChannel.LOCATOR);
+    this.socketCreator = new SocketCreator(sslConfig);
+  }
+
   /**
    * Constructs a new TcpClient
-   * 
+   *
    * @param socketCreator the SocketCreator to use in communicating with the Locator
    */
   public TcpClient(SocketCreator socketCreator) {
@@ -121,7 +129,7 @@ public class TcpClient {
 
   /**
    * Send a request to a Locator and expect a reply
-   * 
+   *
    * @param addr The locator's address
    * @param port The locator's tcp/ip port
    * @param request The request message
@@ -129,27 +137,24 @@ public class TcpClient {
    *
    * @return the reply
    *
-   * @throws IOException
-   * @throws ClassNotFoundException
    */
   public Object requestToServer(InetAddress addr, int port, Object request, int timeout)
       throws IOException, ClassNotFoundException {
+
     return requestToServer(addr, port, request, timeout, true);
   }
 
   /**
    * Send a request to a Locator
-   * 
+   *
    * @param addr The locator's address
    * @param port The locator's tcp/ip port
    * @param request The request message
    * @param timeout Timeout for sending the message and receiving a reply
    * @param replyExpected Whether to wait for a reply
    *
-   * @return The reply, or null if no reply is expected
+   * @return the reply
    *
-   * @throws IOException
-   * @throws ClassNotFoundException
    */
   public Object requestToServer(InetAddress addr, int port, Object request, int timeout,
       boolean replyExpected) throws IOException, ClassNotFoundException {
@@ -159,6 +164,26 @@ public class TcpClient {
     } else {
       ipAddr = new InetSocketAddress(addr, port); // fix for bug 30810
     }
+    return requestToServer(ipAddr, request, timeout, replyExpected);
+  }
+
+  /**
+   * Send a request to a Locator
+   *
+   * @param ipAddr The locator's inet socket address
+   * @param request The request message
+   * @param timeout Timeout for sending the message and receiving a reply
+   * @param replyExpected Whether to wait for a reply
+   *
+   * @return The reply, or null if no reply is expected
+   *
+   */
+  public Object requestToServer(InetSocketAddress ipAddr, Object request, int timeout,
+      boolean replyExpected) throws IOException, ClassNotFoundException {
+    /*
+     * InetSocketAddress ipAddr; if (addr == null) { ipAddr = new InetSocketAddress(port); } else {
+     * ipAddr = new InetSocketAddress(addr, port); // fix for bug 30810 }
+     */
 
     long giveupTime = System.currentTimeMillis() + timeout;
 
@@ -209,6 +234,7 @@ public class TcpClient {
           logger.debug("received response: {}", response);
           return response;
         } catch (EOFException ex) {
+          logger.debug("requestToServer EOFException ", ex);
           EOFException eof = new EOFException("Locator at " + ipAddr
               + " did not respond. This is normal if the locator was shutdown. If it wasn't check its log for exceptions.");
           eof.initCause(ex);
@@ -286,7 +312,7 @@ public class TcpClient {
         Object readObject = DataSerializer.readObject(in);
         if (!(readObject instanceof VersionResponse)) {
           throw new LocatorCancelException(
-              "Unrecognisable response received: object is null. This could be the result of trying to connect a non-SSL-enabled locator to an SSL-enabled locator.");
+              "Unrecognisable response received: This could be the result of trying to connect a non-SSL-enabled client to an SSL-enabled locator.");
         }
         VersionResponse response = (VersionResponse) readObject;
         if (response != null) {

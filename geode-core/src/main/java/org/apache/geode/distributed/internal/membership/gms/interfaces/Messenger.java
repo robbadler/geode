@@ -58,7 +58,7 @@ public interface Messenger extends Service {
 
   /**
    * test whether multicast is not only turned on but is working
-   * 
+   *
    * @return true multicast is enabled and working
    */
   boolean testMulticast(long timeout) throws InterruptedException;
@@ -67,7 +67,7 @@ public interface Messenger extends Service {
    * For the state-flush algorithm we need to be able to record the state of outgoing messages to
    * the given member. If multicast is being used for region operations we also need to record its
    * state.
-   * 
+   *
    * @param member the target member
    * @param state messaging state is stored in this map
    * @param includeMulticast whether to record multicast state
@@ -77,7 +77,7 @@ public interface Messenger extends Service {
   /**
    * The flip-side of getMessageState, this method takes the state it recorded and waits for
    * messages from the given member to be received.
-   * 
+   *
    * @param member the member flushing operations to this member
    * @param state the state of that member's outgoing messaging to this member
    */
@@ -85,38 +85,34 @@ public interface Messenger extends Service {
 
   /**
    * Get the public key of member.
-   * 
-   * @param mbr
+   *
    * @return byte[] public key for member
    */
   byte[] getPublicKey(InternalDistributedMember mbr);
 
   /**
    * Set public key of member.
-   * 
-   * @param publickey
-   * @param mbr
+   *
    */
 
   void setPublicKey(byte[] publickey, InternalDistributedMember mbr);
 
   /**
    * Set cluster key in local member.Memebr calls when it gets cluster key in join response
-   * 
-   * @param clusterSecretKey
+   *
    */
   void setClusterSecretKey(byte[] clusterSecretKey);
 
   /**
    * To retrieve the cluster key. This needs to send cluster key to new memebr.
-   * 
+   *
    * @return byte[] cluster key
    */
   byte[] getClusterSecretKey();
 
   /**
    * To set requestId in request. This requestId comes back in response to match the request.
-   * 
+   *
    * @return int request id
    */
   int getRequestId();

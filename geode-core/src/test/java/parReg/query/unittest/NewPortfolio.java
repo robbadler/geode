@@ -46,9 +46,7 @@ public class NewPortfolio implements Serializable {
 
   /**
    * Constructor to randomly populate the portfolio.
-   * 
-   * @param name
-   * @param id
+   *
    */
   public NewPortfolio(String name, int id) {
     myVersion = "tests/parReg.query.NewPortfolio";
@@ -121,7 +119,7 @@ public class NewPortfolio implements Serializable {
       props.setProperty("secId", Integer.toString(secId));
 
       Position pos = new Position();
-      pos.init(props);
+      pos.initialize(null, props);
       this.positions.put(pos.getSecId(), pos);
     }
   }
@@ -140,8 +138,7 @@ public class NewPortfolio implements Serializable {
 
   /**
    * To provide random values to populate a position.
-   * 
-   * @return
+   *
    */
   protected Properties getProps() {
     Properties props = new Properties();
@@ -242,5 +239,3 @@ public class NewPortfolio implements Serializable {
   }
 
 }
-
-

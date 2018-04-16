@@ -17,6 +17,9 @@ package org.apache.geode.internal.cache.execute;
 import static org.apache.geode.distributed.ConfigurationProperties.*;
 import static org.junit.Assert.*;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Properties;
@@ -24,6 +27,7 @@ import java.util.Properties;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import org.apache.geode.DataSerializable;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.CacheFactory;
@@ -51,8 +55,9 @@ import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
 import org.apache.geode.test.junit.categories.DistributedTest;
+import org.apache.geode.test.junit.categories.FunctionServiceTest;
 
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, FunctionServiceTest.class})
 public class OnGroupsFunctionExecutionDUnitTest extends JUnit4DistributedTestCase {
 
   @Override
@@ -73,10 +78,12 @@ public class OnGroupsFunctionExecutionDUnitTest extends JUnit4DistributedTestCas
     });
   }
 
-  static class OnGroupsFunction extends FunctionAdapter {
+  static class OnGroupsFunction extends FunctionAdapter implements DataSerializable {
     private static final long serialVersionUID = -1032915440862585532L;
     public static final String Id = "OnGroupsFunction";
     public static int invocationCount;
+
+    public OnGroupsFunction() {}
 
     @Override
     public void execute(FunctionContext context) {
@@ -97,6 +104,16 @@ public class OnGroupsFunctionExecutionDUnitTest extends JUnit4DistributedTestCas
     @Override
     public String getId() {
       return Id;
+    }
+
+    @Override
+    public void toData(DataOutput out) throws IOException {
+
+    }
+
+    @Override
+    public void fromData(DataInput in) throws IOException, ClassNotFoundException {
+
     }
   }
 
@@ -362,9 +379,11 @@ public class OnGroupsFunctionExecutionDUnitTest extends JUnit4DistributedTestCas
     verifyAndResetInvocationCount(vm2, 0);
   }
 
-  static class OnGroupMultiResultFunction extends FunctionAdapter {
+  static class OnGroupMultiResultFunction extends FunctionAdapter implements DataSerializable {
     private static final long serialVersionUID = 8190290175486881994L;
     public static final String Id = "OnGroupMultiResultFunction";
+
+    public OnGroupMultiResultFunction() {}
 
     @Override
     public void execute(FunctionContext context) {
@@ -378,6 +397,16 @@ public class OnGroupsFunctionExecutionDUnitTest extends JUnit4DistributedTestCas
     @Override
     public String getId() {
       return Id;
+    }
+
+    @Override
+    public void toData(DataOutput out) throws IOException {
+
+    }
+
+    @Override
+    public void fromData(DataInput in) throws IOException, ClassNotFoundException {
+
     }
   }
 
@@ -451,9 +480,11 @@ public class OnGroupsFunctionExecutionDUnitTest extends JUnit4DistributedTestCas
     });
   }
 
-  static class OnGroupsExceptionFunction extends FunctionAdapter {
+  static class OnGroupsExceptionFunction extends FunctionAdapter implements DataSerializable {
     private static final long serialVersionUID = 6488843931404616442L;
     public static final String Id = "OnGroupsExceptionFunction";
+
+    public OnGroupsExceptionFunction() {}
 
     @Override
     public void execute(FunctionContext context) {
@@ -485,6 +516,16 @@ public class OnGroupsFunctionExecutionDUnitTest extends JUnit4DistributedTestCas
     @Override
     public String getId() {
       return Id;
+    }
+
+    @Override
+    public void toData(DataOutput out) throws IOException {
+
+    }
+
+    @Override
+    public void fromData(DataInput in) throws IOException, ClassNotFoundException {
+
     }
   }
 
@@ -1164,6 +1205,9 @@ public class OnGroupsFunctionExecutionDUnitTest extends JUnit4DistributedTestCas
   }
 
   static class OnGroupsNoAckFunction extends OnGroupsFunction {
+
+    public OnGroupsNoAckFunction() {}
+
     @Override
     public boolean hasResult() {
       return false;

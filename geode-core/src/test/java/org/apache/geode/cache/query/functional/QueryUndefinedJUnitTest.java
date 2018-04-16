@@ -12,10 +12,18 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- *
- */
 package org.apache.geode.cache.query.functional;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
+import java.io.Serializable;
+import java.text.ParseException;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.Region;
@@ -27,18 +35,9 @@ import org.apache.geode.cache.query.SelectResults;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.pdx.JSONFormatter;
 import org.apache.geode.test.junit.categories.IntegrationTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
 
-import java.io.Serializable;
-import java.text.ParseException;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-
-@Category(IntegrationTest.class)
+@Category({IntegrationTest.class, OQLQueryTest.class})
 public class QueryUndefinedJUnitTest implements Serializable {
 
   private static String regionName = "test";
@@ -278,5 +277,3 @@ public class QueryUndefinedJUnitTest implements Serializable {
     }
   }
 }
-
-

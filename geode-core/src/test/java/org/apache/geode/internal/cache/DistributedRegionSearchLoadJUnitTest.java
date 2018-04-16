@@ -29,6 +29,7 @@ import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
+
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.Operation;
@@ -141,7 +142,8 @@ public class DistributedRegionSearchLoadJUnitTest {
         }
         return null;
       }
-    }).when(proc).doSearchAndLoad(any(EntryEventImpl.class), anyObject(), anyObject());
+    }).when(proc).doSearchAndLoad(any(EntryEventImpl.class), anyObject(), anyObject(),
+        anyBoolean());
   }
 
   @Test
@@ -184,4 +186,3 @@ public class DistributedRegionSearchLoadJUnitTest {
   }
 
 }
-

@@ -36,7 +36,7 @@ import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.cache.execute.ResultSender;
 import org.apache.geode.cache.query.QueryInvalidException;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
@@ -46,7 +46,7 @@ import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
 /**
  * Abstract implementation of InternalExecution interface.
- * 
+ *
  * @since GemFire 5.8LA
  *
  */
@@ -80,11 +80,11 @@ public abstract class AbstractExecution implements InternalExecution {
    */
   protected Collection<InternalDistributedMember> executionNodes = null;
 
-  public static interface ExecutionNodesListener {
+  public interface ExecutionNodesListener {
 
-    public void afterExecutionNodesSet(AbstractExecution execution);
+    void afterExecutionNodesSet(AbstractExecution execution);
 
-    public void reset();
+    void reset();
   }
 
   protected ExecutionNodesListener executionNodesListener = null;
@@ -97,7 +97,7 @@ public abstract class AbstractExecution implements InternalExecution {
 
   protected ProxyCache proxyCache;
 
-  private final static ConcurrentHashMap<String, byte[]> idToFunctionAttributes =
+  private static final ConcurrentHashMap<String, byte[]> idToFunctionAttributes =
       new ConcurrentHashMap<String, byte[]>();
 
   public static final byte NO_HA_NO_HASRESULT_NO_OPTIMIZEFORWRITE = 0;
@@ -256,8 +256,8 @@ public abstract class AbstractExecution implements InternalExecution {
   }
 
   public void executeFunctionOnLocalPRNode(final Function fn, final FunctionContext cx,
-      final PartitionedRegionFunctionResultSender sender, DM dm, boolean isTx) {
-    if (dm instanceof DistributionManager && !isTx) {
+      final PartitionedRegionFunctionResultSender sender, DistributionManager dm, boolean isTx) {
+    if (dm instanceof ClusterDistributionManager && !isTx) {
       if (ServerConnection.isExecuteFunctionOnLocalNodeOnly().byteValue() == 1) {
         ServerConnection.executeFunctionOnLocalNodeOnly((byte) 3);// executed locally
         executeFunctionLocally(fn, cx, sender, dm);
@@ -268,8 +268,8 @@ public abstract class AbstractExecution implements InternalExecution {
         }
       } else {
 
-        final DistributionManager newDM = (DistributionManager) dm;
-        newDM.getFunctionExcecutor().execute(new Runnable() {
+        final ClusterDistributionManager newDM = (ClusterDistributionManager) dm;
+        newDM.getFunctionExecutor().execute(new Runnable() {
           public void run() {
             executeFunctionLocally(fn, cx, sender, newDM);
             if (!sender.isLastResultReceived() && fn.hasResult()) {
@@ -293,11 +293,11 @@ public abstract class AbstractExecution implements InternalExecution {
   // Bug41118 : in case of lonerDistribuedSystem do local execution through
   // main thread otherwise give execution to FunctionExecutor from
   // DistributionManager
-  public void executeFunctionOnLocalNode(final Function fn, final FunctionContext cx,
-      final ResultSender sender, DM dm, final boolean isTx) {
-    if (dm instanceof DistributionManager && !isTx) {
-      final DistributionManager newDM = (DistributionManager) dm;
-      newDM.getFunctionExcecutor().execute(new Runnable() {
+  public void executeFunctionOnLocalNode(final Function<?> fn, final FunctionContext cx,
+      final ResultSender sender, DistributionManager dm, final boolean isTx) {
+    if (dm instanceof ClusterDistributionManager && !isTx) {
+      final ClusterDistributionManager newDM = (ClusterDistributionManager) dm;
+      newDM.getFunctionExecutor().execute(new Runnable() {
         public void run() {
           executeFunctionLocally(fn, cx, sender, newDM);
           if (!((InternalResultSender) sender).isLastResultReceived() && fn.hasResult()) {
@@ -317,8 +317,8 @@ public abstract class AbstractExecution implements InternalExecution {
     }
   }
 
-  public void executeFunctionLocally(final Function fn, final FunctionContext cx,
-      final ResultSender sender, DM dm) {
+  public void executeFunctionLocally(final Function<?> fn, final FunctionContext cx,
+      final ResultSender sender, DistributionManager dm) {
 
     FunctionStats stats = FunctionStats.getFunctionStats(fn.getId(), dm.getSystem());
 
@@ -329,6 +329,7 @@ public abstract class AbstractExecution implements InternalExecution {
         logger.debug("Executing Function: {} on local node with context: {}", fn.getId(),
             cx.toString());
       }
+
       fn.execute(cx);
       stats.endFunctionExecution(start, fn.hasResult());
     } catch (FunctionInvocationTargetException fite) {
@@ -429,7 +430,7 @@ public abstract class AbstractExecution implements InternalExecution {
   /**
    * validates whether a function should execute in presence of transaction and HeapCritical
    * members. If the function is the first operation in a transaction, bootstraps the function.
-   * 
+   *
    * @param function the function
    * @param targetMembers the set of members the function will be executed on
    * @throws TransactionException if more than one nodes are targeted within a transaction
@@ -449,8 +450,7 @@ public abstract class AbstractExecution implements InternalExecution {
   /**
    * Returns the function attributes defined by the functionId, returns null if no function is found
    * for the specified functionId
-   * 
-   * @param functionId
+   *
    * @return byte[]
    * @throws FunctionException if functionID passed is null
    * @since GemFire 6.6
@@ -471,99 +471,8 @@ public abstract class AbstractExecution implements InternalExecution {
     idToFunctionAttributes.put(functionId, functionAttributes);
   }
 
-  public ResultCollector execute(String functionName, boolean hasResult) throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_FUNCTION_NAMED_0_IS_NOT_REGISTERED
-              .toLocalizedString(functionObject));
-    }
-
-    byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-        functionObject.hasResult(), functionObject.optimizeForWrite());
-
-    byte functionState = AbstractExecution.getFunctionState(hasResult, hasResult, false);
-    if (registeredFunctionState != functionState) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-              .toLocalizedString(functionName));
-    }
-
-    this.isFnSerializationReqd = false;
-    // If hasResult is true, isHA will also be true and hasResult is false then isHA will be false
-    // For other combination use next API
-    return executeFunction(functionObject);
-  }
-
-  public ResultCollector execute(String functionName, boolean hasResult, boolean isHA)
-      throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    if (isHA && !hasResult) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH.toLocalizedString());
-    }
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_FUNCTION_NAMED_0_IS_NOT_REGISTERED
-              .toLocalizedString(functionObject));
-    }
-    byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-        functionObject.hasResult(), functionObject.optimizeForWrite());
-
-    byte functionState = AbstractExecution.getFunctionState(isHA, hasResult, false);
-    if (registeredFunctionState != functionState) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-              .toLocalizedString(functionName));
-    }
-
-    this.isFnSerializationReqd = false;
-    return executeFunction(functionObject);
-  }
-
-  public ResultCollector execute(String functionName, boolean hasResult, boolean isHA,
-      boolean isOptimizeForWrite) throws FunctionException {
-    if (functionName == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_THE_INPUT_FUNCTION_FOR_THE_EXECUTE_FUNCTION_REQUEST_IS_NULL
-              .toLocalizedString());
-    }
-    if (isHA && !hasResult) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH.toLocalizedString());
-    }
-    Function functionObject = FunctionService.getFunction(functionName);
-    if (functionObject == null) {
-      throw new FunctionException(
-          LocalizedStrings.ExecuteFunction_FUNCTION_NAMED_0_IS_NOT_REGISTERED
-              .toLocalizedString(functionObject));
-    }
-    byte registeredFunctionState = AbstractExecution.getFunctionState(functionObject.isHA(),
-        functionObject.hasResult(), functionObject.optimizeForWrite());
-
-    byte functionState = AbstractExecution.getFunctionState(isHA, hasResult, isOptimizeForWrite);
-    if (registeredFunctionState != functionState) {
-      throw new FunctionException(
-          LocalizedStrings.FunctionService_FUNCTION_ATTRIBUTE_MISMATCH_CLIENT_SERVER
-              .toLocalizedString(functionName));
-    }
-
-    this.isFnSerializationReqd = false;
-    return executeFunction(functionObject);
-  }
-
   private void handleException(Throwable functionException, final Function fn,
-      final FunctionContext cx, final ResultSender sender, DM dm) {
+      final FunctionContext cx, final ResultSender sender, DistributionManager dm) {
     FunctionStats stats = FunctionStats.getFunctionStats(fn.getId(), dm.getSystem());
 
     if (logger.isDebugEnabled()) {

@@ -35,10 +35,10 @@ public interface CqListener extends CacheCallback {
    * in progress. The CQ does not block any region operation as it could affect the performance of
    * region operation. Its up to the application to synchronize between the region operation and CQ
    * registration to avoid duplicate event being delivered.
-   * 
+   *
    * @see org.apache.geode.cache.query.CqQuery#executeWithInitialResults
    */
-  public void onEvent(CqEvent aCqEvent);
+  void onEvent(CqEvent aCqEvent);
 
   /**
    * This method is invoked when there is an error during CQ processing. The error can appear while
@@ -46,5 +46,5 @@ public interface CqListener extends CacheCallback {
    * the CQ query. This event does contain an error. The newValue may or may not be available, and
    * will be null if not available.
    */
-  public void onError(CqEvent aCqEvent);
+  void onError(CqEvent aCqEvent);
 }

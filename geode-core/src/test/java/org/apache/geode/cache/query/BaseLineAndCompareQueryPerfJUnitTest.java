@@ -21,25 +21,25 @@ package org.apache.geode.cache.query;
 
 import static org.junit.Assert.*;
 
-import org.apache.geode.cache.*;
-import org.apache.geode.cache.query.data.*;
-import org.apache.geode.cache.query.internal.*;
-import org.apache.geode.test.junit.categories.IntegrationTest;
-
-import java.util.*;
 import java.io.*;
+import java.util.*;
 
-import org.apache.geode.test.junit.categories.PerformanceTest;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import org.apache.geode.cache.*;
+import org.apache.geode.cache.query.data.*;
+import org.apache.geode.cache.query.internal.*;
+import org.apache.geode.test.junit.categories.OQLQueryTest;
+import org.apache.geode.test.junit.categories.PerformanceTest;
+
 /**
  * This test is to baseline and compare the performance figures for index usage benchmarks.
  */
-@Category(PerformanceTest.class)
+@Category({PerformanceTest.class, OQLQueryTest.class})
 @Ignore("Performance tests should not be run as part of precheckin")
 public class BaseLineAndCompareQueryPerfJUnitTest {
 
@@ -336,12 +336,12 @@ public class BaseLineAndCompareQueryPerfJUnitTest {
   public static void populateData() throws Exception {
     /*
      * Set villages = new HashSet(); for (int i=0; i<10; i++){ villages.add(new Village(i)); }
-     * 
+     *
      * Set cities = new HashSet(); for (int i=0; i<10; i++){ cities.add(new City(i)); }
-     * 
+     *
      * Set districts = new HashSet(); for (int i=0; i<10; i++){ districts.add(new District(i,
      * cities, villages)); }
-     * 
+     *
      * Set states = new HashSet(); for (int i=0; i<10; i++){ states.add(new State(i, districts)); }
      */
 
@@ -362,7 +362,8 @@ public class BaseLineAndCompareQueryPerfJUnitTest {
      * Indices share the following percentages: a. countryName: 20% objects b. stateName: 33.33%
      * objects c. districtName: 20% objects d. cityName: 50% objects e. villageName: No index
      */
-    // qs.createIndex("villageName", IndexType.FUNCTIONAL, "v.name", "/Countries c, c.states s,
+    // queryService.createIndex("villageName", IndexType.FUNCTIONAL, "v.name", "/Countries c,
+    // c.states s,
     // s.districts d, d.cities ct, d.villages v");
     qs.createIndex("cityName", IndexType.FUNCTIONAL, "ct.name",
         "/Countries c, c.states s, s.districts d, d.cities ct, d.villages v");//
@@ -451,13 +452,13 @@ public class BaseLineAndCompareQueryPerfJUnitTest {
 
     /*
      * Set set1 = withoutIndexTimeRegion.keySet(); Iterator itr1 = set1.iterator();
-     * 
+     *
      * Set set2 = withIndexTimeRegion.keySet(); Iterator itr2 = set2.iterator();
-     * 
+     *
      * Set set3 = indexNameRegion.keySet(); Iterator itr3 = set3.iterator();
-     * 
+     *
      * Set set4 = withoutIndexResultSetSize.keySet(); Iterator itr4 = set4.iterator();
-     * 
+     *
      * Set set5 = withIndexResultSetSize.keySet(); Iterator itr5 = set5.iterator();
      */
     Integer it;

@@ -48,7 +48,7 @@ public class QueueStateImpl implements QueueState {
 
   /**
    * This will store the ThreadId to latest received sequence Id
-   * 
+   *
    * Keys are instances of {@link ThreadIdentifier} Values are instances of
    * {@link SequenceIdAndExpirationObject}
    */
@@ -158,9 +158,7 @@ public class QueueStateImpl implements QueueState {
         if (logger.isDebugEnabled()) {
           logger.debug(" got a duplicate entry with EventId {}. Ignoring the entry", eid);
         }
-        seo.setAckSend(false); // bug #41289: send ack to this server since it's sending old events
-        // this.threadIdToSequenceId.put(tid, new SequenceIdAndExpirationObject(
-        // seo.getSequenceId()));
+        seo.setAckSend(false);
         return true;
       } else if (addToMap) {
         ThreadIdentifier real_tid = new ThreadIdentifier(eid.getMembershipID(),
@@ -220,15 +218,15 @@ public class QueueStateImpl implements QueueState {
   }
 
   /**
-   * 
+   *
    * Thread which will iterate over threadIdToSequenceId map
-   * 
+   *
    * 1)It will send an ack primary server for all threadIds for which it has not send an ack. 2)It
    * will expire the entries which have exceeded the specified expiry time and for which ack has
    * been alerady sent.
-   * 
+   *
    * @since GemFire 5.1
-   * 
+   *
    */
 
   private class ThreadIdToSequenceIdExpiryTask extends PoolTask {
@@ -238,19 +236,8 @@ public class QueueStateImpl implements QueueState {
     private final long expiryTime;
 
     /**
-     * The peridic ack interval for client
-     */
-    // private final long ackTime;
-    // ackTime = QueueStateImpl.this.qManager.getPool().getQueueAckInterval();
-
-    // /**
-    // * boolean to specify if the thread should continue running
-    // */
-    // private volatile boolean continueRunning = true;
-
-    /**
      * constructs the Thread and initializes the expiry time
-     * 
+     *
      */
     public ThreadIdToSequenceIdExpiryTask() {
       expiryTime = QueueStateImpl.this.qManager.getPool().getSubscriptionMessageTrackingTimeout();
@@ -266,28 +253,9 @@ public class QueueStateImpl implements QueueState {
         ClientServerObserver bo = ClientServerObserverHolder.getInstance();
         bo.beforeSendingClientAck();
       }
-      // if ((qManager.getPool().getSubscriptionRedundancy() != 0) ||
-      // (qManager.getPool().isDurableClient())) {
       sendPeriodicAck();
-      // }
       checkForExpiry();
     }
-
-    // void shutdown() {
-    // synchronized (this) {
-    // continueRunning = false;
-    // this.notify();
-    // // Since the wait is timed, it is not necessary to interrupt
-    // // the thread; it will wake up of its own accord.
-    // // this.interrupt();
-    // }
-    // try {
-    // this.join();
-    // } catch (InterruptedException e) {
-    // Thread.currentThread().interrupt();
-    // // TODO:
-    // }
-    // }
 
     void checkForExpiry() {
       synchronized (threadIdToSequenceId) {
@@ -326,7 +294,6 @@ public class QueueStateImpl implements QueueState {
             ThreadIdentifier tid = (ThreadIdentifier) entry.getKey();
             events.add(new EventID(tid.getMembershipID(), tid.getThreadID(), seo.getSequenceId()));
             seo.setAckSend(true);
-            // entry.setValue(entry);
           } // if ends
         } // while ends
       } // synchronized ends
@@ -368,9 +335,9 @@ public class QueueStateImpl implements QueueState {
   /**
    * A class to store sequenceId and the creation time of the object to be used for expiring the
    * entry
-   * 
+   *
    * @since GemFire 5.1
-   * 
+   *
    */
   public static class SequenceIdAndExpirationObject {
     /** The sequence Id of the entry * */
@@ -411,7 +378,7 @@ public class QueueStateImpl implements QueueState {
     }
 
     /**
-     * 
+     *
      * @return Returns the ackSend
      */
     public boolean getAckSend() {
@@ -420,7 +387,7 @@ public class QueueStateImpl implements QueueState {
 
     /**
      * Sets the ackSend
-     * 
+     *
      * @param ackSend
      */
     public void setAckSend(boolean ackSend) {

@@ -14,8 +14,10 @@
  */
 package org.apache.geode.distributed.internal.membership.gms.membership;
 
+import static org.junit.Assert.assertNotNull;
+
 import org.apache.geode.distributed.Locator;
-import org.apache.geode.distributed.internal.DM;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.distributed.internal.membership.gms.Services;
@@ -33,16 +35,8 @@ public class GMSJoinLeaveTestHelper {
 
   public static boolean isViewCreator() {
     GMSJoinLeave gmsJoinLeave = getGmsJoinLeave();
-    if (gmsJoinLeave != null) {
-      GMSJoinLeave.ViewCreator viewCreator = gmsJoinLeave.getViewCreator();
-      if (viewCreator != null && !viewCreator.isShutdown()) {
-        return true;
-      } else {
-        return false;
-      }
-    }
-    throw new RuntimeException(
-        "This should not have happened. There should be a JoinLeave for every DS");
+    assertNotNull("There should be a JoinLeave for every DS", gmsJoinLeave);
+    return gmsJoinLeave.getView().getCreator().equals(gmsJoinLeave.getMemberID());
   }
 
   private static void waitCriterion() {
@@ -65,7 +59,7 @@ public class GMSJoinLeaveTestHelper {
 
   private static GMSJoinLeave getGmsJoinLeave() {
     InternalDistributedSystem distributedSystem = getInternalDistributedSystem();
-    DM dm = distributedSystem.getDM();
+    DistributionManager dm = distributedSystem.getDM();
     GMSMembershipManager membershipManager = (GMSMembershipManager) dm.getMembershipManager();
     Services services = membershipManager.getServices();
     return (GMSJoinLeave) services.getJoinLeave();
@@ -88,6 +82,9 @@ public class GMSJoinLeaveTestHelper {
     InternalDistributedSystem distributedSystem = InternalDistributedSystem.getAnyInstance();
     if (distributedSystem == null) {
       Locator locator = Locator.getLocator();
+      if (locator == null) {
+        return null;
+      }
       return (InternalDistributedSystem) locator.getDistributedSystem();
     } else {
       return distributedSystem;

@@ -16,7 +16,6 @@ package org.apache.geode.distributed.internal.membership.gms.messenger;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
-import java.lang.reflect.InvocationTargetException;
 import java.net.SocketException;
 
 import org.jgroups.Address;
@@ -25,7 +24,6 @@ import org.jgroups.protocols.UDP;
 import org.jgroups.util.AsciiString;
 import org.jgroups.util.DefaultThreadFactory;
 import org.jgroups.util.LazyThreadFactory;
-import org.jgroups.util.Util;
 
 public class Transport extends UDP {
 
@@ -43,7 +41,7 @@ public class Transport extends UDP {
   /*
    * (non-Javadoc) copied from JGroups to perform Geode-specific error handling when there is a
    * network partition
-   * 
+   *
    * @see org.jgroups.protocols.TP#_send(org.jgroups.Message, org.jgroups.Address)
    */
   @Override
@@ -57,9 +55,6 @@ public class Transport extends UDP {
       if (!this.sock.isClosed() && !stack.getChannel().isClosed()) {
         log.error("Exception caught while sending message", e);
       }
-      // log.trace(Util.getMessage("SendFailure"),
-      // local_addr, (dest == null? "cluster" : dest), msg.size(), e.toString(),
-      // msg.printHeaders());
     } catch (IOException e) {
       if (messenger != null
       /* && e.getMessage().contains("Operation not permitted") */) { // this is the english Oracle
@@ -69,9 +64,6 @@ public class Transport extends UDP {
       }
     } catch (Throwable e) {
       log.error("Exception caught while sending message", e);
-      // Util.getMessage("SendFailure"),
-      // local_addr, (dest == null? "cluster" : dest), msg.size(), e.toString(),
-      // msg.printHeaders());
     }
   }
 
@@ -104,7 +96,7 @@ public class Transport extends UDP {
   /*
    * (non-Javadoc) JGroups does not currently (3.6.6) allow you to specify that threads should be
    * daemon, so we override the init() method here and create the factories before initializing UDP
-   * 
+   *
    * @see org.jgroups.protocols.UDP#init()
    */
   @Override
@@ -121,7 +113,7 @@ public class Transport extends UDP {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see org.jgroups.protocols.UDP#stop() JGroups is not terminating its timer. I contacted the
    * jgroups-users email list about this.
    */

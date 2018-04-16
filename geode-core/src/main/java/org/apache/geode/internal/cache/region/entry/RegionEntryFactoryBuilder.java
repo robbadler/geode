@@ -15,10 +15,42 @@
 package org.apache.geode.internal.cache.region.entry;
 
 import org.apache.geode.internal.cache.*;
+import org.apache.geode.internal.cache.entries.VMStatsDiskLRURegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VMStatsDiskLRURegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VMStatsDiskRegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VMStatsDiskRegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VMStatsLRURegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VMStatsLRURegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VMStatsRegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VMStatsRegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VMThinDiskLRURegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VMThinDiskLRURegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VMThinDiskRegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VMThinDiskRegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VMThinLRURegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VMThinLRURegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VMThinRegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VMThinRegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VersionedStatsDiskLRURegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VersionedStatsDiskLRURegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VersionedStatsDiskRegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VersionedStatsDiskRegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VersionedStatsLRURegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VersionedStatsLRURegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VersionedStatsRegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VersionedStatsRegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VersionedThinDiskLRURegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VersionedThinDiskLRURegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VersionedThinDiskRegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VersionedThinDiskRegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VersionedThinLRURegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VersionedThinLRURegionEntryOffHeap;
+import org.apache.geode.internal.cache.entries.VersionedThinRegionEntryHeap;
+import org.apache.geode.internal.cache.entries.VersionedThinRegionEntryOffHeap;
 
 public class RegionEntryFactoryBuilder {
-  public RegionEntryFactory getRegionEntryFactoryOrNull(boolean statsEnabled, boolean isLRU,
-      boolean isDisk, boolean withVersioning, boolean offHeap) {
+  public RegionEntryFactory create(boolean statsEnabled, boolean isLRU, boolean isDisk,
+      boolean withVersioning, boolean offHeap) {
     int bitRepresentation = 0;
     bitRepresentation |= statsEnabled ? 1 : 0;
     bitRepresentation |= isLRU ? 2 : 0;
@@ -95,7 +127,7 @@ public class RegionEntryFactoryBuilder {
       case (31):
         return VersionedStatsDiskLRURegionEntryOffHeap.getEntryFactory(); // Bits: 11111
       default:
-        return null;
+        throw new IllegalStateException("unexpected bitRepresentation " + bitRepresentation);
     }
   }
 }

@@ -20,6 +20,13 @@ import static org.mockito.Mockito.*;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.mockito.ArgumentCaptor;
+
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.ResultSender;
 import org.apache.geode.cache.lucene.internal.InternalLuceneService;
@@ -29,16 +36,10 @@ import org.apache.geode.cache.lucene.internal.cli.LuceneIndexDetails;
 import org.apache.geode.cache.lucene.internal.cli.LuceneIndexInfo;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.test.fake.Fakes;
+import org.apache.geode.test.junit.categories.LuceneTest;
 import org.apache.geode.test.junit.categories.UnitTest;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.mockito.ArgumentCaptor;
-
-@Category(UnitTest.class)
+@Category({UnitTest.class, LuceneTest.class})
 
 public class LuceneDescribeIndexFunctionJUnitTest {
 
@@ -53,11 +54,11 @@ public class LuceneDescribeIndexFunctionJUnitTest {
     ResultSender resultSender = mock(ResultSender.class);
     LuceneIndexInfo indexInfo = getMockLuceneInfo("index1");
     LuceneIndexImpl index1 = getMockLuceneIndex("index1");
-    LuceneDescribeIndexFunction function = spy(LuceneDescribeIndexFunction.class);
+    LuceneDescribeIndexFunction function = new LuceneDescribeIndexFunction();
 
     doReturn(indexInfo).when(context).getArguments();
     doReturn(resultSender).when(context).getResultSender();
-    doReturn(cache).when(function).getCache();
+    doReturn(cache).when(context).getCache();
     when(service.getIndex(indexInfo.getIndexName(), indexInfo.getRegionPath())).thenReturn(index1);
 
     function.execute(context);

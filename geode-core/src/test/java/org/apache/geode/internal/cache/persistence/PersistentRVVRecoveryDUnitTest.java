@@ -14,15 +14,7 @@
  */
 package org.apache.geode.internal.cache.persistence;
 
-import org.junit.Ignore;
-import org.junit.experimental.categories.Category;
-import org.junit.Test;
-
 import static org.junit.Assert.*;
-
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.junit.categories.DistributedTest;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -32,6 +24,10 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.cache.AttributesFactory;
@@ -49,7 +45,7 @@ import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.RegionFactory;
 import org.apache.geode.cache.Scope;
 import org.apache.geode.cache30.CacheSerializableRunnable;
-import org.apache.geode.distributed.internal.DistributionManager;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.DistributionMessageObserver;
 import org.apache.geode.internal.HeapDataOutputStream;
@@ -72,15 +68,16 @@ import org.apache.geode.internal.cache.TombstoneService;
 import org.apache.geode.internal.cache.versions.RegionVersionVector;
 import org.apache.geode.internal.cache.versions.VersionTag;
 import org.apache.geode.test.dunit.AsyncInvocation;
+import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.Invoke;
 import org.apache.geode.test.dunit.LogWriterUtils;
-import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.SerializableCallable;
 import org.apache.geode.test.dunit.SerializableRunnable;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
+import org.apache.geode.test.junit.categories.DistributedTest;
 
 @Category(DistributedTest.class)
 public class PersistentRVVRecoveryDUnitTest extends PersistentReplicatedTestBase {
@@ -250,7 +247,7 @@ public class PersistentRVVRecoveryDUnitTest extends PersistentReplicatedTestBase
 
   /**
    * Test that we correctly recover and expire recovered tombstones, with compaction enabled.
-   * 
+   *
    * This test differs from above test in that we need to make sure tombstones start expiring based
    * on their original time-stamp, NOT the time-stamp assigned during scheduling for expiration
    * after recovery.
@@ -642,7 +639,7 @@ public class PersistentRVVRecoveryDUnitTest extends PersistentReplicatedTestBase
         DistributionMessageObserver.setInstance(new DistributionMessageObserver() {
 
           @Override
-          public void beforeProcessMessage(DistributionManager dm, DistributionMessage msg) {
+          public void beforeProcessMessage(ClusterDistributionManager dm, DistributionMessage msg) {
             if (msg instanceof InitialImageOperation.RequestImageMessage) {
               if (((InitialImageOperation.RequestImageMessage) msg).regionPath
                   .contains(REGION_NAME)) {

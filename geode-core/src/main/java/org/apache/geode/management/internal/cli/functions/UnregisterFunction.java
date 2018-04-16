@@ -14,25 +14,11 @@
  */
 package org.apache.geode.management.internal.cli.functions;
 
-import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.CacheFactory;
-import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.FunctionService;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
-import org.apache.geode.internal.InternalEntity;
-import org.apache.geode.internal.admin.remote.ShutdownAllRequest;
+import org.apache.geode.internal.cache.execute.InternalFunction;
 
-/**
- * 
- * Class for Unregister function
- * 
- * 
- * 
- */
-
-
-public class UnregisterFunction implements Function, InternalEntity {
+public class UnregisterFunction implements InternalFunction {
   public static final String ID = UnregisterFunction.class.getName();
   private static final long serialVersionUID = 1L;
 
@@ -51,7 +37,6 @@ public class UnregisterFunction implements Function, InternalEntity {
   @Override
   public String getId() {
     return UnregisterFunction.ID;
-
   }
 
   @Override

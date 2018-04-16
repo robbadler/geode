@@ -28,15 +28,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.SystemFailure;
-import org.apache.geode.cache.CacheFactory;
 import org.apache.geode.cache.DynamicRegionFactory;
 import org.apache.geode.cache.PartitionAttributes;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.Scope;
 import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionAdvisee;
 import org.apache.geode.distributed.internal.DistributionAdvisor;
-import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.HighPriorityDistributionMessage;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -49,7 +48,7 @@ import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.cache.CacheDistributionAdvisor.CacheProfile;
 import org.apache.geode.internal.cache.CacheDistributionAdvisor.InitialImageAdvice;
-import org.apache.geode.internal.cache.EventTracker.EventSeqnoHolder;
+import org.apache.geode.internal.cache.event.EventSequenceNumberHolder;
 import org.apache.geode.internal.cache.ha.ThreadIdentifier;
 import org.apache.geode.internal.cache.partitioned.Bucket;
 import org.apache.geode.internal.cache.partitioned.PRLocallyDestroyedException;
@@ -91,10 +90,8 @@ public class CreateRegionProcessor implements ProfileExchangeProcessor {
           logger.debug("CreateRegionProcessor.initializeRegion, no recipients, msg not sent");
         }
         this.newRegion.getDistributionAdvisor().setInitialized();
-        EventTracker tracker = ((LocalRegion) this.newRegion).getEventTracker();
-        if (tracker != null) {
-          tracker.setInitialized();
-        }
+
+        ((LocalRegion) this.newRegion).getEventTracker().setInitialized();
         return;
       }
 
@@ -133,18 +130,16 @@ public class CreateRegionProcessor implements ProfileExchangeProcessor {
             // region is incompatible with region in another cache
             throw (IllegalStateException) t;
           }
-          e.handleAsUnexpected();
+          e.handleCause();
           break;
         }
       } finally {
         replyProc.cleanup();
-        EventTracker tracker = ((LocalRegion) this.newRegion).getEventTracker();
-        if (tracker != null) {
-          tracker.setInitialized();
-        }
+        ((LocalRegion) this.newRegion).getEventTracker().setInitialized();
         if (((LocalRegion) this.newRegion).isUsedForPartitionedRegionBucket()) {
           if (logger.isDebugEnabled()) {
-            logger.debug("initialized bucket event tracker: {}", tracker);
+            logger.debug("initialized bucket event tracker: {}",
+                ((LocalRegion) this.newRegion).getEventTracker());
           }
         }
       }
@@ -203,12 +198,12 @@ public class CreateRegionProcessor implements ProfileExchangeProcessor {
           .getDistributedSystem(), members);
     }
 
-    private final Map<DistributedMember, Map<ThreadIdentifier, EventSeqnoHolder>> remoteEventStates =
+    private final Map<DistributedMember, Map<ThreadIdentifier, EventSequenceNumberHolder>> remoteEventStates =
         new ConcurrentHashMap<>();
 
     private boolean allMembersSkippedChecks = true;
 
-    public Map<ThreadIdentifier, EventSeqnoHolder> getEventState(
+    public Map<ThreadIdentifier, EventSequenceNumberHolder> getEventState(
         InternalDistributedMember provider) {
       return this.remoteEventStates.get(provider);
     }
@@ -254,7 +249,7 @@ public class CreateRegionProcessor implements ProfileExchangeProcessor {
           // Save all event states, need to initiate the event tracker from the GII provider
           if (reply.eventState != null) {
             remoteEventStates.put(reply.getSender(),
-                (Map<ThreadIdentifier, EventSeqnoHolder>) reply.eventState);
+                (Map<ThreadIdentifier, EventSequenceNumberHolder>) reply.eventState);
           }
 
           if (lr.isUsedForPartitionedRegionBucket()) {
@@ -338,7 +333,7 @@ public class CreateRegionProcessor implements ProfileExchangeProcessor {
     }
 
     @Override
-    protected void process(DistributionManager dm) {
+    protected void process(ClusterDistributionManager dm) {
       int oldLevel = // Set thread local flag to allow entrance through initialization Latch
           LocalRegion.setThreadInitLevelRequirement(LocalRegion.ANY_INIT);
       LocalRegion lclRgn = null;
@@ -348,7 +343,7 @@ public class CreateRegionProcessor implements ProfileExchangeProcessor {
         // get the region from the path, but do NOT wait on initialization,
         // otherwise we could have a distributed deadlock
 
-        InternalCache cache = (InternalCache) CacheFactory.getInstance(dm.getSystem());
+        InternalCache cache = dm.getExistingCache();
 
         // Fix for bug 42051 - Discover any regions that are in the process
         // of being destroyed
@@ -422,6 +417,7 @@ public class CreateRegionProcessor implements ProfileExchangeProcessor {
         replyMsg.eventState = this.eventState;
         replyMsg.destroyedId = destroyedId;
         replyMsg.setProcessorId(this.processorId);
+        replyMsg.setSender(dm.getId()); // for EventStateHelper.dataSerialize
         replyMsg.setRecipient(this.getSender());
         replyMsg.skippedCompatibilityChecks = this.skippedCompatibilityChecks;
 
@@ -444,7 +440,7 @@ public class CreateRegionProcessor implements ProfileExchangeProcessor {
 
     /**
      * Attempts to process this message with the specified <code>CacheDistributionAdvisee</code>.
-     * 
+     *
      * @param cda the CacheDistributionAdvisee to apply this profile to
      * @param isRealRegion true if CacheDistributionAdvisee is a real region
      */
@@ -809,7 +805,7 @@ public class CreateRegionProcessor implements ProfileExchangeProcessor {
         }
       }
       if (in.readBoolean()) {
-        this.eventState = EventStateHelper.fromData(in, false);
+        this.eventState = EventStateHelper.deDataSerialize(in, false);
       }
       if (in.readBoolean()) {
         this.destroyedId = new PersistentMemberID();
@@ -842,7 +838,7 @@ public class CreateRegionProcessor implements ProfileExchangeProcessor {
         // The isHARegion flag is false here because
         // we currently only include the event state in the profile
         // for bucket regions.
-        EventStateHelper.toData(out, (Map) eventState, false);
+        EventStateHelper.dataSerialize(out, (Map) eventState, false, getSender());
       } else {
         out.writeBoolean(false);
       }

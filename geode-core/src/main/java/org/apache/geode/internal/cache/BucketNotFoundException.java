@@ -12,22 +12,16 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-/**
- * 
- */
 package org.apache.geode.internal.cache;
 
 /**
  * A version of ForceReattemptException that should be used when the target bucket can't be found.
- * 
+ *
  *
  */
 public class BucketNotFoundException extends ForceReattemptException {
   private static final long serialVersionUID = 2898657229184289911L;
 
-  /**
-   * @param message
-   */
   public BucketNotFoundException(String message) {
     super(message);
   }

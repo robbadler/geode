@@ -14,8 +14,16 @@
  */
 package org.apache.geode.cache.query.cq.dunit;
 
-import static org.apache.geode.distributed.ConfigurationProperties.*;
-import static org.apache.geode.test.dunit.Assert.*;
+import static org.apache.geode.distributed.ConfigurationProperties.DURABLE_CLIENT_ID;
+import static org.apache.geode.distributed.ConfigurationProperties.DURABLE_CLIENT_TIMEOUT;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.apache.geode.test.dunit.Assert.assertEquals;
+import static org.apache.geode.test.dunit.Assert.assertFalse;
+import static org.apache.geode.test.dunit.Assert.assertNotNull;
+import static org.apache.geode.test.dunit.Assert.assertNull;
+import static org.apache.geode.test.dunit.Assert.assertTrue;
+import static org.apache.geode.test.dunit.Assert.fail;
 
 import java.util.HashSet;
 import java.util.List;
@@ -24,11 +32,11 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.AttributesFactory;
-import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.EvictionAttributes;
 import org.apache.geode.cache.MirrorType;
@@ -54,9 +62,9 @@ import org.apache.geode.cache.query.internal.cq.CqQueryImpl.TestHook;
 import org.apache.geode.cache30.CacheSerializableRunnable;
 import org.apache.geode.cache30.CertifiableTestCacheListener;
 import org.apache.geode.internal.AvailablePortHelper;
-import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.PoolFactoryImpl;
 import org.apache.geode.internal.cache.tier.sockets.CacheServerTestUtil;
+import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.test.dunit.Assert;
 import org.apache.geode.test.dunit.AsyncInvocation;
 import org.apache.geode.test.dunit.Host;
@@ -69,17 +77,19 @@ import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.Wait;
 import org.apache.geode.test.dunit.WaitCriterion;
 import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
+import org.apache.geode.test.junit.categories.ClientSubscriptionTest;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * This class tests the ContinuousQuery mechanism in GemFire. This includes the test with different
  * data activities.
  */
-@Category(DistributedTest.class)
+@Category({DistributedTest.class, ClientSubscriptionTest.class})
 public class CqDataUsingPoolDUnitTest extends JUnit4CacheTestCase {
 
   protected CqQueryUsingPoolDUnitTest cqDUnitTest = new CqQueryUsingPoolDUnitTest(); // TODO: don't
                                                                                      // do this!
+  private static final Logger logger = LogService.getLogger();
 
   @Override
   public final void postSetUp() throws Exception {
@@ -475,7 +485,7 @@ public class CqDataUsingPoolDUnitTest extends JUnit4CacheTestCase {
           Region region = createRegion(cqDUnitTest.regions[i], factory.createRegionAttributes());
           // Set CacheListener.
           region.getAttributesMutator()
-              .setCacheListener(new CertifiableTestCacheListener(LogWriterUtils.getLogWriter()));
+              .addCacheListener(new CertifiableTestCacheListener(LogWriterUtils.getLogWriter()));
         }
         Wait.pause(2000);
 
@@ -1487,13 +1497,11 @@ public class CqDataUsingPoolDUnitTest extends JUnit4CacheTestCase {
 
           CountDownLatch latch = new CountDownLatch(1);
           private int numEvents = 0;
-          Cache cache = GemFireCacheImpl.getInstance();
 
           @Override
           public void pauseUntilReady() {
             try {
-              cache.getLogger()
-                  .fine("CqQueryTestHook: Going to wait on latch until ready is called.");
+              logger.debug("CqQueryTestHook: Going to wait on latch until ready is called.");
               if (!latch.await(10, TimeUnit.SECONDS)) {
                 fail("query was never unlatched");
               }
@@ -1505,7 +1513,7 @@ public class CqDataUsingPoolDUnitTest extends JUnit4CacheTestCase {
           @Override
           public void ready() {
             latch.countDown();
-            cache.getLogger().fine("CqQueryTestHook: The latch has been released.");
+            logger.debug("CqQueryTestHook: The latch has been released.");
           }
 
           @Override
@@ -1515,7 +1523,7 @@ public class CqDataUsingPoolDUnitTest extends JUnit4CacheTestCase {
 
           @Override
           public void setEventCount(int count) {
-            cache.getLogger().fine("CqQueryTestHook: Setting numEVents to: " + count);
+            logger.debug("CqQueryTestHook: Setting numEVents to: " + count);
             numEvents = count;
           }
         };

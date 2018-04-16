@@ -21,9 +21,7 @@
 
 package org.apache.geode.internal.util.concurrent;
 
-import static org.apache.geode.internal.util.concurrent.StoppableCountDownLatch.RETRY_TIME;
 
-import java.util.Date;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 
@@ -47,7 +45,7 @@ public class StoppableCondition implements java.io.Serializable {
 
   /**
    * Create a new StoppableCondition based on given condition and cancellation criterion
-   * 
+   *
    * @param c the underlying condition
    **/
   StoppableCondition(Condition c, CancelCriterion stopper) {

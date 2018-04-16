@@ -22,6 +22,17 @@ import static org.apache.geode.security.SecurityTestUtil.createProxyRegion;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.concurrent.TimeUnit;
+
+import org.awaitility.Awaitility;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionShortcut;
 import org.apache.geode.cache.client.ClientCache;
@@ -34,25 +45,14 @@ import org.apache.geode.cache.query.CqQuery;
 import org.apache.geode.cache.query.CqResults;
 import org.apache.geode.cache.query.QueryService;
 import org.apache.geode.cache.query.internal.cq.CqListenerImpl;
-import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.pdx.SimpleClass;
 import org.apache.geode.test.dunit.Host;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
-import org.apache.geode.test.dunit.rules.ServerStarterRule;
 import org.apache.geode.test.junit.categories.DistributedTest;
 import org.apache.geode.test.junit.categories.SecurityTest;
+import org.apache.geode.test.junit.rules.ServerStarterRule;
 import org.apache.geode.test.junit.runners.CategoryWithParameterizedRunnerFactory;
-import org.awaitility.Awaitility;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.concurrent.TimeUnit;
 
 @Category({DistributedTest.class, SecurityTest.class})
 @RunWith(Parameterized.class)
@@ -128,7 +128,7 @@ public class CQPDXPostProcessorDUnitTest extends JUnit4DistributedTestCase {
     // wait for events to fire
     Awaitility.await().atMost(1, TimeUnit.SECONDS);
     PDXPostProcessor pp =
-        (PDXPostProcessor) SecurityService.getSecurityService().getPostProcessor();
+        (PDXPostProcessor) server.getCache().getSecurityService().getPostProcessor();
     assertEquals(pp.getCount(), 2);
   }
 

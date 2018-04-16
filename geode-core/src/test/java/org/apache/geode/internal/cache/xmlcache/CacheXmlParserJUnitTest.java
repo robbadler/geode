@@ -20,17 +20,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import org.apache.geode.distributed.internal.DM;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
-import org.apache.geode.test.junit.categories.UnitTest;
-import org.junit.After;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.xml.sax.Attributes;
-import org.xml.sax.SAXException;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -39,13 +28,29 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Properties;
 
+import org.junit.After;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.contrib.java.lang.system.RestoreSystemProperties;
+import org.junit.experimental.categories.Category;
+import org.xml.sax.Attributes;
+import org.xml.sax.SAXException;
+
+import org.apache.geode.cache.client.ClientCache;
+import org.apache.geode.cache.client.ClientCacheFactory;
+import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.test.junit.categories.IntegrationTest;
+
 /**
  * Test cases for {@link CacheXmlParser}.
  *
  * @since GemFire 8.1
  */
-@Category(UnitTest.class)
+@Category(IntegrationTest.class)
 public class CacheXmlParserJUnitTest {
+
+  @Rule
+  public final RestoreSystemProperties restoreSystemProperties = new RestoreSystemProperties();
 
   private static final String NAMESPACE_URI =
       "urn:java:org.apache.geode.internal.cache.xmlcache.MockXmlParser";
@@ -57,13 +62,13 @@ public class CacheXmlParserJUnitTest {
 
   /**
    * Test {@link CacheXmlParser#getDelegate(String)}.
-   * 
+   *
    * Asserts that a delegate is found and that the stack and logWriter are setup correctly.
-   * 
+   *
    * Asserts that delegate is cached between calls and that the same instance is returned.
-   * 
+   *
    * Asserts that null is returned when no {@link XmlParser} is registered for namespace.
-   * 
+   *
    * @since GemFire 8.1
    */
   @Test
@@ -95,7 +100,7 @@ public class CacheXmlParserJUnitTest {
 
   /**
    * Test that {@link CacheXmlParser} can parse the test cache.xml file.
-   * 
+   *
    * @since Geode 1.2
    */
   @Test
@@ -103,23 +108,31 @@ public class CacheXmlParserJUnitTest {
     assertNotNull("Did not find simple config.xml file", getClass()
         .getResourceAsStream("CacheXmlParserJUnitTest.testSimpleClientCacheXml.cache.xml"));
 
-    DM dm = mock(DM.class);
-
     Properties nonDefault = new Properties();
     nonDefault.setProperty(MCAST_PORT, "0"); // loner
 
-    InternalDistributedSystem system =
-        InternalDistributedSystem.newInstanceForTesting(dm, nonDefault);
-    when(dm.getSystem()).thenReturn(system);
-    InternalDistributedSystem.connect(nonDefault);
+    ClientCache cache = new ClientCacheFactory(nonDefault).set("cache-xml-file",
+        "xmlcache/CacheXmlParserJUnitTest.testSimpleClientCacheXml.cache.xml").create();
+    cache.close();
+  }
 
-    CacheXmlParser.parse(getClass()
-        .getResourceAsStream("CacheXmlParserJUnitTest.testSimpleClientCacheXml.cache.xml"));
+  /**
+   * Test that {@link CacheXmlParser} can parse the test cache.xml file, using the Apache Xerces XML
+   * parser.
+   *
+   * @since Geode 1.3
+   */
+  @Test
+  public void testCacheXmlParserWithSimplePoolXerces() {
+    System.setProperty("javax.xml.parsers.SAXParserFactory",
+        "org.apache.xerces.jaxp.SAXParserFactoryImpl");
+
+    testCacheXmlParserWithSimplePool();
   }
 
   /**
    * Test that {@link CacheXmlParser} falls back to DTD parsing when locale language is not English.
-   * 
+   *
    * @since Geode 1.0
    */
   @Test
@@ -138,8 +151,22 @@ public class CacheXmlParserJUnitTest {
   }
 
   /**
+   * Test that {@link CacheXmlParser} falls back to DTD parsing when locale language is not English,
+   * using the Apache Xerces XML parser.
+   *
+   * @since Geode 1.3
+   */
+  @Test
+  public void testDTDFallbackWithNonEnglishLocalXerces() {
+    System.setProperty("javax.xml.parsers.SAXParserFactory",
+        "org.apache.xerces.jaxp.SAXParserFactoryImpl");
+
+    testDTDFallbackWithNonEnglishLocal();
+  }
+
+  /**
    * Get access to {@link CacheXmlParser} protected methods and fields.
-   * 
+   *
    * @since GemFire 8.1
    */
   private static class TestCacheXmlParser extends CacheXmlParser {
@@ -174,7 +201,7 @@ public class CacheXmlParserJUnitTest {
 
     /**
      * Access to {@link CacheXmlParser} getDelegate(String) method.
-     * 
+     *
      * @since GemFire 8.1
      */
     public XmlParser getDelegate(final String namespaceUri) {
@@ -189,7 +216,7 @@ public class CacheXmlParserJUnitTest {
   public static class MockXmlParser extends AbstractXmlParser {
 
     @Override
-    public String getNamspaceUri() {
+    public String getNamespaceUri() {
       return "urn:java:org.apache.geode.internal.cache.xmlcache.MockXmlParser";
     }
 

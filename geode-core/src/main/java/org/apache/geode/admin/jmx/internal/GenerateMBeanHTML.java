@@ -14,15 +14,27 @@
  */
 package org.apache.geode.admin.jmx.internal;
 
-import org.apache.geode.internal.ClassPathLoader;
-import org.apache.geode.internal.i18n.LocalizedStrings;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileWriter;
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.io.PrintWriter;
 
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
-import org.xml.sax.*;
+
+import org.xml.sax.Attributes;
+import org.xml.sax.InputSource;
+import org.xml.sax.Locator;
+import org.xml.sax.SAXException;
+import org.xml.sax.SAXNotRecognizedException;
+import org.xml.sax.SAXParseException;
 import org.xml.sax.helpers.DefaultHandler;
-import java.io.*;
-// import java.util.*;
+
+import org.apache.geode.internal.ClassPathLoader;
+import org.apache.geode.internal.ExitCode;
+import org.apache.geode.internal.i18n.LocalizedStrings;
 
 /**
  * A tool that reads the XML description of MBeans used with the Jakarta Commons Modeler and
@@ -35,14 +47,6 @@ public class GenerateMBeanHTML extends DefaultHandler {
   /** The location of the DTD for the MBean descriptions */
   private static final String DTD_LOCATION =
       "/org/apache/geode/admin/jmx/internal/doc-files/mbeans-descriptors.dtd";
-
-  // /** The system id of MBean description's DTD */
-  // private static final String SYSTEM_ID =
-  // "http://jakarta.apache.org/commons/dtds/mbeans-descriptors.dtd";
-
-  // /** The public id for the DTD */
-  // private static final String PUBLIC_ID =
-  // "-//Apache Software Foundation//DTD Model MBeans Configuration File";
 
   /** The name of the "mbean-descriptors" element */
   private static final String MBEANS_DESCRIPTORS = "mbeans-descriptors";
@@ -76,9 +80,6 @@ public class GenerateMBeanHTML extends DefaultHandler {
 
   /** The name of the "notification" element */
   private static final String NOTIFICATION = "notification";
-
-  // /** The name of the "description" element */
-  // private static final String DESCRIPTOR = "descriptor";
 
   /** The name of the "field" element */
   private static final String FIELD = "field";
@@ -142,7 +143,6 @@ public class GenerateMBeanHTML extends DefaultHandler {
     String location = DTD_LOCATION;
 
     InputSource result;
-    // if (location != null) (cannot be null)
     {
       InputStream stream = ClassPathLoader.getLatest().getResourceAsStream(getClass(), location);
       if (stream != null) {
@@ -151,11 +151,6 @@ public class GenerateMBeanHTML extends DefaultHandler {
         throw new SAXNotRecognizedException(
             LocalizedStrings.GenerateMBeanHTML_DTD_NOT_FOUND_0.toLocalizedString(location));
       }
-
-      // } else {
-      // throw new
-      // SAXNotRecognizedException(LocalizedStrings.GenerateMBeanHTML_COULD_NOT_FIND_DTD_FOR_0_1.toLocalizedString(new
-      // Object[] {publicId, systemId}));
     }
 
     return result;
@@ -449,7 +444,6 @@ public class GenerateMBeanHTML extends DefaultHandler {
 
   //////////////////////// Main Program ////////////////////////
 
-  // private static final PrintStream out = System.out;
   private static final PrintStream err = System.err;
 
   /**
@@ -464,7 +458,7 @@ public class GenerateMBeanHTML extends DefaultHandler {
 
     err.println("");
 
-    System.exit(1);
+    ExitCode.FATAL.doSystemExit();
   }
 
   public static void main(String[] args) throws Exception {

@@ -14,9 +14,34 @@
  */
 package org.apache.geode.management.internal.cli;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.geode.cache.CacheClosedException;
-import org.apache.geode.cache.CacheFactory;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Serializable;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.zip.DataFormatException;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
+
+import org.apache.commons.lang.ArrayUtils;
+
+import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.Function;
@@ -27,44 +52,17 @@ import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.execute.AbstractExecution;
-import org.apache.geode.internal.cache.tier.sockets.CacheClientProxy;
+import org.apache.geode.internal.lang.StringUtils;
 import org.apache.geode.internal.util.IOUtils;
-import org.apache.geode.management.DistributedSystemMXBean;
+import org.apache.geode.management.DistributedRegionMXBean;
 import org.apache.geode.management.ManagementService;
 import org.apache.geode.management.cli.Result;
-import org.apache.geode.management.internal.cli.functions.MembersForRegionFunction;
+import org.apache.geode.management.internal.MBeanJMXAdapter;
+import org.apache.geode.management.internal.SystemManagementService;
+import org.apache.geode.management.internal.cli.exceptions.UserErrorException;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
-import org.apache.geode.management.internal.cli.result.CommandResultException;
 import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.cli.shell.Gfsh;
-
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileFilter;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
-import java.io.Serializable;
-import java.io.StringWriter;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.zip.DataFormatException;
-import java.util.zip.Deflater;
-import java.util.zip.Inflater;
 
 /**
  * This class contains utility methods used by classes used to build the Command Line Interface
@@ -73,212 +71,160 @@ import java.util.zip.Inflater;
  * @since GemFire 7.0
  */
 public class CliUtil {
-
-  public static final String GFSHVM_IDENTIFIER = "gfsh";
-
-  public static boolean isGfshVM = Boolean.getBoolean(GFSHVM_IDENTIFIER);
-
   public static final FileFilter JAR_FILE_FILTER = new CustomFileFilter(".jar");
 
-  public static boolean isGfshVM() {
-    return isGfshVM;
-  }
-
   public static String cliDependenciesExist(boolean includeGfshDependencies) {
-    String jarProductName = null;
-
-    // Parser & CliCommand from Spring Shell
-    jarProductName =
-        checkLibraryByLoadingClass("org.springframework.shell.core.Parser", "Spring Shell");
-    jarProductName = checkLibraryByLoadingClass(
-        "org.springframework.shell.core.annotation.CliCommand", "Spring Shell");
-    if (jarProductName != null) {
-      return jarProductName;
-    }
-
-    // SpringVersion from Spring Core
-    jarProductName =
-        checkLibraryByLoadingClass("org.springframework.core.SpringVersion", "Spring Core");
-    if (jarProductName != null) {
-      return jarProductName;
-    }
-
+    // "Validate" each dependency by attempting to load an associated class
+    Map<String, String> classLibraryMap = new HashMap<>();
+    classLibraryMap.put("org.springframework.shell.core.Parser", "Spring Shell");
+    classLibraryMap.put("org.springframework.shell.core.annotation.CliCommand", "Spring Shell");
+    classLibraryMap.put("org.springframework.core.SpringVersion", "Spring Core");
     if (includeGfshDependencies) {
-      // ConsoleReader from jline
-      jarProductName = checkLibraryByLoadingClass("jline.console.ConsoleReader", "JLine");
-      if (jarProductName != null) {
-        return jarProductName;
-      }
+      classLibraryMap.put("jline.console.ConsoleReader", "JLine");
     }
 
-    return jarProductName;
+    List<String> unloadableJars =
+        classLibraryMap.entrySet().stream().filter(entry -> !canLoadClass(entry.getKey()))
+            .map(Map.Entry::getValue).collect(Collectors.toList());
+    return unloadableJars.isEmpty() ? null : String.join(",", unloadableJars);
   }
 
-  private static String checkLibraryByLoadingClass(String className, String jarProductName) {
+  private static boolean canLoadClass(String className) {
     try {
       ClassPathLoader.getLatest().forName(className);
     } catch (ClassNotFoundException e) {
-      return jarProductName;
+      return false;
     }
-
-    return null;
+    return true;
   }
 
-  public static InternalCache getCacheIfExists() {
-    InternalCache cache;
-    try {
-      cache = getInternalCache();
-    } catch (CacheClosedException e) {
-      // ignore & return null
-      cache = null;
+  /**
+   * Returns a Set of DistributedMember for members that have the specified <code>region</code>.
+   * <code>returnAll</code> indicates whether to return all members or only the first member we
+   * find.
+   *
+   * @param region region path for which members that have this region are required
+   * @param cache cache instance to use to find members
+   * @param returnAll if true, returns all matching members, else returns only first one found.
+   * @return a Set of DistributedMember for members that have the specified <code>region</code>.
+   */
+  public static Set<DistributedMember> getRegionAssociatedMembers(String region,
+      final InternalCache cache, boolean returnAll) {
+    if (region == null || region.isEmpty()) {
+      return Collections.emptySet();
     }
 
-    return cache;
-  }
+    if (!region.startsWith(Region.SEPARATOR)) {
+      region = Region.SEPARATOR + region;
+    }
 
-  public static byte[][] filesToBytes(String[] fileNames)
-      throws FileNotFoundException, IOException {
-    List<byte[]> filesDataList = new ArrayList<byte[]>();
+    DistributedRegionMXBean regionMXBean =
+        ManagementService.getManagementService(cache).getDistributedRegionMXBean(region);
 
-    for (int i = 0; i < fileNames.length; i++) {
-      File file = new File(fileNames[i]);
+    if (regionMXBean == null) {
+      return Collections.emptySet();
+    }
 
-      if (!file.exists()) {
-        throw new FileNotFoundException("Could not find " + file.getCanonicalPath());
-      }
+    String[] regionAssociatedMemberNames = regionMXBean.getMembers();
+    Set<DistributedMember> matchedMembers = new HashSet<>();
+    Set<DistributedMember> allClusterMembers = new HashSet<>(cache.getMembers());
+    allClusterMembers.add(cache.getDistributedSystem().getDistributedMember());
 
-      if (file.isDirectory()) {
-        // TODO: (1) No recursive search yet. (2) Do we need to check/limit size of the files too?
-        File[] childrenFiles = file.listFiles(JAR_FILE_FILTER);
-        for (int j = 0; j < childrenFiles.length; j++) {
-          // 1. add name of the file as bytes at even index
-          filesDataList.add(childrenFiles[j].getName().getBytes());
-          // 2. add file contents as bytes at odd index
-          filesDataList.add(toByteArray(new FileInputStream(childrenFiles[j])));
+    for (DistributedMember member : allClusterMembers) {
+      for (String regionAssociatedMemberName : regionAssociatedMemberNames) {
+        String name = MBeanJMXAdapter.getMemberNameOrId(member);
+        if (name.equals(regionAssociatedMemberName)) {
+          matchedMembers.add(member);
+          if (!returnAll) {
+            return matchedMembers;
+          }
         }
-      } else {
-        filesDataList.add(file.getName().getBytes());
-        filesDataList.add(toByteArray(new FileInputStream(file)));
       }
     }
-
-    byte[][] filesData = new byte[filesDataList.size()][];
-
-    filesData = filesDataList.toArray(filesData);
-
-    return filesData;
+    return matchedMembers;
   }
 
-  public static byte[] toByteArray(InputStream input) throws IOException {
-    ByteArrayOutputStream output = new ByteArrayOutputStream();
-    int n = 0;
-    byte[] buffer = new byte[4096];
-    while (-1 != (n = input.read(buffer))) {
-      output.write(buffer, 0, n);
+  /**
+   * this finds the member that hosts all the regions passed in.
+   *
+   * @param returnAll if true, returns all matching members, otherwise, returns only one.
+   */
+  public static Set<DistributedMember> getQueryRegionsAssociatedMembers(Set<String> regions,
+      final InternalCache cache, boolean returnAll) {
+    Set<DistributedMember> results = regions.stream()
+        .map(region -> getRegionAssociatedMembers(region, cache, true)).reduce((s1, s2) -> {
+          s1.retainAll(s2);
+          return s1;
+        }).get();
+
+    if (returnAll || results.size() <= 1) {
+      return results;
     }
 
-    return output.toByteArray();
+    // returns a set of only one item
+    return Collections.singleton(results.iterator().next());
   }
 
-  public static String[] bytesToNames(byte[][] fileData) {
-    String[] names = new String[fileData.length / 2];
-    for (int i = 0; i < fileData.length; i += 2) {
-      names[i / 2] = new String(fileData[i]);
+  public static String getMemberNameOrId(DistributedMember distributedMember) {
+    String nameOrId = null;
+    if (distributedMember != null) {
+      nameOrId = distributedMember.getName();
+      nameOrId = nameOrId != null && !nameOrId.isEmpty() ? nameOrId : distributedMember.getId();
     }
-
-    return names;
+    return nameOrId;
   }
 
-  public static byte[][] bytesToData(byte[][] fileData) {
-    byte[][] data = new byte[fileData.length / 2][];
-    for (int i = 1; i < fileData.length; i += 2) {
-      data[i / 2] = fileData[i];
-    }
-
-    return data;
+  /**
+   * Returns a set of all the members of the distributed system excluding locators.
+   */
+  @SuppressWarnings("unchecked")
+  public static Set<DistributedMember> getAllNormalMembers(InternalCache cache) {
+    return new HashSet<DistributedMember>(
+        cache.getDistributionManager().getNormalDistributionManagerIds());
   }
 
-  public static void bytesToFiles(byte[][] fileData, String parentDirPath, boolean mkRequireddirs)
-      throws FileNotFoundException, IOException, UnsupportedOperationException {
-    FileOutputStream fos = null;
-
-    File parentDir = new File(parentDirPath);
-    if (mkRequireddirs && !parentDir.exists()) {
-      if (!parentDir.mkdirs()) {
-        throw new UnsupportedOperationException(
-            "Couldn't create required directory structure for " + parentDirPath);
-      }
-    }
-    for (int i = 0; i < fileData.length; i++) {
-      if (i % 2 == 0) {
-        // Expect file name as bytes at even index
-        String fileName = new String(fileData[i]);
-        fos = new FileOutputStream(new File(parentDir, fileName));
-      } else {
-        // Expect file contents as bytes at odd index
-        fos.write(fileData[i]);
-        fos.close();
-      }
-    }
+  /**
+   * Returns a set of all the members of the distributed system including locators.
+   */
+  @SuppressWarnings("unchecked")
+  public static Set<DistributedMember> getAllMembers(InternalCache cache) {
+    return getAllMembers(cache.getInternalDistributedSystem());
   }
 
-  public static boolean isValidFileName(String filePath, String extension) {
-    boolean isValid = true;
-    return isValid;
+  @SuppressWarnings("unchecked")
+  public static Set<DistributedMember> getAllMembers(InternalDistributedSystem internalDS) {
+    return new HashSet<DistributedMember>(
+        internalDS.getDistributionManager().getDistributionManagerIds());
   }
 
-  private static InternalCache getInternalCache() {
-    return (InternalCache) CacheFactory.getAnyInstance();
+  public static Set<DistributedMember> getMembersWithAsyncEventQueue(InternalCache cache,
+      String queueId) {
+    Set<DistributedMember> members = findMembers(null, null, cache);
+    return members.stream().filter(m -> getAsyncEventQueueIds(cache, m).contains(queueId))
+        .collect(Collectors.toSet());
   }
 
-  public static Set<String> getAllRegionNames() {
-    InternalCache cache = getInternalCache();
-    Set<String> regionNames = new HashSet<String>();
+  public static Set<String> getAsyncEventQueueIds(InternalCache cache, DistributedMember member) {
+    SystemManagementService managementService =
+        (SystemManagementService) ManagementService.getExistingManagementService(cache);
+    return managementService.getAsyncEventQueueMBeanNames(member).stream()
+        .map(x -> x.getKeyProperty("queue")).collect(Collectors.toSet());
+  }
+
+  public static Set<String> getAllRegionNames(Cache cache) {
+    Set<String> regionNames = new HashSet<>();
     Set<Region<?, ?>> rootRegions = cache.rootRegions();
 
-    Iterator<Region<?, ?>> rootRegionIters = rootRegions.iterator();
-
-    while (rootRegionIters.hasNext()) {
-      Region<?, ?> rootRegion = rootRegionIters.next();
+    for (Region<?, ?> rootRegion : rootRegions) {
       regionNames.add(rootRegion.getFullPath().substring(1));
 
       Set<Region<?, ?>> subRegions = rootRegion.subregions(true);
-      Iterator<Region<?, ?>> subRegionIters = subRegions.iterator();
 
-      while (subRegionIters.hasNext()) {
-        Region<?, ?> subRegion = subRegionIters.next();
+      for (Region<?, ?> subRegion : subRegions) {
         regionNames.add(subRegion.getFullPath().substring(1));
       }
     }
     return regionNames;
-  }
-
-  public static String convertStringSetToString(Set<String> stringSet, char delimiter) {
-    StringBuilder sb = new StringBuilder();
-    if (stringSet != null) {
-      Iterator<String> iters = stringSet.iterator();
-
-      while (iters.hasNext()) {
-        String stringValue = iters.next();
-        sb.append(stringValue);
-        sb.append(delimiter);
-      }
-    }
-    return sb.toString();
-  }
-
-  public static String convertStringListToString(List<String> stringList, char delimiter) {
-    StringBuilder sb = new StringBuilder();
-    if (stringList != null) {
-      Iterator<String> iters = stringList.iterator();
-
-      while (iters.hasNext()) {
-        String stringValue = iters.next();
-        sb.append(stringValue);
-        sb.append(delimiter);
-      }
-    }
-    return sb.toString();
   }
 
   /**
@@ -286,10 +232,8 @@ public class CliUtil {
    * groups or members.
    */
   public static Set<DistributedMember> findMembersIncludingLocators(String[] groups,
-      String[] members) {
-    InternalCache cache = getInternalCache();
+      String[] members, InternalCache cache) {
     Set<DistributedMember> allMembers = getAllMembers(cache);
-
     return findMembers(allMembers, groups, members);
   }
 
@@ -297,8 +241,8 @@ public class CliUtil {
    * Finds all Servers which belong to the given arrays of groups or members. Does not include
    * locators.
    */
-  public static Set<DistributedMember> findMembers(String[] groups, String[] members) {
-    InternalCache cache = getInternalCache();
+  public static Set<DistributedMember> findMembers(String[] groups, String[] members,
+      InternalCache cache) {
     Set<DistributedMember> allNormalMembers = getAllNormalMembers(cache);
 
     return findMembers(allNormalMembers, groups, members);
@@ -315,19 +259,19 @@ public class CliUtil {
     }
 
     if ((members.length > 0) && (groups.length > 0)) {
-      throw new IllegalArgumentException(CliStrings.PROVIDE_EITHER_MEMBER_OR_GROUP_MESSAGE);
+      throw new UserErrorException(CliStrings.PROVIDE_EITHER_MEMBER_OR_GROUP_MESSAGE);
     }
 
     if (members.length == 0 && groups.length == 0) {
       return membersToConsider;
     }
 
-    Set<DistributedMember> matchingMembers = new HashSet<DistributedMember>();
+    Set<DistributedMember> matchingMembers = new HashSet<>();
     // it will either go into this loop or the following loop, not both.
     for (String memberNameOrId : members) {
       for (DistributedMember member : membersToConsider) {
         if (memberNameOrId.equalsIgnoreCase(member.getId())
-            || memberNameOrId.equals(member.getName())) {
+            || memberNameOrId.equalsIgnoreCase(member.getName())) {
           matchingMembers.add(member);
         }
       }
@@ -343,87 +287,89 @@ public class CliUtil {
     return matchingMembers;
   }
 
-  public static DistributedMember getDistributedMemberByNameOrId(String memberNameOrId) {
-    DistributedMember memberFound = null;
+  public static DistributedMember getDistributedMemberByNameOrId(String memberNameOrId,
+      InternalCache cache) {
+    if (memberNameOrId == null) {
+      return null;
+    }
 
-    if (memberNameOrId != null) {
-      InternalCache cache = getInternalCache();
-      Set<DistributedMember> memberSet = CliUtil.getAllMembers(cache);
-      for (DistributedMember member : memberSet) {
-        if (memberNameOrId.equalsIgnoreCase(member.getId())
-            || memberNameOrId.equals(member.getName())) {
-          memberFound = member;
-          break;
+    Set<DistributedMember> memberSet = CliUtil.getAllMembers(cache);
+    return memberSet.stream().filter(member -> memberNameOrId.equalsIgnoreCase(member.getId())
+        || memberNameOrId.equalsIgnoreCase(member.getName())).findFirst().orElse(null);
+  }
+
+
+  /**
+   * Even thought this is only used in a test, caller of MemberMXBean.processCommand(String, Map,
+   * Byte[][]) will need to use this method to convert a fileList to Byte[][] to call that
+   * deprecated API.
+   *
+   * Once that deprecated API is removed, we can delete this method and the tests.
+   */
+  public static Byte[][] filesToBytes(List<String> fileNames) throws IOException {
+    List<byte[]> filesDataList = new ArrayList<>();
+
+    for (String fileName : fileNames) {
+      File file = new File(fileName);
+
+      if (!file.exists()) {
+        throw new FileNotFoundException("Could not find " + file.getCanonicalPath());
+      }
+
+      if (file.isDirectory()) {
+        File[] childrenFiles = file.listFiles(JAR_FILE_FILTER);
+        for (File childrenFile : childrenFiles) {
+          // 1. add name of the file as bytes at even index
+          filesDataList.add(childrenFile.getName().getBytes());
+          // 2. add file contents as bytes at odd index
+          filesDataList.add(toByteArray(new FileInputStream(childrenFile)));
         }
+      } else {
+        filesDataList.add(file.getName().getBytes());
+        filesDataList.add(toByteArray(new FileInputStream(file)));
       }
     }
-    return memberFound;
+
+    return filesDataList.stream().map(ArrayUtils::toObject).toArray(Byte[][]::new);
   }
 
-  public static String stackTraceAsString(Throwable e) {
-    String stackAsString = "";
-    if (e != null) {
-      StringWriter writer = new StringWriter();
-      PrintWriter pw = new PrintWriter(writer);
-      e.printStackTrace(pw);
-      stackAsString = writer.toString();
+  public static byte[] toByteArray(InputStream input) throws IOException {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    int n;
+    byte[] buffer = new byte[4096];
+    while (-1 != (n = input.read(buffer))) {
+      output.write(buffer, 0, n);
     }
-    return stackAsString;
+
+    return output.toByteArray();
   }
 
-  @SuppressWarnings("unchecked")
-  public static <K> Class<K> forName(String classToLoadName, String neededFor) {
-    Class<K> loadedClass = null;
-    try {
-      // Set Constraints
-      ClassPathLoader classPathLoader = ClassPathLoader.getLatest();
-      if (classToLoadName != null && !classToLoadName.isEmpty()) {
-        loadedClass = (Class<K>) classPathLoader.forName(classToLoadName);
+  public static List<String> bytesToFiles(Byte[][] fileData, String parentDirPath)
+      throws IOException, UnsupportedOperationException {
+    List<String> filesPaths = new ArrayList<>();
+    FileOutputStream fos = null;
+    File file = null;
+
+    File parentDir = new File(parentDirPath);
+    if (!parentDir.exists() && !parentDir.mkdirs()) {
+      throw new UnsupportedOperationException(
+          "Couldn't create required directory structure for " + parentDirPath);
+    }
+    for (int i = 0; i < fileData.length; i++) {
+      byte[] bytes = ArrayUtils.toPrimitive(fileData[i]);
+      if (i % 2 == 0) {
+        // Expect file name as bytes at even index
+        String fileName = new String(bytes);
+        file = new File(parentDir, fileName);
+        fos = new FileOutputStream(file);
+      } else {
+        // Expect file contents as bytes at odd index
+        fos.write(bytes);
+        fos.close();
+        filesPaths.add(file.getAbsolutePath());
       }
-    } catch (ClassNotFoundException | NoClassDefFoundError e) {
-      throw new RuntimeException(
-          CliStrings.format(CliStrings.CREATE_REGION__MSG__COULDNOT_FIND_CLASS_0_SPECIFIED_FOR_1,
-              new Object[] {classToLoadName, neededFor}),
-          e);
-    } catch (ClassCastException e) {
-      throw new RuntimeException(CliStrings.format(
-          CliStrings.CREATE_REGION__MSG__CLASS_SPECIFIED_FOR_0_SPECIFIED_FOR_1_IS_NOT_OF_EXPECTED_TYPE,
-          new Object[] {classToLoadName, neededFor}), e);
     }
-
-    return loadedClass;
-  }
-
-  public static <K> K newInstance(Class<K> klass, String neededFor) {
-    K instance = null;
-    try {
-      instance = klass.newInstance();
-    } catch (InstantiationException e) {
-      throw new RuntimeException(CliStrings.format(
-          CliStrings.CREATE_REGION__MSG__COULDNOT_INSTANTIATE_CLASS_0_SPECIFIED_FOR_1,
-          new Object[] {klass, neededFor}), e);
-    } catch (IllegalAccessException e) {
-      throw new RuntimeException(
-          CliStrings.format(CliStrings.CREATE_REGION__MSG__COULDNOT_ACCESS_CLASS_0_SPECIFIED_FOR_1,
-              new Object[] {klass, neededFor}),
-          e);
-    }
-
-    return instance;
-  }
-
-  static class CustomFileFilter implements FileFilter {
-    private String extensionWithDot;
-
-    public CustomFileFilter(String extensionWithDot) {
-      this.extensionWithDot = extensionWithDot;
-    }
-
-    @Override
-    public boolean accept(File pathname) {
-      String name = pathname.getName();
-      return name.endsWith(extensionWithDot);
-    }
+    return filesPaths;
   }
 
   public static DeflaterInflaterData compressBytes(byte[] input) {
@@ -432,7 +378,7 @@ public class CliUtil {
     compresser.finish();
     byte[] buffer = new byte[100];
     byte[] result = new byte[0];
-    int compressedDataLength = 0;
+    int compressedDataLength;
     int totalCompressedDataLength = 0;
     do {
       byte[] newResult = new byte[result.length + buffer.length];
@@ -460,10 +406,156 @@ public class CliUtil {
       System.arraycopy(buffer, 0, newResult, result.length, bytesRead);
       result = newResult;
     }
-    // System.out.println(new String(result));
     decompresser.end();
 
     return new DeflaterInflaterData(result.length, result);
+  }
+
+  public static String decodeWithDefaultCharSet(String urlToDecode) {
+    try {
+      return URLDecoder.decode(urlToDecode, Charset.defaultCharset().name());
+    } catch (UnsupportedEncodingException e) {
+      return urlToDecode;
+    }
+  }
+
+  public static <K> Class<K> forName(String classToLoadName, String neededFor) {
+    Class<K> loadedClass = null;
+    try {
+      // Set Constraints
+      ClassPathLoader classPathLoader = ClassPathLoader.getLatest();
+      if (classToLoadName != null && !classToLoadName.isEmpty()) {
+        loadedClass = (Class<K>) classPathLoader.forName(classToLoadName);
+      }
+    } catch (ClassNotFoundException | NoClassDefFoundError e) {
+      throw new RuntimeException(
+          CliStrings.format(CliStrings.CREATE_REGION__MSG__COULD_NOT_FIND_CLASS_0_SPECIFIED_FOR_1,
+              classToLoadName, neededFor),
+          e);
+    } catch (ClassCastException e) {
+      throw new RuntimeException(CliStrings.format(
+          CliStrings.CREATE_REGION__MSG__CLASS_SPECIFIED_FOR_0_SPECIFIED_FOR_1_IS_NOT_OF_EXPECTED_TYPE,
+          classToLoadName, neededFor), e);
+    }
+
+    return loadedClass;
+  }
+
+  public static <K> K newInstance(Class<K> klass, String neededFor) {
+    K instance;
+    try {
+      instance = klass.newInstance();
+    } catch (InstantiationException e) {
+      throw new RuntimeException(CliStrings.format(
+          CliStrings.CREATE_REGION__MSG__COULD_NOT_INSTANTIATE_CLASS_0_SPECIFIED_FOR_1, klass,
+          neededFor), e);
+    } catch (IllegalAccessException e) {
+      throw new RuntimeException(
+          CliStrings.format(CliStrings.CREATE_REGION__MSG__COULD_NOT_ACCESS_CLASS_0_SPECIFIED_FOR_1,
+              klass, neededFor),
+          e);
+    }
+
+    return instance;
+  }
+
+  /**
+   * Resolves file system path relative to Gfsh. If the pathname is not specified, then pathname is
+   * returned.
+   *
+   * @param pathname a String value specifying the file system pathname to resolve.
+   * @return a String specifying a path relative to Gfsh.
+   */
+  public static String resolvePathname(final String pathname) {
+    return (StringUtils.isBlank(pathname) ? pathname
+        : IOUtils.tryGetCanonicalPathElseGetAbsolutePath(new File(pathname)));
+  }
+
+  public static Result getFunctionResult(ResultCollector<?, ?> rc, String commandName) {
+    Result result;
+    List<Object> results = (List<Object>) rc.getResult();
+    if (results != null) {
+      Object resultObj = results.get(0);
+      if (resultObj instanceof String) {
+        result = ResultBuilder.createInfoResult((String) resultObj);
+      } else if (resultObj instanceof Exception) {
+        result = ResultBuilder.createGemFireErrorResult(((Exception) resultObj).getMessage());
+      } else {
+        result = ResultBuilder.createGemFireErrorResult(
+            CliStrings.format(CliStrings.COMMAND_FAILURE_MESSAGE, commandName));
+      }
+    } else {
+      result = ResultBuilder.createGemFireErrorResult(
+          CliStrings.format(CliStrings.COMMAND_FAILURE_MESSAGE, commandName));
+    }
+    return result;
+  }
+
+  /***
+   * Executes a function with arguments on a set of members, ignoring the departed members.
+   *
+   * @param function Function to be executed.
+   * @param args Arguments passed to the function, pass null if you wish to pass no arguments to the
+   *        function.
+   * @param targetMembers Set of members on which the function is to be executed.
+   *
+   */
+  public static ResultCollector<?, ?> executeFunction(final Function function, Object args,
+      final Set<DistributedMember> targetMembers) {
+    Execution execution;
+
+    if (args != null) {
+      execution = FunctionService.onMembers(targetMembers).setArguments(args);
+    } else {
+      execution = FunctionService.onMembers(targetMembers);
+    }
+
+    ((AbstractExecution) execution).setIgnoreDepartedMembers(true);
+    return execution.execute(function);
+  }
+
+
+  public static void runLessCommandAsExternalViewer(Result commandResult) {
+    StringBuilder sb = new StringBuilder();
+    String NEW_LINE = System.getProperty("line.separator");
+
+    while (commandResult.hasNextLine()) {
+      sb.append(commandResult.nextLine()).append(NEW_LINE);
+    }
+
+    File file = null;
+    FileWriter fw;
+    try {
+      file = File.createTempFile("gfsh_output", "less");
+      fw = new FileWriter(file);
+      fw.append(sb.toString());
+      fw.close();
+      File workingDir = file.getParentFile();
+      Process p = Runtime.getRuntime().exec(
+          new String[] {"sh", "-c",
+              "LESSOPEN=\"|color %s\" less -SR " + file.getName() + " < /dev/tty > /dev/tty "},
+          null, workingDir);
+      p.waitFor();
+    } catch (IOException | InterruptedException e) {
+      Gfsh.printlnErr(e.getMessage());
+    } finally {
+      if (file != null)
+        file.delete();
+    }
+  }
+
+  static class CustomFileFilter implements FileFilter {
+    private String extensionWithDot;
+
+    public CustomFileFilter(String extensionWithDot) {
+      this.extensionWithDot = extensionWithDot;
+    }
+
+    @Override
+    public boolean accept(File pathname) {
+      String name = pathname.getName();
+      return name.endsWith(extensionWithDot);
+    }
   }
 
   public static class DeflaterInflaterData implements Serializable {
@@ -490,337 +582,4 @@ public class CliUtil {
       return String.valueOf(dataLength);
     }
   }
-
-  public static void main(String[] args) {
-    try {
-      byte[][] filesToBytes =
-          filesToBytes(new String[] {"/export/abhishek1/work/aspenmm/GFTryouts/test.json"});
-
-      System.out.println(filesToBytes[1].length);
-
-      DeflaterInflaterData compressBytes = compressBytes(filesToBytes[1]);
-      System.out.println(compressBytes);
-
-      DeflaterInflaterData uncompressBytes =
-          uncompressBytes(compressBytes.data, compressBytes.dataLength);
-      System.out.println(uncompressBytes);
-
-      System.out.println(new String(uncompressBytes.getData()));
-    } catch (FileNotFoundException e) {
-      e.printStackTrace();
-    } catch (IOException e) {
-      e.printStackTrace();
-    } catch (DataFormatException e) {
-      e.printStackTrace();
-    }
-  }
-
-  public static void main1(String[] args) {
-    try {
-      byte[][] fileToBytes = filesToBytes(new String[] {"../dumped/source/lib"});
-
-      bytesToFiles(fileToBytes, "../dumped/dest/lib/", true);
-
-    } catch (FileNotFoundException e) {
-      e.printStackTrace();
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-  }
-
-  public static boolean contains(Object[] array, Object object) {
-    boolean contains = false;
-
-    if (array != null && object != null) {
-      contains = Arrays.asList(array).contains(object);
-    }
-
-    return contains;
-  }
-
-  /**
-   * Returns a set of all the members of the distributed system excluding locators.
-   * 
-   * @param cache
-   */
-  @SuppressWarnings("unchecked")
-  public static Set<DistributedMember> getAllNormalMembers(InternalCache cache) {
-    return new HashSet<DistributedMember>(cache.getInternalDistributedSystem()
-        .getDistributionManager().getNormalDistributionManagerIds());
-  }
-
-  /**
-   * Returns a set of all the members of the distributed system including locators.
-   * 
-   * @param cache
-   */
-  @SuppressWarnings("unchecked")
-  public static Set<DistributedMember> getAllMembers(InternalCache cache) {
-    return new HashSet<DistributedMember>(
-        cache.getInternalDistributedSystem().getDistributionManager().getDistributionManagerIds());
-  }
-
-  @SuppressWarnings("unchecked")
-  public static Set<DistributedMember> getAllMembers(InternalDistributedSystem internalDS) {
-    return new HashSet<DistributedMember>(
-        internalDS.getDistributionManager().getDistributionManagerIds());
-  }
-
-  /**
-   * Returns a set of all the members of the distributed system for the given groups.
-   */
-  public static Set<DistributedMember> getDistributedMembersByGroup(InternalCache cache,
-      String[] groups) {
-    Set<DistributedMember> groupMembers = new HashSet<DistributedMember>();
-    for (String group : groups) {
-      groupMembers.addAll(
-          cache.getInternalDistributedSystem().getDistributionManager().getGroupMembers(group));
-    }
-    return groupMembers;
-  }
-
-  /***
-   * Executes a function with arguments on a set of members , ignores the departed members.
-   * 
-   * @param function Function to be executed.
-   * @param args Arguments passed to the function, pass null if you wish to pass no arguments to the
-   *        function.
-   * @param targetMembers Set of members on which the function is to be executed.
-   *
-   * @return ResultCollector
-   */
-  public static ResultCollector<?, ?> executeFunction(final Function function, Object args,
-      final Set<DistributedMember> targetMembers) {
-    Execution execution = null;
-
-    if (args != null) {
-      execution = FunctionService.onMembers(targetMembers).setArguments(args);
-    } else {
-      execution = FunctionService.onMembers(targetMembers);
-    }
-
-    ((AbstractExecution) execution).setIgnoreDepartedMembers(true);
-    return execution.execute(function);
-  }
-
-  /***
-   * Executes a function with arguments on a member , ignores the departed member.
-   * 
-   * @param function Function to be executed
-   * @param args Arguments passed to the function, pass null if you wish to pass no arguments to the
-   *        function.
-   * @param targetMember Member on which the function is to be executed.
-   * @return ResultCollector
-   */
-  public static ResultCollector<?, ?> executeFunction(final Function function, Object args,
-      final DistributedMember targetMember) {
-    Execution execution = null;
-
-    if (args != null) {
-      execution = FunctionService.onMember(targetMember).setArguments(args);
-    } else {
-      execution = FunctionService.onMember(targetMember);
-    }
-
-    ((AbstractExecution) execution).setIgnoreDepartedMembers(true);
-    return execution.execute(function);
-  }
-
-  /**
-   * Returns a Set of DistributedMember for members that have the specified <code>region</code>.
-   * <code>returnAll</code> indicates whether to return all members or only the first member we
-   * find.
-   *
-   * @param region region path for which members that have this region are required
-   * @param cache cache instance to use to find members
-   * @param returnAll whether to return all members or only the first member we find. Returns all
-   *        when <code>true</code>
-   * @return a Set of DistributedMember for members that have the specified <code>region</code>.
-   */
-  public static Set<DistributedMember> getRegionAssociatedMembers(final String region,
-      final InternalCache cache, boolean returnAll) {
-    if (region == null || region.isEmpty()) {
-      return null;
-    }
-
-    ManagementService managementService = ManagementService.getExistingManagementService(cache);
-    DistributedSystemMXBean distributedSystemMXBean =
-        managementService.getDistributedSystemMXBean();
-    Set<DistributedMember> matchedMembers = new HashSet<DistributedMember>();
-
-    Set<DistributedMember> allClusterMembers = new HashSet<DistributedMember>();
-    allClusterMembers.addAll(cache.getMembers());
-    allClusterMembers.add(cache.getDistributedSystem().getDistributedMember());
-
-    for (DistributedMember member : allClusterMembers) {
-      try {
-        if (distributedSystemMXBean.fetchRegionObjectName(CliUtil.getMemberNameOrId(member),
-            region) != null) {
-          matchedMembers.add(member);
-        }
-      } catch (Exception e) {
-        // ignore for now
-      }
-    }
-    return matchedMembers;
-  }
-
-  public static String getMemberNameOrId(DistributedMember distributedMember) {
-    String nameOrId = null;
-    if (distributedMember != null) {
-      nameOrId = distributedMember.getName();
-      nameOrId = nameOrId != null && !nameOrId.isEmpty() ? nameOrId : distributedMember.getId();
-    }
-    return nameOrId;
-  }
-
-  public static String collectionToString(Collection<?> col, int newlineAfter) {
-    if (col != null) {
-      StringBuilder builder = new StringBuilder();
-      int lastNewlineAt = 0;
-
-      for (Iterator<?> it = col.iterator(); it.hasNext();) {
-        Object object = (Object) it.next();
-        builder.append(String.valueOf(object));
-        if (it.hasNext()) {
-          builder.append(", ");
-        }
-        if (newlineAfter > 0 && (builder.length() - lastNewlineAt) / newlineAfter >= 1) {
-          builder.append(GfshParser.LINE_SEPARATOR);
-        }
-      }
-      return builder.toString();
-    } else {
-      return "" + null;
-    }
-  }
-
-  public static <T> String arrayToString(T[] array) {
-    if (array != null) {
-      StringBuilder builder = new StringBuilder();
-      for (int i = 0; i < array.length; i++) {
-        Object object = (Object) array[i];
-        builder.append(String.valueOf(object));
-        if (i < array.length - 1) {
-          builder.append(", ");
-        }
-      }
-      return builder.toString();
-    } else {
-      return "" + null;
-    }
-  }
-
-  public static String decodeWithDefaultCharSet(String urlToDecode) {
-    try {
-      return URLDecoder.decode(urlToDecode, Charset.defaultCharset().name());
-    } catch (UnsupportedEncodingException e) {
-      return urlToDecode;
-    }
-  }
-
-  /**
-   * Resolves file system path relative to Gfsh. If the pathname is not specified, then pathname is
-   * returned.
-   *
-   * @param pathname a String value specifying the file system pathname to resolve.
-   * @return a String specifying a path relative to Gfsh.
-   */
-  public static String resolvePathname(final String pathname) {
-    return (StringUtils.isBlank(pathname) ? pathname
-        : IOUtils.tryGetCanonicalPathElseGetAbsolutePath(new File(pathname)));
-  }
-
-  public static void runLessCommandAsExternalViewer(Result commandResult, boolean isError) {
-    StringBuilder sb = new StringBuilder();
-    String NEW_LINE = System.getProperty("line.separator");
-
-    while (commandResult.hasNextLine()) {
-      sb.append(commandResult.nextLine()).append(NEW_LINE);
-    }
-
-    File file = null;
-    FileWriter fw = null;
-    try {
-      file = File.createTempFile("gfsh_output", "less");
-      fw = new FileWriter(file);
-      fw.append(sb.toString());
-      fw.close();
-      File workingDir = file.getParentFile();
-      Process p = Runtime.getRuntime().exec(
-          new String[] {"sh", "-c",
-              "LESSOPEN=\"|color %s\" less -SR " + file.getName() + " < /dev/tty > /dev/tty "},
-          null, workingDir);
-      p.waitFor();
-    } catch (IOException e) {
-      Gfsh.printlnErr(e.getMessage());
-    } catch (InterruptedException e) {
-      Gfsh.printlnErr(e.getMessage());
-    } finally {
-      if (file != null)
-        file.delete();
-    }
-  }
-
-  public static String getClientIdFromCacheClientProxy(CacheClientProxy p) {
-    if (p == null) {
-      return null;
-    }
-    StringBuffer buffer = new StringBuffer();
-    buffer.append("[").append(p.getProxyID()).append(":port=").append(p.getRemotePort())
-        .append(":primary=").append(p.isPrimary()).append("]");
-    return buffer.toString();
-  }
-
-  public static Set<DistributedMember> getMembersForeRegionViaFunction(InternalCache cache,
-      String regionPath, boolean returnAll) {
-    try {
-      Set<DistributedMember> regionMembers = new HashSet<DistributedMember>();
-      MembersForRegionFunction membersForRegionFunction = new MembersForRegionFunction();
-      FunctionService.registerFunction(membersForRegionFunction);
-      Set<DistributedMember> targetMembers = CliUtil.getAllMembers(cache);
-      List<?> resultList = (List<?>) CliUtil
-          .executeFunction(membersForRegionFunction, regionPath, targetMembers).getResult();
-
-      for (Object object : resultList) {
-        try {
-          if (object instanceof Exception) {
-            LogWrapper.getInstance().warning(
-                "Exception in getMembersForeRegionViaFunction " + ((Throwable) object).getMessage(),
-                ((Throwable) object));
-            continue;
-          } else if (object instanceof Throwable) {
-            LogWrapper.getInstance().warning(
-                "Exception in getMembersForeRegionViaFunction " + ((Throwable) object).getMessage(),
-                ((Throwable) object));
-            continue;
-          }
-          if (object != null) {
-            Map<String, String> memberDetails = (Map<String, String>) object;
-            Iterator<Entry<String, String>> it = memberDetails.entrySet().iterator();
-            while (it.hasNext()) {
-              Entry<String, String> entry = it.next();
-              Set<DistributedMember> dsMems = CliUtil.getAllMembers(cache);
-              for (DistributedMember mem : dsMems) {
-                if (mem.getId().equals(entry.getKey())) {
-                  regionMembers.add(mem);
-                  if (!returnAll) {
-                    return regionMembers;
-                  }
-                }
-              }
-            }
-          }
-        } catch (Exception ex) {
-          LogWrapper.getInstance().warning("getMembersForeRegionViaFunction exception " + ex);
-          continue;
-        }
-      }
-      return regionMembers;
-    } catch (Exception e) {
-      LogWrapper.getInstance().warning("getMembersForeRegionViaFunction exception " + e);
-      return null;
-    }
-  }
-
 }

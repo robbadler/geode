@@ -14,16 +14,14 @@
  */
 package org.apache.geode.modules.session.catalina;
 
-import org.apache.geode.cache.Region;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.List;
 
 import org.apache.catalina.Session;
-import org.apache.catalina.session.ManagerBase;
 
+import org.apache.geode.cache.Region;
 import org.apache.geode.modules.session.catalina.internal.DeltaSessionAttributeEvent;
 
 public interface DeltaSessionInterface extends Session {

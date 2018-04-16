@@ -14,17 +14,41 @@
  */
 package org.apache.geode.management;
 
+import static org.apache.geode.distributed.ConfigurationProperties.ENABLE_CLUSTER_CONFIGURATION;
+import static org.apache.geode.distributed.ConfigurationProperties.JMX_MANAGER_HTTP_PORT;
+import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
+import static org.apache.geode.distributed.ConfigurationProperties.LOG_LEVEL;
+import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Properties;
+
+import javax.management.InstanceNotFoundException;
+import javax.management.MBeanServer;
+import javax.management.Notification;
+import javax.management.NotificationListener;
+import javax.management.ObjectName;
+
 import org.junit.Ignore;
-import org.junit.experimental.categories.Category;
 import org.junit.Test;
-
-import static org.junit.Assert.*;
-
-import org.apache.geode.test.junit.categories.DistributedTest;
+import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.client.internal.LocatorTestBase;
-import org.apache.geode.cache.query.*;
+import org.apache.geode.cache.query.IndexExistsException;
+import org.apache.geode.cache.query.IndexInvalidException;
+import org.apache.geode.cache.query.IndexNameConflictException;
+import org.apache.geode.cache.query.QueryService;
+import org.apache.geode.cache.query.RegionNotFoundException;
 import org.apache.geode.cache.query.cq.dunit.CqQueryDUnitTest;
 import org.apache.geode.cache.query.internal.cq.CqService;
 import org.apache.geode.cache.server.CacheServer;
@@ -36,17 +60,15 @@ import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.management.internal.JmxManagerLocatorRequest;
 import org.apache.geode.management.internal.MBeanJMXAdapter;
 import org.apache.geode.management.internal.SystemManagementService;
-import org.apache.geode.test.dunit.*;
-
-import javax.management.*;
-import java.io.File;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.Collections;
-import java.util.Properties;
-
-import static org.apache.geode.distributed.ConfigurationProperties.*;
+import org.apache.geode.test.dunit.Assert;
+import org.apache.geode.test.dunit.Host;
+import org.apache.geode.test.dunit.LogWriterUtils;
+import org.apache.geode.test.dunit.NetworkUtils;
+import org.apache.geode.test.dunit.SerializableRunnable;
+import org.apache.geode.test.dunit.VM;
+import org.apache.geode.test.dunit.Wait;
+import org.apache.geode.test.dunit.WaitCriterion;
+import org.apache.geode.test.junit.categories.DistributedTest;
 
 /**
  * Cache Server related management test cases
@@ -87,9 +109,6 @@ public class CacheServerManagementDUnitTest extends LocatorTestBase {
     disconnectAllFromDS();
   }
 
-  /**
-   * @throws Exception
-   */
   @Test
   public void testCacheServerMBean() throws Exception {
     final Host host = Host.getHost(0);
@@ -146,7 +165,6 @@ public class CacheServerManagementDUnitTest extends LocatorTestBase {
   /**
    * Test for client server connection related management artifacts like notifications
    *
-   * @throws Exception
    */
 
   @Test
@@ -185,7 +203,6 @@ public class CacheServerManagementDUnitTest extends LocatorTestBase {
    * Thats why used service.getLocalManager().runManagementTaskAdhoc() to make node ready for
    * federation when manager node comes up
    *
-   * @throws Exception
    */
 
   // renable when bug 46138
@@ -219,7 +236,7 @@ public class CacheServerManagementDUnitTest extends LocatorTestBase {
 
     // Step 4:
     JmxManagerLocatorRequest.send(locator.getHost().getHostName(), locatorPort,
-        CONNECT_LOCATOR_TIMEOUT_MS, Collections.<String, String>emptyMap());
+        CONNECT_LOCATOR_TIMEOUT_MS, new Properties());
 
     // Step 5:
     locator.invoke("Check locator", () -> {
@@ -292,7 +309,6 @@ public class CacheServerManagementDUnitTest extends LocatorTestBase {
   /**
    * Verify the Cache Server details
    *
-   * @param vm
    */
   @SuppressWarnings("serial")
   protected void addClientNotifListener(final VM vm, final int serverPort) throws Exception {
@@ -332,7 +348,6 @@ public class CacheServerManagementDUnitTest extends LocatorTestBase {
   /**
    * Verify the closed CQ which is closed from Managing Node
    *
-   * @param vm
    */
   @SuppressWarnings("serial")
   protected void verifyIndex(final VM vm, final int serverPort) throws Exception {
@@ -375,7 +390,6 @@ public class CacheServerManagementDUnitTest extends LocatorTestBase {
   /**
    * Verify the closed CQ which is closed from Managing Node
    *
-   * @param vm
    */
   @SuppressWarnings("serial")
   protected void verifyClosedCQ(final VM vm) throws Exception {
@@ -394,7 +408,6 @@ public class CacheServerManagementDUnitTest extends LocatorTestBase {
   /**
    * Verify the Cache Server details
    *
-   * @param vm
    */
   @SuppressWarnings("serial")
   protected void verifyCacheServer(final VM vm, final int serverPort) throws Exception {
@@ -442,7 +455,6 @@ public class CacheServerManagementDUnitTest extends LocatorTestBase {
   /**
    * Verify the Cache Server details
    *
-   * @param vm
    */
   @SuppressWarnings("serial")
   protected void verifyCacheServerRemote(final VM vm, final DistributedMember serverMember,

@@ -14,6 +14,10 @@
  */
 package org.apache.geode.management.internal.cli;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+
 import org.apache.commons.lang.StringUtils;
 import org.springframework.shell.converters.ArrayConverter;
 import org.springframework.shell.core.CommandMarker;
@@ -22,13 +26,6 @@ import org.springframework.shell.core.Converter;
 import org.springframework.shell.core.Parser;
 import org.springframework.shell.core.SimpleParser;
 import org.springframework.shell.event.ParseResult;
-
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Implementation of the {@link Parser} interface for GemFire SHell (gfsh) requirements.
@@ -49,36 +46,18 @@ public class GfshParser extends SimpleParser {
   public static final String J_ARGUMENT_DELIMITER = "" + ASCII_UNIT_SEPARATOR;
   public static final String J_OPTION_CONTEXT = "splittingRegex=" + J_ARGUMENT_DELIMITER;
 
-  // pattern used to split the user input with whitespaces except those in quotes (single or double)
-  private static Pattern PATTERN =
-      Pattern.compile("\\s*([^\\s']*)'([^']*)'\\s+|\\s*([^\\s\"]*)\"([^\"]*)\"\\s+|\\S+");
-
-
-  private CommandManager commandManager = null;
-
-  public GfshParser() {
-    this(null);
-  }
-
-  public GfshParser(Properties cacheProperties) {
-    this.commandManager = new CommandManager(cacheProperties);
-
+  public GfshParser(CommandManager commandManager) {
     for (CommandMarker command : commandManager.getCommandMarkers()) {
       add(command);
     }
 
-    List<Converter<?>> converters = commandManager.getConverters();
-    for (Converter<?> converter : converters) {
+    for (Converter<?> converter : commandManager.getConverters()) {
       if (converter.getClass().isAssignableFrom(ArrayConverter.class)) {
         ArrayConverter arrayConverter = (ArrayConverter) converter;
-        arrayConverter.setConverters(new HashSet<>(converters));
+        arrayConverter.setConverters(new HashSet<>(commandManager.getConverters()));
       }
       add(converter);
     }
-  }
-
-  public CommandManager getCommandManager() {
-    return commandManager;
   }
 
   static String convertToSimpleParserInput(String userInput) {
@@ -86,16 +65,53 @@ public class GfshParser extends SimpleParser {
     return getSimpleParserInputFromTokens(inputTokens);
   }
 
-  static List<String> splitUserInput(String userInput) {
-    // make sure the userInput ends with a white space, because our regex expects the the quotes
-    // ends with at least one white space. We will trim the results after we found it.
-    userInput = userInput + " ";
-    // first split with whitespaces except in quotes
-    List<String> splitWithWhiteSpaces = new ArrayList<>();
-    Matcher m = PATTERN.matcher(userInput);
-    while (m.find()) {
-      splitWithWhiteSpaces.add(m.group().trim());
+  /**
+   * it's assumed that the quoted string should not have escaped quotes inside it.
+   */
+  public static List<String> splitWithWhiteSpace(String input) {
+    List<String> tokensList = new ArrayList<>();
+    StringBuilder token = new StringBuilder();
+    char insideQuoteOf = Character.MIN_VALUE;
+
+    for (char c : input.toCharArray()) {
+      if (Character.isWhitespace(c)) {
+        // if we are in the quotes
+        if (insideQuoteOf != Character.MIN_VALUE) {
+          token.append(c);
+        }
+        // if we are not in the quotes, terminate this token and add it to the list
+        else {
+          if (token.length() > 0) {
+            tokensList.add(token.toString());
+          }
+          token = new StringBuilder();
+        }
+      }
+      // not a white space
+      else {
+        token.append(c);
+        // if encountering a quote
+        if (c == '\'' || c == '\"') {
+          // if this is the beginning of quote
+          if (insideQuoteOf == Character.MIN_VALUE) {
+            insideQuoteOf = c;
+          }
+          // this is the ending of quote
+          else if (insideQuoteOf == c) {
+            insideQuoteOf = Character.MIN_VALUE;
+          }
+        }
+      }
     }
+    if (token.length() > 0) {
+      tokensList.add(token.toString());
+    }
+    return tokensList;
+  }
+
+  static List<String> splitUserInput(String userInput) {
+    // first split with whitespaces except in quotes
+    List<String> splitWithWhiteSpaces = splitWithWhiteSpace(userInput);
 
     List<String> furtherSplitWithEquals = new ArrayList<>();
     for (String token : splitWithWhiteSpaces) {
@@ -201,9 +217,7 @@ public class GfshParser extends SimpleParser {
    *
    * With these limitations, we will need to overwrite this command with some customization
    *
-   * @param userInput
    * @param cursor this input is ignored, we always move the cursor to the end of the userInput
-   * @param candidates
    * @return the cursor point at which the candidate string will begin, this is important if you
    *         have only one candidate, cause tabbing will use it to complete the string for you.
    */
@@ -294,23 +308,10 @@ public class GfshParser extends SimpleParser {
     return cursor;
   }
 
-  // convenience method for testing
-  int completeAdvanced(String userInput, final List<Completion> candidates) {
-    return completeAdvanced(userInput, userInput.length(), candidates);
-  }
-
-  /**
-   * test only used to demonstrate what's the super class's completeAdvanced behavior
-   *
-   */
-  int completeSuperAdvanced(String userInput, final List<Completion> candidates) {
-    return super.completeAdvanced(userInput, userInput.length(), candidates);
-  }
-
   /**
    * @param buffer use the buffer to find the completion candidates
    *
-   *        Note the cursor maynot be the size the buffer
+   *        Note the cursor may not be the size the buffer
    */
   private List<Completion> getCandidates(String buffer) {
     List<Completion> candidates = new ArrayList<>();
